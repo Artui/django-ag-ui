@@ -1,5 +1,9 @@
 """Django ↔ Pydantic-AI ↔ AG-UI integration."""
 
+from django_ag_ui.agent.agent_factory import build_agent
+from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
+from django_ag_ui.agent.urls import get_urls
 from django_ag_ui.conf import AppSettings, get_settings
 from django_ag_ui.constants import (
     X_CATEGORY_KEY,
@@ -20,9 +24,11 @@ from django_ag_ui.registry.types.tool_spec import ToolSpec
 from django_ag_ui.version import __version__
 
 __all__ = [
+    "DEFAULT_SYSTEM_PROMPT",
     "AppSettings",
     "AuditEvent",
     "AuditLogger",
+    "DjangoAGUIView",
     "LoggingAuditLogger",
     "NullAuditLogger",
     "ToolBinding",
@@ -32,8 +38,10 @@ __all__ = [
     "X_CATEGORY_KEY",
     "X_DESTRUCTIVE_KEY",
     "__version__",
+    "build_agent",
     "build_input_schema",
     "get_settings",
+    "get_urls",
     "needs_confirmation",
     "resolve_audit_logger",
     "tool",
