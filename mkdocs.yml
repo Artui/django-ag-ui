@@ -73,3 +73,8 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Installation: installation.md
+  - Quickstart: quickstart.md
+  - Configuration: configuration.md
+  - Key concepts: concepts.md
+  - API reference: api.md
