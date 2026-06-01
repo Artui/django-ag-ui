@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://artui.github.io/django-ag-ui/</loc>
+         <lastmod>2026-06-01</lastmod>
+    </url>
+    <url>
+         <loc>https://artui.github.io/django-ag-ui/api/</loc>
+         <lastmod>2026-06-01</lastmod>
+    </url>
+    <url>
+         <loc>https://artui.github.io/django-ag-ui/concepts/</loc>
+         <lastmod>2026-06-01</lastmod>
+    </url>
+    <url>
+         <loc>https://artui.github.io/django-ag-ui/configuration/</loc>
+         <lastmod>2026-06-01</lastmod>
+    </url>
+    <url>
+         <loc>https://artui.github.io/django-ag-ui/installation/</loc>
+         <lastmod>2026-06-01</lastmod>
+    </url>
+    <url>
+         <loc>https://artui.github.io/django-ag-ui/quickstart/</loc>
+         <lastmod>2026-06-01</lastmod>
+    </url>
+</urlset>
