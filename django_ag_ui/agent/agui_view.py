@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
+from asgiref.sync import markcoroutinefunction
 from django.core.exceptions import ImproperlyConfigured
 from django.http import (
     HttpRequest,
@@ -64,6 +65,12 @@ class DjangoAGUIView:
         # callable. AG-UI clients authenticate via headers/session and post
         # JSON; CSRF is the consumer's call. Default exempt, overridable.
         self.csrf_exempt = csrf_exempt
+        # Mark this callable instance as a coroutine function so Django's
+        # request handler awaits ``__call__`` when the view is mounted. Without
+        # it, ``asgiref.iscoroutinefunction(instance)`` is False and the handler
+        # treats the async view as sync, returning an unawaited coroutine.
+        # (Cast: the helper is typed for functions but runtime-marks any object.)
+        markcoroutinefunction(cast("Any", self))
 
     async def __call__(self, request: HttpRequest) -> HttpResponseBase:
         if request.method != "POST":

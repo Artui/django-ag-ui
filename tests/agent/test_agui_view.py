@@ -63,6 +63,14 @@ async def test_streams_ag_ui_events() -> None:
     assert "double" in body
 
 
+def test_view_is_marked_as_a_coroutine_function() -> None:
+    # Django's handler must detect __call__ as async and await it when the
+    # view is mounted; otherwise it returns an unawaited coroutine.
+    from asgiref.sync import iscoroutinefunction
+
+    assert iscoroutinefunction(DjangoAGUIView(_registry(), model=TestModel()))
+
+
 async def test_non_post_is_rejected() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
     request = RequestFactory().get("/agent/")
