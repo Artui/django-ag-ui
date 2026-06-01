@@ -12,6 +12,13 @@ from django_ag_ui.constants import (
     X_DESTRUCTIVE_KEY,
     ToolCategory,
 )
+from django_ag_ui.persistence.django_session_conversation_store import (
+    DjangoSessionConversationStore,
+)
+from django_ag_ui.persistence.null_conversation_store import NullConversationStore
+from django_ag_ui.persistence.resolve_conversation_store import resolve_conversation_store
+from django_ag_ui.persistence.types.conversation import Conversation
+from django_ag_ui.persistence.types.conversation_store import ConversationStore
 from django_ag_ui.policy.audit.logging_audit_logger import LoggingAuditLogger
 from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
 from django_ag_ui.policy.audit.resolve_audit_logger import resolve_audit_logger
@@ -32,9 +39,13 @@ __all__ = [
     "AppSettings",
     "AuditEvent",
     "AuditLogger",
+    "Conversation",
+    "ConversationStore",
     "DjangoAGUIView",
+    "DjangoSessionConversationStore",
     "LoggingAuditLogger",
     "NullAuditLogger",
+    "NullConversationStore",
     "ToolBinding",
     "ToolCategory",
     "ToolRegistry",
@@ -48,5 +59,6 @@ __all__ = [
     "get_urls",
     "needs_confirmation",
     "resolve_audit_logger",
+    "resolve_conversation_store",
     "tool",
 ]

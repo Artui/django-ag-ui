@@ -166,3 +166,31 @@ async def test_build_agent_applies_configured_toolsets_capabilities_and_settings
     view = DjangoAGUIView(_registry(), model=TestModel())
     agent = view._build_agent()
     assert isinstance(agent, Agent)
+
+
+@override_settings(
+    DJANGO_AG_UI={
+        "CONVERSATION_STORE": (
+            "django_ag_ui.persistence.django_session_conversation_store"
+            ".DjangoSessionConversationStore"
+        ),
+    },
+)
+async def test_conversation_is_persisted_when_a_store_is_configured() -> None:
+    from django.contrib.sessions.backends.signed_cookies import SessionStore
+
+    from django_ag_ui.persistence.django_session_conversation_store import (
+        DjangoSessionConversationStore,
+    )
+
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    request = _post(_run_input("double 5"))
+    request.session = SessionStore()
+    response = await view(request)
+    await _drain(response)
+
+    # The run's full message history was mirrored into the session store.
+    loaded = await DjangoSessionConversationStore().load("t1", request=request)
+    assert loaded is not None
+    assert loaded.thread_id == "t1"
+    assert len(loaded.messages) >= 1

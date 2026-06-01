@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
@@ -20,6 +21,11 @@ from django_ag_ui.agent.resolve_dotted_instances import resolve_dotted_instances
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.agent_config import AgentConfig
 from django_ag_ui.conf import get_settings
+from django_ag_ui.persistence.null_conversation_store import NullConversationStore
+from django_ag_ui.persistence.resolve_conversation_store import resolve_conversation_store
+from django_ag_ui.persistence.types.conversation import Conversation
+from django_ag_ui.persistence.types.conversation_store import ConversationStore
+from django_ag_ui.persistence.utils import owner_id_for
 from django_ag_ui.policy.audit.resolve_audit_logger import resolve_audit_logger
 from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
 from django_ag_ui.registry.tool_registry import ToolRegistry
@@ -72,11 +78,40 @@ class DjangoAGUIView:
             )
         agent = self._build_agent()
         adapter = AGUIAdapter(agent, run_input)
-        stream = adapter.encode_stream(adapter.run_stream())
+        on_complete = self._conversation_saver(run_input, request)
+        stream = adapter.encode_stream(adapter.run_stream(on_complete=on_complete))
         response = StreamingHttpResponse(stream, content_type="text/event-stream")
         response["Cache-Control"] = "no-cache"
         response["X-Accel-Buffering"] = "no"
         return response
+
+    def _conversation_saver(
+        self,
+        run_input: Any,
+        request: HttpRequest,
+    ) -> Callable[[Any], Awaitable[None]] | None:
+        """Build an ``on_complete`` callback that persists the conversation.
+
+        Returns ``None`` when persistence is off (the default
+        ``NullConversationStore``), so the stateless path adds no overhead.
+        Otherwise the callback mirrors the run's full message history into the
+        configured store when the run finishes streaming.
+        """
+        store: ConversationStore = resolve_conversation_store(get_settings().conversation_store)
+        if isinstance(store, NullConversationStore):
+            return None
+        thread_id: str = run_input.thread_id
+        owner_id = owner_id_for(request)
+
+        async def _save(result: Any) -> None:
+            conversation = Conversation(
+                thread_id=thread_id,
+                messages=AGUIAdapter.dump_messages(result.all_messages()),
+                owner_id=owner_id,
+            )
+            await store.save(conversation, request=request)
+
+        return _save
 
     def _build_agent(self) -> Agent[None, Any]:
         """Construct the per-request agent.
