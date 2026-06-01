@@ -45,7 +45,34 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make release-publish-finalize
 
-      - name: Deploy docs to gh-pages
+      # Embed a coverage-badge JSON into the docs build so `mkdocs gh-deploy`
+      # carries it to the gh-pages root, where the README's shields.io endpoint
+      # badge reads it. `release-publish-prepare`'s pytest run wrote .coverage
+      # to the workspace root.
+      - name: Render coverage badge for the docs site
+        if: steps.prepare.outputs.released == 'true' && hashFiles('mkdocs.yml') != ''
+        run: |
+          set -euo pipefail
+          uv run coverage xml -o coverage.xml
+          python - <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+
+          pct = round(float(ET.parse("coverage.xml").getroot().attrib["line-rate"]) * 100, 1)
+          color = (
+              "brightgreen" if pct >= 95
+              else "green" if pct >= 85
+              else "yellow" if pct >= 70
+              else "red"
+          )
+          payload = {"schemaVersion": 1, "label": "coverage", "message": f"{pct}%", "color": color}
+          with open("docs/coverage.json", "w") as fh:
+              json.dump(payload, fh)
+              fh.write("\n")
+          print(json.dumps(payload))
+          PY
+
+      - name: Deploy docs + coverage badge to gh-pages
         if: steps.prepare.outputs.released == 'true' && hashFiles('mkdocs.yml') != ''
         run: |
           git config user.name 'github-actions[bot]'

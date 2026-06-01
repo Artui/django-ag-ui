@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-06-01
+
+### Fixed
+- `build_input_schema` derives parameter types from raw annotations
+  (`inspect.signature(eval_str=True)`) instead of `typing.get_type_hints`, so
+  the JSON Schema is identical across Python versions — Python ≤ 3.10 no longer
+  adds a spurious `nullable: true` to `None`-defaulted parameters.
+
+### Changed
+- Expanded README (full badge set + quickstart); the release now publishes a
+  coverage badge to `gh-pages` for the README's coverage shield.
+
 ## [0.1.0] — 2026-06-01
 
 ### Added
@@ -24,5 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Artui/django-ag-ui/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Artui/django-ag-ui/releases/tag/v0.1.0

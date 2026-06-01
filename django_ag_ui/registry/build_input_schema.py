@@ -28,8 +28,13 @@ def build_input_schema(
     extensions through verbatim, and frontends read ``x-destructive`` to
     gate execution behind a confirmation modal.
     """
-    sig = inspect.signature(fn)
-    hints = typing.get_type_hints(fn)
+    # `eval_str=True` resolves string annotations (PEP 563 / forward refs)
+    # while preserving them verbatim. Unlike `typing.get_type_hints`, it does
+    # NOT apply the implicit-`Optional` wrapping that Python <= 3.10 adds to a
+    # parameter whose default is `None`, so the derived schema is identical
+    # across Python versions (e.g. `anything: Any = None` stays `Any`, not
+    # `Any | None`).
+    sig = inspect.signature(fn, eval_str=True)
     properties: dict[str, Any] = {}
     required: list[str] = []
     for name, param in sig.parameters.items():
@@ -38,7 +43,9 @@ def build_input_schema(
             inspect.Parameter.VAR_KEYWORD,
         ):
             continue
-        properties[name] = _hint_to_schema(hints.get(name, Any))
+        annotation = param.annotation
+        hint = Any if annotation is inspect.Parameter.empty else annotation
+        properties[name] = _hint_to_schema(hint)
         if param.default is inspect.Parameter.empty:
             required.append(name)
     schema: dict[str, Any] = {
@@ -55,6 +62,10 @@ def build_input_schema(
 
 
 def _hint_to_schema(hint: Any) -> dict[str, Any]:
+    # PEP 484: a bare ``None`` annotation means ``type(None)``. `eval_str`
+    # leaves it as the ``None`` object (unlike `get_type_hints`), so normalise.
+    if hint is None:
+        hint = type(None)
     if hint is Any:
         return {}
     origin = typing.get_origin(hint)
