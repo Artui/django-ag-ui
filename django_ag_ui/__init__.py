@@ -15,6 +15,7 @@ from django_ag_ui.constants import (
 from django_ag_ui.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
 )
+from django_ag_ui.persistence.model_conversation_store import ModelConversationStore
 from django_ag_ui.persistence.null_conversation_store import NullConversationStore
 from django_ag_ui.persistence.resolve_conversation_store import resolve_conversation_store
 from django_ag_ui.persistence.types.conversation import Conversation
@@ -44,6 +45,7 @@ __all__ = [
     "DjangoAGUIView",
     "DjangoSessionConversationStore",
     "LoggingAuditLogger",
+    "ModelConversationStore",
     "NullAuditLogger",
     "NullConversationStore",
     "ToolBinding",
