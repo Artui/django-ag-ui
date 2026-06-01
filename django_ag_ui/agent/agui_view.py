@@ -11,6 +11,7 @@ from django.http import (
     StreamingHttpResponse,
 )
 from django.http.response import HttpResponseBase
+from django.utils.module_loading import import_string
 from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.ui.ag_ui import AGUIAdapter
@@ -76,7 +77,7 @@ class DjangoAGUIView:
                 {"error": "invalid RunAgentInput", "error_count": error.error_count()},
                 status=400,
             )
-        agent = self._build_agent()
+        agent = self._build_agent(request)
         adapter = AGUIAdapter(agent, run_input)
         on_complete = self._conversation_saver(run_input, request)
         stream = adapter.encode_stream(adapter.run_stream(on_complete=on_complete))
@@ -113,18 +114,21 @@ class DjangoAGUIView:
 
         return _save
 
-    def _build_agent(self) -> Agent[None, Any]:
+    def _build_agent(self, request: HttpRequest) -> Agent[None, Any]:
         """Construct the per-request agent.
 
         When ``DJANGO_AG_UI['AGENT_FACTORY']`` is set, that callable takes full
         control of construction (the escape hatch). Otherwise the built-in
         :func:`build_agent` wires the registry tools, audited, plus any
-        configured ``MODEL_SETTINGS`` / ``RETRIES`` / ``TOOLSETS``.
+        configured ``MODEL_SETTINGS`` / ``RETRIES`` / ``TOOLSETS`` /
+        ``CAPABILITIES`` and the per-request ``DRF_MCP_SERVER`` toolset.
         """
         settings = get_settings()
         factory = resolve_agent_factory(settings.agent_factory)
         if factory is not None:
             return factory(self._registry, settings)
+        toolsets = resolve_dotted_instances(settings.toolsets)
+        toolsets += self._drf_mcp_toolsets(settings.drf_mcp_server, request)
         return build_agent(
             self._registry,
             AgentConfig(
@@ -133,10 +137,23 @@ class DjangoAGUIView:
                 audit_logger=self._resolve_audit_logger(),
                 model_settings=settings.model_settings,
                 retries=settings.retries,
-                toolsets=resolve_dotted_instances(settings.toolsets),
+                toolsets=toolsets,
                 capabilities=resolve_dotted_instances(settings.capabilities),
             ),
         )
+
+    def _drf_mcp_toolsets(self, dotted_path: str | None, request: HttpRequest) -> list[Any]:
+        """Build the per-request drf-mcp toolset, or ``[]`` when not configured.
+
+        Imported lazily so ``rest_framework_mcp`` stays an optional extra; the
+        toolset carries ``request`` so the agent acts as the logged-in user.
+        """
+        if dotted_path is None:
+            return []
+        from django_ag_ui.integrations.drf_mcp import DrfMcpToolset
+
+        server = import_string(dotted_path)
+        return [DrfMcpToolset(server, request)]
 
     def _resolve_model(self) -> Any:
         if self._model is not None:

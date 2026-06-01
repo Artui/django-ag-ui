@@ -17,6 +17,7 @@ def test_defaults_when_unconfigured() -> None:
     assert s.toolsets == ()
     assert s.capabilities == ()
     assert s.conversation_store is None
+    assert s.drf_mcp_server is None
 
 
 @override_settings(
@@ -33,6 +34,7 @@ def test_defaults_when_unconfigured() -> None:
         "CONVERSATION_STORE": (
             "django_ag_ui.persistence.null_conversation_store.NullConversationStore"
         ),
+        "DRF_MCP_SERVER": "myapp.mcp.server",
     },
 )
 def test_reads_from_settings_dict() -> None:
@@ -48,6 +50,7 @@ def test_reads_from_settings_dict() -> None:
     assert s.capabilities == ("tests.agent.factories.make_toolset",)
     assert s.conversation_store is not None
     assert s.conversation_store.endswith("NullConversationStore")
+    assert s.drf_mcp_server == "myapp.mcp.server"
 
 
 @override_settings(DJANGO_AG_UI=None)

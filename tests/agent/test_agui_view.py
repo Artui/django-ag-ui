@@ -164,7 +164,7 @@ async def test_build_agent_applies_configured_toolsets_capabilities_and_settings
     from pydantic_ai import Agent
 
     view = DjangoAGUIView(_registry(), model=TestModel())
-    agent = view._build_agent()
+    agent = view._build_agent(RequestFactory().post("/agent/"))
     assert isinstance(agent, Agent)
 
 
@@ -194,3 +194,18 @@ async def test_conversation_is_persisted_when_a_store_is_configured() -> None:
     assert loaded is not None
     assert loaded.thread_id == "t1"
     assert len(loaded.messages) >= 1
+
+
+async def test_drf_mcp_toolset_built_per_request_when_configured() -> None:
+    from django_ag_ui.integrations.drf_mcp import DrfMcpToolset
+
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    request = RequestFactory().post("/agent/")
+    toolsets = view._drf_mcp_toolsets("tests.integrations.drf_server.server", request)
+    assert len(toolsets) == 1
+    assert isinstance(toolsets[0], DrfMcpToolset)
+
+
+async def test_no_drf_mcp_toolset_without_the_setting() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    assert view._drf_mcp_toolsets(None, RequestFactory().post("/agent/")) == []

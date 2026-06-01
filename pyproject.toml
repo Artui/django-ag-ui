@@ -40,6 +40,11 @@ dependencies = [
     "pydantic-ai[ag-ui]>=1.0",
 ]
 
+[project.optional-dependencies]
+# In-process bridge that exposes a drf-mcp-server tool registry as a
+# Pydantic-AI toolset (the agent calls DRF tools without a network hop).
+drf-mcp = ["djangorestframework-mcp-server>=0.5"]
+
 [project.urls]
 Homepage = "https://github.com/Artui/django-ag-ui"
 Repository = "https://github.com/Artui/django-ag-ui"
@@ -64,6 +69,8 @@ dev = [
     "httpx>=0.27",
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
+    # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
+    "djangorestframework-mcp-server>=0.5",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -105,6 +112,9 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[tool.uv.sources]
+djangorestframework-mcp-server = { path = "../djangorestframework-mcp-server", editable = true }
 
 [tool.ty.environment]
 root = ["./django_ag_ui"]

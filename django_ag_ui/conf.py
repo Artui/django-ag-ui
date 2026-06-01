@@ -60,6 +60,11 @@ class AppSettings:
     """Dotted path to a ``ConversationStore`` for server-side persistence.
     ``None`` keeps the server stateless (the default ``NullConversationStore``)."""
 
+    drf_mcp_server: str | None
+    """Dotted path to a ``drf-mcp-server`` ``MCPServer`` instance whose tools
+    are exposed to the agent in-process (requires the ``[drf-mcp]`` extra).
+    ``None`` disables the bridge."""
+
 
 def get_settings() -> AppSettings:
     """Read the active ``DJANGO_AG_UI`` settings dict into an ``AppSettings``."""
@@ -75,6 +80,7 @@ def get_settings() -> AppSettings:
         toolsets=tuple(raw.get("TOOLSETS", ()) or ()),
         capabilities=tuple(raw.get("CAPABILITIES", ()) or ()),
         conversation_store=raw.get("CONVERSATION_STORE"),
+        drf_mcp_server=raw.get("DRF_MCP_SERVER"),
     )
 
 
