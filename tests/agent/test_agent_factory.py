@@ -5,6 +5,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agent_factory import build_agent
+from django_ag_ui.agent.types.agent_config import AgentConfig
 from django_ag_ui.policy.audit.types.audit_event import AuditEvent
 from django_ag_ui.registry.decorator import tool
 from django_ag_ui.registry.tool_registry import ToolRegistry
@@ -26,7 +27,30 @@ def test_build_agent_returns_agent_with_registry_tools() -> None:
         """Double a number."""
         return n * 2
 
-    agent = build_agent(reg, model=TestModel())
+    agent = build_agent(reg, AgentConfig(model=TestModel()))
+    assert isinstance(agent, Agent)
+
+
+def test_build_agent_accepts_model_settings_retries_toolsets_capabilities() -> None:
+    from pydantic_ai.toolsets import FunctionToolset
+
+    reg = ToolRegistry()
+
+    @tool(reg)
+    def double(n: int) -> int:
+        """Double a number."""
+        return n * 2
+
+    agent = build_agent(
+        reg,
+        AgentConfig(
+            model=TestModel(),
+            model_settings={"temperature": 0.1},
+            retries=2,
+            toolsets=[FunctionToolset()],
+            capabilities=[object()],
+        ),
+    )
     assert isinstance(agent, Agent)
 
 
@@ -39,7 +63,7 @@ async def test_audited_sync_tool_records_success() -> None:
         return n * 2
 
     audit = _CapturingLogger()
-    agent = build_agent(reg, model=TestModel(), audit_logger=audit)
+    agent = build_agent(reg, AgentConfig(model=TestModel(), audit_logger=audit))
     await agent.run("double 3")
 
     assert audit.events, "expected at least one audited call"
@@ -58,7 +82,7 @@ async def test_audited_sync_tool_records_failure() -> None:
         raise ValueError("kaboom")
 
     audit = _CapturingLogger()
-    agent = build_agent(reg, model=TestModel(), audit_logger=audit)
+    agent = build_agent(reg, AgentConfig(model=TestModel(), audit_logger=audit))
     with pytest.raises(ValueError, match="kaboom"):
         await agent.run("call boom with 1")
 
@@ -76,7 +100,7 @@ async def test_audited_async_tool_records_success() -> None:
         return f"value:{label}"
 
     audit = _CapturingLogger()
-    agent = build_agent(reg, model=TestModel(), audit_logger=audit)
+    agent = build_agent(reg, AgentConfig(model=TestModel(), audit_logger=audit))
     await agent.run("afetch x")
 
     successes = [e for e in audit.events if e.success and e.tool_name == "afetch"]
@@ -92,7 +116,7 @@ async def test_audited_async_tool_records_failure() -> None:
         raise RuntimeError("async kaboom")
 
     audit = _CapturingLogger()
-    agent = build_agent(reg, model=TestModel(), audit_logger=audit)
+    agent = build_agent(reg, AgentConfig(model=TestModel(), audit_logger=audit))
     with pytest.raises(RuntimeError, match="async kaboom"):
         await agent.run("aboom x")
 
@@ -110,6 +134,6 @@ async def test_no_audit_logger_is_a_noop_default() -> None:
         return n * 2
 
     # No audit_logger → NullAuditLogger; run must still succeed.
-    agent = build_agent(reg, model=TestModel())
+    agent = build_agent(reg, AgentConfig(model=TestModel()))
     result = await agent.run("double 4")
     assert result.output is not None

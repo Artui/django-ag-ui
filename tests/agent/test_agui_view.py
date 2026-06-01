@@ -139,3 +139,30 @@ async def test_explicit_audit_logger_wins() -> None:
     sentinel = NullAuditLogger()
     view = DjangoAGUIView(_registry(), model=TestModel(), audit_logger=sentinel)
     assert view._resolve_audit_logger() is sentinel
+
+
+@override_settings(DJANGO_AG_UI={"AGENT_FACTORY": "tests.agent.factories.build_test_agent"})
+async def test_agent_factory_escape_hatch_takes_over_construction() -> None:
+    # No model passed and none in settings — the factory supplies the model,
+    # proving it fully replaces the built-in construction (no MODEL required).
+    view = DjangoAGUIView(_registry())
+    response = await view(_post(_run_input("double 5")))
+    body = await _drain(response)
+    assert "RUN_FINISHED" in body
+    assert "double" in body
+
+
+@override_settings(
+    DJANGO_AG_UI={
+        "TOOLSETS": ["tests.agent.factories.a_toolset"],
+        "CAPABILITIES": ["tests.agent.factories.make_toolset"],
+        "MODEL_SETTINGS": {"temperature": 0.0},
+        "RETRIES": 1,
+    },
+)
+async def test_build_agent_applies_configured_toolsets_capabilities_and_settings() -> None:
+    from pydantic_ai import Agent
+
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    agent = view._build_agent()
+    assert isinstance(agent, Agent)

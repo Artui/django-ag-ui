@@ -11,10 +11,14 @@ from django.http import (
 )
 from django.http.response import HttpResponseBase
 from pydantic import ValidationError
+from pydantic_ai import Agent
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_factory import build_agent
+from django_ag_ui.agent.resolve_agent_factory import resolve_agent_factory
+from django_ag_ui.agent.resolve_dotted_instances import resolve_dotted_instances
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
+from django_ag_ui.agent.types.agent_config import AgentConfig
 from django_ag_ui.conf import get_settings
 from django_ag_ui.policy.audit.resolve_audit_logger import resolve_audit_logger
 from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
@@ -66,18 +70,38 @@ class DjangoAGUIView:
                 {"error": "invalid RunAgentInput", "error_count": error.error_count()},
                 status=400,
             )
-        agent = build_agent(
-            self._registry,
-            model=self._resolve_model(),
-            instructions=self._resolve_instructions(),
-            audit_logger=self._resolve_audit_logger(),
-        )
+        agent = self._build_agent()
         adapter = AGUIAdapter(agent, run_input)
         stream = adapter.encode_stream(adapter.run_stream())
         response = StreamingHttpResponse(stream, content_type="text/event-stream")
         response["Cache-Control"] = "no-cache"
         response["X-Accel-Buffering"] = "no"
         return response
+
+    def _build_agent(self) -> Agent[None, Any]:
+        """Construct the per-request agent.
+
+        When ``DJANGO_AG_UI['AGENT_FACTORY']`` is set, that callable takes full
+        control of construction (the escape hatch). Otherwise the built-in
+        :func:`build_agent` wires the registry tools, audited, plus any
+        configured ``MODEL_SETTINGS`` / ``RETRIES`` / ``TOOLSETS``.
+        """
+        settings = get_settings()
+        factory = resolve_agent_factory(settings.agent_factory)
+        if factory is not None:
+            return factory(self._registry, settings)
+        return build_agent(
+            self._registry,
+            AgentConfig(
+                model=self._resolve_model(),
+                instructions=self._resolve_instructions(),
+                audit_logger=self._resolve_audit_logger(),
+                model_settings=settings.model_settings,
+                retries=settings.retries,
+                toolsets=resolve_dotted_instances(settings.toolsets),
+                capabilities=resolve_dotted_instances(settings.capabilities),
+            ),
+        )
 
     def _resolve_model(self) -> Any:
         if self._model is not None:

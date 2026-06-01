@@ -11,6 +11,12 @@ def test_defaults_when_unconfigured() -> None:
     assert s.auto_confirm is False
     assert s.audit_logger is None
     assert s.system_prompt is None
+    assert s.model_settings is None
+    assert s.retries is None
+    assert s.agent_factory is None
+    assert s.toolsets == ()
+    assert s.capabilities == ()
+    assert s.conversation_store is None
 
 
 @override_settings(
@@ -19,6 +25,14 @@ def test_defaults_when_unconfigured() -> None:
         "AUTO_CONFIRM": True,
         "AUDIT_LOGGER": "django_ag_ui.policy.audit.null_audit_logger.NullAuditLogger",
         "SYSTEM_PROMPT": "Be terse.",
+        "MODEL_SETTINGS": {"temperature": 0.2, "max_tokens": 512},
+        "RETRIES": 3,
+        "AGENT_FACTORY": "tests.agent.factories.build_test_agent",
+        "TOOLSETS": ["tests.agent.factories.a_toolset"],
+        "CAPABILITIES": ["tests.agent.factories.make_toolset"],
+        "CONVERSATION_STORE": (
+            "django_ag_ui.persistence.null_conversation_store.NullConversationStore"
+        ),
     },
 )
 def test_reads_from_settings_dict() -> None:
@@ -27,6 +41,13 @@ def test_reads_from_settings_dict() -> None:
     assert s.auto_confirm is True
     assert s.audit_logger.endswith("NullAuditLogger")
     assert s.system_prompt == "Be terse."
+    assert s.model_settings == {"temperature": 0.2, "max_tokens": 512}
+    assert s.retries == 3
+    assert s.agent_factory == "tests.agent.factories.build_test_agent"
+    assert s.toolsets == ("tests.agent.factories.a_toolset",)
+    assert s.capabilities == ("tests.agent.factories.make_toolset",)
+    assert s.conversation_store is not None
+    assert s.conversation_store.endswith("NullConversationStore")
 
 
 @override_settings(DJANGO_AG_UI=None)

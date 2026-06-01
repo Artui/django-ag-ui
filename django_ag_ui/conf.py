@@ -32,6 +32,34 @@ class AppSettings:
     system_prompt: str | None
     """Optional override for the agent's system prompt."""
 
+    model_settings: dict[str, Any] | None
+    """Pydantic-AI ``ModelSettings`` (e.g. ``{"temperature": 0.2,
+    "max_tokens": 1024}``) passed straight to the ``Agent``. ``None`` leaves
+    the model defaults untouched."""
+
+    retries: int | None
+    """Default tool/output retry budget passed to the ``Agent``. ``None`` uses
+    Pydantic-AI's default."""
+
+    agent_factory: str | None
+    """Dotted path to a callable ``(registry, settings) -> Agent`` that fully
+    replaces the built-in factory — the escape hatch for arbitrary Pydantic-AI
+    configuration. ``None`` uses the built-in
+    :func:`~django_ag_ui.agent.agent_factory.build_agent`."""
+
+    toolsets: tuple[str, ...]
+    """Dotted paths to extra Pydantic-AI toolsets (or zero-arg callables
+    returning one) merged into the agent's catalog — e.g. an MCP-client
+    toolset or the ``drf-mcp`` bridge. Empty by default."""
+
+    capabilities: tuple[str, ...]
+    """Dotted paths to Pydantic-AI capabilities (or zero-arg callables
+    returning one) passed to the ``Agent``. Empty by default."""
+
+    conversation_store: str | None
+    """Dotted path to a ``ConversationStore`` for server-side persistence.
+    ``None`` keeps the server stateless (the default ``NullConversationStore``)."""
+
 
 def get_settings() -> AppSettings:
     """Read the active ``DJANGO_AG_UI`` settings dict into an ``AppSettings``."""
@@ -41,6 +69,12 @@ def get_settings() -> AppSettings:
         auto_confirm=bool(raw.get("AUTO_CONFIRM", False)),
         audit_logger=raw.get("AUDIT_LOGGER"),
         system_prompt=raw.get("SYSTEM_PROMPT"),
+        model_settings=raw.get("MODEL_SETTINGS"),
+        retries=raw.get("RETRIES"),
+        agent_factory=raw.get("AGENT_FACTORY"),
+        toolsets=tuple(raw.get("TOOLSETS", ()) or ()),
+        capabilities=tuple(raw.get("CAPABILITIES", ()) or ()),
+        conversation_store=raw.get("CONVERSATION_STORE"),
     )
 
 
