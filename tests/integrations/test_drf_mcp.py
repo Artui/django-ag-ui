@@ -4,6 +4,9 @@ import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.http import HttpRequest
 from django.test import RequestFactory
+from pydantic_ai import Agent
+from pydantic_ai.messages import ToolReturnPart
+from pydantic_ai.models.test import TestModel
 from rest_framework_mcp.constants import JsonRpcErrorCode
 from rest_framework_mcp.protocol.types.json_rpc_error import JsonRpcError
 
@@ -29,6 +32,27 @@ async def test_toolset_exposes_drf_tools_with_schemas() -> None:
     # the `additionalProperties` policy too (the old serializer-only path never
     # stamped it). `add` defaults to UnknownArguments.REJECT → a closed schema.
     assert schema["additionalProperties"] is False
+    # Advertised as an in-process function (not a deferred `external` call), so
+    # Pydantic-AI's run loop actually invokes our `call_tool`.
+    assert tool_def.kind == "function"
+
+
+@pytest.mark.django_db
+async def test_agent_run_executes_drf_tool_in_process() -> None:
+    # The real regression: drive a full agent run. With `kind="external"` the
+    # tool was deferred to the client and never executed (the run stalled); as a
+    # `function` tool Pydantic-AI runs it in-process and returns its result.
+    toolset = DrfMcpToolset(server, _request())
+    agent = Agent(TestModel(call_tools=["add"]), toolsets=[toolset])
+    result = await agent.run("add two numbers")
+    returns = [
+        part
+        for message in result.all_messages()
+        for part in getattr(message, "parts", [])
+        if isinstance(part, ToolReturnPart) and part.tool_name == "add"
+    ]
+    assert returns, "drf-mcp 'add' tool was deferred, not executed in-process"
+    assert "result" in returns[0].content
 
 
 async def test_loads_all_pages_from_tools_list(monkeypatch: pytest.MonkeyPatch) -> None:

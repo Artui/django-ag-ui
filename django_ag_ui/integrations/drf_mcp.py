@@ -18,6 +18,7 @@ not just the input serializer's fields.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from asgiref.sync import sync_to_async
@@ -73,7 +74,18 @@ class DrfMcpToolset(ExternalToolset[Any]):
         if not self._loaded:
             self.tool_defs = await sync_to_async(self._load_tool_defs)()
             self._loaded = True
-        return await super().get_tools(ctx)
+        tools = await super().get_tools(ctx)
+        # ExternalToolset stamps every tool ``kind="external"``, which Pydantic-AI
+        # *defers*: it yields the call to the client and ends the run, never
+        # invoking our ``call_tool``. But this bridge executes drf-mcp tools
+        # in-process (``call_tool`` → ``handle_tools_call_async``), so re-stamp
+        # them ``kind="function"`` to route the run loop into ``call_tool`` — which
+        # then emits a ``TOOL_CALL_RESULT`` and lets the model continue. Without
+        # this the tool is silently handed off and never runs.
+        return {
+            name: replace(tool, tool_def=replace(tool.tool_def, kind="function"))
+            for name, tool in tools.items()
+        }
 
     def _load_tool_defs(self) -> list[ToolDefinition]:
         """Page through drf-mcp's ``tools/list``, mapping each tool to a def.
