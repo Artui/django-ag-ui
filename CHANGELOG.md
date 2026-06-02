@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **drf-mcp tools are now actually executed in-process.** `DrfMcpToolset`
+  extended `ExternalToolset`, whose tools are `kind="external"` — Pydantic-AI
+  *defers* those: it yields the call to the client and ends the run, never
+  invoking the toolset's `call_tool`. So drf-mcp tool calls were handed off and
+  silently dropped (no `TOOL_CALL_RESULT`, the model never continued, and an
+  AG-UI client's pending indicator would hang). The toolset now advertises its
+  tools as `kind="function"`, so the run loop runs them via the per-user
+  `MCPCallContext` and streams a real `TOOL_CALL_RESULT`. Regression test drives
+  a full agent run, not just a direct `call_tool`.
+
 ## [0.2.1] — 2026-06-02
 
 ### Fixed
