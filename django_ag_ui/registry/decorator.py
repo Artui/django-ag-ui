@@ -18,12 +18,17 @@ def tool(
     description: str | None = None,
     destructive: bool = False,
     category: ToolCategory = ToolCategory.OTHER,
+    confirm: str | None = None,
+    summary: str | None = None,
 ) -> Callable[[F], F]:
     """Register the decorated callable on ``registry`` as a tool.
 
     The tool's name defaults to the function name; its description
     defaults to the first paragraph of the function's docstring. Both
-    can be overridden via the keyword arguments.
+    can be overridden via the keyword arguments. ``confirm`` supplies a
+    human-readable confirmation prompt for a destructive tool (surfaced as
+    ``x-confirm``); ``summary`` a short display label (surfaced as
+    ``x-summary``).
     """
 
     def _decorator(fn: F) -> F:
@@ -33,6 +38,8 @@ def tool(
             description=description if description is not None else _first_doc(fn),
             destructive=destructive,
             category=category,
+            confirm=confirm,
+            summary=summary,
         )
         registry.register(spec)
         return fn

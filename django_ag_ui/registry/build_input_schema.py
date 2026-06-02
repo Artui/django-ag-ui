@@ -6,7 +6,13 @@ import typing
 from collections.abc import Callable
 from typing import Any
 
-from django_ag_ui.constants import X_CATEGORY_KEY, X_DESTRUCTIVE_KEY, ToolCategory
+from django_ag_ui.constants import (
+    X_CATEGORY_KEY,
+    X_CONFIRM_KEY,
+    X_DESTRUCTIVE_KEY,
+    X_SUMMARY_KEY,
+    ToolCategory,
+)
 
 
 def build_input_schema(
@@ -14,6 +20,8 @@ def build_input_schema(
     *,
     destructive: bool = False,
     category: ToolCategory = ToolCategory.OTHER,
+    confirm: str | None = None,
+    summary: str | None = None,
 ) -> dict[str, Any]:
     """Derive a JSON Schema object from ``fn``'s parameters.
 
@@ -24,9 +32,10 @@ def build_input_schema(
     Schema.
 
     The ``destructive`` flag is stamped at the schema root as
-    ``x-destructive``; ``category`` as ``x-category``. AG-UI passes these
-    extensions through verbatim, and frontends read ``x-destructive`` to
-    gate execution behind a confirmation modal.
+    ``x-destructive``; ``category`` as ``x-category``; ``confirm`` (when
+    given) as ``x-confirm``. AG-UI passes these extensions through
+    verbatim, and frontends read ``x-destructive`` / ``x-confirm`` to gate
+    execution behind a confirmation step.
     """
     # `eval_str=True` resolves string annotations (PEP 563 / forward refs)
     # while preserving them verbatim. Unlike `typing.get_type_hints`, it does
@@ -56,6 +65,10 @@ def build_input_schema(
     }
     if destructive:
         schema[X_DESTRUCTIVE_KEY] = True
+    if confirm is not None:
+        schema[X_CONFIRM_KEY] = confirm
+    if summary is not None:
+        schema[X_SUMMARY_KEY] = summary
     if required:
         schema["required"] = required
     return schema

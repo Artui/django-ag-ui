@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import warnings
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from asgiref.sync import markcoroutinefunction
 from django.core.exceptions import ImproperlyConfigured
+from django.core.handlers.asgi import ASGIRequest
 from django.http import (
     HttpRequest,
     HttpResponseNotAllowed,
@@ -18,6 +20,7 @@ from pydantic_ai import Agent
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_factory import build_agent
+from django_ag_ui.agent.build_model import build_model
 from django_ag_ui.agent.resolve_agent_factory import resolve_agent_factory
 from django_ag_ui.agent.resolve_dotted_instances import resolve_dotted_instances
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
@@ -46,6 +49,13 @@ class DjangoAGUIView:
     project can mount several with independent registries. ``model``,
     ``instructions``, and ``audit_logger`` fall back to the ``DJANGO_AG_UI``
     settings when not passed explicitly (tests inject a ``TestModel``).
+
+    **Authentication is the host's responsibility.** Tools (and the ``drf-mcp``
+    bridge) act as ``request.user``; if your middleware hasn't authenticated the
+    request, that is ``AnonymousUser`` — a data-exposure footgun. Pass
+    ``require_authenticated=True`` to fail closed (401 for unauthenticated
+    requests), and/or a ``get_user(request)`` hook to establish the user (e.g.
+    from a token) before tools run.
     """
 
     def __init__(
@@ -56,11 +66,15 @@ class DjangoAGUIView:
         instructions: str | None = None,
         audit_logger: AuditLogger | None = None,
         csrf_exempt: bool = True,
+        require_authenticated: bool = False,
+        get_user: Callable[[HttpRequest], Any] | None = None,
     ) -> None:
         self._registry = registry
         self._model = model
         self._instructions = instructions
         self._audit_logger = audit_logger
+        self._require_authenticated = require_authenticated
+        self._get_user = get_user
         # Django's CsrfViewMiddleware reads this attribute off the view
         # callable. AG-UI clients authenticate via headers/session and post
         # JSON; CSRF is the consumer's call. Default exempt, overridable.
@@ -73,8 +87,11 @@ class DjangoAGUIView:
         markcoroutinefunction(cast("Any", self))
 
     async def __call__(self, request: HttpRequest) -> HttpResponseBase:
+        self._warn_if_not_asgi(request)
         if request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
+        if not self._authorize(request):
+            return JsonResponse({"error": "authentication required"}, status=401)
         try:
             run_input = AGUIAdapter.build_run_input(request.body)
         except ValidationError as error:
@@ -162,16 +179,57 @@ class DjangoAGUIView:
         server = import_string(dotted_path)
         return [DrfMcpToolset(server, request)]
 
+    def _authorize(self, request: HttpRequest) -> bool:
+        """Establish the user (via ``get_user``) and enforce authentication.
+
+        Returns ``False`` only when ``require_authenticated`` is set and the
+        resolved user is anonymous — the caller then 401s. A ``get_user`` hook
+        is assigned onto ``request.user`` so tools / the drf-mcp bridge /
+        conversation ownership act as that user.
+        """
+        if self._get_user is not None:
+            request.user = self._get_user(request)
+        if not self._require_authenticated:
+            return True
+        user = getattr(request, "user", None)
+        return bool(getattr(user, "is_authenticated", False))
+
+    @staticmethod
+    def _warn_if_not_asgi(request: HttpRequest) -> None:
+        """Warn once when served over WSGI — SSE can't stream there.
+
+        The endpoint returns a ``StreamingHttpResponse`` of Server-Sent Events,
+        which the synchronous WSGI worker buffers instead of streaming. Under
+        ASGI the request is an ``ASGIRequest``. ``warnings.warn`` dedupes by
+        (message, category, call site), so this fires once rather than per
+        request — no module-level "warned" flag needed.
+        """
+        if not isinstance(request, ASGIRequest):
+            warnings.warn(
+                "django-ag-ui: the AG-UI endpoint streams Server-Sent Events, which "
+                "require ASGI, but this request is served over WSGI — the response "
+                "will buffer instead of streaming. Deploy under an ASGI server "
+                "(Daphne / Uvicorn).",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
     def _resolve_model(self) -> Any:
-        if self._model is not None:
-            return self._model
-        model = get_settings().model
+        settings = get_settings()
+        model = self._model if self._model is not None else settings.model
         if model is None:
             raise ImproperlyConfigured(
                 "django-ag-ui requires a model: set DJANGO_AG_UI['MODEL'] "
                 "(e.g. 'anthropic:claude-sonnet-4.6') or pass model= to "
                 "DjangoAGUIView.",
             )
+        # A "provider:name" string + an explicit key/provider → build the model
+        # with that provider, instead of letting Pydantic-AI infer the key from
+        # the environment. A pre-built Model instance is used as-is.
+        if isinstance(model, str) and (
+            settings.api_key is not None or settings.provider is not None
+        ):
+            return build_model(model, api_key=settings.api_key, provider=settings.provider)
         return model
 
     def _resolve_instructions(self) -> str:

@@ -22,6 +22,11 @@ with per-tool risk metadata.
 - An **audit boundary**: the [`AuditLogger`][django_ag_ui.AuditLogger] Protocol
   with [`NullAuditLogger`][django_ag_ui.NullAuditLogger] (default) and
   [`LoggingAuditLogger`][django_ag_ui.LoggingAuditLogger] implementations.
+- **Authentication hooks** on the view: `require_authenticated=True` fails
+  closed (`401`) for anonymous requests, and a `get_user(request)` callable
+  establishes the user tools act as.
+- A **skill catalog** ([`SkillRegistry`][django_ag_ui.SkillRegistry]) of
+  pre-defined prompts, served at `<prefix>skills/` for the web component.
 - Optional, pluggable **conversation persistence**
   ([`ConversationStore`][django_ag_ui.ConversationStore]), off by default.
 - An optional **drf-mcp bridge** that exposes a
@@ -36,11 +41,11 @@ the bridge, with no admin specifics:
 | Package | Role |
 | --- | --- |
 | **`django-ag-ui`** (this package) | Django ↔ Pydantic-AI ↔ AG-UI bridge for *any* Django project. Async view, tool registry, audit + persistence protocols. No admin code, no frontend bundle. |
-| **`@artui/ag-ui-web-component`** | Framework-free `<ag-ui-chat>` Web Component for any frontend. Wraps `@ag-ui/client`, drives the DOM, and renders the confirmation modal that gates `x-destructive` tools client-side. |
+| **`@artooi/ag-ui-web-component`** | Framework-free `<ag-ui-chat>` Web Component for any frontend. Wraps `@ag-ui/client`, drives the DOM, and renders the inline confirmation card that gates `x-destructive` tools client-side. |
 | **`django-admin-agent`** | Depends on both. Ships the admin-specific server tools, the admin-aware frontend handlers, and the admin-site plumbing. |
 
 The wire between them stays vanilla AG-UI. This package never re-implements the
-AG-UI wire types; they come from `pydantic-ai[ag-ui]`.
+AG-UI wire types; they come from `pydantic-ai-slim[ag-ui]`.
 
 ## How a turn flows
 

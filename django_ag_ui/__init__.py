@@ -9,7 +9,9 @@ from django_ag_ui.agent.urls import get_urls
 from django_ag_ui.conf import AppSettings, get_settings
 from django_ag_ui.constants import (
     X_CATEGORY_KEY,
+    X_CONFIRM_KEY,
     X_DESTRUCTIVE_KEY,
+    X_SUMMARY_KEY,
     ToolCategory,
 )
 from django_ag_ui.persistence.django_session_conversation_store import (
@@ -31,6 +33,8 @@ from django_ag_ui.registry.decorator import tool
 from django_ag_ui.registry.tool_registry import ToolRegistry
 from django_ag_ui.registry.types.tool_binding import ToolBinding
 from django_ag_ui.registry.types.tool_spec import ToolSpec
+from django_ag_ui.skills.skill_registry import SkillRegistry
+from django_ag_ui.skills.types.skill_spec import SkillSpec
 from django_ag_ui.version import __version__
 
 __all__ = [
@@ -48,12 +52,16 @@ __all__ = [
     "ModelConversationStore",
     "NullAuditLogger",
     "NullConversationStore",
+    "SkillRegistry",
+    "SkillSpec",
     "ToolBinding",
     "ToolCategory",
     "ToolRegistry",
     "ToolSpec",
     "X_CATEGORY_KEY",
+    "X_CONFIRM_KEY",
     "X_DESTRUCTIVE_KEY",
+    "X_SUMMARY_KEY",
     "__version__",
     "build_agent",
     "build_input_schema",

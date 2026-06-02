@@ -21,6 +21,18 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.X_CATEGORY_KEY
 
+::: django_ag_ui.X_CONFIRM_KEY
+
+::: django_ag_ui.X_SUMMARY_KEY
+
+## Skills
+
+::: django_ag_ui.SkillRegistry
+
+::: django_ag_ui.SkillSpec
+
+::: django_ag_ui.skills.skills_view.SkillsView
+
 ## Agent and view
 
 ::: django_ag_ui.DjangoAGUIView
@@ -75,6 +87,8 @@ These are not part of the public re-export surface but are referenced from the
 guides.
 
 ::: django_ag_ui.agent.resolve_dotted_instances.resolve_dotted_instances
+
+::: django_ag_ui.agent.build_model.build_model
 
 ::: django_ag_ui.integrations.drf_mcp.DrfMcpToolset
 </content>

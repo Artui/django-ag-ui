@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from django_ag_ui.constants import (
     X_CATEGORY_KEY,
+    X_CONFIRM_KEY,
     X_DESTRUCTIVE_KEY,
+    X_SUMMARY_KEY,
     ToolCategory,
 )
 
@@ -18,3 +20,5 @@ def test_tool_category_values() -> None:
 def test_extension_keys() -> None:
     assert X_DESTRUCTIVE_KEY == "x-destructive"
     assert X_CATEGORY_KEY == "x-category"
+    assert X_CONFIRM_KEY == "x-confirm"
+    assert X_SUMMARY_KEY == "x-summary"

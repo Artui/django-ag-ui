@@ -44,6 +44,25 @@ def test_destructive_and_category_extensions() -> None:
     schema = build_input_schema(fn, destructive=True, category=ToolCategory.UI_WRITE)
     assert schema["x-destructive"] is True
     assert schema["x-category"] == "ui_write"
+    # No x-confirm unless a confirm prompt is supplied.
+    assert "x-confirm" not in schema
+
+
+def test_confirm_extension() -> None:
+    def fn(value: str) -> None:
+        del value
+
+    schema = build_input_schema(fn, destructive=True, confirm="Activate this project?")
+    assert schema["x-confirm"] == "Activate this project?"
+    assert "x-summary" not in schema
+
+
+def test_summary_extension() -> None:
+    def fn(value: str) -> None:
+        del value
+
+    schema = build_input_schema(fn, summary="Query orders")
+    assert schema["x-summary"] == "Query orders"
 
 
 def test_container_types() -> None:
