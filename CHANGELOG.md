@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to Pydantic-AI's own `infer_model`, injecting the key via a `provider_factory`,
   so `MODEL = "openai-responses:…"` with an `API_KEY` no longer raises. A bare
   model name Pydantic-AI can map to a provider (e.g. `claude-…`) is accepted too.
+- The **drf-mcp toolset** now sources each tool's schema from drf-mcp's own
+  `tools/list` instead of re-deriving it from the input serializer alone. So the
+  agent sees the full advertised `inputSchema` — a selector tool's
+  filter / ordering / pagination arguments and the `additionalProperties` policy,
+  not just the serializer's fields — matching the HTTP transport exactly.
 
 ### Changed
 - `DEFAULT_SYSTEM_PROMPT` gained gentle steering for two common failure modes:
