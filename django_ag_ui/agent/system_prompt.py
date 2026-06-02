@@ -7,7 +7,11 @@ DEFAULT_SYSTEM_PROMPT = (
     "directly with the right arguments — the interface shows the user an "
     "explicit confirmation before it runs, so do NOT ask for confirmation in "
     "text or wait for the user to say yes. Briefly state what you are doing. "
-    "Keep replies concise."
+    "When the user refers to something by name, use a listing or search tool's "
+    "arguments to find it and then act on the result — don't stop after the "
+    "lookup. Treat 'open', 'go to', or 'show me' as a request to navigate. "
+    "Always finish your turn with a short reply or a completed action — never "
+    "an empty turn. Keep replies concise."
 )
 
 __all__ = ["DEFAULT_SYSTEM_PROMPT"]

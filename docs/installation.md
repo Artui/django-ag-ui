@@ -36,9 +36,14 @@ Each maps to the corresponding `pydantic-ai-slim` provider extra:
 | `django-ag-ui[google]` | `pydantic-ai-slim[google]` |
 
 When you set [`API_KEY` or `PROVIDER`](configuration.md#api_key) so the model is
-built with an explicit key, the `MODEL` string's `provider:` prefix must be one
-of: `anthropic`, `openai`, `google`, `google-gla`, `gemini`. An unknown prefix
-raises `ImproperlyConfigured` (set `PROVIDER` to a `Provider` instance instead).
+built with an explicit key, the `MODEL` string's `provider:` prefix may be **any
+provider Pydantic-AI knows** (`anthropic`, `openai`, `openai-responses`,
+`google`, `google-gla`, `groq`, `bedrock`, …) — resolution is delegated to
+Pydantic-AI, so the list tracks whatever your installed version supports. A bare
+model name it can map to a provider (e.g. `claude-…`) works too. When the
+provider can't be resolved, the view raises `ImproperlyConfigured` (set
+`PROVIDER` to a `Provider` instance instead). Install the matching provider
+extra for whichever you use.
 
 ## ASGI is required
 

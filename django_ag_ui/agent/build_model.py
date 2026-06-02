@@ -1,74 +1,68 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.module_loading import import_string
+from pydantic_ai.exceptions import UserError
+from pydantic_ai.models import infer_model
+from pydantic_ai.providers import infer_provider_class
 
-# Map a ``"provider:name"`` MODEL prefix to the Pydantic-AI Model + Provider
-# classes used to build a model with an explicitly-supplied key/provider
-# (instead of Pydantic-AI inferring the key from the environment). Dotted paths
-# rather than imports, since the provider libs are optional extras.
-_PROVIDERS: dict[str, tuple[str, str]] = {
-    "anthropic": (
-        "pydantic_ai.models.anthropic.AnthropicModel",
-        "pydantic_ai.providers.anthropic.AnthropicProvider",
-    ),
-    "openai": (
-        "pydantic_ai.models.openai.OpenAIChatModel",
-        "pydantic_ai.providers.openai.OpenAIProvider",
-    ),
-    "google": (
-        "pydantic_ai.models.google.GoogleModel",
-        "pydantic_ai.providers.google.GoogleProvider",
-    ),
-    # Common aliases that select the same Model class as ``google``.
-    "google-gla": (
-        "pydantic_ai.models.google.GoogleModel",
-        "pydantic_ai.providers.google.GoogleProvider",
-    ),
-    "gemini": (
-        "pydantic_ai.models.google.GoogleModel",
-        "pydantic_ai.providers.google.GoogleProvider",
-    ),
-}
+# 0.2.0 accepted a non-standard ``gemini:`` prefix; Pydantic-AI's provider name
+# is ``google``. Keep the alias working (back-compat) by normalising it before
+# delegating. Everything else is Pydantic-AI's own provider vocabulary.
+_PREFIX_ALIASES = {"gemini": "google"}
 
 
 def build_model(model: str, *, api_key: str | None = None, provider: Any = None) -> Any:
     """Build a Pydantic-AI model from a ``"provider:name"`` string + explicit key.
 
-    Resolves the ``provider:`` prefix to the matching Model class and constructs
-    it with a provider that carries the supplied credentials, instead of relying
-    on environment inference:
+    Delegates the ``provider:`` prefix → Model-class resolution to Pydantic-AI's
+    own :func:`infer_model`, supplying a ``provider_factory`` that injects the
+    credentials instead of letting Pydantic-AI read them from the environment:
 
     - ``provider`` (a ``Provider`` instance, or a dotted path to one) takes
       precedence — used as-is, so it can carry a custom ``base_url`` / client.
-    - otherwise ``api_key`` is passed to the prefix's default ``Provider``.
+    - otherwise ``api_key`` is passed to the prefix's default ``Provider`` class
+      (resolved via :func:`infer_provider_class`).
+
+    Because the prefix map lives in Pydantic-AI, every provider it knows works
+    automatically (``anthropic``, ``openai``, ``openai-responses``, ``google``,
+    ``groq``, ``bedrock``, …) — there is no hand-maintained table to drift out
+    of date.
+
+    A bare model name Pydantic-AI can map to a provider (e.g. ``claude-…`` →
+    anthropic) is accepted too; only when the provider can't be resolved at all
+    is an error raised.
 
     Raises:
-        ImproperlyConfigured: when ``model`` has no ``provider:`` prefix, or the
-            prefix is not a known provider (the caller should set ``PROVIDER``).
+        ImproperlyConfigured: when the model's provider can't be resolved — an
+            unknown / uninferable prefix, or the matching provider extra not
+            installed. Set ``PROVIDER`` to a ``Provider`` instance or dotted
+            path for anything Pydantic-AI can't infer.
     """
     prefix, sep, name = model.partition(":")
-    if not sep:
-        raise ImproperlyConfigured(
-            "DJANGO_AG_UI['MODEL'] must be a 'provider:name' string (e.g. "
-            f"'anthropic:claude-sonnet-4.6') when API_KEY/PROVIDER is set; got {model!r}.",
+    if sep and prefix in _PREFIX_ALIASES:
+        model = f"{_PREFIX_ALIASES[prefix]}:{name}"
+    try:
+        if provider is not None:
+            provider_obj = import_string(provider) if isinstance(provider, str) else provider
+            return infer_model(model, provider_factory=lambda _name: provider_obj)
+        # Cast: ``infer_provider_class`` returns ``type[Provider]`` whose base
+        # ``__init__`` is argument-less in stubs; provider subclasses accept
+        # ``api_key`` — this is the Pydantic-AI boundary where ``Any`` is allowed.
+        return infer_model(
+            model,
+            provider_factory=lambda name: cast("Any", infer_provider_class(name))(api_key=api_key),
         )
-    entry = _PROVIDERS.get(prefix)
-    if entry is None:
+    except (UserError, ValueError, ImportError) as error:
         raise ImproperlyConfigured(
-            f"DJANGO_AG_UI: model prefix {prefix!r} is not a known provider for "
-            "API_KEY-based construction; set DJANGO_AG_UI['PROVIDER'] to a Provider "
-            "instance or dotted path instead.",
-        )
-    model_path, provider_path = entry
-    model_cls = import_string(model_path)
-    if provider is not None:
-        provider_obj = import_string(provider) if isinstance(provider, str) else provider
-    else:
-        provider_obj = import_string(provider_path)(api_key=api_key)
-    return model_cls(name, provider=provider_obj)
+            f"DJANGO_AG_UI: could not build model {model!r} with the supplied "
+            f"API_KEY/PROVIDER ({error}). MODEL must be a 'provider:name' string "
+            "(e.g. 'anthropic:claude-sonnet-4.6') whose provider Pydantic-AI knows, "
+            "with the matching provider extra installed — or set "
+            "DJANGO_AG_UI['PROVIDER'] to a Provider instance or dotted path.",
+        ) from error
 
 
 __all__ = ["build_model"]

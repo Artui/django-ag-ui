@@ -38,11 +38,13 @@ DJANGO_AG_UI = {"MODEL": "anthropic:claude-sonnet-4.6"}
 ```
 
 When [`API_KEY`](#api_key) or [`PROVIDER`](#provider) is set, the `MODEL` string
-is routed through [`build_model`](api.md#django_ag_ui.agent.build_model.build_model)
-and its `provider:` prefix must be a known provider (`anthropic`, `openai`,
-`google`, `google-gla`, `gemini`) — otherwise the view raises
-`ImproperlyConfigured`. A pre-built `Model` instance ignores `API_KEY` /
-`PROVIDER` and is used as-is.
+is routed through [`build_model`](api.md#django_ag_ui.agent.build_model.build_model),
+which delegates the `provider:` prefix → model resolution to Pydantic-AI itself —
+so any provider it knows works (`anthropic`, `openai`, `openai-responses`,
+`google`, `google-gla`, `groq`, `bedrock`, …), as does a bare model name it can
+map to a provider (e.g. `claude-…`). When the provider can't be resolved the view
+raises `ImproperlyConfigured` (set `PROVIDER` instead). A pre-built `Model`
+instance ignores `API_KEY` / `PROVIDER` and is used as-is.
 
 ## `API_KEY`
 

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `API_KEY`-based model construction now works for **every provider Pydantic-AI
+  knows** (`openai-responses`, `groq`, `bedrock`, …), not just a hand-maintained
+  short list. `build_model` delegates the `provider:name` → Model-class mapping
+  to Pydantic-AI's own `infer_model`, injecting the key via a `provider_factory`,
+  so `MODEL = "openai-responses:…"` with an `API_KEY` no longer raises. A bare
+  model name Pydantic-AI can map to a provider (e.g. `claude-…`) is accepted too.
+
+### Changed
+- `DEFAULT_SYSTEM_PROMPT` gained gentle steering for two common failure modes:
+  use a listing/search tool's arguments to find things by name and then act on
+  the result (don't stop at the lookup), treat "open / go to / show me" as
+  navigation, and always finish a turn with a reply or completed action.
+
 ## [0.2.0] — 2026-06-02
 
 ### Added
