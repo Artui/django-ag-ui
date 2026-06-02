@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-02
+
+### Fixed
+- `API_KEY`-based model construction now works for **every provider Pydantic-AI
+  knows** (`openai-responses`, `groq`, `bedrock`, …), not just a hand-maintained
+  short list. `build_model` delegates the `provider:name` → Model-class mapping
+  to Pydantic-AI's own `infer_model`, injecting the key via a `provider_factory`,
+  so `MODEL = "openai-responses:…"` with an `API_KEY` no longer raises. A bare
+  model name Pydantic-AI can map to a provider (e.g. `claude-…`) is accepted too.
+- The **drf-mcp toolset** now sources each tool's schema from drf-mcp's own
+  `tools/list` instead of re-deriving it from the input serializer alone. So the
+  agent sees the full advertised `inputSchema` — a selector tool's
+  filter / ordering / pagination arguments and the `additionalProperties` policy,
+  not just the serializer's fields — matching the HTTP transport exactly.
+
+### Changed
+- `DEFAULT_SYSTEM_PROMPT` gained gentle steering for two common failure modes:
+  use a listing/search tool's arguments to find things by name and then act on
+  the result (don't stop at the lookup), treat "open / go to / show me" as
+  navigation, and always finish a turn with a reply or completed action.
+
 ## [0.2.0] — 2026-06-02
 
 ### Added
@@ -71,7 +92,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Artui/django-ag-ui/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Artui/django-ag-ui/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Artui/django-ag-ui/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Artui/django-ag-ui/releases/tag/v0.1.0
