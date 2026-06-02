@@ -1408,6 +1408,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="DrfMcpToolset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.integrations.drf_mcp.DrfMcpToolset.get_tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -2390,6 +2407,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="DrfMcpToolset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.integrations.drf_mcp.DrfMcpToolset.get_tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3871,7 +3905,7 @@ the per-request server-side tool registry and the resolved settings.</p>
   </span>
 
 <a href="#django_ag_ui.DEFAULT_SYSTEM_PROMPT" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DEFAULT_SYSTEM_PROMPT</span> <span class="o">=</span> <span class="s2">&quot;You are an assistant embedded in a web application. You can call tools to read data and to drive the user interface on the user&#39;s behalf. Prefer the most specific tool available. For a destructive action, call the tool directly with the right arguments — the interface shows the user an explicit confirmation before it runs, so do NOT ask for confirmation in text or wait for the user to say yes. Briefly state what you are doing. Keep replies concise.&quot;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DEFAULT_SYSTEM_PROMPT</span> <span class="o">=</span> <span class="s2">&quot;You are an assistant embedded in a web application. You can call tools to read data and to drive the user interface on the user&#39;s behalf. Prefer the most specific tool available. For a destructive action, call the tool directly with the right arguments — the interface shows the user an explicit confirmation before it runs, so do NOT ask for confirmation in text or wait for the user to say yes. Briefly state what you are doing. When the user refers to something by name, use a listing or search tool&#39;s arguments to find it and then act on the result — don&#39;t stop after the lookup. Treat &#39;open&#39;, &#39;go to&#39;, or &#39;show me&#39; as a request to navigate. Always finish your turn with a short reply or a completed action — never an empty turn. Keep replies concise.&quot;</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -4870,14 +4904,22 @@ Pydantic-AI toolsets and capabilities alongside the registry tools.</p>
     <div class="doc doc-contents first">
 
         <p>Build a Pydantic-AI model from a <code>"provider:name"</code> string + explicit key.</p>
-<p>Resolves the <code>provider:</code> prefix to the matching Model class and constructs
-it with a provider that carries the supplied credentials, instead of relying
-on environment inference:</p>
+<p>Delegates the <code>provider:</code> prefix → Model-class resolution to Pydantic-AI's
+own :func:<code>infer_model</code>, supplying a <code>provider_factory</code> that injects the
+credentials instead of letting Pydantic-AI read them from the environment:</p>
 <ul>
 <li><code>provider</code> (a <code>Provider</code> instance, or a dotted path to one) takes
   precedence — used as-is, so it can carry a custom <code>base_url</code> / client.</li>
-<li>otherwise <code>api_key</code> is passed to the prefix's default <code>Provider</code>.</li>
+<li>otherwise <code>api_key</code> is passed to the prefix's default <code>Provider</code> class
+  (resolved via :func:<code>infer_provider_class</code>).</li>
 </ul>
+<p>Because the prefix map lives in Pydantic-AI, every provider it knows works
+automatically (<code>anthropic</code>, <code>openai</code>, <code>openai-responses</code>, <code>google</code>,
+<code>groq</code>, <code>bedrock</code>, …) — there is no hand-maintained table to drift out
+of date.</p>
+<p>A bare model name Pydantic-AI can map to a provider (e.g. <code>claude-…</code> →
+anthropic) is accepted too; only when the provider can't be resolved at all
+is an error raised.</p>
 
 
 <p><span class="doc-section-title">Raises:</span></p>
@@ -4895,8 +4937,10 @@ on environment inference:</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>when <code>model</code> has no <code>provider:</code> prefix, or the
-prefix is not a known provider (the caller should set <code>PROVIDER</code>).</p>
+                <p>when the model's provider can't be resolved — an
+unknown / uninferable prefix, or the matching provider extra not
+installed. Set <code>PROVIDER</code> to a <code>Provider</code> instance or dotted
+path for anything Pydantic-AI can't infer.</p>
               </div>
             </td>
           </tr>
@@ -4927,8 +4971,9 @@ prefix is not a known provider (the caller should set <code>PROVIDER</code>).</p
 
         <p>Exposes a drf-mcp <code>MCPServer</code>'s tools as a Pydantic-AI toolset.</p>
 <p>Built per request so the acting user is the current AG-UI user. Tool
-schemas come straight from drf-mcp; execution routes through its async
-handler so serializer validation + permissions are honoured.</p>
+schemas and execution both route through drf-mcp's own handlers, so the
+advertised parameters, serializer validation, and permissions match the
+HTTP transport exactly.</p>
 
 
 
@@ -4950,6 +4995,33 @@ handler so serializer validation + permissions are honoured.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_ag_ui.integrations.drf_mcp.DrfMcpToolset.get_tools" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_tools</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_ag_ui.integrations.drf_mcp.DrfMcpToolset.get_tools" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_tools</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Load tool defs from drf-mcp's <code>tools/list</code> once, then defer to base.</p>
+<p>Loading runs in a thread (<code>sync_to_async</code>) because the sync
+<code>handle_tools_list</code> may evaluate per-user listing permissions against
+the DB, which Django forbids on the async event loop.</p>
+
+
+    </div>
+
+</div>
 
 
 

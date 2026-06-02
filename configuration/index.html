@@ -921,11 +921,13 @@ always wins over this setting.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">}</span>
 </span></code></pre></div>
 <p>When <a href="#api_key"><code>API_KEY</code></a> or <a href="#provider"><code>PROVIDER</code></a> is set, the <code>MODEL</code> string
-is routed through <a href="../api/#django_ag_ui.agent.build_model.build_model"><code>build_model</code></a>
-and its <code>provider:</code> prefix must be a known provider (<code>anthropic</code>, <code>openai</code>,
-<code>google</code>, <code>google-gla</code>, <code>gemini</code>) — otherwise the view raises
-<code>ImproperlyConfigured</code>. A pre-built <code>Model</code> instance ignores <code>API_KEY</code> /
-<code>PROVIDER</code> and is used as-is.</p>
+is routed through <a href="../api/#django_ag_ui.agent.build_model.build_model"><code>build_model</code></a>,
+which delegates the <code>provider:</code> prefix → model resolution to Pydantic-AI itself —
+so any provider it knows works (<code>anthropic</code>, <code>openai</code>, <code>openai-responses</code>,
+<code>google</code>, <code>google-gla</code>, <code>groq</code>, <code>bedrock</code>, …), as does a bare model name it can
+map to a provider (e.g. <code>claude-…</code>). When the provider can't be resolved the view
+raises <code>ImproperlyConfigured</code> (set <code>PROVIDER</code> instead). A pre-built <code>Model</code>
+instance ignores <code>API_KEY</code> / <code>PROVIDER</code> and is used as-is.</p>
 <h2 id="api_key"><code>API_KEY</code><a class="headerlink" href="#api_key" title="Permanent link">&para;</a></h2>
 <p>An explicit provider API key. When set (and <code>MODEL</code> is a <code>provider:name</code>
 string), the view builds the model via
