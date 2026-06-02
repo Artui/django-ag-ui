@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-02
+
 ### Fixed
 - `API_KEY`-based model construction now works for **every provider Pydantic-AI
   knows** (`openai-responses`, `groq`, `bedrock`, …), not just a hand-maintained
@@ -85,7 +87,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Artui/django-ag-ui/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Artui/django-ag-ui/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Artui/django-ag-ui/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Artui/django-ag-ui/releases/tag/v0.1.0
