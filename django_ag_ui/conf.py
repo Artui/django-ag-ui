@@ -16,10 +16,22 @@ class AppSettings:
     (Django's ``settings`` object is the cache, not this dataclass).
     """
 
-    model: str | None
-    """The Pydantic-AI model string (e.g. ``"anthropic:claude-sonnet-4.6"``).
+    model: Any
+    """The Pydantic-AI model: a ``"provider:name"`` string (e.g.
+    ``"anthropic:claude-sonnet-4.6"``) or a pre-built ``Model`` instance.
     Optional here; the agent factory raises a clear error if it is unset
     when an agent is actually built."""
+
+    api_key: str | None
+    """API key handed to the provider when ``MODEL`` is a ``"provider:name"``
+    string, so the key comes from settings rather than the environment.
+    Ignored when ``PROVIDER`` is set or ``MODEL`` is already a ``Model``."""
+
+    provider: Any
+    """Optional Pydantic-AI ``Provider`` instance (or dotted path to one) used
+    to build the model — for a custom ``base_url`` / client. When set, ``MODEL``
+    is just the model name's ``"provider:name"`` string and ``API_KEY`` is
+    ignored (the provider carries its own credentials)."""
 
     auto_confirm: bool
     """When ``True``, destructive tools do not require client-side
@@ -71,6 +83,8 @@ def get_settings() -> AppSettings:
     raw: dict[str, Any] = getattr(settings, _SETTING_NAME, {}) or {}
     return AppSettings(
         model=raw.get("MODEL"),
+        api_key=raw.get("API_KEY"),
+        provider=raw.get("PROVIDER"),
         auto_confirm=bool(raw.get("AUTO_CONFIRM", False)),
         audit_logger=raw.get("AUDIT_LOGGER"),
         system_prompt=raw.get("SYSTEM_PROMPT"),

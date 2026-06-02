@@ -22,11 +22,19 @@ browser half is
   state rides in each request, so there's no cross-request session store and
   multi-worker deployments are safe by default.
 - **Typed tool registry** — register plain callables with `@tool`; JSON Schema
-  is derived from their signatures. `destructive=` / `category=` metadata
-  surface as `x-destructive` / `x-category` extensions for client-side gating.
+  is derived from their signatures. `destructive=` / `category=` / `confirm=` /
+  `summary=` metadata surface as `x-destructive` / `x-category` / `x-confirm` /
+  `x-summary` extensions for client-side gating.
 - **Configurable agent** — `AgentConfig` + the `DJANGO_AG_UI` settings cover the
-  model, `MODEL_SETTINGS`, `RETRIES`, external `TOOLSETS` / `CAPABILITIES`, and
-  an `AGENT_FACTORY` escape hatch for full control of construction.
+  model, `MODEL_SETTINGS`, `RETRIES`, external `TOOLSETS` / `CAPABILITIES`, an
+  explicit `API_KEY` / `PROVIDER` credential path, and an `AGENT_FACTORY` escape
+  hatch for full control of construction.
+- **Authentication hooks** — `require_authenticated=True` fails closed (`401`)
+  for anonymous requests, and a `get_user(request)` hook establishes the user
+  tools, the drf-mcp bridge, and conversation ownership act as.
+- **Skills** — a `SkillRegistry` / `SkillSpec` catalog of pre-defined prompts
+  served at `<prefix>skills/` via `get_urls(view, skills=...)`, surfaced by the
+  web component as chips and a `/`-command palette.
 - **Audit boundary** — an `AuditLogger` Protocol (`Null` / `Logging` shipped,
   pluggable by dotted path) records every server-side tool call.
 - **Opt-in conversation persistence** — a `ConversationStore` Protocol with a
@@ -39,10 +47,13 @@ browser half is
 📖 **Full documentation:** <https://artui.github.io/django-ag-ui/>
 
 ```bash
-pip install django-ag-ui
+pip install "django-ag-ui[anthropic]"   # or [openai], or [google]
 # or, with uv:
-uv add django-ag-ui
+uv add "django-ag-ui[anthropic]"
 ```
+
+> The core dep is `pydantic-ai-slim[ag-ui]`, which ships no model-provider
+> library — pick one via a provider extra (`anthropic` / `openai` / `google`).
 
 > **ASGI required.** The agent endpoint streams Server-Sent Events, which the
 > sync WSGI worker can't serve — deploy under Daphne / Uvicorn.
@@ -86,6 +97,7 @@ urlpatterns = [
 # settings.py
 DJANGO_AG_UI = {
     "MODEL": "anthropic:claude-sonnet-4.6",   # any Pydantic-AI model string
+    # "API_KEY": os.environ["ANTHROPIC_API_KEY"],  # else inferred from env
     # "MODEL_SETTINGS": {"temperature": 0.2},
     # "AUDIT_LOGGER": "django_ag_ui.LoggingAuditLogger",
     # "CONVERSATION_STORE": "django_ag_ui.DjangoSessionConversationStore",

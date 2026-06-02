@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import warnings
+from types import SimpleNamespace
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -110,6 +112,63 @@ async def test_explicit_model_wins_over_settings() -> None:
     model = TestModel()
     view = DjangoAGUIView(_registry(), model=model)
     assert view._resolve_model() is model
+
+
+@override_settings(
+    DJANGO_AG_UI={"MODEL": "anthropic:claude-sonnet-4-5", "API_KEY": "sk-test"},
+)
+async def test_api_key_builds_a_model_with_an_explicit_provider() -> None:
+    from pydantic_ai.models.anthropic import AnthropicModel
+
+    view = DjangoAGUIView(_registry())
+    resolved = view._resolve_model()
+    assert isinstance(resolved, AnthropicModel)
+
+
+async def test_anonymous_is_rejected_when_require_authenticated() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel(), require_authenticated=True)
+    # RequestFactory builds no `.user`, so the request is unauthenticated.
+    response = await view(_post(_run_input("hi")))
+    assert response.status_code == 401
+
+
+async def test_authenticated_user_passes_the_gate() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel(), require_authenticated=True)
+    request = _post(_run_input("hi"))
+    request.user = SimpleNamespace(is_authenticated=True)
+    response = await view(request)
+    assert isinstance(response, StreamingHttpResponse)
+
+
+async def test_get_user_hook_establishes_the_user() -> None:
+    user = SimpleNamespace(is_authenticated=True, username="api")
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        require_authenticated=True,
+        get_user=lambda _request: user,
+    )
+    request = _post(_run_input("hi"))
+    response = await view(request)
+    assert isinstance(response, StreamingHttpResponse)
+    assert request.user is user
+
+
+async def test_warns_when_served_over_wsgi() -> None:
+    # RequestFactory builds a WSGIRequest; SSE won't stream there.
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    with pytest.warns(RuntimeWarning, match="ASGI"):
+        await view(RequestFactory().get("/agent/"))
+
+
+async def test_does_not_warn_under_asgi() -> None:
+    from django.test import AsyncRequestFactory
+
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # any RuntimeWarning would raise
+        # GET → 405, but the ASGIRequest path must not warn.
+        await view(AsyncRequestFactory().get("/agent/"))
 
 
 @override_settings(DJANGO_AG_UI={"SYSTEM_PROMPT": "Be very terse."})

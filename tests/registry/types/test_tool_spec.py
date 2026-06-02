@@ -11,6 +11,8 @@ def test_tool_spec_defaults_and_frozen() -> None:
     spec = ToolSpec(name="x", fn=lambda: None, description="d")
     assert spec.destructive is False
     assert spec.category is ToolCategory.OTHER
+    assert spec.confirm is None
+    assert spec.summary is None
     with pytest.raises(AttributeError):
         spec.name = "y"  # type: ignore[misc]
 

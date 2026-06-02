@@ -32,6 +32,8 @@ def test_decorator_overrides_take_precedence() -> None:
         description="overridden",
         destructive=True,
         category=ToolCategory.UI_WRITE,
+        confirm="Run the custom action?",
+        summary="Custom action",
     )
     def fn() -> int:
         return 1
@@ -40,7 +42,11 @@ def test_decorator_overrides_take_precedence() -> None:
     assert binding.spec.description == "overridden"
     assert binding.spec.destructive is True
     assert binding.spec.category is ToolCategory.UI_WRITE
+    assert binding.spec.confirm == "Run the custom action?"
+    assert binding.spec.summary == "Custom action"
     assert binding.input_schema["x-destructive"] is True
+    assert binding.input_schema["x-confirm"] == "Run the custom action?"
+    assert binding.input_schema["x-summary"] == "Custom action"
 
 
 def test_decorator_handles_missing_docstring() -> None:

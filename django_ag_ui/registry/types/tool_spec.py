@@ -38,5 +38,15 @@ class ToolSpec:
     """Coarse capability grouping. Surfaced as ``x-category`` in the
     JSON Schema."""
 
+    confirm: str | None = None
+    """Optional human-readable confirmation prompt for a destructive tool
+    (e.g. "Activate this project?"). Stamped as ``x-confirm`` so the frontend
+    can show it instead of a generic "Run <tool>?"."""
+
+    summary: str | None = None
+    """Optional short label for the tool (e.g. "Query orders"). Stamped as
+    ``x-summary`` so the frontend shows it on the tool-call card instead of the
+    raw tool name."""
+
 
 __all__ = ["ToolSpec"]

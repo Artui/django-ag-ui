@@ -36,6 +36,8 @@ class ToolRegistry:
                 spec.fn,
                 destructive=spec.destructive,
                 category=spec.category,
+                confirm=spec.confirm,
+                summary=spec.summary,
             ),
         )
         self._bindings[spec.name] = binding

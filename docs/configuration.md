@@ -9,7 +9,9 @@ default, and what it does.
 
 | Key | Type | Default | Purpose |
 | --- | --- | --- | --- |
-| `MODEL` | `str` | `None` | Pydantic-AI model string. |
+| `MODEL` | `str` | `None` | Pydantic-AI model string (or pre-built `Model`). |
+| `API_KEY` | `str` | `None` | Explicit provider key (builds the model via `build_model`). |
+| `PROVIDER` | `Provider` / dotted `str` | `None` | Explicit Pydantic-AI `Provider`; takes precedence over `API_KEY`. |
 | `AUTO_CONFIRM` | `bool` | `False` | Whether destructive tools skip confirmation. |
 | `AUDIT_LOGGER` | dotted `str` | `None` | `AuditLogger` implementation. |
 | `SYSTEM_PROMPT` | `str` | `None` | Override the agent's instructions. |
@@ -23,14 +25,55 @@ default, and what it does.
 
 ## `MODEL`
 
-The Pydantic-AI model string, e.g. `"anthropic:claude-sonnet-4.6"`. Optional in
-settings, but an agent cannot be built without a model: if `MODEL` is unset and
-no `model=` is passed to [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView], the
-view raises `django.core.exceptions.ImproperlyConfigured`. A `model=` argument
-to the view always wins over this setting.
+A Pydantic-AI model string, e.g. `"anthropic:claude-sonnet-4.6"`, **or** a
+pre-built Pydantic-AI `Model` instance (which passes through untouched).
+Optional in settings, but an agent cannot be built without a model: if `MODEL`
+is unset and no `model=` is passed to
+[`DjangoAGUIView`][django_ag_ui.DjangoAGUIView], the view raises
+`django.core.exceptions.ImproperlyConfigured`. A `model=` argument to the view
+always wins over this setting.
 
 ```python
 DJANGO_AG_UI = {"MODEL": "anthropic:claude-sonnet-4.6"}
+```
+
+When [`API_KEY`](#api_key) or [`PROVIDER`](#provider) is set, the `MODEL` string
+is routed through [`build_model`](api.md#django_ag_ui.agent.build_model.build_model)
+and its `provider:` prefix must be a known provider (`anthropic`, `openai`,
+`google`, `google-gla`, `gemini`) — otherwise the view raises
+`ImproperlyConfigured`. A pre-built `Model` instance ignores `API_KEY` /
+`PROVIDER` and is used as-is.
+
+## `API_KEY`
+
+An explicit provider API key. When set (and `MODEL` is a `provider:name`
+string), the view builds the model via
+[`build_model`](api.md#django_ag_ui.agent.build_model.build_model) — passing the
+key to the prefix's default `Provider` — **instead of** letting Pydantic-AI
+infer the key from environment variables. Requires the matching provider extra
+installed (e.g. `django-ag-ui[anthropic]`). [`PROVIDER`](#provider), if also
+set, takes precedence over `API_KEY`.
+
+```python
+DJANGO_AG_UI = {
+    "MODEL": "anthropic:claude-sonnet-4.6",
+    "API_KEY": os.environ["ANTHROPIC_API_KEY"],
+}
+```
+
+## `PROVIDER`
+
+A Pydantic-AI `Provider` instance (or a dotted-path string resolving to one),
+passed straight to the constructed model. Use it when you need a custom
+`base_url` or HTTP client (a proxy, a gateway, a self-hosted endpoint). It
+**takes precedence over [`API_KEY`](#api_key)**. As with `API_KEY`, the matching
+provider extra must be installed.
+
+```python
+DJANGO_AG_UI = {
+    "MODEL": "openai:gpt-4o",
+    "PROVIDER": "myproject.providers.gateway_provider",
+}
 ```
 
 ## `AUTO_CONFIRM`

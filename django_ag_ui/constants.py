@@ -30,9 +30,21 @@ X_DESTRUCTIVE_KEY = "x-destructive"
 # group/filter tools without a side channel.
 X_CATEGORY_KEY = "x-category"
 
+# JSON-Schema extension key carrying a human-readable confirmation prompt for a
+# destructive tool (e.g. "Activate this project?"). When present, the frontend
+# shows it in the confirmation step instead of a generic "Run <tool>?".
+X_CONFIRM_KEY = "x-confirm"
+
+# JSON-Schema extension key carrying a short human-readable label for a tool
+# (e.g. "Query orders" for query_model). The frontend shows it on the tool-call
+# card instead of the raw tool name.
+X_SUMMARY_KEY = "x-summary"
+
 
 __all__ = [
     "X_CATEGORY_KEY",
+    "X_CONFIRM_KEY",
     "X_DESTRUCTIVE_KEY",
+    "X_SUMMARY_KEY",
     "ToolCategory",
 ]

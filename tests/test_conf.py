@@ -8,6 +8,8 @@ from django_ag_ui.conf import get_settings
 def test_defaults_when_unconfigured() -> None:
     s = get_settings()
     assert s.model is None
+    assert s.api_key is None
+    assert s.provider is None
     assert s.auto_confirm is False
     assert s.audit_logger is None
     assert s.system_prompt is None
@@ -23,6 +25,8 @@ def test_defaults_when_unconfigured() -> None:
 @override_settings(
     DJANGO_AG_UI={
         "MODEL": "anthropic:claude-sonnet-4.6",
+        "API_KEY": "sk-test",
+        "PROVIDER": "myapp.providers.custom",
         "AUTO_CONFIRM": True,
         "AUDIT_LOGGER": "django_ag_ui.policy.audit.null_audit_logger.NullAuditLogger",
         "SYSTEM_PROMPT": "Be terse.",
@@ -40,6 +44,8 @@ def test_defaults_when_unconfigured() -> None:
 def test_reads_from_settings_dict() -> None:
     s = get_settings()
     assert s.model == "anthropic:claude-sonnet-4.6"
+    assert s.api_key == "sk-test"
+    assert s.provider == "myapp.providers.custom"
     assert s.auto_confirm is True
     assert s.audit_logger.endswith("NullAuditLogger")
     assert s.system_prompt == "Be terse."

@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `@tool(confirm="…")` / `ToolSpec.confirm` — an optional human-readable
+  confirmation prompt for a destructive tool, stamped into the JSON Schema as
+  the `x-confirm` extension (`X_CONFIRM_KEY`) for the frontend to display.
+- `DJANGO_AG_UI["API_KEY"]` and `["PROVIDER"]` — supply the model's API key (or
+  a full `Provider` instance / dotted path) explicitly instead of inferring it
+  from the environment, while keeping the built-in toolset wiring. `MODEL` may
+  also be a pre-built `Model` instance.
+- Provider extras `django-ag-ui[anthropic]`, `[openai]`, `[google]`.
+- **Skills** — `SkillRegistry` + `SkillSpec` (pre-defined prompts) and a
+  read-only catalog endpoint mounted by `get_urls(view, skills=registry)` at
+  `<prefix>skills/`, serving the JSON the web component consumes.
+- `DjangoAGUIView(require_authenticated=True)` fails closed (401) for
+  unauthenticated requests, and a `get_user(request)` hook establishes the user
+  (assigned to `request.user`) before tools run — closing the "tools run as
+  AnonymousUser" footgun. The contract is documented on the view.
+- `@tool(summary="…")` / `ToolSpec.summary` → `x-summary` (`X_SUMMARY_KEY`): a
+  short display label the frontend shows on the tool-call card.
+
+### Changed
+- `DEFAULT_SYSTEM_PROMPT` now steers the model to call destructive tools
+  directly and rely on the client's explicit confirmation step, instead of
+  asking the user to confirm in prose.
+- **Dependency: `pydantic-ai[ag-ui]` → `pydantic-ai-slim[ag-ui]`.** Drops the
+  full meta-package's logfire / fastmcp / temporalio / otel footprint. **Action
+  required:** install a provider — `pip install django-ag-ui[anthropic]` (or
+  `[openai]` / `[google]`, or the provider lib directly) — to use a
+  `"provider:model"` `MODEL` string.
+
+### Notes
+- The AG-UI endpoint now emits a one-time `RuntimeWarning` when served over WSGI
+  (SSE can't stream there); deploy under ASGI (Daphne / Uvicorn).
+
 ## [0.1.1] — 2026-06-01
 
 ### Fixed

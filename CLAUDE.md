@@ -6,9 +6,9 @@ Rules are non-negotiable unless flagged as a heuristic.
 ## What this package is
 
 A Django ↔ Pydantic-AI ↔ [AG-UI](https://docs.ag-ui.com) integration. Provides:
-- A tool registry (`ToolRegistry`, `@tool` decorator) with `destructive=` and `category=`
-  metadata, and a `build_input_schema` helper that emits an `x-destructive` JSON-Schema
-  extension when set.
+- A tool registry (`ToolRegistry`, `@tool` decorator) with `destructive=`, `category=`,
+  `confirm=`, and `summary=` metadata, and a `build_input_schema` helper that emits
+  `x-destructive` / `x-category` / `x-confirm` / `x-summary` JSON-Schema extensions when set.
 - An async Django view (`DjangoAGUIView`) that wraps Pydantic-AI's
   `pydantic_ai.ui.ag_ui.AGUIAdapter` and returns a `StreamingHttpResponse` of AG-UI events.
 - An `AuditLogger` Protocol with `NullAuditLogger` and `LoggingAuditLogger` implementations.
@@ -74,7 +74,7 @@ The design is at `/Users/arturveres/code/opensource/docs/plans/django-ag-ui-plan
 
 Per-tool `destructive: bool` metadata is the surfaced risk signal. The registry stamps it into
 the JSON Schema as `x-destructive: true`; client-side AG-UI consumers (e.g. the
-`@artui/ag-ui-web-component`) gate execution behind a confirmation modal. The wire stays
+`@artooi/ag-ui-web-component`) gate execution behind an inline confirmation card. The wire stays
 vanilla AG-UI.
 
 The `AuditLogger` Protocol is the audit boundary. `LoggingAuditLogger` is the default;
@@ -114,8 +114,9 @@ defaults, dispatch tables) are fine — module-level **mutable** state is not.
 
 ## Boundaries
 
-- The package depends on `pydantic-ai[ag-ui]` for the AGUIAdapter. The AG-UI wire types come
-  from there; don't re-implement them.
+- The package depends on `pydantic-ai-slim[ag-ui]` for the AGUIAdapter. The AG-UI wire types
+  come from there; don't re-implement them. The slim package ships no model-provider library —
+  those come via provider extras (`anthropic` / `openai` / `google` → `pydantic-ai-slim[<provider>]`).
 - No admin specifics. Anything that touches `django.contrib.admin` belongs in
   `django-admin-agent`, not here.
 - The `agent/` layer does not import from `registry/types`; it imports the public re-exports
@@ -127,7 +128,7 @@ defaults, dispatch tables) are fine — module-level **mutable** state is not.
 | --- | --- | --- |
 | Python | 3.10 | 3.10, 3.11, 3.12, 3.13, 3.14 |
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0 |
-| Pydantic-AI | 1.0 (with `[ag-ui]` extra) | latest in matrix |
+| Pydantic-AI | 1.0 (with `pydantic-ai-slim[ag-ui]` extra) | latest in matrix |
 
 ## Branching
 
