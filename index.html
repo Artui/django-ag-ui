@@ -629,6 +629,11 @@ with per-tool risk metadata.</p>
 <li>An <strong>audit boundary</strong>: the <a class="autorefs autorefs-internal" title="AuditLogger" href="api/#django_ag_ui.AuditLogger"><code>AuditLogger</code></a> Protocol
   with <a class="autorefs autorefs-internal" title="NullAuditLogger" href="api/#django_ag_ui.NullAuditLogger"><code>NullAuditLogger</code></a> (default) and
   <a class="autorefs autorefs-internal" title="LoggingAuditLogger" href="api/#django_ag_ui.LoggingAuditLogger"><code>LoggingAuditLogger</code></a> implementations.</li>
+<li><strong>Authentication hooks</strong> on the view: <code>require_authenticated=True</code> fails
+  closed (<code>401</code>) for anonymous requests, and a <code>get_user(request)</code> callable
+  establishes the user tools act as.</li>
+<li>A <strong>skill catalog</strong> (<a class="autorefs autorefs-internal" title="SkillRegistry" href="api/#django_ag_ui.SkillRegistry"><code>SkillRegistry</code></a>) of
+  pre-defined prompts, served at <code>&lt;prefix&gt;skills/</code> for the web component.</li>
 <li>Optional, pluggable <strong>conversation persistence</strong>
   (<a class="autorefs autorefs-internal" title="ConversationStore" href="api/#django_ag_ui.ConversationStore"><code>ConversationStore</code></a>), off by default.</li>
 <li>An optional <strong>drf-mcp bridge</strong> that exposes a
@@ -651,8 +656,8 @@ the bridge, with no admin specifics:</p>
 <td>Django ↔ Pydantic-AI ↔ AG-UI bridge for <em>any</em> Django project. Async view, tool registry, audit + persistence protocols. No admin code, no frontend bundle.</td>
 </tr>
 <tr>
-<td><strong><code>@artui/ag-ui-web-component</code></strong></td>
-<td>Framework-free <code>&lt;ag-ui-chat&gt;</code> Web Component for any frontend. Wraps <code>@ag-ui/client</code>, drives the DOM, and renders the confirmation modal that gates <code>x-destructive</code> tools client-side.</td>
+<td><strong><code>@artooi/ag-ui-web-component</code></strong></td>
+<td>Framework-free <code>&lt;ag-ui-chat&gt;</code> Web Component for any frontend. Wraps <code>@ag-ui/client</code>, drives the DOM, and renders the inline confirmation card that gates <code>x-destructive</code> tools client-side.</td>
 </tr>
 <tr>
 <td><strong><code>django-admin-agent</code></strong></td>
@@ -661,7 +666,7 @@ the bridge, with no admin specifics:</p>
 </tbody>
 </table>
 <p>The wire between them stays vanilla AG-UI. This package never re-implements the
-AG-UI wire types; they come from <code>pydantic-ai[ag-ui]</code>.</p>
+AG-UI wire types; they come from <code>pydantic-ai-slim[ag-ui]</code>.</p>
 <h2 id="how-a-turn-flows">How a turn flows<a class="headerlink" href="#how-a-turn-flows" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Browser (AG-UI client)
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>   │  POST RunAgentInput { messages, tools, context, state }

@@ -367,6 +367,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#model-provider-extras" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model provider extras
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#asgi-is-required" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -542,6 +553,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#model-provider-extras" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model provider extras
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#asgi-is-required" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -591,9 +613,11 @@
 <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-ag-ui
 </span></code></pre></div>
-<p>Core dependencies are <code>django&gt;=4.2</code> and <code>pydantic-ai[ag-ui]&gt;=1.0</code>. The AG-UI
-wire types and the <code>AGUIAdapter</code> come from the <code>pydantic-ai[ag-ui]</code> extra; this
-package does not re-implement them.</p>
+<p>Core dependencies are <code>django&gt;=4.2</code> and <code>pydantic-ai-slim[ag-ui]&gt;=1.0</code>. The
+AG-UI wire types and the <code>AGUIAdapter</code> come from the <code>pydantic-ai-slim[ag-ui]</code>
+extra; this package does not re-implement them. The <strong>slim</strong> package ships the
+AG-UI adapter and wire types but <strong>no model-provider library</strong> — pick one via a
+provider extra (see below).</p>
 <h2 id="compatibility">Compatibility<a class="headerlink" href="#compatibility" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -616,11 +640,43 @@ package does not re-implement them.</p>
 </tr>
 <tr>
 <td>Pydantic-AI</td>
-<td>1.0 (with the <code>[ag-ui]</code> extra)</td>
+<td>1.0 (with the <code>pydantic-ai-slim[ag-ui]</code> extra)</td>
 <td>latest in the CI matrix</td>
 </tr>
 </tbody>
 </table>
+<h2 id="model-provider-extras">Model provider extras<a class="headerlink" href="#model-provider-extras" title="Permanent link">&para;</a></h2>
+<p>Because <code>pydantic-ai-slim</code> ships no provider library, install the one matching
+your model via a <code>django-ag-ui</code> provider extra:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[anthropic]&quot;</span><span class="w">   </span><span class="c1"># or [openai], or [google]</span>
+</span></code></pre></div>
+<p>Each maps to the corresponding <code>pydantic-ai-slim</code> provider extra:</p>
+<table>
+<thead>
+<tr>
+<th>Extra</th>
+<th>Pulls in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>django-ag-ui[anthropic]</code></td>
+<td><code>pydantic-ai-slim[anthropic]</code></td>
+</tr>
+<tr>
+<td><code>django-ag-ui[openai]</code></td>
+<td><code>pydantic-ai-slim[openai]</code></td>
+</tr>
+<tr>
+<td><code>django-ag-ui[google]</code></td>
+<td><code>pydantic-ai-slim[google]</code></td>
+</tr>
+</tbody>
+</table>
+<p>When you set <a href="../configuration/#api_key"><code>API_KEY</code> or <code>PROVIDER</code></a> so the model is
+built with an explicit key, the <code>MODEL</code> string's <code>provider:</code> prefix must be one
+of: <code>anthropic</code>, <code>openai</code>, <code>google</code>, <code>google-gla</code>, <code>gemini</code>. An unknown prefix
+raises <code>ImproperlyConfigured</code> (set <code>PROVIDER</code> to a <code>Provider</code> instance instead).</p>
 <h2 id="asgi-is-required">ASGI is required<a class="headerlink" href="#asgi-is-required" title="Permanent link">&para;</a></h2>
 <p><a class="autorefs autorefs-internal" title="DjangoAGUIView" href="../api/#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a> is an <strong>async</strong> view that
 returns a <code>StreamingHttpResponse</code> of Server-Sent Events. AG-UI's SSE streaming
@@ -628,16 +684,17 @@ needs an event loop, which the synchronous WSGI worker does not provide. Deploy
 under an ASGI server such as <a href="https://www.uvicorn.org/">Uvicorn</a> or
 <a href="https://github.com/django/daphne">Daphne</a> and point it at your project's
 <code>asgi.py</code>:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uvicorn<span class="w"> </span>myproject.asgi:application
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>uvicorn<span class="w"> </span>myproject.asgi:application
 </span></code></pre></div>
 <p>The view marks itself as a coroutine function (via
 <code>asgiref.sync.markcoroutinefunction</code>) so Django's request handler awaits it when
-mounted.</p>
+mounted. When served over WSGI, the view emits a one-time <code>RuntimeWarning</code> to
+flag that SSE streaming needs ASGI.</p>
 <h2 id="the-drf-mcp-extra">The <code>[drf-mcp]</code> extra<a class="headerlink" href="#the-drf-mcp-extra" title="Permanent link">&para;</a></h2>
 <p>To expose a
 <a href="https://github.com/Artui/djangorestframework-mcp-server"><code>djangorestframework-mcp-server</code></a>
 tool registry to the agent in-process (no network MCP hop), install the extra:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[drf-mcp]&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[drf-mcp]&quot;</span>
 </span></code></pre></div>
 <p>This pulls in <code>djangorestframework-mcp-server&gt;=0.5</code>. The bridge
 (<a href="../concepts/#the-drf-mcp-toolset-bridge"><code>DrfMcpToolset</code></a>) is imported lazily,
