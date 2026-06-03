@@ -3,6 +3,7 @@
 from django_ag_ui.agent.agent_factory import build_agent
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
+from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.agent_config import AgentConfig
 from django_ag_ui.agent.types.agent_factory_fn import AgentFactoryFn
 from django_ag_ui.agent.urls import get_urls
@@ -58,6 +59,7 @@ __all__ = [
     "ToolCategory",
     "ToolRegistry",
     "ToolSpec",
+    "ToolsView",
     "X_CATEGORY_KEY",
     "X_CONFIRM_KEY",
     "X_DESTRUCTIVE_KEY",

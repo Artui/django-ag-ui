@@ -161,6 +161,25 @@ urlpatterns = [
 ]
 ```
 
+## 6. (Optional) publish the tool catalog
+
+Pass `tools=registry` (the **same** registry the view holds) to mount a
+read-only tool catalog at `<prefix>tools/` (GET, JSON). The web component fetches
+it via `data-tools-url` to label tool-call cards for server-side tools — whose
+JSON Schema never reaches the browser:
+
+```python
+urlpatterns = [
+    *get_urls(DjangoAGUIView(registry), prefix="agent/", tools=registry),
+]
+```
+
+Each entry is `{"name", "summary", "description"?}`; `summary` falls back from
+`@tool(summary=…)` to a prettified tool name. With
+[`DRF_MCP_SERVER`](configuration.md#drf_mcp_server) set, the catalog also surfaces
+the drf-mcp tools, using their `display_name` as the label. See
+[Tool metadata catalog](concepts.md#tool-metadata-catalog).
+
 ## What next
 
 - [Configuration](configuration.md) for every settings key.

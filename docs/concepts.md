@@ -169,6 +169,44 @@ urlpatterns = [
 
 The web component fetches this endpoint via its `data-skills-url` attribute.
 
+## Tool metadata catalog
+
+Server-side tools — the `@tool` registry and (when
+[`DRF_MCP_SERVER`](configuration.md#drf_mcp_server) is set) the drf-mcp tools —
+execute **server-side**, so their JSON Schema never reaches the browser. A client
+therefore can't read an `x-summary` off the schema to label a tool-call card.
+The **tool catalog** is the channel for those labels: a small read-only JSON
+endpoint the web component fetches via its `data-tools-url` attribute and uses to
+map a tool name → a friendly card label.
+
+[`build_tool_catalog(registry)`](api.md#django_ag_ui.agent.build_tool_catalog.build_tool_catalog)
+builds the catalog as a list of entries, each
+`{"name", "summary", "description"?}`:
+
+- `summary` is **always present**, resolved from a fallback chain:
+  registry tools use `@tool(summary=…)`
+  ([`ToolSpec.summary`][django_ag_ui.ToolSpec]) → a prettified tool name
+  (`query_model` → `"Query model"`); drf-mcp tools use `display_name` → `title`
+  → a prettified name.
+- `description` (a longer blurb, e.g. for a tooltip) is included only when
+  available — `ToolSpec.description` for registry tools, or drf-mcp
+  `display_description` → `description`.
+
+Registry tools win on name collisions. The drf-mcp `display_name` /
+`display_description` are drf-mcp's **binding metadata** (consumer-only, never on
+the MCP wire), so the catalog surfaces friendly labels for those tools too.
+
+`ToolsView` (`django_ag_ui.ToolsView`) — a GET-only callable view holding the
+same [`ToolRegistry`][django_ag_ui.ToolRegistry] the agent uses — serves the
+catalog. [`get_urls`][django_ag_ui.get_urls] mounts it at `<prefix>tools/` (named
+`django_ag_ui_tools`) when you pass `tools=` the same registry:
+
+```python
+urlpatterns = [
+    *get_urls(DjangoAGUIView(registry), prefix="agent/", tools=registry),
+]
+```
+
 ## Conversation persistence
 
 By default the server is **stateless**: the conversation lives in the message

@@ -27,6 +27,9 @@ with per-tool risk metadata.
   establishes the user tools act as.
 - A **skill catalog** ([`SkillRegistry`][django_ag_ui.SkillRegistry]) of
   pre-defined prompts, served at `<prefix>skills/` for the web component.
+- A **tool metadata catalog** ([`ToolsView`][django_ag_ui.ToolsView]), served at
+  `<prefix>tools/` via `get_urls(view, tools=registry)`, giving the web component
+  friendly card labels for server-side tools.
 - Optional, pluggable **conversation persistence**
   ([`ConversationStore`][django_ag_ui.ConversationStore]), off by default.
 - An optional **drf-mcp bridge** that exposes a
