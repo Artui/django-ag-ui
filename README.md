@@ -35,6 +35,10 @@ browser half is
 - **Skills** — a `SkillRegistry` / `SkillSpec` catalog of pre-defined prompts
   served at `<prefix>skills/` via `get_urls(view, skills=...)`, surfaced by the
   web component as chips and a `/`-command palette.
+- **Tool metadata catalog** — a read-only `ToolsView` served at `<prefix>tools/`
+  via `get_urls(view, tools=registry)`, giving the web component (`data-tools-url`)
+  friendly card labels for server-side tools whose schema never reaches the
+  browser.
 - **Audit boundary** — an `AuditLogger` Protocol (`Null` / `Logging` shipped,
   pluggable by dotted path) records every server-side tool call.
 - **Opt-in conversation persistence** — a `ConversationStore` Protocol with a

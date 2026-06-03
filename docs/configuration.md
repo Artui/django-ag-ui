@@ -204,6 +204,11 @@ tools are exposed to the agent in-process (requires the `[drf-mcp]` extra).
 and permission checks apply. See
 [Installation → the `[drf-mcp]` extra](installation.md#the-drf-mcp-extra).
 
+The drf-mcp tools also appear in the
+[tool metadata catalog](concepts.md#tool-metadata-catalog) (mounted by
+`get_urls(view, tools=registry)`), which reads each tool's `display_name` /
+`display_description` as the web component's card label.
+
 ```python
 DJANGO_AG_UI = {
     "DRF_MCP_SERVER": "myproject.mcp.server",

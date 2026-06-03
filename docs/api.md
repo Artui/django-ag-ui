@@ -37,6 +37,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.DjangoAGUIView
 
+::: django_ag_ui.ToolsView
+
 ::: django_ag_ui.get_urls
 
 ::: django_ag_ui.build_agent
@@ -89,6 +91,8 @@ guides.
 ::: django_ag_ui.agent.resolve_dotted_instances.resolve_dotted_instances
 
 ::: django_ag_ui.agent.build_model.build_model
+
+::: django_ag_ui.agent.build_tool_catalog.build_tool_catalog
 
 ::: django_ag_ui.integrations.drf_mcp.DrfMcpToolset
 </content>

@@ -28,3 +28,11 @@ def test_get_urls_mounts_skills_endpoint_when_given() -> None:
     assert len(patterns) == 2
     assert patterns[1].name == "django_ag_ui_skills"
     assert "agent/skills/" in str(patterns[1].pattern)
+
+
+def test_get_urls_mounts_tools_endpoint_when_given() -> None:
+    registry = ToolRegistry()
+    view = DjangoAGUIView(registry, model=TestModel())
+    patterns = get_urls(view, tools=registry)
+    tools_pattern = next(p for p in patterns if p.name == "django_ag_ui_tools")
+    assert "agent/tools/" in str(tools_pattern.pattern)

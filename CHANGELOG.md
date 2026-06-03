@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Tool-metadata catalog.** A read-only `ToolsView` (GET, JSON) returns the
+  agent's server-tool catalog; `get_urls(view, tools=registry)` mounts it at
+  `<prefix>tools/` (named `django_ag_ui_tools`), passing the same `ToolRegistry`
+  the view uses. `build_tool_catalog(registry)` builds the list — each entry is
+  `{"name", "summary", "description"?}`. `summary` is always present, resolved
+  from a fallback chain: registry `@tool(summary=…)` → a prettified tool name
+  (`query_model` → "Query model"); for drf-mcp tools `display_name` → `title` →
+  prettified name. `description` is included when available (`ToolSpec.description`,
+  or drf-mcp `display_description` → `description`); registry tools win on name
+  collisions. **Purpose:** server-side tools execute server-side, so their JSON
+  Schema never reaches the browser — the catalog is the channel the web component
+  fetches via its `data-tools-url` attribute to label tool-call cards.
+
+### Changed
+- The `[drf-mcp]` extra now requires `djangorestframework-mcp-server>=0.6.1`
+  (which pulls `djangorestframework-services>=0.15.0`). Additive, no code change:
+  it lets the tool catalog read drf-mcp tools' `display_name` / `display_description`
+  binding metadata (consumer-only, never on the MCP wire) as the label source.
+
 ## [0.2.2] — 2026-06-02
 
 ### Fixed
