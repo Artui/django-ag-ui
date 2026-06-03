@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The `[drf-mcp]` extra now requires `djangorestframework-mcp-server>=0.6.1`
+  (pulls `djangorestframework-services>=0.15.0`). 0.5.1 → 0.6.1 is additive
+  (chain tools, resolved-data output-context, `display_name`/`display_description`
+  binding metadata, a LIST-pagination fix); the `DrfMcpToolset` bridge is
+  unchanged and the suite passes against the new stack.
+
 ## [0.2.2] — 2026-06-02
 
 ### Fixed
