@@ -893,6 +893,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#django_ag_ui.ToolsView" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ToolsView
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#django_ag_ui.get_urls" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1393,6 +1404,17 @@
     <span class="md-ellipsis">
       
         build_model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.agent.build_tool_catalog.build_tool_catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_tool_catalog
       
     </span>
   </a>
@@ -1893,6 +1915,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#django_ag_ui.ToolsView" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ToolsView
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#django_ag_ui.get_urls" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2393,6 +2426,17 @@
     <span class="md-ellipsis">
       
         build_model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.agent.build_tool_catalog.build_tool_catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_tool_catalog
       
     </span>
   </a>
@@ -3550,6 +3594,57 @@ from a token) before tools run.</p>
 
 </div>
 
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.ToolsView" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ToolsView</span>
+
+
+<a href="#django_ag_ui.ToolsView" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A read-only endpoint returning the agent's server-tool catalog (GET, JSON).</p>
+<p>A callable instance (like :class:<code>~django_ag_ui.agent.agui_view.DjangoAGUIView</code>)
+holding the same :class:<code>~django_ag_ui.registry.tool_registry.ToolRegistry</code>
+the view uses. <code>GET</code> returns the :func:<code>build_tool_catalog</code> list the web
+component fetches via <code>data-tools-url</code> to label tool-call cards for
+server-side tools (whose schema never reaches the browser).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
 <div class="doc doc-object doc-function">
 
 
@@ -3559,8 +3654,12 @@ from a token) before tools run.</p>
 
 <a href="#django_ag_ui.get_urls" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_urls</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">DjangoAGUIView</span><span class="p">,</span> <span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">skills</span><span class="p">:</span> <span class="n">SkillRegistry</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">URLPattern</span><span class="p">]</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">DjangoAGUIView</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;agent/&quot;</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">skills</span><span class="p">:</span> <span class="n">SkillRegistry</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">tools</span><span class="p">:</span> <span class="n">ToolRegistry</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">URLPattern</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3568,10 +3667,13 @@ from a token) before tools run.</p>
         <p>Return URL patterns mounting <code>view</code> at <code>&lt;prefix&gt;</code> (POST, SSE).</p>
 <p>When <code>skills</code> is given, also mounts a read-only skills catalog at
 <code>&lt;prefix&gt;skills/</code> (GET, JSON) for the web component's <code>data-skills-url</code>.</p>
+<p>When <code>tools</code> (the same :class:<code>ToolRegistry</code> the view uses) is given, also
+mounts a read-only <strong>tool catalog</strong> at <code>&lt;prefix&gt;tools/</code> (GET, JSON) for the
+component's <code>data-tools-url</code> — friendly card labels for server-side tools.</p>
 <p>Include the result from your project's root URLconf::</p>
 <div class="language-text highlight"><pre><span></span><code>urlpatterns = [
     ...,
-    path(&quot;&quot;, include(get_urls(DjangoAGUIView(registry), skills=skills))),
+    path(&quot;&quot;, include(get_urls(DjangoAGUIView(registry), tools=registry))),
 ]
 </code></pre></div>
 
@@ -4946,6 +5048,40 @@ path for anything Pydantic-AI can't infer.</p>
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="django_ag_ui.agent.build_tool_catalog.build_tool_catalog" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">build_tool_catalog</span>
+
+
+<a href="#django_ag_ui.agent.build_tool_catalog.build_tool_catalog" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_tool_catalog</span><span class="p">(</span><span class="n">registry</span><span class="p">:</span> <span class="n">ToolRegistry</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The agent's server-tool catalog for the frontend to label tool-call cards.</p>
+<p>Server-side tools (the <code>@tool</code> registry, and drf-mcp tools when
+<code>DJANGO_AG_UI['DRF_MCP_SERVER']</code> is set) execute server-side, so their
+JSON Schema never reaches the browser — the web component can't read an
+<code>x-summary</code> off it. This catalog is the channel for those labels: the
+component fetches it via <code>data-tools-url</code> and maps tool name → label.</p>
+<p>Each entry is <code>{"name", "summary", "description"?}</code>. <code>summary</code> is always
+present, resolved from the single source of truth with a fallback chain:</p>
+<ul>
+<li>registry tools → <code>@tool(summary=…)</code> → a prettified name;</li>
+<li>drf-mcp tools → <code>display_name</code> → <code>title</code> → a prettified name.</li>
+</ul>
+<p><code>description</code> (a longer blurb for tooltips) is included when available
+(<code>ToolSpec.description</code> / drf-mcp <code>display_description</code> → <code>description</code>).
+Registry tools win on name collisions.</p>
 
 
     </div>

@@ -1049,6 +1049,10 @@ tools are exposed to the agent in-process (requires the <code>[drf-mcp]</code> e
 <code>request</code>, so the agent acts as the logged-in user and drf-mcp's own validation
 and permission checks apply. See
 <a href="../installation/#the-drf-mcp-extra">Installation → the <code>[drf-mcp]</code> extra</a>.</p>
+<p>The drf-mcp tools also appear in the
+<a href="../concepts/#tool-metadata-catalog">tool metadata catalog</a> (mounted by
+<code>get_urls(view, tools=registry)</code>), which reads each tool's <code>display_name</code> /
+<code>display_description</code> as the web component's card label.</p>
 <p><div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="s2">&quot;DRF_MCP_SERVER&quot;</span><span class="p">:</span> <span class="s2">&quot;myproject.mcp.server&quot;</span><span class="p">,</span>
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="p">}</span>

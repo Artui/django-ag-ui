@@ -438,6 +438,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#6-optional-publish-the-tool-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. (Optional) publish the tool catalog
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-next" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -619,6 +630,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#6-optional-publish-the-tool-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. (Optional) publish the tool catalog
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-next" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -781,6 +803,20 @@ the web component fetches via <code>data-skills-url</code>:</p>
 </span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    <span class="o">*</span><span class="n">get_urls</span><span class="p">(</span><span class="n">DjangoAGUIView</span><span class="p">(</span><span class="n">registry</span><span class="p">),</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">skills</span><span class="o">=</span><span class="n">skills</span><span class="p">),</span>
 </span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="p">]</span>
 </span></code></pre></div>
+<h2 id="6-optional-publish-the-tool-catalog">6. (Optional) publish the tool catalog<a class="headerlink" href="#6-optional-publish-the-tool-catalog" title="Permanent link">&para;</a></h2>
+<p>Pass <code>tools=registry</code> (the <strong>same</strong> registry the view holds) to mount a
+read-only tool catalog at <code>&lt;prefix&gt;tools/</code> (GET, JSON). The web component fetches
+it via <code>data-tools-url</code> to label tool-call cards for server-side tools — whose
+JSON Schema never reaches the browser:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="o">*</span><span class="n">get_urls</span><span class="p">(</span><span class="n">DjangoAGUIView</span><span class="p">(</span><span class="n">registry</span><span class="p">),</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="n">registry</span><span class="p">),</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="p">]</span>
+</span></code></pre></div>
+<p>Each entry is <code>{"name", "summary", "description"?}</code>; <code>summary</code> falls back from
+<code>@tool(summary=…)</code> to a prettified tool name. With
+<a href="../configuration/#drf_mcp_server"><code>DRF_MCP_SERVER</code></a> set, the catalog also surfaces
+the drf-mcp tools, using their <code>display_name</code> as the label. See
+<a href="../concepts/#tool-metadata-catalog">Tool metadata catalog</a>.</p>
 <h2 id="what-next">What next<a class="headerlink" href="#what-next" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../configuration/">Configuration</a> for every settings key.</li>
