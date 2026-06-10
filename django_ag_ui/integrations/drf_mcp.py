@@ -175,9 +175,11 @@ class DrfMcpToolset(ExternalToolset[Any]):
             # as content the model can read and act on.
             error = _parse_tool_error(result)
             if error.get("type") == "validation_error":
-                raise ModelRetry(
-                    _retry_message(error.get("message", "invalid arguments"), error.get("detail"))
-                )
+                # Single-line statements: Python 3.11's tracer attributes a
+                # multi-line ``raise X(...)`` to the argument line, leaving
+                # the ``raise`` line "uncovered" and tripping the 100% gate.
+                message = error.get("message", "invalid arguments")
+                raise ModelRetry(_retry_message(message, error.get("detail")))
             return {"error": error}
         return result.get("structuredContent", result.get("content"))
 

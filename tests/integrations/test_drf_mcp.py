@@ -136,6 +136,25 @@ async def test_service_error_result_returns_model_readable_content() -> None:
     assert result == {"error": {"type": "service_error", "message": "denied by policy"}}
 
 
+async def test_validation_error_payload_raises_model_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Same branch as the integration test above, driven at the payload level:
+    # Python 3.11's C tracer intermittently drops the bridge frames when the
+    # call rides drf-mcp's real executor hop, leaving the branch "uncovered"
+    # there even though it runs — this monkeypatched twin records reliably.
+    import json as json_module
+
+    async def fake_call(params: object, context: object) -> dict[str, object]:
+        payload = {
+            "error": {"type": "validation_error", "message": "bad", "detail": {"a": ["nope"]}}
+        }
+        return {"isError": True, "content": [{"type": "text", "text": json_module.dumps(payload)}]}
+
+    monkeypatch.setattr("django_ag_ui.integrations.drf_mcp.handle_tools_call_async", fake_call)
+    toolset = DrfMcpToolset(server, _request())
+    with pytest.raises(ModelRetry, match="bad.*nope"):
+        await toolset.call_tool("add", {"a": 1, "b": 2}, None, None)
+
+
 async def test_unparseable_error_content_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_call(params: object, context: object) -> dict[str, object]:
         return {"isError": True, "content": [{"type": "text", "text": "not json"}]}
