@@ -34,6 +34,7 @@ from django_ag_ui.persistence.utils import owner_id_for
 from django_ag_ui.policy.audit.resolve_audit_logger import resolve_audit_logger
 from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
 from django_ag_ui.registry.tool_registry import ToolRegistry
+from django_ag_ui.utils import aauthorize
 
 
 class DjangoAGUIView:
@@ -55,7 +56,19 @@ class DjangoAGUIView:
     request, that is ``AnonymousUser`` — a data-exposure footgun. Pass
     ``require_authenticated=True`` to fail closed (401 for unauthenticated
     requests), and/or a ``get_user(request)`` hook to establish the user (e.g.
-    from a token) before tools run.
+    from a token) before tools run. ``get_user`` may be **sync or async**; a
+    sync hook runs off the event loop, so a plain ORM token → ``User`` lookup
+    (``Token.objects.select_related("user").get(key=...).user``) is fully
+    supported. A hook that raises propagates as an unhandled error (500) —
+    return ``AnonymousUser`` (or ``None``) for a clean 401 instead.
+
+    **CSRF:** the view defaults to ``csrf_exempt=True`` because AG-UI clients
+    typically authenticate via headers (Bearer / API key), where CSRF does not
+    apply. If your deployment authenticates with **session cookies**, pass
+    ``csrf_exempt=False`` and send the CSRF token from the client — tools act
+    as ``request.user``, so a cookie-auth endpoint without CSRF protection
+    lets any third-party page drive the agent as the logged-in user
+    (mitigated, not eliminated, by Django's default ``SameSite=Lax`` cookie).
     """
 
     def __init__(
@@ -67,7 +80,9 @@ class DjangoAGUIView:
         audit_logger: AuditLogger | None = None,
         csrf_exempt: bool = True,
         require_authenticated: bool = False,
-        get_user: Callable[[HttpRequest], Any] | None = None,
+        get_user: Callable[[HttpRequest], Any]
+        | Callable[[HttpRequest], Awaitable[Any]]
+        | None = None,
     ) -> None:
         self._registry = registry
         self._model = model
@@ -90,7 +105,7 @@ class DjangoAGUIView:
         self._warn_if_not_asgi(request)
         if request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
-        if not self._authorize(request):
+        if not await self._authorize(request):
             return JsonResponse({"error": "authentication required"}, status=401)
         try:
             run_input = AGUIAdapter.build_run_input(request.body)
@@ -177,22 +192,32 @@ class DjangoAGUIView:
         from django_ag_ui.integrations.drf_mcp import DrfMcpToolset
 
         server = import_string(dotted_path)
-        return [DrfMcpToolset(server, request)]
+        # "Registry tools win" on name collisions — the same rule
+        # ``build_tool_catalog`` applies. Without the exclusion, pydantic-ai
+        # raises ``UserError`` at run time for the duplicate name: a clean
+        # catalog but a broken agent.
+        registered = frozenset(binding.spec.name for binding in self._registry)
+        return [DrfMcpToolset(server, request, exclude_names=registered)]
 
-    def _authorize(self, request: HttpRequest) -> bool:
+    async def _authorize(self, request: HttpRequest) -> bool:
         """Establish the user (via ``get_user``) and enforce authentication.
 
         Returns ``False`` only when ``require_authenticated`` is set and the
         resolved user is anonymous — the caller then 401s. A ``get_user`` hook
-        is assigned onto ``request.user`` so tools / the drf-mcp bridge /
-        conversation ownership act as that user.
+        (sync **or** async; sync hooks run off the event loop so the ORM is
+        safe) is assigned onto ``request.user`` so tools / the drf-mcp bridge /
+        conversation ownership act as that user. Without a hook, the
+        middleware's lazy ``request.user`` is materialized in a worker thread
+        first — touching it on the loop with DB-backed sessions raises
+        ``SynchronousOnlyOperation``, and downstream loop-side readers (the
+        drf-mcp bridge's ``TokenInfo``, conversation ownership) rely on the
+        cached resolution.
         """
-        if self._get_user is not None:
-            request.user = self._get_user(request)
-        if not self._require_authenticated:
-            return True
-        user = getattr(request, "user", None)
-        return bool(getattr(user, "is_authenticated", False))
+        return await aauthorize(
+            request,
+            get_user=self._get_user,
+            require_authenticated=self._require_authenticated,
+        )
 
     @staticmethod
     def _warn_if_not_asgi(request: HttpRequest) -> None:

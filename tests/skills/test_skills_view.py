@@ -28,3 +28,20 @@ def test_non_get_is_rejected() -> None:
     view = SkillsView(_registry())
     response = view(RequestFactory().post("/agent/skills/"))
     assert response.status_code == 405
+
+
+def test_anonymous_is_rejected_when_require_authenticated() -> None:
+    view = SkillsView(_registry(), require_authenticated=True)
+    response = view(RequestFactory().get("/agent/skills/"))
+    assert response.status_code == 401
+
+
+def test_async_get_user_hook_opens_the_catalog() -> None:
+    from types import SimpleNamespace
+
+    async def get_user(request):  # noqa: ANN001, ANN202
+        return SimpleNamespace(is_authenticated=True)
+
+    view = SkillsView(_registry(), require_authenticated=True, get_user=get_user)
+    response = view(RequestFactory().get("/agent/skills/"))
+    assert response.status_code == 200

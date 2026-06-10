@@ -14,25 +14,36 @@ re-derived locally, so the in-process bridge advertises the *same* merged
 ``inputSchema`` the HTTP transport would — including a selector tool's
 filter / ordering / pagination arguments and the ``additionalProperties`` policy,
 not just the input serializer's fields.
+
+Error semantics follow the MCP protocol-vs-tool boundary (drf-mcp 0.7+):
+
+- malformed *arguments shape* (JSON-RPC ``-32602``) and tool-level
+  ``validation_error`` results → :class:`pydantic_ai.ModelRetry`, so the
+  model retries with the field errors instead of the run dying;
+- other tool-level failures (``service_error`` / ``not_found`` ``isError``
+  results) → returned as the tool's content, model-readable;
+- genuine protocol faults (unknown tool, auth, rate limits) → a hard
+  ``RuntimeError`` that aborts the run.
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from typing import Any
 
 from asgiref.sync import sync_to_async
 from django.http import HttpRequest
+from pydantic_ai import ModelRetry
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets.external import ExternalToolset
 from rest_framework_mcp.auth.types.token_info import TokenInfo
+from rest_framework_mcp.conf import get_setting as get_mcp_setting
+from rest_framework_mcp.constants import JsonRpcErrorCode
 from rest_framework_mcp.handlers.handle_tools_call_async import handle_tools_call_async
 from rest_framework_mcp.handlers.handle_tools_list import handle_tools_list
 from rest_framework_mcp.handlers.types.context import MCPCallContext
 from rest_framework_mcp.protocol.types.json_rpc_error import JsonRpcError
-
-# Pinned protocol version for synthesised in-process calls (no wire negotiation).
-_PROTOCOL_VERSION = "2025-06-18"
 
 
 class DrfMcpToolset(ExternalToolset[Any]):
@@ -42,11 +53,23 @@ class DrfMcpToolset(ExternalToolset[Any]):
     schemas and execution both route through drf-mcp's own handlers, so the
     advertised parameters, serializer validation, and permissions match the
     HTTP transport exactly.
+
+    ``exclude_names`` carries the ``@tool`` registry's names: on a collision
+    the registry tool wins (the same rule ``build_tool_catalog`` applies) and
+    the drf-mcp twin is skipped — otherwise pydantic-ai raises ``UserError``
+    for the duplicate name at run time.
     """
 
-    def __init__(self, server: Any, request: HttpRequest) -> None:
+    def __init__(
+        self,
+        server: Any,
+        request: HttpRequest,
+        *,
+        exclude_names: frozenset[str] = frozenset(),
+    ) -> None:
         self._server = server
         self._request = request
+        self._exclude_names = exclude_names
         self._loaded = False
         # Tool defs are loaded lazily in ``get_tools`` (async): drf-mcp's
         # ``tools/list`` may touch the DB (per-user listing permissions), which
@@ -54,14 +77,19 @@ class DrfMcpToolset(ExternalToolset[Any]):
         super().__init__([], id="drf-mcp")
 
     def _context(self) -> MCPCallContext:
-        """Build the per-call context carrying the acting user + registries."""
+        """Build the per-call context carrying the acting user + registries.
+
+        The protocol version is read from drf-mcp's own configuration (the
+        first — most preferred — supported version) rather than a hardcoded
+        literal, so the synthesised in-process calls track the server.
+        """
         return MCPCallContext(
             http_request=self._request,
             token=TokenInfo(user=self._request.user),
             tools=self._server.tools,
             resources=self._server.resources,
             prompts=self._server.prompts,
-            protocol_version=_PROTOCOL_VERSION,
+            protocol_version=get_mcp_setting("PROTOCOL_VERSIONS")[0],
         )
 
     async def get_tools(self, ctx: Any) -> Any:
@@ -93,7 +121,8 @@ class DrfMcpToolset(ExternalToolset[Any]):
         Uses the authoritative merged ``inputSchema`` (serializer fields + a
         selector's filter / ordering / pagination args + the
         ``additionalProperties`` policy) verbatim, so nothing the model could
-        send over HTTP is silently dropped in-process.
+        send over HTTP is silently dropped in-process. Names colliding with
+        the ``@tool`` registry are skipped (registry wins).
         """
         defs: list[ToolDefinition] = []
         context = self._context()
@@ -104,6 +133,8 @@ class DrfMcpToolset(ExternalToolset[Any]):
             if isinstance(payload, JsonRpcError):
                 raise RuntimeError(f"drf-mcp tools/list failed: {payload.message}")
             for tool in payload["tools"]:
+                if tool["name"] in self._exclude_names:
+                    continue
                 defs.append(
                     ToolDefinition(
                         name=tool["name"],
@@ -128,8 +159,51 @@ class DrfMcpToolset(ExternalToolset[Any]):
             context=self._context(),
         )
         if isinstance(result, JsonRpcError):
+            if result.code == JsonRpcErrorCode.INVALID_PARAMS:
+                # Malformed arguments — the single most common failure mode.
+                # ``ModelRetry`` feeds the field errors back so the model
+                # corrects itself; anything else raised from a tool aborts
+                # the whole run with a dead chat.
+                raise ModelRetry(_retry_message(result.message, (result.data or {}).get("detail")))
+            # Genuine protocol faults (unknown tool, auth, rate limit) are
+            # unrecoverable mid-run.
             raise RuntimeError(f"drf-mcp tool {name!r} failed: {result.message}")
+        if result.get("isError"):
+            # drf-mcp 0.7+ returns business failures as ``isError`` tool
+            # results. Service-raised validation still earns a retry; other
+            # tool-level failures (business rules, missing rows) are returned
+            # as content the model can read and act on.
+            error = _parse_tool_error(result)
+            if error.get("type") == "validation_error":
+                # Single-line statements: Python 3.11's tracer attributes a
+                # multi-line ``raise X(...)`` to the argument line, leaving
+                # the ``raise`` line "uncovered" and tripping the 100% gate.
+                message = error.get("message", "invalid arguments")
+                raise ModelRetry(_retry_message(message, error.get("detail")))
+            return {"error": error}
         return result.get("structuredContent", result.get("content"))
+
+
+def _parse_tool_error(result: dict[str, Any]) -> dict[str, Any]:
+    """Extract the ``{"error": {...}}`` payload from an ``isError`` result.
+
+    drf-mcp encodes it as JSON text in ``content[0]``; fall back to a generic
+    shape if a future encoding changes (never raise while reporting an error).
+    """
+    content = result.get("content") or []
+    text: Any = content[0].get("text", "") if content else ""
+    try:
+        error = json.loads(text)["error"]
+    except (ValueError, KeyError, TypeError):
+        return {"type": "unknown", "message": str(text) or "tool error"}
+    return error if isinstance(error, dict) else {"type": "unknown", "message": str(error)}
+
+
+def _retry_message(message: str, detail: Any) -> str:
+    """Compose the ``ModelRetry`` text: human message + field-level detail."""
+    if not detail:
+        return message
+    return f"{message}: {json.dumps(detail, default=str)}"
 
 
 __all__ = ["DrfMcpToolset"]

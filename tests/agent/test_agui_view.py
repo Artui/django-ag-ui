@@ -276,3 +276,89 @@ async def test_drf_mcp_toolset_built_per_request_when_configured() -> None:
 async def test_no_drf_mcp_toolset_without_the_setting() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
     assert view._drf_mcp_toolsets(None, RequestFactory().post("/agent/")) == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_sync_orm_get_user_hook_works_under_async() -> None:
+    # The headline use case: a *sync* hook doing a real ORM lookup. Before
+    # the sync-or-async fix this raised SynchronousOnlyOperation (the hook
+    # ran on the event loop).
+    from django.contrib.auth.models import User
+
+    def get_user(request):  # noqa: ANN001, ANN202 — the shape adapters write
+        return User.objects.get_or_create(username="api")[0]
+
+    view = DjangoAGUIView(
+        _registry(), model=TestModel(), require_authenticated=True, get_user=get_user
+    )
+    request = _post(_run_input("hi"))
+    response = await view(request)
+    assert isinstance(response, StreamingHttpResponse)
+    assert request.user.username == "api"
+
+
+async def test_async_get_user_hook_is_awaited() -> None:
+    # Previously an async hook was called without awaiting → a coroutine
+    # landed on request.user and the gate silently failed.
+    user = SimpleNamespace(is_authenticated=True, username="async-api")
+
+    async def get_user(request):  # noqa: ANN001, ANN202
+        return user
+
+    view = DjangoAGUIView(
+        _registry(), model=TestModel(), require_authenticated=True, get_user=get_user
+    )
+    request = _post(_run_input("hi"))
+    response = await view(request)
+    assert isinstance(response, StreamingHttpResponse)
+    assert request.user is user
+
+
+async def test_sync_hook_returning_a_coroutine_is_awaited() -> None:
+    # Belt-and-suspenders: a sync callable wrapping an async fn (e.g. a
+    # functools.partial) must never leak a coroutine onto request.user.
+    user = SimpleNamespace(is_authenticated=True)
+
+    async def _lookup() -> SimpleNamespace:
+        return user
+
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        require_authenticated=True,
+        get_user=lambda _request: _lookup(),
+    )
+    request = _post(_run_input("hi"))
+    response = await view(request)
+    assert isinstance(response, StreamingHttpResponse)
+    assert request.user is user
+
+
+async def test_hook_returning_anonymous_is_rejected() -> None:
+    from django.contrib.auth.models import AnonymousUser
+
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        require_authenticated=True,
+        get_user=lambda _request: AnonymousUser(),
+    )
+    response = await view(_post(_run_input("hi")))
+    assert response.status_code == 401
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_lazy_request_user_is_materialized_off_the_loop() -> None:
+    # ASYNC-1: with DB-backed sessions, request.user is a SimpleLazyObject
+    # whose first touch runs ORM queries — forbidden on the event loop. The
+    # view must resolve it in a worker thread, so this passes instead of
+    # raising SynchronousOnlyOperation.
+    from django.contrib.auth.models import User
+    from django.utils.functional import SimpleLazyObject
+
+    view = DjangoAGUIView(_registry(), model=TestModel(), require_authenticated=True)
+    request = _post(_run_input("hi"))
+    request.user = SimpleLazyObject(lambda: User.objects.get_or_create(username="lazy")[0])
+    response = await view(request)
+    assert isinstance(response, StreamingHttpResponse)
+    assert request.user.username == "lazy"
