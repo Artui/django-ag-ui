@@ -17,7 +17,7 @@ A Django ↔ Pydantic-AI ↔ [AG-UI](https://docs.ag-ui.com) integration. Provid
 Downstream packages (e.g. `django-admin-agent`) build on this. **No admin specifics live in
 this package.**
 
-The design is at `/Users/arturveres/code/opensource/docs/plans/django-ag-ui-plan.md`.
+The AG-UI stack design doc (`django-ag-ui-plan.md`) lives in the private ecosystem planning workspace, outside this repo.
 
 ## Commands
 
