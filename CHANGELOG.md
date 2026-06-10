@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The `get_user` auth hook now accepts sync or async callables** and runs
+  sync hooks off the event loop (`sync_to_async`, thread-sensitive), so the
+  headline use case — a sync ORM token → user lookup — works without
+  `SynchronousOnlyOperation`. Async hooks, previously called without being
+  awaited (a coroutine landed on `request.user` and the auth gate silently
+  failed), now work too. A sync hook that returns a coroutine (e.g. a
+  `functools.partial` over an async fn) is awaited rather than leaked.
+- **`require_authenticated` no longer crashes under ASGI with DB-backed
+  sessions** (ASYNC-1). The lazy `request.user` is materialized in a worker
+  thread before the gate, instead of being resolved on the event loop; the
+  cached resolution also makes later loop-side readers (the drf-mcp
+  bridge's `TokenInfo`, conversation ownership) safe.
+- **Bridge errors no longer kill the chat** (ERR-2). The drf-mcp bridge
+  previously raised `RuntimeError` for every `JsonRpcError`, which
+  pydantic-ai treats as fatal — the most common failure (the model sending
+  slightly wrong arguments) emitted `RUN_ERROR` and ended the run. Now:
+  malformed-arguments (`-32602`) and service-raised validation raise
+  `pydantic_ai.ModelRetry` carrying the field errors so the model
+  self-corrects; business-rule failures and missing rows (drf-mcp 0.7's
+  `isError` results) are returned as model-readable `{"error": {...}}`
+  content; a hard `RuntimeError` is reserved for genuine protocol faults
+  (unknown tool, auth, rate limits).
+- **Tool-name collisions no longer break the agent** (DUP-1). The catalog
+  deduped registry-vs-drf-mcp collisions ("registry wins") but the agent
+  registered both, so pydantic-ai raised `UserError` at the first run. The
+  drf-mcp toolset now receives the registry's names and skips collisions —
+  catalog and agent agree on one rule.
+- **The bridge no longer pins a hardcoded MCP protocol version** (PROTO-1).
+  Synthesised in-process calls advertise drf-mcp's own first supported
+  version (`REST_FRAMEWORK_MCP["PROTOCOL_VERSIONS"][0]`), so the bridge
+  tracks the server across upgrades.
+
+### Added
+
+- **Auth seam on the catalog views** (SEC-6). `ToolsView` and `SkillsView`
+  accept the same `require_authenticated` / `get_user` (sync or async) pair
+  as `DjangoAGUIView`, so one policy covers the agent endpoint and the
+  catalogs it advertises — previously both answered any anonymous GET, even
+  with a locked-down agent endpoint. Defaults stay open for backwards
+  compatibility; lock the catalogs down whenever the endpoint is.
+- Shared authorize helpers in `django_ag_ui.utils` (`aauthorize` /
+  `authorize` / `acall_get_user` / `call_get_user`) — the single policy
+  implementation behind all three views.
+
+### Changed
+
+- **Dependency ranges tightened** (VER-2): `pydantic-ai-slim[ag-ui]` is now
+  capped `>=1.0,<2` (the bridge touches semi-internal pydantic-ai surface —
+  `ExternalToolset.tool_defs`, tool-def re-stamping), and the `drf-mcp`
+  extra now requires `djangorestframework-mcp-server>=0.7,<0.8` — the range
+  actually tested, and the floor that returns business failures as
+  `isError` results (which ERR-2's mapping consumes).
+- **CSRF guidance made prominent**: the view keeps `csrf_exempt=True` by
+  default (right for header-token auth), but cookie-authenticated
+  deployments should pass `csrf_exempt=False` — tools act as
+  `request.user`, so an unprotected cookie-auth endpoint lets a third-party
+  page drive the agent as the logged-in user. Documented in the quickstart
+  and the view docstring.
+
 ## [0.3.0] — 2026-06-03
 
 ### Added

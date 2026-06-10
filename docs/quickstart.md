@@ -122,21 +122,42 @@ from pydantic_ai.models.test import TestModel
 view = DjangoAGUIView(registry, model=TestModel())
 ```
 
-CSRF is exempt by default (AG-UI clients authenticate via headers/session and
-post JSON); pass `csrf_exempt=False` to opt back in.
+!!! warning "CSRF and cookie-authenticated deployments"
+    CSRF is exempt by default — right for header-token auth (Bearer / API
+    key), where CSRF doesn't apply. If your deployment authenticates with
+    **session cookies**, pass `csrf_exempt=False` and send the token from
+    the client: tools act as `request.user`, so a cookie-auth endpoint
+    without CSRF protection lets any third-party page drive the agent as
+    the logged-in user (Django's default `SameSite=Lax` cookie mitigates,
+    but does not eliminate, the risk).
 
 Authentication is the host's responsibility, but the view offers two hooks. Pass
 `require_authenticated=True` to fail closed (anonymous requests get `401`), and a
-`get_user=` callable to establish the user (e.g. from a token) — its return value
-is assigned onto `request.user`, so tools and conversation ownership act as that
+`get_user=` callable — **sync or async**; a sync ORM lookup is fully supported
+(it runs off the event loop) — to establish the user. Its return value is
+assigned onto `request.user`, so tools and conversation ownership act as that
 user:
 
 ```python
+def get_user(request):
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    return Token.objects.select_related("user").get(key=token).user
+
+
 view = DjangoAGUIView(
     registry,
     require_authenticated=True,
-    get_user=lambda request: resolve_user_from_token(request),
+    get_user=get_user,
 )
+```
+
+The tool and skill catalog views accept the same pair — lock them down
+whenever the agent endpoint is locked down (the catalogs enumerate every
+server tool and skill prompt):
+
+```python
+ToolsView(registry, require_authenticated=True, get_user=get_user)
+SkillsView(skills, require_authenticated=True, get_user=get_user)
 ```
 
 ## 5. (Optional) offer skills

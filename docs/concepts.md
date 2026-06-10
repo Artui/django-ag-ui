@@ -107,7 +107,22 @@ instance. On each POST it:
    is assigned onto `request.user` (so tools, the drf-mcp bridge, and
    conversation ownership act as that user), and `require_authenticated=True`,
    which fails closed — anonymous requests get `401` with JSON
-   `{"error": "authentication required"}`.
+   `{"error": "authentication required"}`. `get_user` may be **sync or
+   async**; sync hooks run off the event loop in Django's sync executor, so
+   the canonical token lookup Just Works:
+
+    ```python
+    def get_user(request):
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        return Token.objects.select_related("user").get(key=token).user
+    ```
+
+    Without a hook, the middleware-provided lazy `request.user` is
+    materialized in a worker thread before the gate — with Django's
+    DB-backed sessions, touching it on the event loop would raise
+    `SynchronousOnlyOperation`. The catalog views (`ToolsView` and `SkillsView`) accept the same
+    `require_authenticated` / `get_user` pair, so one policy covers the
+    agent endpoint and the catalogs it advertises.
 2. Parses the request body into a `RunAgentInput` via
    `AGUIAdapter.build_run_input` (returning HTTP 400 with an error count, not
    the raw payload, on a `ValidationError`).

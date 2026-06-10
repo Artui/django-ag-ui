@@ -4,7 +4,7 @@ import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.http import HttpRequest
 from django.test import RequestFactory
-from pydantic_ai import Agent
+from pydantic_ai import Agent, ModelRetry
 from pydantic_ai.messages import ToolReturnPart
 from pydantic_ai.models.test import TestModel
 from rest_framework_mcp.constants import JsonRpcErrorCode
@@ -102,7 +102,79 @@ async def test_toolset_invokes_drf_tool_as_acting_user() -> None:
     assert result == {"result": 8}
 
 
-async def test_call_tool_raises_on_a_drf_error() -> None:
+async def test_call_tool_raises_on_a_protocol_fault() -> None:
+    # Unknown tool is a genuine protocol fault — unrecoverable mid-run.
     toolset = DrfMcpToolset(server, _request())
     with pytest.raises(RuntimeError, match="drf-mcp tool 'nope'"):
         await toolset.call_tool("nope", {}, None, None)
+
+
+async def test_malformed_arguments_raise_model_retry_with_detail() -> None:
+    # JSON-RPC -32602 (the serializer rejecting the arguments *shape*) becomes
+    # ``ModelRetry`` carrying the field errors, so the model self-corrects
+    # instead of the run dying with RUN_ERROR.
+    toolset = DrfMcpToolset(server, _request())
+    with pytest.raises(ModelRetry, match="Invalid arguments") as excinfo:
+        await toolset.call_tool("add", {"a": "not_a_number", "b": 1}, None, None)
+    # The per-field DRF detail rides in the retry text for the model.
+    assert "valid integer" in str(excinfo.value)
+
+
+async def test_service_validation_error_result_raises_model_retry() -> None:
+    # drf-mcp 0.7+ returns service-raised validation as an ``isError`` tool
+    # result; the bridge still maps it to a retry.
+    toolset = DrfMcpToolset(server, _request())
+    with pytest.raises(ModelRetry, match="must be even"):
+        await toolset.call_tool("invalid", {"a": 1, "b": 2}, None, None)
+
+
+async def test_service_error_result_returns_model_readable_content() -> None:
+    # A business-rule denial is content the model can read and act on — not
+    # an exception that kills the chat.
+    toolset = DrfMcpToolset(server, _request())
+    result = await toolset.call_tool("denied", {"a": 1, "b": 2}, None, None)
+    assert result == {"error": {"type": "service_error", "message": "denied by policy"}}
+
+
+async def test_unparseable_error_content_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_call(params: object, context: object) -> dict[str, object]:
+        return {"isError": True, "content": [{"type": "text", "text": "not json"}]}
+
+    monkeypatch.setattr("django_ag_ui.integrations.drf_mcp.handle_tools_call_async", fake_call)
+    toolset = DrfMcpToolset(server, _request())
+    result = await toolset.call_tool("add", {"a": 1, "b": 2}, None, None)
+    assert result == {"error": {"type": "unknown", "message": "not json"}}
+
+
+async def test_non_dict_error_payload_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_call(params: object, context: object) -> dict[str, object]:
+        return {"isError": True, "content": [{"type": "text", "text": '{"error": "boom"}'}]}
+
+    monkeypatch.setattr("django_ag_ui.integrations.drf_mcp.handle_tools_call_async", fake_call)
+    toolset = DrfMcpToolset(server, _request())
+    result = await toolset.call_tool("add", {"a": 1, "b": 2}, None, None)
+    assert result == {"error": {"type": "unknown", "message": "boom"}}
+
+
+async def test_excluded_names_are_skipped_registry_wins() -> None:
+    # DUP-1: a name collision with the @tool registry must not reach the
+    # agent — pydantic-ai raises UserError for duplicate tool names.
+    toolset = DrfMcpToolset(server, _request(), exclude_names=frozenset({"add"}))
+    tools = await toolset.get_tools(None)  # type: ignore[arg-type]
+    assert "add" not in tools
+    assert "denied" in tools
+
+
+def test_retry_message_without_detail_is_the_bare_message() -> None:
+    from django_ag_ui.integrations.drf_mcp import _retry_message
+
+    assert _retry_message("nope", None) == "nope"
+
+
+def test_protocol_version_tracks_the_server() -> None:
+    # PROTO-1: no hardcoded literal — the synthesised context advertises
+    # drf-mcp's own first (most preferred) supported version.
+    from rest_framework_mcp.conf import get_setting
+
+    toolset = DrfMcpToolset(server, _request())
+    assert toolset._context().protocol_version == get_setting("PROTOCOL_VERSIONS")[0]

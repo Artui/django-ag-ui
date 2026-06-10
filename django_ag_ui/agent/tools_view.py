@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+from typing import Any
+
 from django.http import HttpRequest, HttpResponseNotAllowed, JsonResponse
 from django.http.response import HttpResponseBase
 
 from django_ag_ui.agent.build_tool_catalog import build_tool_catalog
 from django_ag_ui.registry.tool_registry import ToolRegistry
+from django_ag_ui.utils import authorize
 
 
 class ToolsView:
@@ -15,14 +19,37 @@ class ToolsView:
     the view uses. ``GET`` returns the :func:`build_tool_catalog` list the web
     component fetches via ``data-tools-url`` to label tool-call cards for
     server-side tools (whose schema never reaches the browser).
+
+    The catalog names every server tool the agent can wield — an inventory
+    worth gating. The view carries the same authentication seam as
+    ``DjangoAGUIView`` (``require_authenticated`` / ``get_user``, sync or
+    async hooks), so one policy can cover the agent endpoint and its
+    catalogs. Defaults stay open for backwards compatibility — lock the
+    catalog down whenever the agent endpoint is locked down.
     """
 
-    def __init__(self, registry: ToolRegistry) -> None:
+    def __init__(
+        self,
+        registry: ToolRegistry,
+        *,
+        require_authenticated: bool = False,
+        get_user: Callable[[HttpRequest], Any]
+        | Callable[[HttpRequest], Awaitable[Any]]
+        | None = None,
+    ) -> None:
         self._registry = registry
+        self._require_authenticated = require_authenticated
+        self._get_user = get_user
 
     def __call__(self, request: HttpRequest) -> HttpResponseBase:
         if request.method != "GET":
             return HttpResponseNotAllowed(["GET"])
+        if not authorize(
+            request,
+            get_user=self._get_user,
+            require_authenticated=self._require_authenticated,
+        ):
+            return JsonResponse({"error": "authentication required"}, status=401)
         return JsonResponse(build_tool_catalog(self._registry), safe=False)
 
 
