@@ -863,19 +863,33 @@ a success flag, and either an error string or a result size.</p>
 <p><a class="autorefs autorefs-internal" title="DjangoAGUIView" href="../api/#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a> is an async, callable view
 instance. On each POST it:</p>
 <ol>
-<li>Establishes the user. Authentication is the <strong>host's responsibility</strong>, but
+<li>
+<p>Establishes the user. Authentication is the <strong>host's responsibility</strong>, but
    the view offers two hooks: a <code>get_user(request)</code> callable whose return value
    is assigned onto <code>request.user</code> (so tools, the drf-mcp bridge, and
    conversation ownership act as that user), and <code>require_authenticated=True</code>,
    which fails closed — anonymous requests get <code>401</code> with JSON
-   <code>{"error": "authentication required"}</code>.</li>
-<li>Parses the request body into a <code>RunAgentInput</code> via
+   <code>{"error": "authentication required"}</code>. <code>get_user</code> may be <strong>sync or
+   async</strong>; sync hooks run off the event loop in Django's sync executor, so
+   the canonical token lookup Just Works:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_user</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">token</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Authorization&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">removeprefix</span><span class="p">(</span><span class="s2">&quot;Bearer &quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="k">return</span> <span class="n">Token</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;user&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">token</span><span class="p">)</span><span class="o">.</span><span class="n">user</span>
+</span></code></pre></div>
+<p>Without a hook, the middleware-provided lazy <code>request.user</code> is
+materialized in a worker thread before the gate — with Django's
+DB-backed sessions, touching it on the event loop would raise
+<code>SynchronousOnlyOperation</code>. The catalog views (<code>ToolsView</code> and <code>SkillsView</code>) accept the same
+<code>require_authenticated</code> / <code>get_user</code> pair, so one policy covers the
+agent endpoint and the catalogs it advertises.
+2. Parses the request body into a <code>RunAgentInput</code> via
    <code>AGUIAdapter.build_run_input</code> (returning HTTP 400 with an error count, not
-   the raw payload, on a <code>ValidationError</code>).</li>
-<li>Builds the per-request <code>Agent</code> (via the factory or <code>build_agent</code>).</li>
-<li>Wraps the agent in a <code>pydantic_ai.ui.ag_ui.AGUIAdapter</code> and streams its
+   the raw payload, on a <code>ValidationError</code>).
+3. Builds the per-request <code>Agent</code> (via the factory or <code>build_agent</code>).
+4. Wraps the agent in a <code>pydantic_ai.ui.ag_ui.AGUIAdapter</code> and streams its
    encoded events as a <code>StreamingHttpResponse</code> with <code>Content-Type:
-   text/event-stream</code>, <code>Cache-Control: no-cache</code>, and <code>X-Accel-Buffering: no</code>.</li>
+   text/event-stream</code>, <code>Cache-Control: no-cache</code>, and <code>X-Accel-Buffering: no</code>.</p>
+</li>
 </ol>
 <p>Non-POST methods get <code>405 Method Not Allowed</code>. The view marks itself as a
 coroutine function so Django awaits it under ASGI; served over WSGI it emits a
@@ -888,16 +902,16 @@ at a prefix (default <code>agent/</code>).</p>
 registry) holding a catalog of <strong>skills</strong>: pre-defined prompts the client
 surfaces as chips and/or a <code>/</code>-command palette. Skills are <strong>data, not
 callables</strong> — there is no <code>@skill</code> decorator; you register them imperatively:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillRegistry</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">skills</span> <span class="o">=</span> <span class="n">SkillRegistry</span><span class="p">()</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">skills</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="s2">&quot;summarise&quot;</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Summarise&quot;</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;Summarise the </span><span class="si">{selection}</span><span class="s2"> for me.&quot;</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Condense the current selection.&quot;</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">chip</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillRegistry</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">skills</span> <span class="o">=</span> <span class="n">SkillRegistry</span><span class="p">()</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">skills</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="s2">&quot;summarise&quot;</span><span class="p">,</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Summarise&quot;</span><span class="p">,</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;Summarise the </span><span class="si">{selection}</span><span class="s2"> for me.&quot;</span><span class="p">,</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Condense the current selection.&quot;</span><span class="p">,</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">chip</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Each entry is a frozen <a class="autorefs autorefs-internal" title="SkillSpec
 
@@ -919,9 +933,9 @@ default). It is served by <code>SkillsView</code>
 (<code>django_ag_ui.skills.skills_view.SkillsView</code>) — a GET-only callable view — which
 <a class="autorefs autorefs-internal" title="get_urls" href="../api/#django_ag_ui.get_urls"><code>get_urls</code></a> mounts at <code>&lt;prefix&gt;skills/</code> when you pass
 <code>skills=</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="o">*</span><span class="n">get_urls</span><span class="p">(</span><span class="n">DjangoAGUIView</span><span class="p">(</span><span class="n">registry</span><span class="p">),</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">skills</span><span class="o">=</span><span class="n">skills</span><span class="p">),</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="o">*</span><span class="n">get_urls</span><span class="p">(</span><span class="n">DjangoAGUIView</span><span class="p">(</span><span class="n">registry</span><span class="p">),</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">skills</span><span class="o">=</span><span class="n">skills</span><span class="p">),</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="p">]</span>
 </span></code></pre></div>
 <p>The web component fetches this endpoint via its <code>data-skills-url</code> attribute.</p>
 <h2 id="tool-metadata-catalog">Tool metadata catalog<a class="headerlink" href="#tool-metadata-catalog" title="Permanent link">&para;</a></h2>
@@ -957,9 +971,9 @@ the MCP wire), so the catalog surfaces friendly labels for those tools too.</p>
 same <a class="autorefs autorefs-internal" title="ToolRegistry" href="../api/#django_ag_ui.ToolRegistry"><code>ToolRegistry</code></a> the agent uses — serves the
 catalog. <a class="autorefs autorefs-internal" title="get_urls" href="../api/#django_ag_ui.get_urls"><code>get_urls</code></a> mounts it at <code>&lt;prefix&gt;tools/</code> (named
 <code>django_ag_ui_tools</code>) when you pass <code>tools=</code> the same registry:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="o">*</span><span class="n">get_urls</span><span class="p">(</span><span class="n">DjangoAGUIView</span><span class="p">(</span><span class="n">registry</span><span class="p">),</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="n">registry</span><span class="p">),</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="o">*</span><span class="n">get_urls</span><span class="p">(</span><span class="n">DjangoAGUIView</span><span class="p">(</span><span class="n">registry</span><span class="p">),</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="n">registry</span><span class="p">),</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="p">]</span>
 </span></code></pre></div>
 <h2 id="conversation-persistence">Conversation persistence<a class="headerlink" href="#conversation-persistence" title="Permanent link">&para;</a></h2>
 <p>By default the server is <strong>stateless</strong>: the conversation lives in the message

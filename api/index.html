@@ -3502,6 +3502,12 @@ its skill context before sending).</p>
 <p>A callable instance (like :class:<code>~django_ag_ui.agent.agui_view.DjangoAGUIView</code>)
 so it can hold the registry and a project can mount several. <code>GET</code> returns
 the JSON skill list the frontend fetches via <code>data-skills-url</code>.</p>
+<p>Skill prompts can encode internal workflows — worth gating. The view
+carries the same authentication seam as <code>DjangoAGUIView</code>
+(<code>require_authenticated</code> / <code>get_user</code>, sync or async hooks), so one
+policy can cover the agent endpoint and its catalogs. Defaults stay open
+for backwards compatibility — lock the catalog down whenever the agent
+endpoint is locked down.</p>
 
 
 
@@ -3563,7 +3569,18 @@ bridge) act as <code>request.user</code>; if your middleware hasn't authenticate
 request, that is <code>AnonymousUser</code> — a data-exposure footgun. Pass
 <code>require_authenticated=True</code> to fail closed (401 for unauthenticated
 requests), and/or a <code>get_user(request)</code> hook to establish the user (e.g.
-from a token) before tools run.</p>
+from a token) before tools run. <code>get_user</code> may be <strong>sync or async</strong>; a
+sync hook runs off the event loop, so a plain ORM token → <code>User</code> lookup
+(<code>Token.objects.select_related("user").get(key=...).user</code>) is fully
+supported. A hook that raises propagates as an unhandled error (500) —
+return <code>AnonymousUser</code> (or <code>None</code>) for a clean 401 instead.</p>
+<p><strong>CSRF:</strong> the view defaults to <code>csrf_exempt=True</code> because AG-UI clients
+typically authenticate via headers (Bearer / API key), where CSRF does not
+apply. If your deployment authenticates with <strong>session cookies</strong>, pass
+<code>csrf_exempt=False</code> and send the CSRF token from the client — tools act
+as <code>request.user</code>, so a cookie-auth endpoint without CSRF protection
+lets any third-party page drive the agent as the logged-in user
+(mitigated, not eliminated, by Django's default <code>SameSite=Lax</code> cookie).</p>
 
 
 
@@ -3615,6 +3632,12 @@ holding the same :class:<code>~django_ag_ui.registry.tool_registry.ToolRegistry<
 the view uses. <code>GET</code> returns the :func:<code>build_tool_catalog</code> list the web
 component fetches via <code>data-tools-url</code> to label tool-call cards for
 server-side tools (whose schema never reaches the browser).</p>
+<p>The catalog names every server tool the agent can wield — an inventory
+worth gating. The view carries the same authentication seam as
+<code>DjangoAGUIView</code> (<code>require_authenticated</code> / <code>get_user</code>, sync or
+async hooks), so one policy can cover the agent endpoint and its
+catalogs. Defaults stay open for backwards compatibility — lock the
+catalog down whenever the agent endpoint is locked down.</p>
 
 
 
@@ -5110,6 +5133,10 @@ Registry tools win on name collisions.</p>
 schemas and execution both route through drf-mcp's own handlers, so the
 advertised parameters, serializer validation, and permissions match the
 HTTP transport exactly.</p>
+<p><code>exclude_names</code> carries the <code>@tool</code> registry's names: on a collision
+the registry tool wins (the same rule <code>build_tool_catalog</code> applies) and
+the drf-mcp twin is skipped — otherwise pydantic-ai raises <code>UserError</code>
+for the duplicate name at run time.</p>
 
 
 
