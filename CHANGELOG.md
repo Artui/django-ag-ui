@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-06-12
+
 ### Added
 
 - **Cancelling a run is now handled explicitly** (AG-UI has no server-side
@@ -215,7 +217,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Artui/django-ag-ui/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Artui/django-ag-ui/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Artui/django-ag-ui/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/Artui/django-ag-ui/compare/v0.2.1...v0.2.2
