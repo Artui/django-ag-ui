@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import warnings
 from types import SimpleNamespace
@@ -345,6 +346,120 @@ async def test_hook_returning_anonymous_is_rejected() -> None:
     )
     response = await view(_post(_run_input("hi")))
     assert response.status_code == 401
+
+
+class _SpyAuditLogger:
+    def __init__(self) -> None:
+        self.events = []  # type: ignore[var-annotated]
+
+    def record(self, event) -> None:  # noqa: ANN001
+        self.events.append(event)
+
+
+def _blocking_model(closed: asyncio.Event):  # noqa: ANN202
+    """A model that streams two text deltas, then holds the stream open.
+
+    The ``finally`` records whether the provider stream was torn down — the
+    cancellation test's proof that a client disconnect doesn't leave an
+    orphaned upstream generation.
+    """
+    from pydantic_ai.models.function import FunctionModel
+
+    async def stream_fn(messages, info):  # noqa: ANN001, ANN202
+        try:
+            yield "partial "
+            yield "answer"
+            await asyncio.Event().wait()  # parked until cancellation unwinds the run
+        finally:
+            closed.set()
+
+    return FunctionModel(stream_function=stream_fn)
+
+
+async def _cancel_mid_stream(response: StreamingHttpResponse, marker: str) -> None:
+    """Consume the SSE stream until ``marker`` appears, then cancel the consumer.
+
+    Mirrors Django's ASGI handler on ``http.disconnect``: the task consuming
+    the response is cancelled, so ``CancelledError`` lands at the innermost
+    ``await`` of the streaming chain.
+    """
+    saw_marker = asyncio.Event()
+
+    async def _consume() -> None:
+        async for chunk in response.streaming_content:
+            text = chunk if isinstance(chunk, str) else chunk.decode()
+            if marker in text:
+                saw_marker.set()
+
+    task = asyncio.ensure_future(_consume())
+    await asyncio.wait_for(saw_marker.wait(), timeout=5)
+    # Let the consumer park at the next __anext__ (blocked on the model) so
+    # the cancellation is delivered inside the streaming chain.
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+
+@override_settings(
+    DJANGO_AG_UI={
+        "CONVERSATION_STORE": (
+            "django_ag_ui.persistence.django_session_conversation_store"
+            ".DjangoSessionConversationStore"
+        ),
+    },
+)
+async def test_disconnect_persists_partial_audits_and_closes_the_model_stream() -> None:
+    from django.contrib.sessions.backends.signed_cookies import SessionStore
+
+    from django_ag_ui.persistence.django_session_conversation_store import (
+        DjangoSessionConversationStore,
+    )
+
+    model_stream_closed = asyncio.Event()
+    spy = _SpyAuditLogger()
+    view = DjangoAGUIView(_registry(), model=_blocking_model(model_stream_closed), audit_logger=spy)
+    request = _post(_run_input("hi"))
+    request.session = SessionStore()
+    response = await view(request)
+
+    await _cancel_mid_stream(response, "answer")
+
+    # Provider teardown: the model's stream context was exited, not orphaned.
+    assert model_stream_closed.is_set()
+
+    # Partial persistence: the truncated exchange — client history plus the
+    # partially streamed assistant text — landed in the configured store.
+    loaded = await DjangoSessionConversationStore().load("t1", request=request)
+    assert loaded is not None
+    contents = [message.content for message in loaded.messages]
+    assert "hi" in contents
+    assert "partial answer" in contents
+
+    # Audit: the cancellation is a distinguishable run-level record.
+    (event,) = spy.events
+    assert event.tool_name == "agent.run"
+    assert event.success is False
+    assert event.error.startswith("cancelled:")
+    assert "t1" in event.arguments_repr
+    assert "r1" in event.arguments_repr
+    assert event.duration_ms > 0
+
+
+async def test_disconnect_without_a_store_still_audits_and_reraises() -> None:
+    # Default settings → NullConversationStore: no save attempted, no error,
+    # and the cancellation still re-raises (asserted inside the helper).
+    model_stream_closed = asyncio.Event()
+    spy = _SpyAuditLogger()
+    view = DjangoAGUIView(_registry(), model=_blocking_model(model_stream_closed), audit_logger=spy)
+    response = await view(_post(_run_input("hi")))
+
+    await _cancel_mid_stream(response, "answer")
+
+    assert model_stream_closed.is_set()
+    (event,) = spy.events
+    assert event.tool_name == "agent.run"
+    assert event.success is False
 
 
 @pytest.mark.django_db(transaction=True)
