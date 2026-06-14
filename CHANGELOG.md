@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-06-12
+
+### Added
+
+- **Cancelling a run is now handled explicitly** (AG-UI has no server-side
+  cancel route — the client aborts the streaming request and the server
+  observes the disconnect). The view's event stream is wrapped in a
+  teardown-aware guard that, on `CancelledError`/`GeneratorExit`:
+    - **guarantees provider teardown** — the innermost event generator (whose
+      context manager owns the model provider's streaming request) is closed
+      explicitly rather than left to garbage-collection order, so no orphaned
+      upstream generation keeps billing after the client stopped listening;
+    - **persists the partial exchange** — with a non-null
+      `CONVERSATION_STORE`, the truncated conversation (client history plus
+      the assistant text and completed tool calls streamed so far, dropping
+      partially streamed tool calls) is saved with the same thread/owner
+      scoping as a completed run;
+    - **audits the cancellation** — the configured `AuditLogger` receives a
+      run-level `AuditEvent` with `tool_name="agent.run"`, `success=False`,
+      and an `error` starting with `"cancelled:"`, riding the existing
+      `record()` surface so custom loggers keep working unchanged;
+    - **re-raises the cancellation** — persist/audit failures are logged,
+      never substituted for the `CancelledError`.
+
+  No new settings and no new endpoint: cancellation stays transport-level,
+  and partial persistence follows the store you already configured.
+
 ## [0.3.1] — 2026-06-10
 
 ### Fixed
@@ -190,7 +217,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Artui/django-ag-ui/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Artui/django-ag-ui/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Artui/django-ag-ui/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/Artui/django-ag-ui/compare/v0.2.1...v0.2.2

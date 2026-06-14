@@ -265,6 +265,40 @@ history when the run finishes streaming, scoped to the authenticated user
     package. Today the store mirrors the run's messages on completion; the
     client remains the source of truth for the posted history.
 
+## Cancelling a run
+
+AG-UI has **no server-side cancel route**. A run is one streaming HTTP request;
+the client cancels it by aborting that request, and the server observes a
+disconnect. The view handles that disconnect explicitly rather than leaving the
+teardown to garbage collection:
+
+- **Provider teardown is guaranteed.** The view keeps a reference to the
+  innermost event generator — the one whose context manager owns the model
+  provider's streaming request — and closes it when the disconnect surfaces, so
+  no orphaned upstream generation keeps running (or billing) after the client
+  stopped listening.
+- **The partial exchange is persisted.** With a non-null
+  [`CONVERSATION_STORE`](configuration.md#conversation_store) configured, the
+  truncated conversation — the client-posted history plus whatever assistant
+  text and completed tool calls streamed before the disconnect — is saved with
+  the same thread/owner scoping as a completed run, so a durable thread
+  reflects reality. Partially streamed *tool calls* are dropped (half a JSON
+  arguments string is not a usable record). With the default
+  `NullConversationStore`, nothing is saved.
+- **The cancellation is audited.** The configured
+  [`AuditLogger`][django_ag_ui.AuditLogger] receives a run-level
+  [`AuditEvent`][django_ag_ui.AuditEvent] with `tool_name="agent.run"`,
+  `success=False`, and an `error` starting with `"cancelled:"` —
+  distinguishable from tool failures in logs/Sentry without widening the
+  protocol. `duration_ms` measures run start → cancellation.
+- **Cancellation is never swallowed.** The guard re-raises after observing;
+  failures inside the persist/audit step are logged and do not replace the
+  cancellation.
+
+There is no setting to turn this off — cancellation handling is
+transport-level, and partial persistence simply follows the store you already
+configured (matching the client, which keeps the partial assistant bubble).
+
 ## The drf-mcp toolset bridge
 
 With the [`[drf-mcp]` extra](installation.md#the-drf-mcp-extra) installed and
