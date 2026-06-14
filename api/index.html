@@ -4548,6 +4548,11 @@ dotted path.</p>
 <p>Arguments are stored as a string (typically JSON-encoded) to keep
 audit records cheap to serialize and to discourage retention of
 sensitive raw values.</p>
+<p>One run-level record rides this shape: when a client disconnects
+mid-run (cancel/stop), the view records <code>tool_name="agent.run"</code> with
+<code>success=False</code> and an <code>error</code> starting with <code>"cancelled:"</code>, so
+cancelled runs are distinguishable in audit sinks without widening the
+<code>AuditLogger</code> protocol.</p>
 
 
 

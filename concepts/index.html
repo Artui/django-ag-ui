@@ -531,6 +531,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#cancelling-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancelling a run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-drf-mcp-toolset-bridge" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -690,6 +701,17 @@
     <span class="md-ellipsis">
       
         Conversation persistence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cancelling-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancelling a run
       
     </span>
   </a>
@@ -1020,6 +1042,43 @@ rehydration endpoint are designed but <strong>not yet implemented</strong> in th
 package. Today the store mirrors the run's messages on completion; the
 client remains the source of truth for the posted history.</p>
 </div>
+<h2 id="cancelling-a-run">Cancelling a run<a class="headerlink" href="#cancelling-a-run" title="Permanent link">&para;</a></h2>
+<p>AG-UI has <strong>no server-side cancel route</strong>. A run is one streaming HTTP request;
+the client cancels it by aborting that request, and the server observes a
+disconnect. The view handles that disconnect explicitly rather than leaving the
+teardown to garbage collection:</p>
+<ul>
+<li><strong>Provider teardown is guaranteed.</strong> The view keeps a reference to the
+  innermost event generator — the one whose context manager owns the model
+  provider's streaming request — and closes it when the disconnect surfaces, so
+  no orphaned upstream generation keeps running (or billing) after the client
+  stopped listening.</li>
+<li><strong>The partial exchange is persisted.</strong> With a non-null
+  <a href="../configuration/#conversation_store"><code>CONVERSATION_STORE</code></a> configured, the
+  truncated conversation — the client-posted history plus whatever assistant
+  text and completed tool calls streamed before the disconnect — is saved with
+  the same thread/owner scoping as a completed run, so a durable thread
+  reflects reality. Partially streamed <em>tool calls</em> are dropped (half a JSON
+  arguments string is not a usable record). With the default
+  <code>NullConversationStore</code>, nothing is saved.</li>
+<li><strong>The cancellation is audited.</strong> The configured
+  <a class="autorefs autorefs-internal" title="AuditLogger" href="../api/#django_ag_ui.AuditLogger"><code>AuditLogger</code></a> receives a run-level
+  <a class="autorefs autorefs-internal" title="AuditEvent
+
+
+  
+      dataclass
+  " href="../api/#django_ag_ui.AuditEvent"><code>AuditEvent</code></a> with <code>tool_name="agent.run"</code>,
+  <code>success=False</code>, and an <code>error</code> starting with <code>"cancelled:"</code> —
+  distinguishable from tool failures in logs/Sentry without widening the
+  protocol. <code>duration_ms</code> measures run start → cancellation.</li>
+<li><strong>Cancellation is never swallowed.</strong> The guard re-raises after observing;
+  failures inside the persist/audit step are logged and do not replace the
+  cancellation.</li>
+</ul>
+<p>There is no setting to turn this off — cancellation handling is
+transport-level, and partial persistence simply follows the store you already
+configured (matching the client, which keeps the partial assistant bubble).</p>
 <h2 id="the-drf-mcp-toolset-bridge">The drf-mcp toolset bridge<a class="headerlink" href="#the-drf-mcp-toolset-bridge" title="Permanent link">&para;</a></h2>
 <p>With the <a href="../installation/#the-drf-mcp-extra"><code>[drf-mcp]</code> extra</a> installed and
 <a href="../configuration/#drf_mcp_server"><code>DRF_MCP_SERVER</code></a> set, the view builds a
