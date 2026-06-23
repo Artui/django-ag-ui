@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The drf-mcp bridge now rides drf-mcp's public in-process surface** instead of
+  importing handler internals. `DrfMcpToolset` lists tools via
+  `MCPServer.list_tools` and executes them via `MCPServer.acall_tool` (drf-mcp's
+  transport-complete in-process methods), passing the Django `request` +
+  `request.user` so the call context is built inside drf-mcp. Behaviour is
+  unchanged — the same merged `inputSchema`, serializer validation, permissions,
+  and error mapping as before — but the bridge no longer reaches into
+  `handle_tools_list` / `handle_tools_call_async` / `MCPCallContext`. **Requires
+  `djangorestframework-mcp-server >= 0.9`** (the pin is now `>=0.9,<0.10`).
+
 ## [0.4.0] — 2026-06-12
 
 ### Added

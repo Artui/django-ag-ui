@@ -4,18 +4,20 @@ Requires the ``django-ag-ui[drf-mcp]`` extra. Imported lazily by the view only
 when ``DJANGO_AG_UI["DRF_MCP_SERVER"]`` is set, so the dependency on
 ``rest_framework_mcp`` stays optional.
 
-The agent acts as the **logged-in AG-UI user**: each call synthesises an
-``MCPCallContext`` carrying ``request.user``, so drf-mcp's own validation and
-permission checks apply exactly as they would over HTTP — just without the
-network hop.
+The agent acts as the **logged-in AG-UI user**: every call hands ``request`` and
+``request.user`` to drf-mcp's public in-process surface
+(:meth:`~rest_framework_mcp.MCPServer.list_tools` /
+:meth:`~rest_framework_mcp.MCPServer.acall_tool`, drf-mcp 0.9+), so drf-mcp's own
+validation and permission checks apply exactly as they would over HTTP — just
+without the network hop, and without reaching into handler internals.
 
-Tool schemas are sourced from drf-mcp's own ``tools/list`` handler rather than
-re-derived locally, so the in-process bridge advertises the *same* merged
-``inputSchema`` the HTTP transport would — including a selector tool's
+Tool schemas are sourced from drf-mcp's own ``tools/list`` (via ``list_tools``)
+rather than re-derived locally, so the in-process bridge advertises the *same*
+merged ``inputSchema`` the HTTP transport would — including a selector tool's
 filter / ordering / pagination arguments and the ``additionalProperties`` policy,
 not just the input serializer's fields.
 
-Error semantics follow the MCP protocol-vs-tool boundary (drf-mcp 0.7+):
+Error semantics follow the MCP protocol-vs-tool boundary:
 
 - malformed *arguments shape* (JSON-RPC ``-32602``) and tool-level
   ``validation_error`` results → :class:`pydantic_ai.ModelRetry`, so the
@@ -37,22 +39,17 @@ from django.http import HttpRequest
 from pydantic_ai import ModelRetry
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets.external import ExternalToolset
-from rest_framework_mcp.auth.types.token_info import TokenInfo
-from rest_framework_mcp.conf import get_setting as get_mcp_setting
-from rest_framework_mcp.constants import JsonRpcErrorCode
-from rest_framework_mcp.handlers.handle_tools_call_async import handle_tools_call_async
-from rest_framework_mcp.handlers.handle_tools_list import handle_tools_list
-from rest_framework_mcp.handlers.types.context import MCPCallContext
-from rest_framework_mcp.protocol.types.json_rpc_error import JsonRpcError
+from rest_framework_mcp import JsonRpcError, JsonRpcErrorCode
 
 
 class DrfMcpToolset(ExternalToolset[Any]):
     """Exposes a drf-mcp ``MCPServer``'s tools as a Pydantic-AI toolset.
 
     Built per request so the acting user is the current AG-UI user. Tool
-    schemas and execution both route through drf-mcp's own handlers, so the
-    advertised parameters, serializer validation, and permissions match the
-    HTTP transport exactly.
+    schemas and execution both route through drf-mcp's public in-process
+    surface (``MCPServer.list_tools`` / ``acall_tool``), so the advertised
+    parameters, serializer validation, and permissions match the HTTP transport
+    exactly.
 
     ``exclude_names`` carries the ``@tool`` registry's names: on a collision
     the registry tool wins (the same rule ``build_tool_catalog`` applies) and
@@ -76,28 +73,12 @@ class DrfMcpToolset(ExternalToolset[Any]):
         # is unsafe to run synchronously inside the async view's ``__init__``.
         super().__init__([], id="drf-mcp")
 
-    def _context(self) -> MCPCallContext:
-        """Build the per-call context carrying the acting user + registries.
-
-        The protocol version is read from drf-mcp's own configuration (the
-        first — most preferred — supported version) rather than a hardcoded
-        literal, so the synthesised in-process calls track the server.
-        """
-        return MCPCallContext(
-            http_request=self._request,
-            token=TokenInfo(user=self._request.user),
-            tools=self._server.tools,
-            resources=self._server.resources,
-            prompts=self._server.prompts,
-            protocol_version=get_mcp_setting("PROTOCOL_VERSIONS")[0],
-        )
-
     async def get_tools(self, ctx: Any) -> Any:
         """Load tool defs from drf-mcp's ``tools/list`` once, then defer to base.
 
         Loading runs in a thread (``sync_to_async``) because the sync
-        ``handle_tools_list`` may evaluate per-user listing permissions against
-        the DB, which Django forbids on the async event loop.
+        ``list_tools`` may evaluate per-user listing permissions against the DB,
+        which Django forbids on the async event loop.
         """
         if not self._loaded:
             self.tool_defs = await sync_to_async(self._load_tool_defs)()
@@ -106,10 +87,10 @@ class DrfMcpToolset(ExternalToolset[Any]):
         # ExternalToolset stamps every tool ``kind="external"``, which Pydantic-AI
         # *defers*: it yields the call to the client and ends the run, never
         # invoking our ``call_tool``. But this bridge executes drf-mcp tools
-        # in-process (``call_tool`` → ``handle_tools_call_async``), so re-stamp
-        # them ``kind="function"`` to route the run loop into ``call_tool`` — which
-        # then emits a ``TOOL_CALL_RESULT`` and lets the model continue. Without
-        # this the tool is silently handed off and never runs.
+        # in-process (``call_tool`` → ``server.acall_tool``), so re-stamp them
+        # ``kind="function"`` to route the run loop into ``call_tool`` — which then
+        # emits a ``TOOL_CALL_RESULT`` and lets the model continue. Without this
+        # the tool is silently handed off and never runs.
         return {
             name: replace(tool, tool_def=replace(tool.tool_def, kind="function"))
             for name, tool in tools.items()
@@ -125,11 +106,11 @@ class DrfMcpToolset(ExternalToolset[Any]):
         the ``@tool`` registry are skipped (registry wins).
         """
         defs: list[ToolDefinition] = []
-        context = self._context()
         cursor: str | None = None
         while True:
-            params = {"cursor": cursor} if cursor is not None else None
-            payload = handle_tools_list(params, context)
+            payload = self._server.list_tools(
+                cursor, user=self._request.user, request=self._request
+            )
             if isinstance(payload, JsonRpcError):
                 raise RuntimeError(f"drf-mcp tools/list failed: {payload.message}")
             for tool in payload["tools"]:
@@ -154,9 +135,8 @@ class DrfMcpToolset(ExternalToolset[Any]):
         ctx: Any,
         tool: Any,
     ) -> Any:
-        result = await handle_tools_call_async(
-            params={"name": name, "arguments": tool_args},
-            context=self._context(),
+        result = await self._server.acall_tool(
+            name, tool_args, user=self._request.user, request=self._request
         )
         if isinstance(result, JsonRpcError):
             if result.code == JsonRpcErrorCode.INVALID_PARAMS:
@@ -169,10 +149,10 @@ class DrfMcpToolset(ExternalToolset[Any]):
             # unrecoverable mid-run.
             raise RuntimeError(f"drf-mcp tool {name!r} failed: {result.message}")
         if result.get("isError"):
-            # drf-mcp 0.7+ returns business failures as ``isError`` tool
-            # results. Service-raised validation still earns a retry; other
-            # tool-level failures (business rules, missing rows) are returned
-            # as content the model can read and act on.
+            # drf-mcp returns business failures as ``isError`` tool results.
+            # Service-raised validation still earns a retry; other tool-level
+            # failures (business rules, missing rows) are returned as content
+            # the model can read and act on.
             error = _parse_tool_error(result)
             if error.get("type") == "validation_error":
                 # Single-line statements: Python 3.11's tracer attributes a

@@ -51,7 +51,7 @@ openai = ["pydantic-ai-slim[openai]>=1.0,<2"]
 google = ["pydantic-ai-slim[google]>=1.0,<2"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
-drf-mcp = ["djangorestframework-mcp-server>=0.7,<0.8"]
+drf-mcp = ["djangorestframework-mcp-server>=0.9,<0.10"]
 
 [project.urls]
 Homepage = "https://github.com/Artui/django-ag-ui"
@@ -78,7 +78,7 @@ dev = [
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
-    "djangorestframework-mcp-server>=0.7,<0.8",
+    "djangorestframework-mcp-server>=0.9,<0.10",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
     # in dev/CI (the extras above ship to consumers, not the dev env).
     "pydantic-ai-slim[anthropic,openai,google]>=1.0",
