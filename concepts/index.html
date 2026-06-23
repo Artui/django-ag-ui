@@ -1086,15 +1086,15 @@ per-request <code>DrfMcpToolset</code> — a Pydantic-AI <code>ExternalToolset</
 <code>djangorestframework-mcp-server</code> registry's tools to the agent <strong>in-process</strong>,
 with no network MCP hop.</p>
 <ul>
-<li>Tool schemas are sourced from drf-mcp's own <code>tools/list</code>, so the agent sees the
-  full advertised <code>inputSchema</code> — including a selector tool's filter / ordering /
-  pagination arguments and the <code>additionalProperties</code> policy — not just the input
-  serializer's fields.</li>
-<li>Execution routes through drf-mcp's async handler, so serializer validation and
-  permissions are honoured exactly as over HTTP.</li>
-<li>The toolset carries the Django <code>request</code>, synthesising an <code>MCPCallContext</code>
-  whose token is <code>request.user</code>, so the agent acts as the <strong>logged-in AG-UI
-  user</strong>.</li>
+<li>Tool schemas are sourced from drf-mcp's own <code>tools/list</code> (via its public
+  <code>MCPServer.list_tools</code>), so the agent sees the full advertised <code>inputSchema</code> —
+  including a selector tool's filter / ordering / pagination arguments and the
+  <code>additionalProperties</code> policy — not just the input serializer's fields.</li>
+<li>Execution routes through drf-mcp's public <code>MCPServer.acall_tool</code> (its in-process
+  transport surface, drf-mcp 0.9+), so serializer validation and permissions are
+  honoured exactly as over HTTP — without reaching into handler internals.</li>
+<li>The toolset hands the Django <code>request</code> and <code>request.user</code> to those methods, so
+  the agent acts as the <strong>logged-in AG-UI user</strong>.</li>
 </ul>
 <p>The bridge is imported lazily, only when <code>DRF_MCP_SERVER</code> is set, keeping
 <code>rest_framework_mcp</code> an optional dependency.

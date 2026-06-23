@@ -5135,9 +5135,10 @@ Registry tools win on name collisions.</p>
 
         <p>Exposes a drf-mcp <code>MCPServer</code>'s tools as a Pydantic-AI toolset.</p>
 <p>Built per request so the acting user is the current AG-UI user. Tool
-schemas and execution both route through drf-mcp's own handlers, so the
-advertised parameters, serializer validation, and permissions match the
-HTTP transport exactly.</p>
+schemas and execution both route through drf-mcp's public in-process
+surface (<code>MCPServer.list_tools</code> / <code>acall_tool</code>), so the advertised
+parameters, serializer validation, and permissions match the HTTP transport
+exactly.</p>
 <p><code>exclude_names</code> carries the <code>@tool</code> registry's names: on a collision
 the registry tool wins (the same rule <code>build_tool_catalog</code> applies) and
 the drf-mcp twin is skipped — otherwise pydantic-ai raises <code>UserError</code>
@@ -5183,8 +5184,8 @@ for the duplicate name at run time.</p>
 
         <p>Load tool defs from drf-mcp's <code>tools/list</code> once, then defer to base.</p>
 <p>Loading runs in a thread (<code>sync_to_async</code>) because the sync
-<code>handle_tools_list</code> may evaluate per-user listing permissions against
-the DB, which Django forbids on the async event loop.</p>
+<code>list_tools</code> may evaluate per-user listing permissions against the DB,
+which Django forbids on the async event loop.</p>
 
 
     </div>
