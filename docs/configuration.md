@@ -194,6 +194,28 @@ DJANGO_AG_UI = {
 }
 ```
 
+For a ready-made **durable, cross-device** store, opt into the
+`django_ag_ui.contrib.store` app instead of writing your own model — add it to
+`INSTALLED_APPS`, run `migrate`, and point the setting at its store:
+
+```python
+INSTALLED_APPS = [
+    # ...
+    "django_ag_ui.contrib.store",
+]
+
+DJANGO_AG_UI = {
+    "CONVERSATION_STORE": (
+        "django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore"
+    ),
+}
+```
+
+The base package ships no model, so projects that don't opt in get no migration.
+To expose the **thread-history drawer** endpoints over HTTP, pass the same store
+to `get_urls(view, threads=store)` — see
+[Thread history](concepts.md#thread-history).
+
 ## `DRF_MCP_SERVER`
 
 A dotted path to a `djangorestframework-mcp-server` `MCPServer` instance whose

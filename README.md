@@ -43,6 +43,12 @@ browser half is
   pluggable by dotted path) records every server-side tool call.
 - **Opt-in conversation persistence** — a `ConversationStore` Protocol with a
   no-op default, a session-backed store, and an abstract model-backed base.
+- **Thread history** — the store can `list` and `rename` a user's threads, and a
+  `ThreadsView` served at `<prefix>threads/` via `get_urls(view, threads=store)`
+  backs a chat-history drawer (owner-scoped GET list / GET messages / PATCH
+  rename / DELETE). An opt-in `django_ag_ui.contrib.store` app ships a ready-made
+  durable model + `DefaultConversationStore` (add it to `INSTALLED_APPS` and
+  `migrate`); the base package still ships no model.
 - **Reach external tools** — compose any Pydantic-AI toolset, including an
   in-process [`drf-mcp`](https://github.com/Artui/djangorestframework-mcp-server)
   bridge (the `[drf-mcp]` extra) so the agent can query DRF-exposed data.
