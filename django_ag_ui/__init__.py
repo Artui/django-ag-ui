@@ -21,7 +21,9 @@ from django_ag_ui.persistence.django_session_conversation_store import (
 from django_ag_ui.persistence.model_conversation_store import ModelConversationStore
 from django_ag_ui.persistence.null_conversation_store import NullConversationStore
 from django_ag_ui.persistence.resolve_conversation_store import resolve_conversation_store
+from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.persistence.types.conversation import Conversation
+from django_ag_ui.persistence.types.conversation_meta import ConversationMeta
 from django_ag_ui.persistence.types.conversation_store import ConversationStore
 from django_ag_ui.policy.audit.logging_audit_logger import LoggingAuditLogger
 from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
@@ -46,6 +48,7 @@ __all__ = [
     "AuditEvent",
     "AuditLogger",
     "Conversation",
+    "ConversationMeta",
     "ConversationStore",
     "DjangoAGUIView",
     "DjangoSessionConversationStore",
@@ -55,6 +58,7 @@ __all__ = [
     "NullConversationStore",
     "SkillRegistry",
     "SkillSpec",
+    "ThreadsView",
     "ToolBinding",
     "ToolCategory",
     "ToolRegistry",

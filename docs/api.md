@@ -75,6 +75,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.Conversation
 
+::: django_ag_ui.ConversationMeta
+
 ::: django_ag_ui.NullConversationStore
 
 ::: django_ag_ui.DjangoSessionConversationStore
@@ -82,6 +84,20 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 ::: django_ag_ui.ModelConversationStore
 
 ::: django_ag_ui.resolve_conversation_store
+
+::: django_ag_ui.ThreadsView
+
+### Reference store (opt-in)
+
+The `django_ag_ui.contrib.store` app ships a ready-to-use durable store. Add it
+to `INSTALLED_APPS`, run `migrate`, then set
+`DJANGO_AG_UI["CONVERSATION_STORE"]` to
+`django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore`.
+Projects that don't opt in get no model and no migration.
+
+::: django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore
+
+::: django_ag_ui.contrib.store.models.StoredConversation
 
 ## Internal helpers
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.http import HttpRequest
 
 from django_ag_ui.persistence.types.conversation import Conversation
+from django_ag_ui.persistence.types.conversation_meta import ConversationMetaList
 
 
 class NullConversationStore:
@@ -20,6 +21,12 @@ class NullConversationStore:
         return None
 
     async def delete(self, thread_id: str, *, request: HttpRequest) -> None:
+        return None
+
+    async def list(self, *, request: HttpRequest) -> ConversationMetaList:
+        return []
+
+    async def rename(self, thread_id: str, title: str, *, request: HttpRequest) -> None:
         return None
 
 

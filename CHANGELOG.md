@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-06-24
+
+### Added
+
+- **Thread index for the chat-history drawer (server side).**
+  `ConversationStore` gains an async `list(*, request)` returning owner-scoped
+  `ConversationMeta` (`thread_id`, `title`, `updated_at`, `preview`) — **metadata
+  only**, no message bodies — so a thread list stays cheap. `NullConversationStore`
+  lists nothing; `DjangoSessionConversationStore` enumerates the session's own
+  threads (titles/previews derived from messages, `updated_at` stamped on save);
+  `ModelConversationStore` adds a `_list(owner_id)` hook that **defaults to `[]`**
+  (listing is opt-in, so existing subclasses keep working) and is overridden for
+  a cheap column-backed listing.
+- **`ThreadsView`**, mounted by `get_urls(view, threads=<store>)` at
+  `<prefix>threads/` (GET — the user's threads) and `<prefix>threads/<id>/`
+  (GET messages, **PATCH rename**, DELETE). Every operation is owner-scoped —
+  another user's thread reads as `404` — and the view carries the same
+  `require_authenticated` / `get_user` auth seam as `DjangoAGUIView`.
+- **Thread rename.** `ConversationStore` gains `rename(thread_id, title, *, request)`.
+  `DjangoSessionConversationStore` persists the title (it overrides the derived
+  one in `list`); `ModelConversationStore` adds a `_rename(thread_id, title,
+  owner_id)` hook that **defaults to a no-op** (override with a `title` column);
+  `NullConversationStore` is a no-op. `PATCH <prefix>threads/<id>/` takes
+  `{"title": "..."}` — a blank title is `400`, a missing/cross-owner thread `404`.
+- **Reference durable store (opt-in).** A new `django_ag_ui.contrib.store` app
+  ships a `StoredConversation` model + migration and `DefaultConversationStore`
+  (a `ModelConversationStore` subclass implementing fetch/store/remove/list/rename
+  with denormalised `title`/`preview`/`updated_at` columns for a cheap thread
+  list). Enable it by adding `"django_ag_ui.contrib.store"` to `INSTALLED_APPS`,
+  running `migrate`, and pointing `DJANGO_AG_UI["CONVERSATION_STORE"]` at it.
+  The base package still ships no model, so projects that don't opt in get no
+  migration.
+
 ## [0.5.0] — 2026-06-23
 
 ### Changed
@@ -231,7 +264,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Artui/django-ag-ui/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Artui/django-ag-ui/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Artui/django-ag-ui/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Artui/django-ag-ui/compare/v0.3.0...v0.3.1
