@@ -29,6 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   owner_id)` hook that **defaults to a no-op** (override with a `title` column);
   `NullConversationStore` is a no-op. `PATCH <prefix>threads/<id>/` takes
   `{"title": "..."}` — a blank title is `400`, a missing/cross-owner thread `404`.
+- **Reference durable store (opt-in).** A new `django_ag_ui.contrib.store` app
+  ships a `StoredConversation` model + migration and `DefaultConversationStore`
+  (a `ModelConversationStore` subclass implementing fetch/store/remove/list/rename
+  with denormalised `title`/`preview`/`updated_at` columns for a cheap thread
+  list). Enable it by adding `"django_ag_ui.contrib.store"` to `INSTALLED_APPS`,
+  running `migrate`, and pointing `DJANGO_AG_UI["CONVERSATION_STORE"]` at it.
+  The base package still ships no model, so projects that don't opt in get no
+  migration.
 
 ## [0.5.0] — 2026-06-23
 

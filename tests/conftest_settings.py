@@ -9,6 +9,8 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
     "rest_framework",
+    # Opt-in reference store app — exercises the shipped model + migration.
+    "django_ag_ui.contrib.store",
 ]
 
 # Minimal DRF config so the [drf-mcp] bridge tests can build + invoke tools.
