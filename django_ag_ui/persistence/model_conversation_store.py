@@ -6,6 +6,7 @@ from asgiref.sync import sync_to_async
 from django.http import HttpRequest
 
 from django_ag_ui.persistence.types.conversation import Conversation
+from django_ag_ui.persistence.types.conversation_meta import ConversationMetaList
 from django_ag_ui.persistence.utils import owner_id_for
 
 
@@ -39,6 +40,9 @@ class ModelConversationStore(ABC):
     async def delete(self, thread_id: str, *, request: HttpRequest) -> None:
         await sync_to_async(self._remove)(thread_id, owner_id_for(request))
 
+    async def list(self, *, request: HttpRequest) -> ConversationMetaList:
+        return await sync_to_async(self._list)(owner_id_for(request))
+
     @abstractmethod
     def _fetch(self, thread_id: str, owner_id: str | None) -> Conversation | None: ...
 
@@ -47,6 +51,16 @@ class ModelConversationStore(ABC):
 
     @abstractmethod
     def _remove(self, thread_id: str, owner_id: str | None) -> None: ...
+
+    def _list(self, owner_id: str | None) -> ConversationMetaList:
+        """Owner-scoped thread metadata for the drawer. Override to enable it.
+
+        Concrete (not abstract) with a ``[]`` default so existing subclasses
+        keep working without a forced change — thread listing is opt-in. A
+        subclass with ``title`` / ``updated_at`` columns overrides this for a
+        cheap single-query listing (no message bodies loaded).
+        """
+        return []
 
 
 __all__ = ["ModelConversationStore"]

@@ -12,3 +12,7 @@ async def test_null_store_is_a_noop() -> None:
     assert await store.load("t1", request=request) is None
     assert await store.save(Conversation(thread_id="t1"), request=request) is None
     assert await store.delete("t1", request=request) is None
+
+
+async def test_null_store_lists_nothing() -> None:
+    assert await NullConversationStore().list(request=RequestFactory().get("/")) == []

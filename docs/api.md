@@ -75,6 +75,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.Conversation
 
+::: django_ag_ui.ConversationMeta
+
 ::: django_ag_ui.NullConversationStore
 
 ::: django_ag_ui.DjangoSessionConversationStore
@@ -82,6 +84,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 ::: django_ag_ui.ModelConversationStore
 
 ::: django_ag_ui.resolve_conversation_store
+
+::: django_ag_ui.ThreadsView
 
 ## Internal helpers
 

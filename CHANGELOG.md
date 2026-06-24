@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Thread index for the chat-history drawer (server side).**
+  `ConversationStore` gains an async `list(*, request)` returning owner-scoped
+  `ConversationMeta` (`thread_id`, `title`, `updated_at`, `preview`) — **metadata
+  only**, no message bodies — so a thread list stays cheap. `NullConversationStore`
+  lists nothing; `DjangoSessionConversationStore` enumerates the session's own
+  threads (titles/previews derived from messages, `updated_at` stamped on save);
+  `ModelConversationStore` adds a `_list(owner_id)` hook that **defaults to `[]`**
+  (listing is opt-in, so existing subclasses keep working) and is overridden for
+  a cheap column-backed listing.
+- **`ThreadsView`**, mounted by `get_urls(view, threads=<store>)` at
+  `<prefix>threads/` (GET — the user's threads) and `<prefix>threads/<id>/` (GET
+  messages, DELETE). Every operation is owner-scoped — another user's thread reads
+  as `404` — and the view carries the same `require_authenticated` / `get_user`
+  auth seam as `DjangoAGUIView`. (Renaming via `PATCH` is a planned follow-up.)
+
 ## [0.5.0] — 2026-06-23
 
 ### Changed

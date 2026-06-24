@@ -51,3 +51,46 @@ async def test_delete_missing_is_a_noop() -> None:
     request = _request()
     await store.delete("absent", request=request)
     assert await store.load("absent", request=request) is None
+
+
+async def test_list_enumerates_session_threads_with_metadata() -> None:
+    store = DjangoSessionConversationStore()
+    request = _request()
+    await store.save(
+        Conversation(
+            thread_id="t1",
+            messages=[UserMessage(id="u1", role="user", content="book a flight")],
+            owner_id="7",
+        ),
+        request=request,
+    )
+    await store.save(
+        Conversation(
+            thread_id="t2",
+            messages=[UserMessage(id="u2", role="user", content="cancel it")],
+        ),
+        request=request,
+    )
+
+    metas = {meta.thread_id: meta for meta in await store.list(request=request)}
+    assert set(metas) == {"t1", "t2"}
+    assert metas["t1"].title == "book a flight"
+    assert metas["t1"].preview == "book a flight"
+    assert metas["t1"].owner_id == "7"
+    # ``updated_at`` is stamped on save (no bodies needed to sort the drawer).
+    assert metas["t1"].updated_at is not None
+
+
+async def test_list_empty_session_is_empty() -> None:
+    assert await DjangoSessionConversationStore().list(request=_request()) == []
+
+
+async def test_list_tolerates_legacy_entry_without_timestamp() -> None:
+    store = DjangoSessionConversationStore()
+    request = _request()
+    # A row written before updated_at tracking — no "updated_at" key.
+    request.session["django_ag_ui_conversations"] = {"old": {"messages": [], "owner_id": None}}
+    (meta,) = await store.list(request=request)
+    assert meta.thread_id == "old"
+    assert meta.updated_at is None
+    assert meta.title == "New conversation"
