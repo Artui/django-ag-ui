@@ -1334,6 +1334,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#django_ag_ui.ConversationMeta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ConversationMeta
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#django_ag_ui.NullConversationStore" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1371,6 +1382,56 @@
     <span class="md-ellipsis">
       
         resolve_conversation_store
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.ThreadsView" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ThreadsView
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ThreadsView">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reference-store-opt-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference store (opt-in)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DefaultConversationStore
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.contrib.store.models.StoredConversation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        StoredConversation
       
     </span>
   </a>
@@ -2356,6 +2417,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#django_ag_ui.ConversationMeta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ConversationMeta
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#django_ag_ui.NullConversationStore" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2393,6 +2465,56 @@
     <span class="md-ellipsis">
       
         resolve_conversation_store
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.ThreadsView" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ThreadsView
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ThreadsView">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reference-store-opt-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference store (opt-in)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DefaultConversationStore
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.contrib.store.models.StoredConversation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        StoredConversation
       
     </span>
   </a>
@@ -3682,7 +3804,8 @@ catalog down whenever the agent endpoint is locked down.</p>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">skills</span><span class="p">:</span> <span class="n">SkillRegistry</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">tools</span><span class="p">:</span> <span class="n">ToolRegistry</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">URLPattern</span><span class="p">]</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">threads</span><span class="p">:</span> <span class="n">ConversationStore</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">URLPattern</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3693,6 +3816,13 @@ catalog down whenever the agent endpoint is locked down.</p>
 <p>When <code>tools</code> (the same :class:<code>ToolRegistry</code> the view uses) is given, also
 mounts a read-only <strong>tool catalog</strong> at <code>&lt;prefix&gt;tools/</code> (GET, JSON) for the
 component's <code>data-tools-url</code> — friendly card labels for server-side tools.</p>
+<p>When <code>threads</code> (the same :class:<code>ConversationStore</code> the view uses, e.g.
+<code>resolve_conversation_store(get_settings().conversation_store)</code>) is given,
+also mounts the <strong>thread index</strong> for the chat-history drawer
+(<code>data-threads-url</code>): <code>&lt;prefix&gt;threads/</code> (GET — owner-scoped metadata)
+and <code>&lt;prefix&gt;threads/&lt;id&gt;/</code> (GET messages, DELETE). Both default open like
+the catalogs — mount :class:<code>~django_ag_ui.persistence.threads_view.ThreadsView</code>
+yourself with <code>require_authenticated</code> / <code>get_user</code> to lock them down.</p>
 <p>Include the result from your project's root URLconf::</p>
 <div class="language-text highlight"><pre><span></span><code>urlpatterns = [
     ...,
@@ -4725,6 +4855,10 @@ no-op default (<code>NullConversationStore</code> — the server stays stateless
 session-backed implementation; projects supply their own (a DB model, Redis,
 …) by pointing the setting at a dotted path. All methods are async so an
 implementation can use the async ORM or a network backend.</p>
+<p><code>list</code> returns owner-scoped <em>metadata only</em> (no message bodies) for the
+thread drawer; a store that can't enumerate (the stateless default) returns
+an empty list. <code>rename</code> sets a thread's display title (a store that can't
+persist one is a no-op).</p>
 
 
 
@@ -4778,6 +4912,63 @@ implementation can use the async ORM or a network backend.</p>
 <p><code>messages</code> are AG-UI <code>Message</code> objects (the wire shape the client
 speaks), so a store round-trips them verbatim. <code>owner_id</code> scopes the
 conversation to a user for authorization.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.ConversationMeta" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ConversationMeta</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#django_ag_ui.ConversationMeta" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Lightweight metadata for one conversation — the thread-drawer row shape.</p>
+<p>Returned by :meth:<code>ConversationStore.list &lt;django_ag_ui.ConversationStore&gt;</code>
+so a thread list stays cheap: it carries <strong>no message bodies</strong>. <code>title</code>
+defaults to a truncation of the first user message (unless a store records an
+explicit rename); <code>preview</code> is a one-line excerpt of the latest message;
+<code>updated_at</code> is when the conversation last changed, or <code>None</code> when the
+store doesn't track it. <code>owner_id</code> scopes the conversation to a user and is
+not surfaced on the wire.</p>
 
 
 
@@ -4988,6 +5179,189 @@ define the model, its fields, and the owner relationship.</p>
 point to a class importable with no arguments; a store needing constructor
 arguments should be wired by the consumer.</p>
 
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.ThreadsView" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ThreadsView</span>
+
+
+<a href="#django_ag_ui.ThreadsView" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Owner-scoped thread index endpoint for the chat-history drawer (async, JSON).</p>
+<p>Mounted by :func:<code>~django_ag_ui.get_urls</code> with <code>threads=&lt;store&gt;</code> over the
+same :class:<code>~django_ag_ui.ConversationStore</code> the agent view uses:</p>
+<ul>
+<li><code>GET    &lt;prefix&gt;threads/</code>       → the user's threads, <strong>metadata only</strong>
+  (<code>{"threads": [...]}</code>);</li>
+<li><code>GET    &lt;prefix&gt;threads/&lt;id&gt;/</code>  → that thread's messages
+  (<code>{"thread_id", "messages"}</code>);</li>
+<li><code>PATCH  &lt;prefix&gt;threads/&lt;id&gt;/</code>  → rename (body <code>{"title": "..."}</code>);</li>
+<li><code>DELETE &lt;prefix&gt;threads/&lt;id&gt;/</code>  → delete the thread (<code>204</code>).</li>
+</ul>
+<p>Every operation is scoped to the acting user: the store filters by owner, so
+a thread owned by another user simply isn't found (<code>404</code>) — never another
+user's history. The view carries the same authentication seam as
+:class:<code>~django_ag_ui.DjangoAGUIView</code> (<code>require_authenticated</code> /
+<code>get_user</code>, sync or async); defaults stay open for parity with the catalog
+views, so lock it down whenever the agent endpoint is locked down.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="reference-store-opt-in">Reference store (opt-in)<a class="headerlink" href="#reference-store-opt-in" title="Permanent link">&para;</a></h3>
+<p>The <code>django_ag_ui.contrib.store</code> app ships a ready-to-use durable store. Add it
+to <code>INSTALLED_APPS</code>, run <code>migrate</code>, then set
+<code>DJANGO_AG_UI["CONVERSATION_STORE"]</code> to
+<code>django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore</code>.
+Projects that don't opt in get no model and no migration.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">DefaultConversationStore</span>
+
+
+<a href="#django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="ModelConversationStore (django_ag_ui.persistence.model_conversation_store.ModelConversationStore)" href="#django_ag_ui.ModelConversationStore">ModelConversationStore</a></code></p>
+
+
+
+        <p>A ready-to-use model-backed store over :class:<code>StoredConversation</code>.</p>
+<p>The batteries-included durable store: cross-device, per-user history with a
+cheap thread list. Enable it by adding <code>"django_ag_ui.contrib.store"</code> to
+<code>INSTALLED_APPS</code>, running <code>migrate</code>, and setting
+<code>DJANGO_AG_UI["CONVERSATION_STORE"]</code> to this class's dotted path. For a
+bespoke schema, subclass :class:<code>ModelConversationStore</code> instead.</p>
+<p>Owner scoping: <code>owner_id</code> is stored as <code>""</code> for anonymous requests (the
+<code>ModelConversationStore</code> base passes <code>None</code>), so the unique
+<code>(owner_id, thread_id)</code> constraint holds and every query filters by owner.
+Titles are derived from the first user message at first save and then left
+alone except by :meth:<code>_rename</code>; <code>preview</code> re-derives on every save.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.contrib.store.models.StoredConversation" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">StoredConversation</span>
+
+
+<a href="#django_ag_ui.contrib.store.models.StoredConversation" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="django.db.models.Model">Model</span></code></p>
+
+
+
+        <p>The reference durable conversation row for a model-backed store.</p>
+<p>One row per <code>(owner_id, thread_id)</code>. <code>messages</code> holds the AG-UI message
+list as JSON (the same shape every store round-trips); <code>title</code> and
+<code>preview</code> are denormalised so the thread drawer's list query never loads
+message bodies, and <code>updated_at</code> orders it. <code>owner_id</code> is the acting
+user's id (<code>""</code> for anonymous) — the store always filters by it.</p>
+<p>Used by
+:class:<code>~django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore</code>.
+Run lineage (<code>run_id</code> / step ledger) is intentionally out of scope here;
+a future durability layer can extend the schema.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 
