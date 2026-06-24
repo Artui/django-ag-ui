@@ -43,6 +43,9 @@ class ModelConversationStore(ABC):
     async def list(self, *, request: HttpRequest) -> ConversationMetaList:
         return await sync_to_async(self._list)(owner_id_for(request))
 
+    async def rename(self, thread_id: str, title: str, *, request: HttpRequest) -> None:
+        await sync_to_async(self._rename)(thread_id, title, owner_id_for(request))
+
     @abstractmethod
     def _fetch(self, thread_id: str, owner_id: str | None) -> Conversation | None: ...
 
@@ -61,6 +64,14 @@ class ModelConversationStore(ABC):
         cheap single-query listing (no message bodies loaded).
         """
         return []
+
+    def _rename(self, thread_id: str, title: str, owner_id: str | None) -> None:
+        """Persist a renamed display title. Default no-op; override to store it.
+
+        Concrete (not abstract) so existing subclasses keep working — pair it
+        with a ``title`` column the :meth:`_list` override then reads.
+        """
+        return None
 
 
 __all__ = ["ModelConversationStore"]

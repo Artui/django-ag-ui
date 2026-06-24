@@ -29,6 +29,7 @@ class _FakeStore:
         self.metas = metas or []
         self.conversations = conversations or {}
         self.deleted: list[str] = []
+        self.renamed: list[tuple[str, str]] = []
 
     async def list(self, *, request: HttpRequest) -> list[ConversationMeta]:
         return self.metas
@@ -38,6 +39,9 @@ class _FakeStore:
 
     async def delete(self, thread_id: str, *, request: HttpRequest) -> None:
         self.deleted.append(thread_id)
+
+    async def rename(self, thread_id: str, title: str, *, request: HttpRequest) -> None:
+        self.renamed.append((thread_id, title))
 
 
 def _body(response: Any) -> Any:
@@ -110,11 +114,61 @@ async def test_collection_rejects_non_get() -> None:
 
 
 async def test_detail_rejects_unsupported_method() -> None:
-    # PATCH (rename) is a planned follow-up — unsupported for now.
     response = await ThreadsView(_FakeStore())(
-        RequestFactory().patch("/agent/threads/t1/"), thread_id="t1"
+        RequestFactory().put("/agent/threads/t1/"), thread_id="t1"
     )
     assert response.status_code == 405
+
+
+async def test_detail_patch_renames() -> None:
+    store = _FakeStore(conversations={"t1": Conversation(thread_id="t1")})
+    request = RequestFactory().patch(
+        "/agent/threads/t1/", data={"title": "  Trip planning  "}, content_type="application/json"
+    )
+    response = await ThreadsView(store)(request, thread_id="t1")
+    assert response.status_code == 200
+    assert _body(response) == {"thread_id": "t1", "title": "Trip planning"}
+    assert store.renamed == [("t1", "Trip planning")]
+
+
+async def test_detail_patch_missing_title_is_400() -> None:
+    store = _FakeStore(conversations={"t1": Conversation(thread_id="t1")})
+    request = RequestFactory().patch(
+        "/agent/threads/t1/", data={"title": "   "}, content_type="application/json"
+    )
+    response = await ThreadsView(store)(request, thread_id="t1")
+    assert response.status_code == 400
+    assert store.renamed == []
+
+
+async def test_detail_patch_unknown_thread_is_404() -> None:
+    store = _FakeStore()  # no conversations → load returns None
+    request = RequestFactory().patch(
+        "/agent/threads/absent/", data={"title": "x"}, content_type="application/json"
+    )
+    response = await ThreadsView(store)(request, thread_id="absent")
+    assert response.status_code == 404
+    assert store.renamed == []
+
+
+async def test_detail_patch_invalid_json_is_400() -> None:
+    store = _FakeStore(conversations={"t1": Conversation(thread_id="t1")})
+    request = RequestFactory().patch(
+        "/agent/threads/t1/", data="not json", content_type="application/json"
+    )
+    response = await ThreadsView(store)(request, thread_id="t1")
+    assert response.status_code == 400
+    assert store.renamed == []
+
+
+async def test_detail_patch_non_object_body_is_400() -> None:
+    store = _FakeStore(conversations={"t1": Conversation(thread_id="t1")})
+    request = RequestFactory().patch(
+        "/agent/threads/t1/", data="[1, 2]", content_type="application/json"
+    )
+    response = await ThreadsView(store)(request, thread_id="t1")
+    assert response.status_code == 400
+    assert store.renamed == []
 
 
 async def test_anonymous_rejected_when_require_authenticated() -> None:

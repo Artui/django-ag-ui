@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, cast
 
 from asgiref.sync import markcoroutinefunction
@@ -27,6 +28,7 @@ class ThreadsView:
       (``{"threads": [...]}``);
     - ``GET    <prefix>threads/<id>/``  → that thread's messages
       (``{"thread_id", "messages"}``);
+    - ``PATCH  <prefix>threads/<id>/``  → rename (body ``{"title": "..."}``);
     - ``DELETE <prefix>threads/<id>/``  → delete the thread (``204``).
 
     Every operation is scoped to the acting user: the store filters by owner, so
@@ -34,8 +36,7 @@ class ThreadsView:
     user's history. The view carries the same authentication seam as
     :class:`~django_ag_ui.DjangoAGUIView` (``require_authenticated`` /
     ``get_user``, sync or async); defaults stay open for parity with the catalog
-    views, so lock it down whenever the agent endpoint is locked down. Renaming
-    (``PATCH``) is a planned follow-up — any other method returns ``405``.
+    views, so lock it down whenever the agent endpoint is locked down.
     """
 
     def __init__(
@@ -85,10 +86,23 @@ class ThreadsView:
                     "messages": messages_to_jsonable(conversation.messages),
                 }
             )
+        if request.method == "PATCH":
+            return await self._rename(request, thread_id)
         if request.method == "DELETE":
             await self._store.delete(thread_id, request=request)
             return HttpResponse(status=204)
-        return HttpResponseNotAllowed(["GET", "DELETE"])
+        return HttpResponseNotAllowed(["GET", "PATCH", "DELETE"])
+
+    async def _rename(self, request: HttpRequest, thread_id: str) -> HttpResponseBase:
+        title = _parse_title(request)
+        if title is None:
+            return JsonResponse({"error": "a non-empty 'title' is required"}, status=400)
+        # Load first so a missing / cross-owner thread is a 404 rather than a
+        # silent rename of nothing.
+        if await self._store.load(thread_id, request=request) is None:
+            return JsonResponse({"error": "not found"}, status=404)
+        await self._store.rename(thread_id, title, request=request)
+        return JsonResponse({"thread_id": thread_id, "title": title})
 
 
 def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
@@ -99,6 +113,18 @@ def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
         "updated_at": meta.updated_at.isoformat() if meta.updated_at is not None else None,
         "preview": meta.preview,
     }
+
+
+def _parse_title(request: HttpRequest) -> str | None:
+    """The stripped, non-empty ``title`` from a JSON PATCH body, else ``None``."""
+    try:
+        body = json.loads(request.body)
+    except (ValueError, TypeError):
+        return None
+    title = body.get("title") if isinstance(body, dict) else None
+    if isinstance(title, str) and title.strip():
+        return title.strip()
+    return None
 
 
 __all__ = ["ThreadsView"]

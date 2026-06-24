@@ -26,5 +26,8 @@ class NullConversationStore:
     async def list(self, *, request: HttpRequest) -> ConversationMetaList:
         return []
 
+    async def rename(self, thread_id: str, title: str, *, request: HttpRequest) -> None:
+        return None
+
 
 __all__ = ["NullConversationStore"]

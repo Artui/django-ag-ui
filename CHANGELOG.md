@@ -19,10 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (listing is opt-in, so existing subclasses keep working) and is overridden for
   a cheap column-backed listing.
 - **`ThreadsView`**, mounted by `get_urls(view, threads=<store>)` at
-  `<prefix>threads/` (GET — the user's threads) and `<prefix>threads/<id>/` (GET
-  messages, DELETE). Every operation is owner-scoped — another user's thread reads
-  as `404` — and the view carries the same `require_authenticated` / `get_user`
-  auth seam as `DjangoAGUIView`. (Renaming via `PATCH` is a planned follow-up.)
+  `<prefix>threads/` (GET — the user's threads) and `<prefix>threads/<id>/`
+  (GET messages, **PATCH rename**, DELETE). Every operation is owner-scoped —
+  another user's thread reads as `404` — and the view carries the same
+  `require_authenticated` / `get_user` auth seam as `DjangoAGUIView`.
+- **Thread rename.** `ConversationStore` gains `rename(thread_id, title, *, request)`.
+  `DjangoSessionConversationStore` persists the title (it overrides the derived
+  one in `list`); `ModelConversationStore` adds a `_rename(thread_id, title,
+  owner_id)` hook that **defaults to a no-op** (override with a `title` column);
+  `NullConversationStore` is a no-op. `PATCH <prefix>threads/<id>/` takes
+  `{"title": "..."}` — a blank title is `400`, a missing/cross-owner thread `404`.
 
 ## [0.5.0] — 2026-06-23
 

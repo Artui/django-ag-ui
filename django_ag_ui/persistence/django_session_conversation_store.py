@@ -42,6 +42,9 @@ class DjangoSessionConversationStore:
     async def list(self, *, request: HttpRequest) -> ConversationMetaList:
         return await sync_to_async(self._list)(request)
 
+    async def rename(self, thread_id: str, title: str, *, request: HttpRequest) -> None:
+        await sync_to_async(self._rename)(thread_id, title, request)
+
     def _load(self, thread_id: str, request: HttpRequest) -> Conversation | None:
         raw = request.session.get(_SESSION_KEY, {}).get(thread_id)
         if raw is None:
@@ -73,12 +76,20 @@ class DjangoSessionConversationStore:
         store = request.session.get(_SESSION_KEY, {})
         return [_meta(thread_id, raw) for thread_id, raw in store.items()]
 
+    def _rename(self, thread_id: str, title: str, request: HttpRequest) -> None:
+        store = request.session.get(_SESSION_KEY, {})
+        if thread_id in store:
+            store[thread_id]["title"] = title
+            request.session[_SESSION_KEY] = store
+            request.session.modified = True
+
 
 def _meta(thread_id: str, raw: dict[str, Any]) -> ConversationMeta:
     messages = messages_from_jsonable(raw["messages"])
     return ConversationMeta(
         thread_id=thread_id,
-        title=derive_title(messages),
+        # An explicit rename (stored "title") wins over the derived title.
+        title=raw.get("title") or derive_title(messages),
         updated_at=_parse_iso(raw.get("updated_at")),
         preview=derive_preview(messages),
         owner_id=raw.get("owner_id"),

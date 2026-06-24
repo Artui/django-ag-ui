@@ -20,13 +20,15 @@ class ConversationStore(Protocol):
 
     ``list`` returns owner-scoped *metadata only* (no message bodies) for the
     thread drawer; a store that can't enumerate (the stateless default) returns
-    an empty list.
+    an empty list. ``rename`` sets a thread's display title (a store that can't
+    persist one is a no-op).
     """
 
     async def load(self, thread_id: str, *, request: HttpRequest) -> Conversation | None: ...
     async def save(self, conversation: Conversation, *, request: HttpRequest) -> None: ...
     async def delete(self, thread_id: str, *, request: HttpRequest) -> None: ...
     async def list(self, *, request: HttpRequest) -> ConversationMetaList: ...
+    async def rename(self, thread_id: str, title: str, *, request: HttpRequest) -> None: ...
 
 
 __all__ = ["ConversationStore"]

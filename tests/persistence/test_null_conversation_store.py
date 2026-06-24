@@ -16,3 +16,8 @@ async def test_null_store_is_a_noop() -> None:
 
 async def test_null_store_lists_nothing() -> None:
     assert await NullConversationStore().list(request=RequestFactory().get("/")) == []
+
+
+async def test_null_store_rename_is_a_noop() -> None:
+    store = NullConversationStore()
+    assert await store.rename("t1", "Title", request=RequestFactory().get("/")) is None

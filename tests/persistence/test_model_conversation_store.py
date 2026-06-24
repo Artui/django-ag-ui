@@ -58,3 +58,22 @@ async def test_list_uses_subclass_override_and_owner_scoping() -> None:
 
     metas = await store.list(request=request)
     assert sorted(meta.thread_id for meta in metas) == ["t1", "t2"]
+
+
+async def test_rename_defaults_to_noop_for_subclasses_that_dont_override() -> None:
+    assert await _DictStore().rename("t1", "x", request=RequestFactory().get("/")) is None
+
+
+class _RenamableStore(_DictStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.renames: list[tuple[str | None, str, str]] = []
+
+    def _rename(self, thread_id: str, title: str, owner_id: str | None) -> None:
+        self.renames.append((owner_id, thread_id, title))
+
+
+async def test_rename_uses_subclass_override_with_owner_scoping() -> None:
+    store = _RenamableStore()
+    await store.rename("t1", "Renamed", request=RequestFactory().get("/"))
+    assert store.renames == [(None, "t1", "Renamed")]

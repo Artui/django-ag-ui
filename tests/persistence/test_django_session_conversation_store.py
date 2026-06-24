@@ -94,3 +94,24 @@ async def test_list_tolerates_legacy_entry_without_timestamp() -> None:
     assert meta.thread_id == "old"
     assert meta.updated_at is None
     assert meta.title == "New conversation"
+
+
+async def test_rename_overrides_the_derived_title() -> None:
+    store = DjangoSessionConversationStore()
+    request = _request()
+    await store.save(
+        Conversation(
+            thread_id="t1", messages=[UserMessage(id="u1", role="user", content="book a flight")]
+        ),
+        request=request,
+    )
+    await store.rename("t1", "Trip planning", request=request)
+    (meta,) = await store.list(request=request)
+    assert meta.title == "Trip planning"
+
+
+async def test_rename_missing_thread_is_a_noop() -> None:
+    store = DjangoSessionConversationStore()
+    request = _request()
+    await store.rename("absent", "x", request=request)
+    assert await store.list(request=request) == []
