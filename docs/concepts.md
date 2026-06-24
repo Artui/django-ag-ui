@@ -230,10 +230,11 @@ history the client posts on every turn. Persistence is opt-in via
 pluggable Protocol, exactly like the audit logger.
 
 [`ConversationStore`][django_ag_ui.ConversationStore] is a runtime-checkable
-Protocol with async `load` / `save` / `delete`, each taking the `request`. A
-[`Conversation`][django_ag_ui.Conversation] is a frozen record of a `thread_id`,
-the AG-UI `Message` list (the wire shape, round-tripped verbatim), and an
-`owner_id` for authorization scoping.
+Protocol with async `load` / `save` / `delete`, plus `list` and `rename` for the
+thread drawer (see [Thread history](#thread-history) below), each taking the
+`request`. A [`Conversation`][django_ag_ui.Conversation] is a frozen record of a
+`thread_id`, the AG-UI `Message` list (the wire shape, round-tripped verbatim),
+and an `owner_id` for authorization scoping.
 
 The implementations:
 
@@ -248,22 +249,65 @@ The implementations:
 - [`ModelConversationStore`][django_ag_ui.ModelConversationStore] — an abstract
   base for model-backed (or any synchronous) store. It provides the async
   wrapping (`sync_to_async`) and per-request owner scoping; a subclass
-  implements three synchronous row operations (`_fetch`, `_store`, `_remove`)
-  against its own Django model. The package ships **no** concrete model on
-  purpose, so it forces no migration — you define the model, its fields, and the
-  owner relationship.
+  implements the synchronous row operations (`_fetch`, `_store`, `_remove`, and
+  the opt-in `_list` / `_rename`, which default to `[]` / no-op) against its own
+  Django model. The package ships **no** concrete model on purpose, so it forces
+  no migration — you define the model, its fields, and the owner relationship.
+  For a ready-made one, see the [reference store](#a-ready-made-durable-store).
 
 When a non-null store is configured, the view persists the run's full message
 history when the run finishes streaming, scoped to the authenticated user
 (`owner_id`).
 
+### Thread history
+
+The store also powers a **chat-history drawer**: a user's past conversations,
+each loadable, renamable, and deletable. Two Protocol methods back it, both
+owner-scoped:
+
+- `list(*, request)` returns [`ConversationMeta`][django_ag_ui.ConversationMeta]
+  — `thread_id`, `title`, `updated_at`, `preview` — **metadata only**, no message
+  bodies, so the drawer stays cheap. `NullConversationStore` returns `[]`;
+  `DjangoSessionConversationStore` enumerates the session's own threads (titles
+  derived from the first user message, previews from the latest);
+  `ModelConversationStore._list` defaults to `[]` until a subclass overrides it.
+- `rename(thread_id, title, *, request)` sets a thread's display title. The
+  session store persists it (overriding the derived title);
+  `ModelConversationStore._rename` is a no-op until overridden.
+
+Mount [`ThreadsView`][django_ag_ui.ThreadsView] with
+`get_urls(view, threads=store)` to expose them over HTTP for the web component's
+`data-threads-url`:
+
+| Route | Method | Action |
+| --- | --- | --- |
+| `<prefix>threads/` | `GET` | list the user's threads (metadata only) |
+| `<prefix>threads/<id>/` | `GET` | that thread's messages (server-side rehydration) |
+| `<prefix>threads/<id>/` | `PATCH` | rename (`{"title": "..."}`) |
+| `<prefix>threads/<id>/` | `DELETE` | delete the thread |
+
+Every operation is scoped to the acting user — a thread owned by someone else
+reads as `404`, never another user's history — and the view carries the same
+`require_authenticated` / `get_user` auth seam as `DjangoAGUIView`.
+
+### A ready-made durable store
+
+For cross-device, per-user history without writing your own model, opt into the
+`django_ag_ui.contrib.store` app: add `"django_ag_ui.contrib.store"` to
+`INSTALLED_APPS`, run `migrate`, and set
+[`CONVERSATION_STORE`](configuration.md#conversation_store) to
+`django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore`.
+It ships a `StoredConversation` model and a `ModelConversationStore` subclass with
+denormalised `title` / `preview` / `updated_at` columns so the thread list is a
+single cheap query. Projects that don't opt in get no model and no migration.
+
 !!! note "Deferred to a later release"
     The plan's server-authoritative **merge-by-id** policy (reconciling stored
     history with the posted messages so the client can only append, not rewrite,
-    past turns) and the owner-scoped **GET `conversations/<thread_id>/`**
-    rehydration endpoint are designed but **not yet implemented** in this
-    package. Today the store mirrors the run's messages on completion; the
-    client remains the source of truth for the posted history.
+    past turns) is designed but **not yet implemented**; today the store mirrors
+    the run's messages on completion and the client remains the source of truth
+    for the posted history. (The owner-scoped rehydration endpoint **is** now
+    shipped — `GET <prefix>threads/<id>/` above.)
 
 ## Cancelling a run
 

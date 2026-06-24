@@ -31,7 +31,9 @@ with per-tool risk metadata.
   `<prefix>tools/` via `get_urls(view, tools=registry)`, giving the web component
   friendly card labels for server-side tools.
 - Optional, pluggable **conversation persistence**
-  ([`ConversationStore`][django_ag_ui.ConversationStore]), off by default.
+  ([`ConversationStore`][django_ag_ui.ConversationStore]), off by default — with
+  a **thread history** drawer endpoint ([`ThreadsView`][django_ag_ui.ThreadsView])
+  and an opt-in ready-made durable store.
 - An optional **drf-mcp bridge** that exposes a
   [`djangorestframework-mcp-server`](https://github.com/Artui/djangorestframework-mcp-server)
   registry to the agent in-process.
