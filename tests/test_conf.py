@@ -19,6 +19,9 @@ def test_defaults_when_unconfigured() -> None:
     assert s.toolsets == ()
     assert s.capabilities == ()
     assert s.conversation_store is None
+    assert s.attachment_store is None
+    assert s.attachment_max_bytes == 10 * 1024 * 1024
+    assert s.attachment_allowed_types == ()
     assert s.drf_mcp_server is None
 
 
@@ -38,6 +41,9 @@ def test_defaults_when_unconfigured() -> None:
         "CONVERSATION_STORE": (
             "django_ag_ui.persistence.null_conversation_store.NullConversationStore"
         ),
+        "ATTACHMENT_STORE": ("django_ag_ui.persistence.null_attachment_store.NullAttachmentStore"),
+        "ATTACHMENT_MAX_BYTES": 2048,
+        "ATTACHMENT_ALLOWED_TYPES": ["text/plain", "image/png"],
         "DRF_MCP_SERVER": "myapp.mcp.server",
     },
 )
@@ -56,6 +62,10 @@ def test_reads_from_settings_dict() -> None:
     assert s.capabilities == ("tests.agent.factories.make_toolset",)
     assert s.conversation_store is not None
     assert s.conversation_store.endswith("NullConversationStore")
+    assert s.attachment_store is not None
+    assert s.attachment_store.endswith("NullAttachmentStore")
+    assert s.attachment_max_bytes == 2048
+    assert s.attachment_allowed_types == ("text/plain", "image/png")
     assert s.drf_mcp_server == "myapp.mcp.server"
 
 

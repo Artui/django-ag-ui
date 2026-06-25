@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **File uploads (server side).** A new `AttachmentStore` Protocol
+  (async, owner-scoped `save` / `open` / `delete`) is the persistence seam for
+  files a user attaches to a conversation, set via
+  `DJANGO_AG_UI["ATTACHMENT_STORE"]`. The package ships `NullAttachmentStore`
+  (the default — uploads disabled, the endpoint answers `410`) and an abstract
+  `ModelAttachmentStore` base (async wrapping + owner scoping over three sync
+  ops). Uploads return a lightweight `AttachmentRef` (`id`/`name`/`mime`/`size`),
+  never bytes — the AG-UI message stream stays vanilla.
+- **`AttachmentsView`**, mounted by `get_urls(view, attachments=<store>)` at
+  `<prefix>attachments/` (POST multipart upload → `201` ref) and
+  `<prefix>attachments/<id>/` (GET download, DELETE). Uploads are validated
+  **server-side** against `ATTACHMENT_MAX_BYTES` (oversize → `413`) and
+  `ATTACHMENT_ALLOWED_TYPES` (disallowed → `415`); downloads stream as an
+  `attachment` with `X-Content-Type-Options: nosniff`. Every operation is
+  owner-scoped — another user's id reads as `404` — with the same
+  `require_authenticated` / `get_user` auth seam as `DjangoAGUIView`.
+- **`read_attachment` tool.** When an attachment store is configured, the view
+  wires a per-request `read_attachment(attachment_id)` tool onto the agent,
+  scoped to the acting user, so the model reads a file's contents server-side
+  (text inlined; binary summarised) — the bytes never ride the wire. A consumer
+  that registers its own `read_attachment` keeps it (registry tools win).
+- **New settings:** `ATTACHMENT_STORE` (dotted path, default `None` = off),
+  `ATTACHMENT_MAX_BYTES` (default 10 MiB, `0` disables), and
+  `ATTACHMENT_ALLOWED_TYPES` (default `()` = any).
+- **Reference durable file store (opt-in).** The `django_ag_ui.contrib.store`
+  app now also ships a `StoredAttachment` model + migration and
+  `DefaultAttachmentStore` (a `ModelAttachmentStore` subclass keeping bytes in
+  Django `Storage` — S3/GCS via `STORAGES` — and metadata in a row, owner-scoped
+  by an opaque `attachment_id`). The base package still ships no model.
+
 ## [0.6.0] — 2026-06-24
 
 ### Added

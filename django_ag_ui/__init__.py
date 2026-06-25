@@ -15,16 +15,23 @@ from django_ag_ui.constants import (
     X_SUMMARY_KEY,
     ToolCategory,
 )
+from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
 )
+from django_ag_ui.persistence.model_attachment_store import ModelAttachmentStore
 from django_ag_ui.persistence.model_conversation_store import ModelConversationStore
+from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
 from django_ag_ui.persistence.null_conversation_store import NullConversationStore
+from django_ag_ui.persistence.resolve_attachment_store import resolve_attachment_store
 from django_ag_ui.persistence.resolve_conversation_store import resolve_conversation_store
 from django_ag_ui.persistence.threads_view import ThreadsView
+from django_ag_ui.persistence.types.attachment_ref import AttachmentRef
+from django_ag_ui.persistence.types.attachment_store import AttachmentStore
 from django_ag_ui.persistence.types.conversation import Conversation
 from django_ag_ui.persistence.types.conversation_meta import ConversationMeta
 from django_ag_ui.persistence.types.conversation_store import ConversationStore
+from django_ag_ui.persistence.types.opened_attachment import OpenedAttachment
 from django_ag_ui.policy.audit.logging_audit_logger import LoggingAuditLogger
 from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
 from django_ag_ui.policy.audit.resolve_audit_logger import resolve_audit_logger
@@ -45,6 +52,9 @@ __all__ = [
     "AgentConfig",
     "AgentFactoryFn",
     "AppSettings",
+    "AttachmentRef",
+    "AttachmentStore",
+    "AttachmentsView",
     "AuditEvent",
     "AuditLogger",
     "Conversation",
@@ -53,9 +63,12 @@ __all__ = [
     "DjangoAGUIView",
     "DjangoSessionConversationStore",
     "LoggingAuditLogger",
+    "ModelAttachmentStore",
     "ModelConversationStore",
+    "NullAttachmentStore",
     "NullAuditLogger",
     "NullConversationStore",
+    "OpenedAttachment",
     "SkillRegistry",
     "SkillSpec",
     "ThreadsView",
@@ -74,6 +87,7 @@ __all__ = [
     "get_settings",
     "get_urls",
     "needs_confirmation",
+    "resolve_attachment_store",
     "resolve_audit_logger",
     "resolve_conversation_store",
     "tool",

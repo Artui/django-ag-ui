@@ -4,6 +4,7 @@ from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.urls import get_urls
+from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
 from django_ag_ui.persistence.null_conversation_store import NullConversationStore
 from django_ag_ui.registry.tool_registry import ToolRegistry
 from django_ag_ui.skills.skill_registry import SkillRegistry
@@ -53,3 +54,19 @@ def test_get_urls_omits_thread_endpoints_by_default() -> None:
     names = {p.name for p in get_urls(view)}
     assert "django_ag_ui_threads" not in names
     assert "django_ag_ui_thread" not in names
+
+
+def test_get_urls_mounts_attachment_endpoints_when_given() -> None:
+    view = DjangoAGUIView(ToolRegistry(), model=TestModel())
+    patterns = get_urls(view, attachments=NullAttachmentStore())
+    collection = next(p for p in patterns if p.name == "django_ag_ui_attachments")
+    detail = next(p for p in patterns if p.name == "django_ag_ui_attachment")
+    assert "agent/attachments/" in str(collection.pattern)
+    assert "attachments/<str:attachment_id>/" in str(detail.pattern)
+
+
+def test_get_urls_omits_attachment_endpoints_by_default() -> None:
+    view = DjangoAGUIView(ToolRegistry(), model=TestModel())
+    names = {p.name for p in get_urls(view)}
+    assert "django_ag_ui_attachments" not in names
+    assert "django_ag_ui_attachment" not in names
