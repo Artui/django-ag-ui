@@ -542,6 +542,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#attachment_store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ATTACHMENT_STORE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attachment_max_bytes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ATTACHMENT_MAX_BYTES
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attachment_allowed_types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ATTACHMENT_ALLOWED_TYPES
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#drf_mcp_server" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -773,6 +806,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#attachment_store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ATTACHMENT_STORE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attachment_max_bytes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ATTACHMENT_MAX_BYTES
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attachment_allowed_types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ATTACHMENT_ALLOWED_TYPES
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#drf_mcp_server" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -901,6 +967,24 @@ default, and what it does.</p>
 <td>dotted <code>str</code></td>
 <td><code>None</code></td>
 <td>Server-side conversation persistence.</td>
+</tr>
+<tr>
+<td><code>ATTACHMENT_STORE</code></td>
+<td>dotted <code>str</code></td>
+<td><code>None</code></td>
+<td>Server-side file-upload storage (uploads off when unset).</td>
+</tr>
+<tr>
+<td><code>ATTACHMENT_MAX_BYTES</code></td>
+<td><code>int</code></td>
+<td><code>10485760</code></td>
+<td>Max accepted upload size in bytes (<code>0</code> disables the cap).</td>
+</tr>
+<tr>
+<td><code>ATTACHMENT_ALLOWED_TYPES</code></td>
+<td><code>tuple[str, ...]</code></td>
+<td><code>()</code></td>
+<td>Allowed upload content types (empty = any).</td>
 </tr>
 <tr>
 <td><code>DRF_MCP_SERVER</code></td>
@@ -1041,6 +1125,67 @@ subclass with your own model. See
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="s2">&quot;CONVERSATION_STORE&quot;</span><span class="p">:</span> <span class="s2">&quot;django_ag_ui.DjangoSessionConversationStore&quot;</span><span class="p">,</span>
 </span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="p">}</span>
 </span></code></pre></div>
+<p>For a ready-made <strong>durable, cross-device</strong> store, opt into the
+<code>django_ag_ui.contrib.store</code> app instead of writing your own model — add it to
+<code>INSTALLED_APPS</code>, run <code>migrate</code>, and point the setting at its store:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="c1"># ...</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="s2">&quot;django_ag_ui.contrib.store&quot;</span><span class="p">,</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="p">]</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="s2">&quot;CONVERSATION_STORE&quot;</span><span class="p">:</span> <span class="p">(</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>        <span class="s2">&quot;django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore&quot;</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="p">),</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>The base package ships no model, so projects that don't opt in get no migration.
+To expose the <strong>thread-history drawer</strong> endpoints over HTTP, pass the same store
+to <code>get_urls(view, threads=store)</code> — see
+<a href="../concepts/#thread-history">Thread history</a>.</p>
+<h2 id="attachment_store"><code>ATTACHMENT_STORE</code><a class="headerlink" href="#attachment_store" title="Permanent link">&para;</a></h2>
+<p>A dotted path to an <a class="autorefs autorefs-internal" title="AttachmentStore" href="../api/#django_ag_ui.AttachmentStore"><code>AttachmentStore</code></a> class,
+importable with no arguments. <code>None</code> (the default) keeps <strong>uploads disabled</strong>
+using <a class="autorefs autorefs-internal" title="NullAttachmentStore" href="../api/#django_ag_ui.NullAttachmentStore"><code>NullAttachmentStore</code></a> — the upload
+endpoint answers <code>410 Gone</code>. Resolution is done by
+<a class="autorefs autorefs-internal" title="resolve_attachment_store" href="../api/#django_ag_ui.resolve_attachment_store"><code>resolve_attachment_store</code></a>, which raises
+<code>TypeError</code> if the path does not produce an <code>AttachmentStore</code>.</p>
+<p>When a store is set, the view wires a per-request <code>read_attachment(attachment_id)</code>
+tool onto the agent, scoped to the acting user, so the model can read the bytes a
+user attached — the AG-UI message stream stays free of file payloads (uploads go
+out-of-band and travel as lightweight refs). A consumer that registers its own
+<code>read_attachment</code> tool keeps it (registry tools win).</p>
+<p>The package ships an abstract
+<a class="autorefs autorefs-internal" title="ModelAttachmentStore" href="../api/#django_ag_ui.ModelAttachmentStore"><code>ModelAttachmentStore</code></a> base you can subclass
+with your own model + storage. For a ready-made store, opt into the
+<code>django_ag_ui.contrib.store</code> app — add it to <code>INSTALLED_APPS</code>, run <code>migrate</code>, and
+point the setting at its store (bytes go to Django <code>Storage</code>, so S3/GCS come free
+via <code>STORAGES</code> / <code>DEFAULT_FILE_STORAGE</code>):</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="c1"># ...</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="s2">&quot;django_ag_ui.contrib.store&quot;</span><span class="p">,</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="p">]</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="s2">&quot;ATTACHMENT_STORE&quot;</span><span class="p">:</span> <span class="p">(</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>        <span class="s2">&quot;django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore&quot;</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="p">),</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>To expose the upload endpoints over HTTP, pass the same store to
+<code>get_urls(view, attachments=store)</code> — see
+<a href="../concepts/#file-uploads">File uploads</a>.</p>
+<h2 id="attachment_max_bytes"><code>ATTACHMENT_MAX_BYTES</code><a class="headerlink" href="#attachment_max_bytes" title="Permanent link">&para;</a></h2>
+<p>The maximum accepted upload size in bytes, enforced <strong>server-side</strong> by
+<a class="autorefs autorefs-internal" title="AttachmentsView" href="../api/#django_ag_ui.AttachmentsView"><code>AttachmentsView</code></a> (an oversize upload → <code>413</code>).
+Defaults to <code>10485760</code> (10 MiB); set <code>0</code> to disable the cap. Client-side checks
+in the web component are a UX nicety — this is the authoritative limit.</p>
+<h2 id="attachment_allowed_types"><code>ATTACHMENT_ALLOWED_TYPES</code><a class="headerlink" href="#attachment_allowed_types" title="Permanent link">&para;</a></h2>
+<p>A tuple of allowed (client-declared) content types for uploads, e.g.
+<code>("image/png", "image/jpeg", "application/pdf", "text/plain")</code>. Empty (the
+default) accepts any type; otherwise an upload whose <code>Content-Type</code> is not listed
+is rejected with <code>415</code>. The content type is client-declared, so treat this as a
+coarse filter — the store decides what to do with the bytes.</p>
 <h2 id="drf_mcp_server"><code>DRF_MCP_SERVER</code><a class="headerlink" href="#drf_mcp_server" title="Permanent link">&para;</a></h2>
 <p>A dotted path to a <code>djangorestframework-mcp-server</code> <code>MCPServer</code> instance whose
 tools are exposed to the agent in-process (requires the <code>[drf-mcp]</code> extra).
@@ -1053,9 +1198,9 @@ and permission checks apply. See
 <a href="../concepts/#tool-metadata-catalog">tool metadata catalog</a> (mounted by
 <code>get_urls(view, tools=registry)</code>), which reads each tool's <code>display_name</code> /
 <code>display_description</code> as the web component's card label.</p>
-<p><div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="s2">&quot;DRF_MCP_SERVER&quot;</span><span class="p">:</span> <span class="s2">&quot;myproject.mcp.server&quot;</span><span class="p">,</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="p">}</span>
+<p><div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="s2">&quot;DRF_MCP_SERVER&quot;</span><span class="p">:</span> <span class="s2">&quot;myproject.mcp.server&quot;</span><span class="p">,</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="p">}</span>
 </span></code></pre></div>
 </content></p>
 

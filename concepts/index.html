@@ -528,6 +528,73 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Conversation persistence">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#thread-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread history
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-ready-made-durable-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A ready-made durable store
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-uploads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File uploads
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File uploads">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The store
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The endpoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -704,6 +771,73 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Conversation persistence">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#thread-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread history
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-ready-made-durable-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A ready-made durable store
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-uploads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File uploads
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File uploads">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The store
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The endpoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1003,15 +1137,16 @@ history the client posts on every turn. Persistence is opt-in via
 <a href="../configuration/#conversation_store"><code>CONVERSATION_STORE</code></a> and modelled as a
 pluggable Protocol, exactly like the audit logger.</p>
 <p><a class="autorefs autorefs-internal" title="ConversationStore" href="../api/#django_ag_ui.ConversationStore"><code>ConversationStore</code></a> is a runtime-checkable
-Protocol with async <code>load</code> / <code>save</code> / <code>delete</code>, each taking the <code>request</code>. A
-<a class="autorefs autorefs-internal" title="Conversation
+Protocol with async <code>load</code> / <code>save</code> / <code>delete</code>, plus <code>list</code> and <code>rename</code> for the
+thread drawer (see <a href="#thread-history">Thread history</a> below), each taking the
+<code>request</code>. A <a class="autorefs autorefs-internal" title="Conversation
 
 
   
       dataclass
-  " href="../api/#django_ag_ui.Conversation"><code>Conversation</code></a> is a frozen record of a <code>thread_id</code>,
-the AG-UI <code>Message</code> list (the wire shape, round-tripped verbatim), and an
-<code>owner_id</code> for authorization scoping.</p>
+  " href="../api/#django_ag_ui.Conversation"><code>Conversation</code></a> is a frozen record of a
+<code>thread_id</code>, the AG-UI <code>Message</code> list (the wire shape, round-tripped verbatim),
+and an <code>owner_id</code> for authorization scoping.</p>
 <p>The implementations:</p>
 <ul>
 <li><a class="autorefs autorefs-internal" title="NullConversationStore" href="../api/#django_ag_ui.NullConversationStore"><code>NullConversationStore</code></a> — the default.
@@ -1025,23 +1160,140 @@ the AG-UI <code>Message</code> list (the wire shape, round-tripped verbatim), an
 <li><a class="autorefs autorefs-internal" title="ModelConversationStore" href="../api/#django_ag_ui.ModelConversationStore"><code>ModelConversationStore</code></a> — an abstract
   base for model-backed (or any synchronous) store. It provides the async
   wrapping (<code>sync_to_async</code>) and per-request owner scoping; a subclass
-  implements three synchronous row operations (<code>_fetch</code>, <code>_store</code>, <code>_remove</code>)
-  against its own Django model. The package ships <strong>no</strong> concrete model on
-  purpose, so it forces no migration — you define the model, its fields, and the
-  owner relationship.</li>
+  implements the synchronous row operations (<code>_fetch</code>, <code>_store</code>, <code>_remove</code>, and
+  the opt-in <code>_list</code> / <code>_rename</code>, which default to <code>[]</code> / no-op) against its own
+  Django model. The package ships <strong>no</strong> concrete model on purpose, so it forces
+  no migration — you define the model, its fields, and the owner relationship.
+  For a ready-made one, see the <a href="#a-ready-made-durable-store">reference store</a>.</li>
 </ul>
 <p>When a non-null store is configured, the view persists the run's full message
 history when the run finishes streaming, scoped to the authenticated user
 (<code>owner_id</code>).</p>
+<h3 id="thread-history">Thread history<a class="headerlink" href="#thread-history" title="Permanent link">&para;</a></h3>
+<p>The store also powers a <strong>chat-history drawer</strong>: a user's past conversations,
+each loadable, renamable, and deletable. Two Protocol methods back it, both
+owner-scoped:</p>
+<ul>
+<li><code>list(*, request)</code> returns <a class="autorefs autorefs-internal" title="ConversationMeta
+
+
+  
+      dataclass
+  " href="../api/#django_ag_ui.ConversationMeta"><code>ConversationMeta</code></a>
+  — <code>thread_id</code>, <code>title</code>, <code>updated_at</code>, <code>preview</code> — <strong>metadata only</strong>, no message
+  bodies, so the drawer stays cheap. <code>NullConversationStore</code> returns <code>[]</code>;
+  <code>DjangoSessionConversationStore</code> enumerates the session's own threads (titles
+  derived from the first user message, previews from the latest);
+  <code>ModelConversationStore._list</code> defaults to <code>[]</code> until a subclass overrides it.</li>
+<li><code>rename(thread_id, title, *, request)</code> sets a thread's display title. The
+  session store persists it (overriding the derived title);
+  <code>ModelConversationStore._rename</code> is a no-op until overridden.</li>
+</ul>
+<p>Mount <a class="autorefs autorefs-internal" title="ThreadsView" href="../api/#django_ag_ui.ThreadsView"><code>ThreadsView</code></a> with
+<code>get_urls(view, threads=store)</code> to expose them over HTTP for the web component's
+<code>data-threads-url</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Method</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;prefix&gt;threads/</code></td>
+<td><code>GET</code></td>
+<td>list the user's threads (metadata only)</td>
+</tr>
+<tr>
+<td><code>&lt;prefix&gt;threads/&lt;id&gt;/</code></td>
+<td><code>GET</code></td>
+<td>that thread's messages (server-side rehydration)</td>
+</tr>
+<tr>
+<td><code>&lt;prefix&gt;threads/&lt;id&gt;/</code></td>
+<td><code>PATCH</code></td>
+<td>rename (<code>{"title": "..."}</code>)</td>
+</tr>
+<tr>
+<td><code>&lt;prefix&gt;threads/&lt;id&gt;/</code></td>
+<td><code>DELETE</code></td>
+<td>delete the thread</td>
+</tr>
+</tbody>
+</table>
+<p>Every operation is scoped to the acting user — a thread owned by someone else
+reads as <code>404</code>, never another user's history — and the view carries the same
+<code>require_authenticated</code> / <code>get_user</code> auth seam as <code>DjangoAGUIView</code>.</p>
+<h3 id="a-ready-made-durable-store">A ready-made durable store<a class="headerlink" href="#a-ready-made-durable-store" title="Permanent link">&para;</a></h3>
+<p>For cross-device, per-user history without writing your own model, opt into the
+<code>django_ag_ui.contrib.store</code> app: add <code>"django_ag_ui.contrib.store"</code> to
+<code>INSTALLED_APPS</code>, run <code>migrate</code>, and set
+<a href="../configuration/#conversation_store"><code>CONVERSATION_STORE</code></a> to
+<code>django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore</code>.
+It ships a <code>StoredConversation</code> model and a <code>ModelConversationStore</code> subclass with
+denormalised <code>title</code> / <code>preview</code> / <code>updated_at</code> columns so the thread list is a
+single cheap query. Projects that don't opt in get no model and no migration.</p>
 <div class="admonition note">
 <p class="admonition-title">Deferred to a later release</p>
 <p>The plan's server-authoritative <strong>merge-by-id</strong> policy (reconciling stored
 history with the posted messages so the client can only append, not rewrite,
-past turns) and the owner-scoped <strong>GET <code>conversations/&lt;thread_id&gt;/</code></strong>
-rehydration endpoint are designed but <strong>not yet implemented</strong> in this
-package. Today the store mirrors the run's messages on completion; the
-client remains the source of truth for the posted history.</p>
+past turns) is designed but <strong>not yet implemented</strong>; today the store mirrors
+the run's messages on completion and the client remains the source of truth
+for the posted history. (The owner-scoped rehydration endpoint <strong>is</strong> now
+shipped — <code>GET &lt;prefix&gt;threads/&lt;id&gt;/</code> above.)</p>
 </div>
+<h2 id="file-uploads">File uploads<a class="headerlink" href="#file-uploads" title="Permanent link">&para;</a></h2>
+<p>A user can attach files to a conversation — drop a PDF or image into the
+composer, send a message, and let the agent read it. The design keeps the AG-UI
+wire <strong>vanilla</strong>: files upload out-of-band to their own endpoint and travel as
+lightweight <strong>refs</strong> (<code>id</code> / <code>name</code> / <code>mime</code> / <code>size</code>), never as base64 on the
+message stream — the same principle the <a href="#tool-metadata-catalog">tool metadata
+catalog</a> uses to keep schemas off the wire.</p>
+<p>The lifecycle:</p>
+<ol>
+<li>The composer uploads each file (multipart <code>POST &lt;prefix&gt;attachments/</code>) and
+   gets back an <a class="autorefs autorefs-internal" title="AttachmentRef
+
+
+  
+      dataclass
+  " href="../api/#django_ag_ui.AttachmentRef"><code>AttachmentRef</code></a> — a durable handle,
+   not bytes.</li>
+<li>The user sends a message carrying the refs.</li>
+<li>When the model needs a file's contents, it calls the built-in
+   <code>read_attachment(attachment_id)</code> tool, which resolves the bytes <strong>server-side,
+   owner-scoped to the acting user</strong>.</li>
+</ol>
+<h3 id="the-store">The store<a class="headerlink" href="#the-store" title="Permanent link">&para;</a></h3>
+<p><a class="autorefs autorefs-internal" title="AttachmentStore" href="../api/#django_ag_ui.AttachmentStore"><code>AttachmentStore</code></a> is the persistence seam, set
+via <a href="../configuration/#attachment_store"><code>ATTACHMENT_STORE</code></a>. Every method is
+async and owner-scoped — one user's id can never resolve another's file, the
+security boundary for the feature. The default
+<a class="autorefs autorefs-internal" title="NullAttachmentStore" href="../api/#django_ag_ui.NullAttachmentStore"><code>NullAttachmentStore</code></a> keeps uploads off
+(<code>410 Gone</code>); subclass the abstract
+<a class="autorefs autorefs-internal" title="ModelAttachmentStore" href="../api/#django_ag_ui.ModelAttachmentStore"><code>ModelAttachmentStore</code></a> for your own model,
+or opt into the <a href="#a-ready-made-durable-store">ready-made durable store</a> which
+keeps bytes in Django <code>Storage</code> (filesystem by default, S3/GCS via <code>STORAGES</code>).</p>
+<h3 id="the-endpoints">The endpoints<a class="headerlink" href="#the-endpoints" title="Permanent link">&para;</a></h3>
+<p>Pass the store to <code>get_urls(view, attachments=store)</code> to mount
+<a class="autorefs autorefs-internal" title="AttachmentsView" href="../api/#django_ag_ui.AttachmentsView"><code>AttachmentsView</code></a> (typically the same store the
+agent uses, <code>resolve_attachment_store(get_settings().attachment_store)</code>):</p>
+<ul>
+<li><code>POST   &lt;prefix&gt;attachments/</code>      — multipart upload under the <code>file</code> field;
+  validates <a href="../configuration/#attachment_max_bytes">size</a> and
+  <a href="../configuration/#attachment_allowed_types">type</a> <strong>server-side</strong>, then returns
+  <code>201</code> with the ref JSON.</li>
+<li><code>GET    &lt;prefix&gt;attachments/&lt;id&gt;/</code> — stream the bytes back (owner-checked), as
+  an <code>attachment</code> with <code>X-Content-Type-Options: nosniff</code> so an uploaded
+  <code>text/html</code> can't execute as a same-origin page; missing / cross-owner → <code>404</code>.</li>
+<li><code>DELETE &lt;prefix&gt;attachments/&lt;id&gt;/</code> — drop the attachment (<code>204</code>).</li>
+</ul>
+<p>All owner-scoped and open by default like the catalog views — construct
+<code>AttachmentsView</code> yourself with <code>require_authenticated</code> / <code>get_user</code> to lock it
+down whenever the agent endpoint is. The web component reads
+<code>data-attachments-url</code> to drive the composer's upload tray.</p>
 <h2 id="cancelling-a-run">Cancelling a run<a class="headerlink" href="#cancelling-a-run" title="Permanent link">&para;</a></h2>
 <p>AG-UI has <strong>no server-side cancel route</strong>. A run is one streaming HTTP request;
 the client cancels it by aborting that request, and the server observes a
