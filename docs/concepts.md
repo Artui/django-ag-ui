@@ -309,6 +309,57 @@ single cheap query. Projects that don't opt in get no model and no migration.
     for the posted history. (The owner-scoped rehydration endpoint **is** now
     shipped — `GET <prefix>threads/<id>/` above.)
 
+## File uploads
+
+A user can attach files to a conversation — drop a PDF or image into the
+composer, send a message, and let the agent read it. The design keeps the AG-UI
+wire **vanilla**: files upload out-of-band to their own endpoint and travel as
+lightweight **refs** (`id` / `name` / `mime` / `size`), never as base64 on the
+message stream — the same principle the [tool metadata
+catalog](#tool-metadata-catalog) uses to keep schemas off the wire.
+
+The lifecycle:
+
+1. The composer uploads each file (multipart `POST <prefix>attachments/`) and
+   gets back an [`AttachmentRef`][django_ag_ui.AttachmentRef] — a durable handle,
+   not bytes.
+2. The user sends a message carrying the refs.
+3. When the model needs a file's contents, it calls the built-in
+   `read_attachment(attachment_id)` tool, which resolves the bytes **server-side,
+   owner-scoped to the acting user**.
+
+### The store
+
+[`AttachmentStore`][django_ag_ui.AttachmentStore] is the persistence seam, set
+via [`ATTACHMENT_STORE`](configuration.md#attachment_store). Every method is
+async and owner-scoped — one user's id can never resolve another's file, the
+security boundary for the feature. The default
+[`NullAttachmentStore`][django_ag_ui.NullAttachmentStore] keeps uploads off
+(`410 Gone`); subclass the abstract
+[`ModelAttachmentStore`][django_ag_ui.ModelAttachmentStore] for your own model,
+or opt into the [ready-made durable store](#a-ready-made-durable-store) which
+keeps bytes in Django `Storage` (filesystem by default, S3/GCS via `STORAGES`).
+
+### The endpoints
+
+Pass the store to `get_urls(view, attachments=store)` to mount
+[`AttachmentsView`][django_ag_ui.AttachmentsView] (typically the same store the
+agent uses, `resolve_attachment_store(get_settings().attachment_store)`):
+
+- `POST   <prefix>attachments/`      — multipart upload under the `file` field;
+  validates [size](configuration.md#attachment_max_bytes) and
+  [type](configuration.md#attachment_allowed_types) **server-side**, then returns
+  `201` with the ref JSON.
+- `GET    <prefix>attachments/<id>/` — stream the bytes back (owner-checked), as
+  an `attachment` with `X-Content-Type-Options: nosniff` so an uploaded
+  `text/html` can't execute as a same-origin page; missing / cross-owner → `404`.
+- `DELETE <prefix>attachments/<id>/` — drop the attachment (`204`).
+
+All owner-scoped and open by default like the catalog views — construct
+`AttachmentsView` yourself with `require_authenticated` / `get_user` to lock it
+down whenever the agent endpoint is. The web component reads
+`data-attachments-url` to drive the composer's upload tray.
+
 ## Cancelling a run
 
 AG-UI has **no server-side cancel route**. A run is one streaming HTTP request;

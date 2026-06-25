@@ -21,6 +21,9 @@ default, and what it does.
 | `TOOLSETS` | `tuple[str, ...]` | `()` | Extra Pydantic-AI toolsets. |
 | `CAPABILITIES` | `tuple[str, ...]` | `()` | Pydantic-AI capabilities. |
 | `CONVERSATION_STORE` | dotted `str` | `None` | Server-side conversation persistence. |
+| `ATTACHMENT_STORE` | dotted `str` | `None` | Server-side file-upload storage (uploads off when unset). |
+| `ATTACHMENT_MAX_BYTES` | `int` | `10485760` | Max accepted upload size in bytes (`0` disables the cap). |
+| `ATTACHMENT_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed upload content types (empty = any). |
 | `DRF_MCP_SERVER` | dotted `str` | `None` | drf-mcp server whose tools the agent gets. |
 
 ## `MODEL`
@@ -215,6 +218,60 @@ The base package ships no model, so projects that don't opt in get no migration.
 To expose the **thread-history drawer** endpoints over HTTP, pass the same store
 to `get_urls(view, threads=store)` — see
 [Thread history](concepts.md#thread-history).
+
+## `ATTACHMENT_STORE`
+
+A dotted path to an [`AttachmentStore`][django_ag_ui.AttachmentStore] class,
+importable with no arguments. `None` (the default) keeps **uploads disabled**
+using [`NullAttachmentStore`][django_ag_ui.NullAttachmentStore] — the upload
+endpoint answers `410 Gone`. Resolution is done by
+[`resolve_attachment_store`][django_ag_ui.resolve_attachment_store], which raises
+`TypeError` if the path does not produce an `AttachmentStore`.
+
+When a store is set, the view wires a per-request `read_attachment(attachment_id)`
+tool onto the agent, scoped to the acting user, so the model can read the bytes a
+user attached — the AG-UI message stream stays free of file payloads (uploads go
+out-of-band and travel as lightweight refs). A consumer that registers its own
+`read_attachment` tool keeps it (registry tools win).
+
+The package ships an abstract
+[`ModelAttachmentStore`][django_ag_ui.ModelAttachmentStore] base you can subclass
+with your own model + storage. For a ready-made store, opt into the
+`django_ag_ui.contrib.store` app — add it to `INSTALLED_APPS`, run `migrate`, and
+point the setting at its store (bytes go to Django `Storage`, so S3/GCS come free
+via `STORAGES` / `DEFAULT_FILE_STORAGE`):
+
+```python
+INSTALLED_APPS = [
+    # ...
+    "django_ag_ui.contrib.store",
+]
+
+DJANGO_AG_UI = {
+    "ATTACHMENT_STORE": (
+        "django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore"
+    ),
+}
+```
+
+To expose the upload endpoints over HTTP, pass the same store to
+`get_urls(view, attachments=store)` — see
+[File uploads](concepts.md#file-uploads).
+
+## `ATTACHMENT_MAX_BYTES`
+
+The maximum accepted upload size in bytes, enforced **server-side** by
+[`AttachmentsView`][django_ag_ui.AttachmentsView] (an oversize upload → `413`).
+Defaults to `10485760` (10 MiB); set `0` to disable the cap. Client-side checks
+in the web component are a UX nicety — this is the authoritative limit.
+
+## `ATTACHMENT_ALLOWED_TYPES`
+
+A tuple of allowed (client-declared) content types for uploads, e.g.
+`("image/png", "image/jpeg", "application/pdf", "text/plain")`. Empty (the
+default) accepts any type; otherwise an upload whose `Content-Type` is not listed
+is rejected with `415`. The content type is client-declared, so treat this as a
+coarse filter — the store decides what to do with the bytes.
 
 ## `DRF_MCP_SERVER`
 

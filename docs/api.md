@@ -99,6 +99,35 @@ Projects that don't opt in get no model and no migration.
 
 ::: django_ag_ui.contrib.store.models.StoredConversation
 
+## File uploads
+
+::: django_ag_ui.AttachmentStore
+
+::: django_ag_ui.AttachmentRef
+
+::: django_ag_ui.OpenedAttachment
+
+::: django_ag_ui.NullAttachmentStore
+
+::: django_ag_ui.ModelAttachmentStore
+
+::: django_ag_ui.resolve_attachment_store
+
+::: django_ag_ui.AttachmentsView
+
+### Reference attachment store (opt-in)
+
+The same `django_ag_ui.contrib.store` app ships a ready-to-use durable file
+store. With the app installed and migrated, set
+`DJANGO_AG_UI["ATTACHMENT_STORE"]` to
+`django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore`. The
+bytes go to Django `Storage` (S3/GCS via `STORAGES` / `DEFAULT_FILE_STORAGE`);
+projects that don't opt in get no model and no migration.
+
+::: django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore
+
+::: django_ag_ui.contrib.store.models.StoredAttachment
+
 ## Internal helpers
 
 These are not part of the public re-export surface but are referenced from the
@@ -111,4 +140,6 @@ guides.
 ::: django_ag_ui.agent.build_tool_catalog.build_tool_catalog
 
 ::: django_ag_ui.integrations.drf_mcp.DrfMcpToolset
+
+::: django_ag_ui.agent.attachment_toolset.build_attachment_toolset
 </content>

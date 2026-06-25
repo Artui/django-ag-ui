@@ -72,6 +72,18 @@ class AppSettings:
     """Dotted path to a ``ConversationStore`` for server-side persistence.
     ``None`` keeps the server stateless (the default ``NullConversationStore``)."""
 
+    attachment_store: str | None
+    """Dotted path to an ``AttachmentStore`` for file uploads. ``None`` keeps
+    uploads disabled (the default ``NullAttachmentStore``)."""
+
+    attachment_max_bytes: int
+    """Maximum accepted upload size in bytes (server-authoritative). ``0``
+    disables the cap. Default 10 MiB."""
+
+    attachment_allowed_types: tuple[str, ...]
+    """Allowed (client-declared) content types for uploads. Empty accepts any
+    type; otherwise an upload whose ``Content-Type`` is not listed is rejected."""
+
     drf_mcp_server: str | None
     """Dotted path to a ``drf-mcp-server`` ``MCPServer`` instance whose tools
     are exposed to the agent in-process (requires the ``[drf-mcp]`` extra).
@@ -94,6 +106,9 @@ def get_settings() -> AppSettings:
         toolsets=tuple(raw.get("TOOLSETS", ()) or ()),
         capabilities=tuple(raw.get("CAPABILITIES", ()) or ()),
         conversation_store=raw.get("CONVERSATION_STORE"),
+        attachment_store=raw.get("ATTACHMENT_STORE"),
+        attachment_max_bytes=int(raw.get("ATTACHMENT_MAX_BYTES", 10 * 1024 * 1024)),
+        attachment_allowed_types=tuple(raw.get("ATTACHMENT_ALLOWED_TYPES", ()) or ()),
         drf_mcp_server=raw.get("DRF_MCP_SERVER"),
     )
 

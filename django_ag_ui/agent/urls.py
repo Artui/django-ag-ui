@@ -4,7 +4,9 @@ from django.urls import URLPattern, path
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.tools_view import ToolsView
+from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.threads_view import ThreadsView
+from django_ag_ui.persistence.types.attachment_store import AttachmentStore
 from django_ag_ui.persistence.types.conversation_store import ConversationStore
 from django_ag_ui.registry.tool_registry import ToolRegistry
 from django_ag_ui.skills.skill_registry import SkillRegistry
@@ -18,6 +20,7 @@ def get_urls(
     skills: SkillRegistry | None = None,
     tools: ToolRegistry | None = None,
     threads: ConversationStore | None = None,
+    attachments: AttachmentStore | None = None,
 ) -> list[URLPattern]:
     """Return URL patterns mounting ``view`` at ``<prefix>`` (POST, SSE).
 
@@ -36,6 +39,16 @@ def get_urls(
     the catalogs — mount :class:`~django_ag_ui.persistence.threads_view.ThreadsView`
     yourself with ``require_authenticated`` / ``get_user`` to lock them down.
 
+    When ``attachments`` (an
+    :class:`~django_ag_ui.persistence.types.attachment_store.AttachmentStore`,
+    e.g. ``resolve_attachment_store(get_settings().attachment_store)``) is given,
+    also mounts the **file-upload endpoint** for the composer's
+    ``data-attachments-url``: ``<prefix>attachments/`` (POST upload) and
+    ``<prefix>attachments/<id>/`` (GET download, DELETE). Owner-scoped and open
+    by default like the catalogs — mount
+    :class:`~django_ag_ui.persistence.attachments_view.AttachmentsView` yourself
+    to lock it down.
+
     Include the result from your project's root URLconf::
 
         urlpatterns = [
@@ -53,6 +66,18 @@ def get_urls(
         urls.append(path(f"{prefix}threads/", threads_view, name="django_ag_ui_threads"))
         urls.append(
             path(f"{prefix}threads/<str:thread_id>/", threads_view, name="django_ag_ui_thread")
+        )
+    if attachments is not None:
+        attachments_view = AttachmentsView(attachments)
+        urls.append(
+            path(f"{prefix}attachments/", attachments_view, name="django_ag_ui_attachments")
+        )
+        urls.append(
+            path(
+                f"{prefix}attachments/<str:attachment_id>/",
+                attachments_view,
+                name="django_ag_ui_attachment",
+            )
         )
     return urls
 

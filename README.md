@@ -49,6 +49,12 @@ browser half is
   rename / DELETE). An opt-in `django_ag_ui.contrib.store` app ships a ready-made
   durable model + `DefaultConversationStore` (add it to `INSTALLED_APPS` and
   `migrate`); the base package still ships no model.
+- **File uploads** — an `AttachmentStore` Protocol (owner-scoped, off by default)
+  with an `AttachmentsView` served at `<prefix>attachments/` via
+  `get_urls(view, attachments=store)` (server-validated POST upload / owner-checked
+  GET download / DELETE). Uploads travel as lightweight refs, and a per-request
+  `read_attachment` tool lets the agent read the bytes server-side. The same
+  `contrib.store` app ships a `Storage`-backed `DefaultAttachmentStore`.
 - **Reach external tools** — compose any Pydantic-AI toolset, including an
   in-process [`drf-mcp`](https://github.com/Artui/djangorestframework-mcp-server)
   bridge (the `[drf-mcp]` extra) so the agent can query DRF-exposed data.

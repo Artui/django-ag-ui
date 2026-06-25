@@ -23,6 +23,7 @@ from pydantic_ai import Agent
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_factory import build_agent
+from django_ag_ui.agent.attachment_toolset import build_attachment_toolset
 from django_ag_ui.agent.build_model import build_model
 from django_ag_ui.agent.guarded_stream import guarded_stream
 from django_ag_ui.agent.resolve_agent_factory import resolve_agent_factory
@@ -31,7 +32,9 @@ from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.agent_config import AgentConfig
 from django_ag_ui.conf import get_settings
+from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
 from django_ag_ui.persistence.null_conversation_store import NullConversationStore
+from django_ag_ui.persistence.resolve_attachment_store import resolve_attachment_store
 from django_ag_ui.persistence.resolve_conversation_store import resolve_conversation_store
 from django_ag_ui.persistence.types.conversation import Conversation
 from django_ag_ui.persistence.types.conversation_store import ConversationStore
@@ -248,6 +251,7 @@ class DjangoAGUIView:
             return factory(self._registry, settings)
         toolsets = resolve_dotted_instances(settings.toolsets)
         toolsets += self._drf_mcp_toolsets(settings.drf_mcp_server, request)
+        toolsets += self._attachment_toolsets(settings.attachment_store, request)
         return build_agent(
             self._registry,
             AgentConfig(
@@ -278,6 +282,21 @@ class DjangoAGUIView:
         # catalog but a broken agent.
         registered = frozenset(binding.spec.name for binding in self._registry)
         return [DrfMcpToolset(server, request, exclude_names=registered)]
+
+    def _attachment_toolsets(self, dotted_path: str | None, request: HttpRequest) -> list[Any]:
+        """Build the per-request ``read_attachment`` toolset, or ``[]`` when off.
+
+        Returns an empty list when uploads are disabled (the default
+        ``NullAttachmentStore``) or when a registry tool already owns the
+        ``read_attachment`` name (registry tools win, the same rule the drf-mcp
+        bridge applies) — otherwise pydantic-ai raises ``UserError`` for the
+        duplicate name at run time. The toolset carries ``request`` so the model
+        reads only the acting user's files.
+        """
+        store = resolve_attachment_store(dotted_path)
+        if isinstance(store, NullAttachmentStore) or "read_attachment" in self._registry:
+            return []
+        return [build_attachment_toolset(store, request)]
 
     async def _authorize(self, request: HttpRequest) -> bool:
         """Establish the user (via ``get_user``) and enforce authentication.

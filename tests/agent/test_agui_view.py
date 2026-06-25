@@ -279,6 +279,39 @@ async def test_no_drf_mcp_toolset_without_the_setting() -> None:
     assert view._drf_mcp_toolsets(None, RequestFactory().post("/agent/")) == []
 
 
+_DEFAULT_ATTACHMENT_STORE = (
+    "django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore"
+)
+
+
+async def test_attachment_toolset_built_per_request_when_configured() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    toolsets = view._attachment_toolsets(
+        _DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/")
+    )
+    assert len(toolsets) == 1
+    assert toolsets[0].id == "django-ag-ui-attachments"
+
+
+async def test_no_attachment_toolset_without_the_setting() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    assert view._attachment_toolsets(None, RequestFactory().post("/agent/")) == []
+
+
+async def test_attachment_toolset_skipped_when_registry_owns_the_name() -> None:
+    reg = ToolRegistry()
+
+    @tool(reg)
+    def read_attachment(attachment_id: str) -> str:
+        """A consumer's own read_attachment wins over the built-in."""
+        return attachment_id
+
+    view = DjangoAGUIView(reg, model=TestModel())
+    assert (
+        view._attachment_toolsets(_DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/")) == []
+    )
+
+
 @pytest.mark.django_db(transaction=True)
 async def test_sync_orm_get_user_hook_works_under_async() -> None:
     # The headline use case: a *sync* hook doing a real ORM lookup. Before
