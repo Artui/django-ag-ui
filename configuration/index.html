@@ -575,6 +575,50 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#forward_reasoning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FORWARD_REASONING
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transcription_backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TRANSCRIPTION_BACKEND
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transcription_max_bytes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TRANSCRIPTION_MAX_BYTES
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transcription_allowed_types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TRANSCRIPTION_ALLOWED_TYPES
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#drf_mcp_server" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -839,6 +883,50 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#forward_reasoning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FORWARD_REASONING
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transcription_backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TRANSCRIPTION_BACKEND
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transcription_max_bytes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TRANSCRIPTION_MAX_BYTES
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transcription_allowed_types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TRANSCRIPTION_ALLOWED_TYPES
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#drf_mcp_server" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -985,6 +1073,30 @@ default, and what it does.</p>
 <td><code>tuple[str, ...]</code></td>
 <td><code>()</code></td>
 <td>Allowed upload content types (empty = any).</td>
+</tr>
+<tr>
+<td><code>FORWARD_REASONING</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>Forward a reasoning model's thoughts to the client (<code>False</code> strips them).</td>
+</tr>
+<tr>
+<td><code>TRANSCRIPTION_BACKEND</code></td>
+<td>dotted <code>str</code></td>
+<td><code>None</code></td>
+<td>Speech-to-text backend for voice input (voice off when unset).</td>
+</tr>
+<tr>
+<td><code>TRANSCRIPTION_MAX_BYTES</code></td>
+<td><code>int</code></td>
+<td><code>26214400</code></td>
+<td>Max accepted audio-clip size in bytes (<code>0</code> disables the cap).</td>
+</tr>
+<tr>
+<td><code>TRANSCRIPTION_ALLOWED_TYPES</code></td>
+<td><code>tuple[str, ...]</code></td>
+<td><code>()</code></td>
+<td>Allowed audio content types (empty = any).</td>
 </tr>
 <tr>
 <td><code>DRF_MCP_SERVER</code></td>
@@ -1186,6 +1298,57 @@ in the web component are a UX nicety — this is the authoritative limit.</p>
 default) accepts any type; otherwise an upload whose <code>Content-Type</code> is not listed
 is rejected with <code>415</code>. The content type is client-declared, so treat this as a
 coarse filter — the store decides what to do with the bytes.</p>
+<h2 id="forward_reasoning"><code>FORWARD_REASONING</code><a class="headerlink" href="#forward_reasoning" title="Permanent link">&para;</a></h2>
+<p>Whether a reasoning model's chain-of-thought is forwarded to the client. When
+<code>True</code> (the default), the AG-UI reasoning events Pydantic-AI emits for a
+<code>ThinkingPart</code> pass straight through to the browser (where the web component can
+render a collapsible "thinking" region). Set <code>False</code> to let the model reason
+privately — the events are stripped from the stream before encoding, so the
+chain-of-thought never leaves the server.</p>
+<p>Reasoning is only emitted when the model is actually configured to think, which
+is a <code>MODEL_SETTINGS</code> concern, not a separate switch. For an Anthropic model:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">,</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="s2">&quot;MODEL_SETTINGS&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;anthropic_thinking&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;enabled&quot;</span><span class="p">,</span> <span class="s2">&quot;budget_tokens&quot;</span><span class="p">:</span> <span class="mi">2048</span><span class="p">}},</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="c1"># &quot;FORWARD_REASONING&quot;: False,  # think privately; don&#39;t stream the thoughts</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>It is a pure pass-through (no protocol extension): the events ride the standard
+AG-UI reasoning event family, and the server-side transcript ignores them (they
+are ephemeral and never persisted).</p>
+<h2 id="transcription_backend"><code>TRANSCRIPTION_BACKEND</code><a class="headerlink" href="#transcription_backend" title="Permanent link">&para;</a></h2>
+<p>A dotted path to a <a class="autorefs autorefs-internal" title="TranscriptionBackend" href="../api/#django_ag_ui.TranscriptionBackend"><code>TranscriptionBackend</code></a>
+class, importable with no arguments. <code>None</code> (the default) keeps <strong>voice input
+disabled</strong> using <a class="autorefs autorefs-internal" title="NullTranscriptionBackend" href="../api/#django_ag_ui.NullTranscriptionBackend"><code>NullTranscriptionBackend</code></a>
+— the transcribe endpoint answers <code>410 Gone</code>. Resolution is done by
+<a class="autorefs autorefs-internal" title="resolve_transcription_backend" href="../api/#django_ag_ui.resolve_transcription_backend"><code>resolve_transcription_backend</code></a>,
+which raises <code>TypeError</code> if the path does not produce a <code>TranscriptionBackend</code>.</p>
+<p>The package ships a ready reference backend over any OpenAI-compatible
+<code>/audio/transcriptions</code> endpoint —
+<code>django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend</code>
+— self-configuring from the <code>OPENAI_API_KEY</code> environment variable (requires the
+<code>[openai]</code> extra). Subclass it to change the model or point at another
+OpenAI-compatible server (Azure OpenAI, Groq, a local Whisper server):</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="s2">&quot;TRANSCRIPTION_BACKEND&quot;</span><span class="p">:</span> <span class="p">(</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>        <span class="s2">&quot;django_ag_ui.contrib.transcription.openai_transcription_backend&quot;</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>        <span class="s2">&quot;.OpenAITranscriptionBackend&quot;</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="p">),</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>To expose the voice endpoint over HTTP, pass the resolved backend to
+<code>get_urls(view, transcribe=backend)</code>: it mounts <code>POST &lt;prefix&gt;transcribe/</code>, which
+accepts a multipart <code>audio</code> clip and returns <code>{"text": "&lt;transcript&gt;"}</code> for the
+web component's <code>data-transcribe-url</code>.</p>
+<h2 id="transcription_max_bytes"><code>TRANSCRIPTION_MAX_BYTES</code><a class="headerlink" href="#transcription_max_bytes" title="Permanent link">&para;</a></h2>
+<p>The maximum accepted audio-clip size in bytes, enforced <strong>server-side</strong> by
+<a class="autorefs autorefs-internal" title="TranscribeView" href="../api/#django_ag_ui.TranscribeView"><code>TranscribeView</code></a> (an oversize clip → <code>413</code>).
+Defaults to <code>26214400</code> (25 MiB, the OpenAI transcription limit); set <code>0</code> to
+disable the cap.</p>
+<h2 id="transcription_allowed_types"><code>TRANSCRIPTION_ALLOWED_TYPES</code><a class="headerlink" href="#transcription_allowed_types" title="Permanent link">&para;</a></h2>
+<p>A tuple of allowed (client-declared) content types for voice clips, e.g.
+<code>("audio/webm", "audio/mp4", "audio/mpeg")</code>. Empty (the default) accepts any
+type; otherwise a clip whose <code>Content-Type</code> is not listed is rejected with <code>415</code>.</p>
 <h2 id="drf_mcp_server"><code>DRF_MCP_SERVER</code><a class="headerlink" href="#drf_mcp_server" title="Permanent link">&para;</a></h2>
 <p>A dotted path to a <code>djangorestframework-mcp-server</code> <code>MCPServer</code> instance whose
 tools are exposed to the agent in-process (requires the <code>[drf-mcp]</code> extra).
@@ -1198,9 +1361,9 @@ and permission checks apply. See
 <a href="../concepts/#tool-metadata-catalog">tool metadata catalog</a> (mounted by
 <code>get_urls(view, tools=registry)</code>), which reads each tool's <code>display_name</code> /
 <code>display_description</code> as the web component's card label.</p>
-<p><div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="s2">&quot;DRF_MCP_SERVER&quot;</span><span class="p">:</span> <span class="s2">&quot;myproject.mcp.server&quot;</span><span class="p">,</span>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="p">}</span>
+<p><div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    <span class="s2">&quot;DRF_MCP_SERVER&quot;</span><span class="p">:</span> <span class="s2">&quot;myproject.mcp.server&quot;</span><span class="p">,</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="p">}</span>
 </span></code></pre></div>
 </content></p>
 
