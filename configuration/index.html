@@ -629,6 +629,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#service_specs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SERVICE_SPECS
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -937,6 +948,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#service_specs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SERVICE_SPECS
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1103,6 +1125,12 @@ default, and what it does.</p>
 <td>dotted <code>str</code></td>
 <td><code>None</code></td>
 <td>drf-mcp server whose tools the agent gets.</td>
+</tr>
+<tr>
+<td><code>SERVICE_SPECS</code></td>
+<td>dotted <code>str</code></td>
+<td><code>None</code></td>
+<td>drf-services specs mapping exposed as tools, no MCP hop (<code>[spec-tools]</code> extra).</td>
 </tr>
 </tbody>
 </table>
@@ -1366,6 +1394,30 @@ and permission checks apply. See
 </span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="p">}</span>
 </span></code></pre></div>
 </content></p>
+<h2 id="service_specs"><code>SERVICE_SPECS</code><a class="headerlink" href="#service_specs" title="Permanent link">&para;</a></h2>
+<p>A dotted path to a <code>name -&gt; spec</code> mapping (drf-services <code>ServiceSpec</code> /
+<code>SelectorSpec</code> objects) exposed to the agent as tools <strong>without an MCP server</strong>,
+via <code>djangorestframework-pydantic-ai</code>'s <code>SpecToolset</code>. <code>None</code> (the default)
+disables it. Requires the <code>[spec-tools]</code> extra
+(<code>pip install "django-ag-ui[spec-tools]"</code>), imported lazily.</p>
+<p>This is the no-MCP-hop sibling of <a href="#drf_mcp_server"><code>DRF_MCP_SERVER</code></a>: the specs
+are dispatched in-process through drf-services' transport-neutral surface
+(<code>dispatch_spec</code> + its off-HTTP helpers), enforcing each spec's
+<code>permission_classes</code>. The agent acts as the <strong>logged-in AG-UI user</strong> (bound from
+<code>request</code>), and a registry <code>@tool</code> wins a name collision. Use it when you have
+drf-services specs but no reason to stand up an MCP server; use <code>DRF_MCP_SERVER</code>
+when you already run one (or want MCP clients to share the tools).</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># myproject/specs.py</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectorSpec</span><span class="p">,</span> <span class="n">ServiceSpec</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="n">SPECS</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="s2">&quot;list_orders&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span><span class="n">serializer</span><span class="o">=</span><span class="n">OrderSerializer</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()),</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    <span class="s2">&quot;create_order&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span><span class="n">service</span><span class="o">=</span><span class="n">create_order</span><span class="p">,</span> <span class="n">input_serializer</span><span class="o">=</span><span class="n">CreateOrderInput</span><span class="p">),</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="p">}</span>
+</span></code></pre></div>
+<div class="language-python highlight"><span class="filename">settings.py</span><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;SERVICE_SPECS&quot;</span><span class="p">:</span> <span class="s2">&quot;myproject.specs.SPECS&quot;</span><span class="p">}</span>
+</span></code></pre></div>
+<p>The spec tools' card labels are surfaced to the web component through the same
+<code>get_urls(view, tools=registry)</code> catalog (<code>data-tools-url</code>).</p>
 
 
 

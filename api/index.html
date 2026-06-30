@@ -1284,6 +1284,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AppSettings.service_specs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        service_specs
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2659,6 +2670,17 @@
     <span class="md-ellipsis">
       
         drf_mcp_server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AppSettings.service_specs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        service_specs
       
     </span>
   </a>
@@ -5333,6 +5355,33 @@ type; otherwise a clip whose <code>Content-Type</code> is not listed is rejected
         <p>Dotted path to a <code>drf-mcp-server</code> <code>MCPServer</code> instance whose tools
 are exposed to the agent in-process (requires the <code>[drf-mcp]</code> extra).
 <code>None</code> disables the bridge.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.AppSettings.service_specs" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">service_specs</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.AppSettings.service_specs" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">service_specs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Dotted path to a <code>name -&gt; ServiceSpec/SelectorSpec</code> mapping exposed to
+the agent as tools via <code>djangorestframework-pydantic-ai</code>'s <code>SpecToolset</code>
+— drf-services specs called in-process, <strong>no MCP server</strong> (requires the
+<code>[spec-tools]</code> extra). <code>None</code> disables it.</p>
 
     </div>
 
