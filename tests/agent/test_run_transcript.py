@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from ag_ui.core import (
     AssistantMessage,
+    ReasoningEndEvent,
+    ReasoningMessageContentEvent,
+    ReasoningStartEvent,
     RunStartedEvent,
     TextMessageContentEvent,
     TextMessageEndEvent,
@@ -128,3 +131,18 @@ async def test_observe_passes_events_through_unchanged_while_recording() -> None
     assert seen == events
     (message,) = transcript.messages()
     assert message.content == "hi"
+
+
+def test_reasoning_events_are_tolerated_and_not_persisted() -> None:
+    # Reasoning is ephemeral: the transcript must ignore THINKING_*/REASONING_*
+    # events (no crash, nothing persisted) so a cancelled run reconstructs only
+    # the durable text/tool messages.
+    transcript = RunTranscript()
+    transcript.add(ReasoningStartEvent(message_id="r1"))
+    transcript.add(ReasoningMessageContentEvent(message_id="r1", delta="hmm…"))
+    transcript.add(ReasoningEndEvent(message_id="r1"))
+    transcript.add(TextMessageStartEvent(message_id="m1", role="assistant"))
+    transcript.add(TextMessageContentEvent(message_id="m1", delta="answer"))
+
+    (message,) = transcript.messages()
+    assert (message.id, message.content) == ("m1", "answer")

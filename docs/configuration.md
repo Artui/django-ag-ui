@@ -24,6 +24,10 @@ default, and what it does.
 | `ATTACHMENT_STORE` | dotted `str` | `None` | Server-side file-upload storage (uploads off when unset). |
 | `ATTACHMENT_MAX_BYTES` | `int` | `10485760` | Max accepted upload size in bytes (`0` disables the cap). |
 | `ATTACHMENT_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed upload content types (empty = any). |
+| `FORWARD_REASONING` | `bool` | `True` | Forward a reasoning model's thoughts to the client (`False` strips them). |
+| `TRANSCRIPTION_BACKEND` | dotted `str` | `None` | Speech-to-text backend for voice input (voice off when unset). |
+| `TRANSCRIPTION_MAX_BYTES` | `int` | `26214400` | Max accepted audio-clip size in bytes (`0` disables the cap). |
+| `TRANSCRIPTION_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed audio content types (empty = any). |
 | `DRF_MCP_SERVER` | dotted `str` | `None` | drf-mcp server whose tools the agent gets. |
 
 ## `MODEL`
@@ -272,6 +276,73 @@ A tuple of allowed (client-declared) content types for uploads, e.g.
 default) accepts any type; otherwise an upload whose `Content-Type` is not listed
 is rejected with `415`. The content type is client-declared, so treat this as a
 coarse filter — the store decides what to do with the bytes.
+
+## `FORWARD_REASONING`
+
+Whether a reasoning model's chain-of-thought is forwarded to the client. When
+`True` (the default), the AG-UI reasoning events Pydantic-AI emits for a
+`ThinkingPart` pass straight through to the browser (where the web component can
+render a collapsible "thinking" region). Set `False` to let the model reason
+privately — the events are stripped from the stream before encoding, so the
+chain-of-thought never leaves the server.
+
+Reasoning is only emitted when the model is actually configured to think, which
+is a `MODEL_SETTINGS` concern, not a separate switch. For an Anthropic model:
+
+```python
+DJANGO_AG_UI = {
+    "MODEL": "anthropic:claude-sonnet-4.6",
+    "MODEL_SETTINGS": {"anthropic_thinking": {"type": "enabled", "budget_tokens": 2048}},
+    # "FORWARD_REASONING": False,  # think privately; don't stream the thoughts
+}
+```
+
+It is a pure pass-through (no protocol extension): the events ride the standard
+AG-UI reasoning event family, and the server-side transcript ignores them (they
+are ephemeral and never persisted).
+
+## `TRANSCRIPTION_BACKEND`
+
+A dotted path to a [`TranscriptionBackend`][django_ag_ui.TranscriptionBackend]
+class, importable with no arguments. `None` (the default) keeps **voice input
+disabled** using [`NullTranscriptionBackend`][django_ag_ui.NullTranscriptionBackend]
+— the transcribe endpoint answers `410 Gone`. Resolution is done by
+[`resolve_transcription_backend`][django_ag_ui.resolve_transcription_backend],
+which raises `TypeError` if the path does not produce a `TranscriptionBackend`.
+
+The package ships a ready reference backend over any OpenAI-compatible
+`/audio/transcriptions` endpoint —
+`django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend`
+— self-configuring from the `OPENAI_API_KEY` environment variable (requires the
+`[openai]` extra). Subclass it to change the model or point at another
+OpenAI-compatible server (Azure OpenAI, Groq, a local Whisper server):
+
+```python
+DJANGO_AG_UI = {
+    "TRANSCRIPTION_BACKEND": (
+        "django_ag_ui.contrib.transcription.openai_transcription_backend"
+        ".OpenAITranscriptionBackend"
+    ),
+}
+```
+
+To expose the voice endpoint over HTTP, pass the resolved backend to
+`get_urls(view, transcribe=backend)`: it mounts `POST <prefix>transcribe/`, which
+accepts a multipart `audio` clip and returns `{"text": "<transcript>"}` for the
+web component's `data-transcribe-url`.
+
+## `TRANSCRIPTION_MAX_BYTES`
+
+The maximum accepted audio-clip size in bytes, enforced **server-side** by
+[`TranscribeView`][django_ag_ui.TranscribeView] (an oversize clip → `413`).
+Defaults to `26214400` (25 MiB, the OpenAI transcription limit); set `0` to
+disable the cap.
+
+## `TRANSCRIPTION_ALLOWED_TYPES`
+
+A tuple of allowed (client-declared) content types for voice clips, e.g.
+`("audio/webm", "audio/mp4", "audio/mpeg")`. Empty (the default) accepts any
+type; otherwise a clip whose `Content-Type` is not listed is rejected with `415`.
 
 ## `DRF_MCP_SERVER`
 

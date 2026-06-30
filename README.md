@@ -55,6 +55,15 @@ browser half is
   GET download / DELETE). Uploads travel as lightweight refs, and a per-request
   `read_attachment` tool lets the agent read the bytes server-side. The same
   `contrib.store` app ships a `Storage`-backed `DefaultAttachmentStore`.
+- **Voice input** — a `TranscriptionBackend` Protocol (off by default) with a
+  `TranscribeView` served at `<prefix>transcribe/` via
+  `get_urls(view, transcribe=backend)` (multipart audio in, `{"text"}` out). An
+  opt-in `OpenAITranscriptionBackend` works against any OpenAI-compatible
+  `/audio/transcriptions` endpoint (the `[openai]` extra).
+- **Model reasoning** — when a reasoning model is configured to think (via
+  `MODEL_SETTINGS`), its chain-of-thought streams to the client as standard
+  AG-UI reasoning events (pure pass-through); `FORWARD_REASONING = False` keeps
+  it server-side.
 - **Reach external tools** — compose any Pydantic-AI toolset, including an
   in-process [`drf-mcp`](https://github.com/Artui/djangorestframework-mcp-server)
   bridge (the `[drf-mcp]` extra) so the agent can query DRF-exposed data.

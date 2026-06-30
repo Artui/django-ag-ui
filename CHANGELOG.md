@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Voice input (server).** A new `TranscriptionBackend` Protocol (async,
+  owner-scoped `transcribe`) with a `NullTranscriptionBackend` default (voice
+  off → `410`), resolved from `DJANGO_AG_UI["TRANSCRIPTION_BACKEND"]` via
+  `resolve_transcription_backend`. `get_urls(view, transcribe=backend)` mounts a
+  `TranscribeView` at `<prefix>transcribe/` (POST a multipart `audio` clip →
+  `{"text": "<transcript>"}`), server-validated by `TRANSCRIPTION_MAX_BYTES` /
+  `TRANSCRIPTION_ALLOWED_TYPES` and carrying the same `require_authenticated` /
+  `get_user` auth seam as the agent endpoint. The opt-in
+  `django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend`
+  is a ready reference impl over any OpenAI-compatible `/audio/transcriptions`
+  endpoint (lazy `openai` import via the `[openai]` extra; subclass to change the
+  model or `base_url`). New exports: `TranscriptionBackend`,
+  `NullTranscriptionBackend`, `TranscribeView`, `resolve_transcription_backend`.
+- **Model reasoning forwarding.** When a reasoning model is configured to think
+  (via `MODEL_SETTINGS`), its chain-of-thought now streams to the client as the
+  standard AG-UI reasoning events Pydantic-AI emits — a pure pass-through (no
+  protocol extension), and the run transcript ignores the ephemeral events so
+  nothing reasoning-related is persisted. The new `FORWARD_REASONING` setting
+  (default `True`) gates it: set `False` to let the model reason privately while
+  the events are stripped from the stream.
+
 ## [0.7.0] — 2026-06-25
 
 ### Added

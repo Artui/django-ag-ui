@@ -6,8 +6,10 @@ from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.threads_view import ThreadsView
+from django_ag_ui.persistence.transcribe_view import TranscribeView
 from django_ag_ui.persistence.types.attachment_store import AttachmentStore
 from django_ag_ui.persistence.types.conversation_store import ConversationStore
+from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
 from django_ag_ui.registry.tool_registry import ToolRegistry
 from django_ag_ui.skills.skill_registry import SkillRegistry
 from django_ag_ui.skills.skills_view import SkillsView
@@ -21,6 +23,7 @@ def get_urls(
     tools: ToolRegistry | None = None,
     threads: ConversationStore | None = None,
     attachments: AttachmentStore | None = None,
+    transcribe: TranscriptionBackend | None = None,
 ) -> list[URLPattern]:
     """Return URL patterns mounting ``view`` at ``<prefix>`` (POST, SSE).
 
@@ -48,6 +51,15 @@ def get_urls(
     by default like the catalogs — mount
     :class:`~django_ag_ui.persistence.attachments_view.AttachmentsView` yourself
     to lock it down.
+
+    When ``transcribe`` (a
+    :class:`~django_ag_ui.persistence.types.transcription_backend.TranscriptionBackend`,
+    e.g. ``resolve_transcription_backend(get_settings().transcription_backend)``)
+    is given, also mounts the **voice-input endpoint** for the composer's
+    ``data-transcribe-url``: ``<prefix>transcribe/`` (POST audio → ``{"text"}``).
+    Open by default like the catalogs — mount
+    :class:`~django_ag_ui.persistence.transcribe_view.TranscribeView` yourself to
+    lock it down.
 
     Include the result from your project's root URLconf::
 
@@ -78,6 +90,10 @@ def get_urls(
                 attachments_view,
                 name="django_ag_ui_attachment",
             )
+        )
+    if transcribe is not None:
+        urls.append(
+            path(f"{prefix}transcribe/", TranscribeView(transcribe), name="django_ag_ui_transcribe")
         )
     return urls
 

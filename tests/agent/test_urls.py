@@ -6,6 +6,7 @@ from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.urls import get_urls
 from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
 from django_ag_ui.persistence.null_conversation_store import NullConversationStore
+from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.registry.tool_registry import ToolRegistry
 from django_ag_ui.skills.skill_registry import SkillRegistry
 
@@ -70,3 +71,16 @@ def test_get_urls_omits_attachment_endpoints_by_default() -> None:
     names = {p.name for p in get_urls(view)}
     assert "django_ag_ui_attachments" not in names
     assert "django_ag_ui_attachment" not in names
+
+
+def test_get_urls_mounts_transcribe_endpoint_when_given() -> None:
+    view = DjangoAGUIView(ToolRegistry(), model=TestModel())
+    patterns = get_urls(view, transcribe=NullTranscriptionBackend())
+    transcribe = next(p for p in patterns if p.name == "django_ag_ui_transcribe")
+    assert "agent/transcribe/" in str(transcribe.pattern)
+
+
+def test_get_urls_omits_transcribe_endpoint_by_default() -> None:
+    view = DjangoAGUIView(ToolRegistry(), model=TestModel())
+    names = {p.name for p in get_urls(view)}
+    assert "django_ag_ui_transcribe" not in names
