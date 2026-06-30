@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import re
 from typing import Any
 
@@ -44,7 +45,25 @@ def build_tool_catalog(registry: ToolRegistry) -> list[dict[str, Any]]:
             description = getattr(binding, "display_description", None) or binding.description
             catalog.append(_entry(binding.name, summary, description))
             seen.add(binding.name)
+    specs_path = get_settings().service_specs
+    if specs_path is not None:
+        for name, spec in import_string(specs_path).items():
+            if name in seen:
+                continue
+            catalog.append(_entry(name, None, _spec_description(spec)))
+            seen.add(name)
     return catalog
+
+
+def _spec_description(spec: Any) -> str | None:
+    """A spec tool's blurb: the docstring of its service / selector callable.
+
+    Read via ``getattr`` (not isinstance) so this never imports the drf-services
+    spec classes — the ``[spec-tools]`` extra need not be installed to fetch the
+    catalog when ``SERVICE_SPECS`` is unset.
+    """
+    callable_ = getattr(spec, "service", None) or getattr(spec, "selector", None)
+    return inspect.getdoc(callable_) if callable_ is not None else None
 
 
 def _entry(name: str, summary: str | None, description: str | None) -> dict[str, Any]:

@@ -108,6 +108,12 @@ class AppSettings:
     are exposed to the agent in-process (requires the ``[drf-mcp]`` extra).
     ``None`` disables the bridge."""
 
+    service_specs: str | None
+    """Dotted path to a ``name -> ServiceSpec/SelectorSpec`` mapping exposed to
+    the agent as tools via ``djangorestframework-pydantic-ai``'s ``SpecToolset``
+    — drf-services specs called in-process, **no MCP server** (requires the
+    ``[spec-tools]`` extra). ``None`` disables it."""
+
 
 def get_settings() -> AppSettings:
     """Read the active ``DJANGO_AG_UI`` settings dict into an ``AppSettings``."""
@@ -133,6 +139,7 @@ def get_settings() -> AppSettings:
         transcription_max_bytes=int(raw.get("TRANSCRIPTION_MAX_BYTES", 25 * 1024 * 1024)),
         transcription_allowed_types=tuple(raw.get("TRANSCRIPTION_ALLOWED_TYPES", ()) or ()),
         drf_mcp_server=raw.get("DRF_MCP_SERVER"),
+        service_specs=raw.get("SERVICE_SPECS"),
     )
 
 
