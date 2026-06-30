@@ -6,6 +6,7 @@ import warnings
 from types import SimpleNamespace
 
 import pytest
+from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured
 from django.http import StreamingHttpResponse
 from django.test import RequestFactory, override_settings
@@ -76,6 +77,24 @@ async def test_reasoning_opt_out_still_streams_the_answer() -> None:
     assert "RUN_STARTED" in body
     assert "RUN_FINISHED" in body
     assert "REASONING" not in body
+
+
+@pytest.mark.django_db
+@override_settings(DJANGO_AG_UI={"SERVICE_SPECS": "tests.integrations.drf_specs.SPECS"})
+async def test_service_specs_tool_runs_in_process() -> None:
+    # The no-MCP-hop path (PAI-2): a drf-services spec exposed via SERVICE_SPECS
+    # is wired as a SpecToolset and executed in-process during the run. A
+    # get_user hook stands in for the auth middleware that sets request.user in
+    # a real deployment (the toolset binds it as the acting user).
+    view = DjangoAGUIView(
+        ToolRegistry(),
+        model=TestModel(call_tools=["ping"]),
+        get_user=lambda _request: AnonymousUser(),
+    )
+    response = await view(_post(_run_input("ping the server")))
+    body = await _drain(response)
+    assert "RUN_FINISHED" in body
+    assert "ping" in body
 
 
 def test_view_is_marked_as_a_coroutine_function() -> None:

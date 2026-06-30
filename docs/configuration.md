@@ -29,6 +29,7 @@ default, and what it does.
 | `TRANSCRIPTION_MAX_BYTES` | `int` | `26214400` | Max accepted audio-clip size in bytes (`0` disables the cap). |
 | `TRANSCRIPTION_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed audio content types (empty = any). |
 | `DRF_MCP_SERVER` | dotted `str` | `None` | drf-mcp server whose tools the agent gets. |
+| `SERVICE_SPECS` | dotted `str` | `None` | drf-services specs mapping exposed as tools, no MCP hop (`[spec-tools]` extra). |
 
 ## `MODEL`
 
@@ -365,3 +366,35 @@ DJANGO_AG_UI = {
 }
 ```
 </content>
+
+## `SERVICE_SPECS`
+
+A dotted path to a `name -> spec` mapping (drf-services `ServiceSpec` /
+`SelectorSpec` objects) exposed to the agent as tools **without an MCP server**,
+via `djangorestframework-pydantic-ai`'s `SpecToolset`. `None` (the default)
+disables it. Requires the `[spec-tools]` extra
+(`pip install "django-ag-ui[spec-tools]"`), imported lazily.
+
+This is the no-MCP-hop sibling of [`DRF_MCP_SERVER`](#drf_mcp_server): the specs
+are dispatched in-process through drf-services' transport-neutral surface
+(`dispatch_spec` + its off-HTTP helpers), enforcing each spec's
+`permission_classes`. The agent acts as the **logged-in AG-UI user** (bound from
+`request`), and a registry `@tool` wins a name collision. Use it when you have
+drf-services specs but no reason to stand up an MCP server; use `DRF_MCP_SERVER`
+when you already run one (or want MCP clients to share the tools).
+
+```python
+# myproject/specs.py
+from rest_framework_services import SelectorSpec, ServiceSpec
+SPECS = {
+    "list_orders": SelectorSpec(serializer=OrderSerializer, queryset=Order.objects.all()),
+    "create_order": ServiceSpec(service=create_order, input_serializer=CreateOrderInput),
+}
+```
+
+```python title="settings.py"
+DJANGO_AG_UI = {"SERVICE_SPECS": "myproject.specs.SPECS"}
+```
+
+The spec tools' card labels are surfaced to the web component through the same
+`get_urls(view, tools=registry)` catalog (`data-tools-url`).

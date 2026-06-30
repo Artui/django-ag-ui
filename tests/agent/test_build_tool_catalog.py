@@ -8,6 +8,7 @@ from django_ag_ui import ToolRegistry, tool
 from django_ag_ui.agent.build_tool_catalog import build_tool_catalog
 
 _DRF = "tests.agent.catalog_server.server"
+_SPECS = "tests.integrations.drf_specs.SPECS"
 
 
 def _registry() -> ToolRegistry:
@@ -52,6 +53,27 @@ def test_drf_mcp_tools_resolve_display_name_then_title_then_prettified() -> None
 
 @override_settings(DJANGO_AG_UI={"DRF_MCP_SERVER": _DRF})
 def test_registry_wins_on_name_collision_with_a_drf_mcp_tool() -> None:
+    reg = ToolRegistry()
+
+    @tool(reg, summary="Local ping")
+    def ping() -> dict[str, Any]:
+        """Local ping."""
+        return {}
+
+    entries = [e for e in build_tool_catalog(reg) if e["name"] == "ping"]
+    assert entries == [{"name": "ping", "summary": "Local ping", "description": "Local ping."}]
+
+
+@override_settings(DJANGO_AG_UI={"SERVICE_SPECS": _SPECS})
+def test_service_specs_appear_in_catalog_with_prettified_summary() -> None:
+    by_name = {e["name"]: e for e in build_tool_catalog(ToolRegistry())}
+    # No x-summary on a spec → prettified name; description ← the service docstring.
+    assert by_name["ping"]["summary"] == "Ping"
+    assert by_name["ping"]["description"] == "Ping the server."
+
+
+@override_settings(DJANGO_AG_UI={"SERVICE_SPECS": _SPECS})
+def test_registry_wins_on_name_collision_with_a_service_spec() -> None:
     reg = ToolRegistry()
 
     @tool(reg, summary="Local ping")

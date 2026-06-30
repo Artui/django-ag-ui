@@ -257,6 +257,7 @@ class DjangoAGUIView:
             return factory(self._registry, settings)
         toolsets = resolve_dotted_instances(settings.toolsets)
         toolsets += self._drf_mcp_toolsets(settings.drf_mcp_server, request)
+        toolsets += self._spec_toolsets(settings.service_specs, request)
         toolsets += self._attachment_toolsets(settings.attachment_store, request)
         return build_agent(
             self._registry,
@@ -288,6 +289,22 @@ class DjangoAGUIView:
         # catalog but a broken agent.
         registered = frozenset(binding.spec.name for binding in self._registry)
         return [DrfMcpToolset(server, request, exclude_names=registered)]
+
+    def _spec_toolsets(self, dotted_path: str | None, request: HttpRequest) -> list[Any]:
+        """Build the per-request drf-services `SpecToolset`, or `[]` when not set.
+
+        Imported lazily so `djangorestframework-pydantic-ai` (and drf-services)
+        stay an optional `[spec-tools]` extra; the toolset carries `request` so
+        the agent acts as the logged-in user. Registry tool names are excluded so
+        a `@tool` wins a collision (same rule as the drf-mcp bridge).
+        """
+        if dotted_path is None:
+            return []
+        from django_ag_ui.integrations.build_spec_toolset import build_spec_toolset
+
+        specs = import_string(dotted_path)
+        registered = frozenset(binding.spec.name for binding in self._registry)
+        return [build_spec_toolset(specs, request, exclude_names=registered)]
 
     def _attachment_toolsets(self, dotted_path: str | None, request: HttpRequest) -> list[Any]:
         """Build the per-request ``read_attachment`` toolset, or ``[]`` when off.

@@ -27,6 +27,7 @@ def test_defaults_when_unconfigured() -> None:
     assert s.transcription_max_bytes == 25 * 1024 * 1024
     assert s.transcription_allowed_types == ()
     assert s.drf_mcp_server is None
+    assert s.service_specs is None
 
 
 @override_settings(
@@ -55,6 +56,7 @@ def test_defaults_when_unconfigured() -> None:
         "TRANSCRIPTION_MAX_BYTES": 4096,
         "TRANSCRIPTION_ALLOWED_TYPES": ["audio/webm", "audio/mp4"],
         "DRF_MCP_SERVER": "myapp.mcp.server",
+        "SERVICE_SPECS": "myapp.specs.SPECS",
     },
 )
 def test_reads_from_settings_dict() -> None:
@@ -82,6 +84,7 @@ def test_reads_from_settings_dict() -> None:
     assert s.transcription_max_bytes == 4096
     assert s.transcription_allowed_types == ("audio/webm", "audio/mp4")
     assert s.drf_mcp_server == "myapp.mcp.server"
+    assert s.service_specs == "myapp.specs.SPECS"
 
 
 @override_settings(DJANGO_AG_UI=None)

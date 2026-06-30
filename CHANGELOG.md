@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-06-30
+
+### Added
+
+- **drf-services specs as tools, no MCP hop (PAI-2).** A new `SERVICE_SPECS`
+  setting (dotted path to a `name -> ServiceSpec/SelectorSpec` mapping) exposes
+  drf-services specs to the agent via `djangorestframework-pydantic-ai`'s
+  `SpecToolset` — dispatched in-process through drf-services' transport-neutral
+  surface, **without** standing up an MCP server. It drops into the same
+  per-request `AgentConfig.toolsets` seam as the drf-mcp bridge: the agent acts
+  as the logged-in AG-UI user, each spec's `permission_classes` are enforced, a
+  registry `@tool` wins a name collision, and the spec tools' labels surface in
+  the `data-tools-url` catalog. Requires the new `[spec-tools]` extra
+  (`djangorestframework-pydantic-ai`), imported lazily.
+
 ## [0.8.0] — 2026-06-30
 
 ### Added
@@ -323,7 +338,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Artui/django-ag-ui/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Artui/django-ag-ui/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Artui/django-ag-ui/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Artui/django-ag-ui/compare/v0.5.0...v0.6.0

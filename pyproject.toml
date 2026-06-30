@@ -52,6 +52,9 @@ google = ["pydantic-ai-slim[google]>=1.0,<2"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
 drf-mcp = ["djangorestframework-mcp-server>=0.9,<0.10"]
+# Expose drf-services specs directly as agent tools via djangorestframework-
+# pydantic-ai's SpecToolset — no MCP server in the path (DJANGO_AG_UI["SERVICE_SPECS"]).
+spec-tools = ["djangorestframework-pydantic-ai>=0.1,<0.2"]
 
 [project.urls]
 Homepage = "https://github.com/Artui/django-ag-ui"
@@ -79,6 +82,8 @@ dev = [
     "django-stubs>=5.0",
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
     "djangorestframework-mcp-server>=0.9,<0.10",
+    # The [spec-tools] extra's backing package, so its toolset + tests run in dev.
+    "djangorestframework-pydantic-ai>=0.1,<0.2",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
     # in dev/CI (the extras above ship to consumers, not the dev env).
     "pydantic-ai-slim[anthropic,openai,google]>=1.0",
@@ -131,7 +136,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.8.0"
+current_version = "0.9.0"
 allow_dirty = false
 commit = false
 tag = false
