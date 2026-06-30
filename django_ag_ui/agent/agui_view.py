@@ -26,6 +26,7 @@ from django_ag_ui.agent.agent_factory import build_agent
 from django_ag_ui.agent.attachment_toolset import build_attachment_toolset
 from django_ag_ui.agent.build_model import build_model
 from django_ag_ui.agent.guarded_stream import guarded_stream
+from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.resolve_agent_factory import resolve_agent_factory
 from django_ag_ui.agent.resolve_dotted_instances import resolve_dotted_instances
 from django_ag_ui.agent.run_transcript import RunTranscript
@@ -138,6 +139,11 @@ class DjangoAGUIView:
         transcript = RunTranscript()
         native = adapter.run_stream_native()
         events = adapter.transform_stream(native, on_complete=on_complete)
+        # A reasoning model's chain-of-thought rides through as AG-UI reasoning
+        # events (adapter pass-through). Forward it by default; strip it when the
+        # consumer opts out, so the model can reason privately.
+        if not get_settings().forward_reasoning:
+            events = drop_reasoning_events(events)
         stream = guarded_stream(
             adapter.encode_stream(transcript.observe(events)),
             native_events=native,

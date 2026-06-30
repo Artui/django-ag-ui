@@ -84,6 +84,25 @@ class AppSettings:
     """Allowed (client-declared) content types for uploads. Empty accepts any
     type; otherwise an upload whose ``Content-Type`` is not listed is rejected."""
 
+    forward_reasoning: bool
+    """When ``True`` (default), forward a reasoning model's chain-of-thought to
+    the client as AG-UI reasoning events (a pure adapter pass-through — only
+    emitted if a thinking budget is enabled via ``MODEL_SETTINGS``). Set ``False``
+    to let the model reason privately while stripping those events from the
+    stream."""
+
+    transcription_backend: str | None
+    """Dotted path to a ``TranscriptionBackend`` for voice input. ``None`` keeps
+    voice disabled (the default ``NullTranscriptionBackend``)."""
+
+    transcription_max_bytes: int
+    """Maximum accepted audio-clip size in bytes (server-authoritative). ``0``
+    disables the cap. Default 25 MiB (the OpenAI transcription limit)."""
+
+    transcription_allowed_types: tuple[str, ...]
+    """Allowed (client-declared) content types for voice clips. Empty accepts any
+    type; otherwise a clip whose ``Content-Type`` is not listed is rejected."""
+
     drf_mcp_server: str | None
     """Dotted path to a ``drf-mcp-server`` ``MCPServer`` instance whose tools
     are exposed to the agent in-process (requires the ``[drf-mcp]`` extra).
@@ -109,6 +128,10 @@ def get_settings() -> AppSettings:
         attachment_store=raw.get("ATTACHMENT_STORE"),
         attachment_max_bytes=int(raw.get("ATTACHMENT_MAX_BYTES", 10 * 1024 * 1024)),
         attachment_allowed_types=tuple(raw.get("ATTACHMENT_ALLOWED_TYPES", ()) or ()),
+        forward_reasoning=bool(raw.get("FORWARD_REASONING", True)),
+        transcription_backend=raw.get("TRANSCRIPTION_BACKEND"),
+        transcription_max_bytes=int(raw.get("TRANSCRIPTION_MAX_BYTES", 25 * 1024 * 1024)),
+        transcription_allowed_types=tuple(raw.get("TRANSCRIPTION_ALLOWED_TYPES", ()) or ()),
         drf_mcp_server=raw.get("DRF_MCP_SERVER"),
     )
 

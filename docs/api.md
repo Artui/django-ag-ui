@@ -128,6 +128,26 @@ projects that don't opt in get no model and no migration.
 
 ::: django_ag_ui.contrib.store.models.StoredAttachment
 
+## Voice input
+
+::: django_ag_ui.TranscriptionBackend
+
+::: django_ag_ui.NullTranscriptionBackend
+
+::: django_ag_ui.resolve_transcription_backend
+
+::: django_ag_ui.TranscribeView
+
+### Reference transcription backend (opt-in)
+
+A ready-to-use backend over any OpenAI-compatible `/audio/transcriptions`
+endpoint. Install the `[openai]` extra and set
+`DJANGO_AG_UI["TRANSCRIPTION_BACKEND"]` to
+`django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend`;
+subclass it to change the model or point at another OpenAI-compatible server.
+
+::: django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend
+
 ## Internal helpers
 
 These are not part of the public re-export surface but are referenced from the

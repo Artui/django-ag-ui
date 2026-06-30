@@ -66,6 +66,18 @@ async def test_streams_ag_ui_events() -> None:
     assert "double" in body
 
 
+@override_settings(DJANGO_AG_UI={"FORWARD_REASONING": False})
+async def test_reasoning_opt_out_still_streams_the_answer() -> None:
+    # With FORWARD_REASONING off the stream is wrapped in the reasoning filter;
+    # a normal run (TestModel emits no reasoning) must still stream end-to-end.
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    response = await view(_post(_run_input("double 5")))
+    body = await _drain(response)
+    assert "RUN_STARTED" in body
+    assert "RUN_FINISHED" in body
+    assert "REASONING" not in body
+
+
 def test_view_is_marked_as_a_coroutine_function() -> None:
     # Django's handler must detect __call__ as async and await it when the
     # view is mounted; otherwise it returns an unawaited coroutine.
