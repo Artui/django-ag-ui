@@ -72,10 +72,19 @@ The AG-UI stack design doc (`django-ag-ui-plan.md`) lives in the private ecosyst
 
 ## Security boundary
 
-Per-tool `destructive: bool` metadata is the surfaced risk signal. The registry stamps it into
-the JSON Schema as `x-destructive: true`; client-side AG-UI consumers (e.g. the
-`@artooi/ag-ui-web-component`) gate execution behind an inline confirmation card. The wire stays
-vanilla AG-UI.
+Per-tool `destructive: bool` metadata is the surfaced risk signal; the registry stamps it into
+the JSON Schema as `x-destructive: true`. **What that flag gates depends on where the tool runs:**
+
+- **Client-registered tools** (the web component's `registerTool`, executed in the browser) are
+  gated — `@artooi/ag-ui-web-component` shows an inline confirmation card before dispatching to
+  the local handler.
+- **Server-side tools** (this package's `@tool` registry, and drf-mcp-bridged tools) are **not**
+  gated. They run **server-side, mid-stream**, so by the time the browser sees `TOOL_CALL_END`
+  the tool already executed; the `x-destructive` / `x-confirm` stamps reach only the **LLM** (as
+  schema hints), never a browser gate. `needs_confirmation` and the `AUTO_CONFIRM` setting are
+  currently inert for server tools — do **not** rely on `@tool(destructive=True)` to gate a
+  dangerous server-side operation. A real server-side gate is the open **GATE-1** decision (see
+  the ecosystem roadmap). The wire stays vanilla AG-UI either way.
 
 The `AuditLogger` Protocol is the audit boundary. `LoggingAuditLogger` is the default;
 projects supply their own (Sentry, Honeycomb, custom) by setting `DJANGO_AG_UI["AUDIT_LOGGER"]`
