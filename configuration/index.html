@@ -1135,6 +1135,12 @@ default, and what it does.</p>
 <td>Server-side conversation persistence.</td>
 </tr>
 <tr>
+<td><code>THREAD_LIST_LIMIT</code></td>
+<td><code>int</code></td>
+<td><code>200</code></td>
+<td>Max threads the index endpoint returns per call; <code>?limit=N</code> requests fewer, a larger value is clamped down.</td>
+</tr>
+<tr>
 <td><code>ATTACHMENT_STORE</code></td>
 <td>dotted <code>str</code></td>
 <td><code>None</code></td>

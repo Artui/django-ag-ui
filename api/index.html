@@ -1296,6 +1296,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.AppSettings.thread_list_limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        thread_list_limit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.AppSettings.allow_anonymous" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2692,6 +2703,17 @@
     <span class="md-ellipsis">
       
         service_specs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AppSettings.thread_list_limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        thread_list_limit
       
     </span>
   </a>
@@ -5426,6 +5448,33 @@ the agent as tools via <code>djangorestframework-pydantic-ai</code>'s <code>Spec
 
 
 
+<h3 id="django_ag_ui.AppSettings.thread_list_limit" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">thread_list_limit</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.AppSettings.thread_list_limit" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">thread_list_limit</span><span class="p">:</span> <span class="nb">int</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Maximum number of threads the index endpoint returns in one call (the
+chat-history drawer). The client may request fewer via <code>?limit=N</code>; a larger
+<code>?limit</code> is clamped to this ceiling, so the default response stays bounded
+for a user with thousands of threads. Default 200.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="django_ag_ui.AppSettings.allow_anonymous" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">allow_anonymous</span>
 
@@ -5765,9 +5814,11 @@ session-backed implementation; projects supply their own (a DB model, Redis,
 …) by pointing the setting at a dotted path. All methods are async so an
 implementation can use the async ORM or a network backend.</p>
 <p><code>list</code> returns owner-scoped <em>metadata only</em> (no message bodies) for the
-thread drawer; a store that can't enumerate (the stateless default) returns
-an empty list. <code>rename</code> sets a thread's display title (a store that can't
-persist one is a no-op).</p>
+thread drawer, capped at <code>limit</code> rows (<code>None</code> = the store's own default);
+a store that can't enumerate (the stateless default) returns an empty list.
+<code>exists</code> is a cheap owner-scoped presence check — no message body loaded —
+so a rename / probe doesn't deserialize a whole thread just to 404. <code>rename</code>
+sets a thread's display title (a store that can't persist one is a no-op).</p>
 
 
 
@@ -6424,13 +6475,16 @@ fills it in.</p>
 
 
 
-        <p>An attachment's metadata paired with its bytes — the result of reading one.</p>
+        <p>An attachment's metadata paired with a readable byte stream.</p>
 <p>Returned by :meth:<code>AttachmentStore.open
 &lt;django_ag_ui.persistence.types.attachment_store.AttachmentStore&gt;</code> so the
 download view and the <code>read_attachment</code> tool both get the content <em>and</em> the
-:class:<code>AttachmentRef</code> (name / mime / size) in a single owner-scoped call.
-The bytes are read whole — uploads are size-capped — so callers don't manage
-a stream.</p>
+:class:<code>AttachmentRef</code> (name / mime / size) in a single owner-scoped call.</p>
+<p><code>content</code> is an <strong>open, readable binary stream</strong> (a file handle), not the
+whole bytes — so a large attachment streams out via <code>FileResponse</code> rather
+than being buffered in memory (AGH-3). The consumer owns it: the download view
+hands it to <code>FileResponse</code> (which closes it) and the tool reads it under a
+<code>with</code> block. Read it exactly once.</p>
 
 
 
