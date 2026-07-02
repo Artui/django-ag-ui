@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-07-02
+
+### Added
+
+- **`authorize=` predicate on every view + `get_urls`.** All the mounted views
+  (`DjangoAGUIView`, `ToolsView`, `SkillsView`, `ThreadsView`, `AttachmentsView`,
+  `TranscribeView`) and `get_urls` now accept an optional
+  `authorize(request) -> bool` predicate, run *after* the acting user is
+  established. A failing predicate denies with **403** (authenticated but
+  forbidden) — as distinct from `require_authenticated`'s **401** — returning
+  JSON, not an HTML login redirect. This is the seam a staff-gated mount uses
+  (`authorize=lambda r: r.user.is_staff`).
+- **`get_urls` forwards the auth seam to every sub-view it builds.**
+  `require_authenticated` / `get_user` / `authorize` passed to `get_urls` now
+  reach the skills, tools, threads, attachments, and transcribe endpoints, so a
+  single call locks the whole mount down (the agent `view` carries its own auth,
+  set when you construct `DjangoAGUIView`). Defaults stay open.
+- **`DJANGO_AG_UI["ALLOW_ANONYMOUS"]` setting** (default `False`) governing how
+  the model-backed stores treat anonymous requests — see below.
+
+### Security
+
+- **Model-backed stores no longer collapse every anonymous visitor into one
+  shared owner bucket.** Previously an anonymous request resolved to owner id
+  `None` → stored as `""`, so *all* anonymous visitors shared one bucket and
+  could list / load / rename / delete / download each other's threads and
+  attachments. The stores now resolve the owner via `resolve_owner_id`: an
+  authenticated user's pk, or — only when `ALLOW_ANONYMOUS=True` — a per-browser
+  `anon:<session_key>` bucket. With `ALLOW_ANONYMOUS` off (the default) an
+  anonymous store operation raises `AnonymousOperationError`, which the
+  persistence views turn into **403** and the agent endpoint's save path skips
+  (the run still streams; it just isn't persisted). Authenticate the endpoints
+  (`require_authenticated=True` / `get_user`) whenever a store persists.
+
+### Fixed
+
+- `get_urls`' docstring now documents the `threads/<id>/` **PATCH rename** route
+  and the anonymous-scoping caveat.
+
 ## [0.9.0] — 2026-06-30
 
 ### Added
@@ -338,7 +377,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/Artui/django-ag-ui/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Artui/django-ag-ui/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Artui/django-ag-ui/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Artui/django-ag-ui/compare/v0.6.0...v0.7.0

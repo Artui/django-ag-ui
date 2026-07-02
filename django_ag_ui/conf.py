@@ -114,6 +114,17 @@ class AppSettings:
     — drf-services specs called in-process, **no MCP server** (requires the
     ``[spec-tools]`` extra). ``None`` disables it."""
 
+    allow_anonymous: bool
+    """Whether the model-backed stores serve **anonymous** requests. ``False``
+    (default) makes them **refuse** anonymous thread / attachment operations
+    (raising
+    :class:`~django_ag_ui.persistence.anonymous_operation_error.AnonymousOperationError`,
+    which the views turn into ``403``) — rather than silently collapsing every
+    anonymous visitor into one shared owner bucket, where they could read and
+    delete each other's data. ``True`` opts in to anonymous use and buckets each
+    request by its ``request.session.session_key`` (per browser session; needs
+    session middleware). Authenticated requests are unaffected either way."""
+
 
 def get_settings() -> AppSettings:
     """Read the active ``DJANGO_AG_UI`` settings dict into an ``AppSettings``."""
@@ -140,6 +151,7 @@ def get_settings() -> AppSettings:
         transcription_allowed_types=tuple(raw.get("TRANSCRIPTION_ALLOWED_TYPES", ()) or ()),
         drf_mcp_server=raw.get("DRF_MCP_SERVER"),
         service_specs=raw.get("SERVICE_SPECS"),
+        allow_anonymous=bool(raw.get("ALLOW_ANONYMOUS", False)),
     )
 
 

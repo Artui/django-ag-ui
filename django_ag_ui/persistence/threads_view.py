@@ -12,10 +12,11 @@ from django.http import (
 )
 from django.http.response import HttpResponseBase
 
+from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
 from django_ag_ui.persistence.types.conversation_meta import ConversationMeta
 from django_ag_ui.persistence.types.conversation_store import ConversationStore
 from django_ag_ui.persistence.utils import messages_to_jsonable
-from django_ag_ui.utils import GetUser, aauthorize
+from django_ag_ui.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 
 class ThreadsView:
@@ -45,10 +46,12 @@ class ThreadsView:
         *,
         require_authenticated: bool = False,
         get_user: GetUser | None = None,
+        authorize: AuthorizePredicate | None = None,
     ) -> None:
         self._store = store
         self._require_authenticated = require_authenticated
         self._get_user = get_user
+        self._authorize_predicate = authorize
         # Mark this callable instance async so Django awaits ``__call__`` (see
         # DjangoAGUIView for the rationale); the store operations are async.
         markcoroutinefunction(cast("Any", self))
@@ -57,17 +60,24 @@ class ThreadsView:
         self, request: HttpRequest, thread_id: str | None = None
     ) -> HttpResponseBase:
         # Establish + authorize the acting user first: this materializes
-        # ``request.user`` off the event loop, so the store's ``owner_id_for``
-        # scoping is loop-safe on the calls below.
-        if not await aauthorize(
+        # ``request.user`` off the event loop, so the store's owner scoping is
+        # loop-safe on the calls below.
+        deny = await aauthorize(
             request,
             get_user=self._get_user,
             require_authenticated=self._require_authenticated,
-        ):
-            return JsonResponse({"error": "authentication required"}, status=401)
-        if thread_id is None:
-            return await self._list(request)
-        return await self._detail(request, thread_id)
+            authorize=self._authorize_predicate,
+        )
+        if deny is not None:
+            return auth_error_response(deny)
+        try:
+            if thread_id is None:
+                return await self._list(request)
+            return await self._detail(request, thread_id)
+        except AnonymousOperationError:
+            # A model-backed store refusing an anonymous request (the default
+            # unless ``ALLOW_ANONYMOUS``): forbidden, not a server error.
+            return auth_error_response(403)
 
     async def _list(self, request: HttpRequest) -> HttpResponseBase:
         if request.method != "GET":

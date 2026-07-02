@@ -23,11 +23,14 @@ class DefaultConversationStore(ModelConversationStore):
     ``DJANGO_AG_UI["CONVERSATION_STORE"]`` to this class's dotted path. For a
     bespoke schema, subclass :class:`ModelConversationStore` instead.
 
-    Owner scoping: ``owner_id`` is stored as ``""`` for anonymous requests (the
-    ``ModelConversationStore`` base passes ``None``), so the unique
-    ``(owner_id, thread_id)`` constraint holds and every query filters by owner.
-    Titles are derived from the first user message at first save and then left
-    alone except by :meth:`_rename`; ``preview`` re-derives on every save.
+    Owner scoping: every query filters by the ``owner_id`` the
+    ``ModelConversationStore`` base resolves — the authenticated user's pk, or a
+    per-browser ``anon:<session_key>`` bucket when
+    ``DJANGO_AG_UI["ALLOW_ANONYMOUS"]`` is set (otherwise anonymous requests are
+    refused rather than sharing one ``""`` bucket). The unique
+    ``(owner_id, thread_id)`` constraint holds regardless. Titles are derived
+    from the first user message at first save and then left alone except by
+    :meth:`_rename`; ``preview`` re-derives on every save.
     """
 
     def _fetch(self, thread_id: str, owner_id: str | None) -> Conversation | None:

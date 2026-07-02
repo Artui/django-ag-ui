@@ -6,6 +6,9 @@ from ag_ui.core import Message
 from django.http import HttpRequest
 from pydantic import TypeAdapter
 
+from django_ag_ui.conf import get_settings
+from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
+
 # A reusable, immutable adapter for (de)serialising the AG-UI message union.
 _MESSAGES = TypeAdapter(list[Message])
 
@@ -30,6 +33,37 @@ def owner_id_for(request: HttpRequest) -> str | None:
     if user is not None and getattr(user, "is_authenticated", False):
         return str(user.pk)
     return None
+
+
+def resolve_owner_id(request: HttpRequest) -> str:
+    """The owner-scoping id a model-backed store persists under (never ``None``).
+
+    Authenticated → the user's pk. Anonymous → governed by
+    ``DJANGO_AG_UI["ALLOW_ANONYMOUS"]``:
+
+    - **off** (default) → raise :class:`AnonymousOperationError`. Refusing beats
+      the old behaviour of collapsing every anonymous visitor into one ``""``
+      bucket, where they could read / delete each other's threads + attachments.
+    - **on** → a per-browser bucket derived from the session key
+      (``anon:<session_key>``), creating the session if the browser has none.
+
+    Call this **inside** a sync context (the model stores wrap it in
+    ``sync_to_async``): the anonymous branch may write a new session row.
+    """
+    user = getattr(request, "user", None)
+    if user is not None and getattr(user, "is_authenticated", False):
+        return str(user.pk)
+    if not get_settings().allow_anonymous:
+        raise AnonymousOperationError(
+            "Anonymous requests are refused by this store. Authenticate the "
+            "request (require_authenticated / get_user) or set "
+            'DJANGO_AG_UI["ALLOW_ANONYMOUS"] = True to bucket anonymous users '
+            "by browser session."
+        )
+    session = request.session
+    if session.session_key is None:
+        session.create()
+    return f"anon:{session.session_key}"
 
 
 def derive_title(messages: list[Message]) -> str:
@@ -75,4 +109,5 @@ __all__ = [
     "messages_from_jsonable",
     "messages_to_jsonable",
     "owner_id_for",
+    "resolve_owner_id",
 ]

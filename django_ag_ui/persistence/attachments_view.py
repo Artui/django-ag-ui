@@ -13,11 +13,12 @@ from django.http import (
 from django.http.response import HttpResponseBase
 
 from django_ag_ui.conf import get_settings
+from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
 from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
 from django_ag_ui.persistence.types.attachment_ref import AttachmentRef
 from django_ag_ui.persistence.types.attachment_store import AttachmentStore
 from django_ag_ui.persistence.types.opened_attachment import OpenedAttachment
-from django_ag_ui.utils import GetUser, aauthorize
+from django_ag_ui.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 
 class AttachmentsView:
@@ -52,10 +53,12 @@ class AttachmentsView:
         *,
         require_authenticated: bool = False,
         get_user: GetUser | None = None,
+        authorize: AuthorizePredicate | None = None,
     ) -> None:
         self._store = store
         self._require_authenticated = require_authenticated
         self._get_user = get_user
+        self._authorize_predicate = authorize
         # Mark this callable instance async so Django awaits ``__call__`` (see
         # DjangoAGUIView for the rationale); the store operations are async.
         markcoroutinefunction(cast("Any", self))
@@ -64,17 +67,24 @@ class AttachmentsView:
         self, request: HttpRequest, attachment_id: str | None = None
     ) -> HttpResponseBase:
         # Establish + authorize the acting user first: this materializes
-        # ``request.user`` off the event loop, so the store's ``owner_id_for``
-        # scoping is loop-safe on the calls below.
-        if not await aauthorize(
+        # ``request.user`` off the event loop, so the store's owner scoping is
+        # loop-safe on the calls below.
+        deny = await aauthorize(
             request,
             get_user=self._get_user,
             require_authenticated=self._require_authenticated,
-        ):
-            return JsonResponse({"error": "authentication required"}, status=401)
-        if attachment_id is None:
-            return await self._upload(request)
-        return await self._detail(request, attachment_id)
+            authorize=self._authorize_predicate,
+        )
+        if deny is not None:
+            return auth_error_response(deny)
+        try:
+            if attachment_id is None:
+                return await self._upload(request)
+            return await self._detail(request, attachment_id)
+        except AnonymousOperationError:
+            # A model-backed store refusing an anonymous request (the default
+            # unless ``ALLOW_ANONYMOUS``): forbidden, not a server error.
+            return auth_error_response(403)
 
     async def _upload(self, request: HttpRequest) -> HttpResponseBase:
         if request.method != "POST":

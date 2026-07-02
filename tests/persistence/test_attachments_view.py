@@ -8,6 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import HttpRequest
 from django.test import RequestFactory, override_settings
 
+from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
 from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
 from django_ag_ui.persistence.types.attachment_ref import AttachmentRef
@@ -49,6 +50,16 @@ def _upload_request(
 
 def _body(response: Any) -> Any:
     return json.loads(response.content)
+
+
+async def test_anonymous_operation_refused_is_403() -> None:
+    class _RefusingStore(_FakeStore):
+        async def save(self, upload: Any, *, request: HttpRequest) -> AttachmentRef:
+            raise AnonymousOperationError("anonymous refused")
+
+    response = await AttachmentsView(_RefusingStore())(_upload_request())
+    assert response.status_code == 403
+    assert _body(response) == {"error": "forbidden"}
 
 
 async def test_upload_returns_201_ref() -> None:

@@ -9,6 +9,7 @@ from django.contrib.sessions.backends.signed_cookies import SessionStore
 from django.http import HttpRequest
 from django.test import RequestFactory
 
+from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
 from django_ag_ui.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
 )
@@ -89,6 +90,16 @@ async def test_detail_get_returns_messages() -> None:
     payload = _body(response)
     assert payload["thread_id"] == "t1"
     assert [m["id"] for m in payload["messages"]] == ["u1"]
+
+
+async def test_anonymous_operation_refused_is_403() -> None:
+    class _RefusingStore(_FakeStore):
+        async def list(self, *, request: HttpRequest) -> list[ConversationMeta]:
+            raise AnonymousOperationError("anonymous refused")
+
+    response = await ThreadsView(_RefusingStore())(RequestFactory().get("/agent/threads/"))
+    assert response.status_code == 403
+    assert _body(response) == {"error": "forbidden"}
 
 
 async def test_detail_get_missing_is_404() -> None:
