@@ -114,6 +114,12 @@ class AppSettings:
     — drf-services specs called in-process, **no MCP server** (requires the
     ``[spec-tools]`` extra). ``None`` disables it."""
 
+    thread_list_limit: int
+    """Maximum number of threads the index endpoint returns in one call (the
+    chat-history drawer). The client may request fewer via ``?limit=N``; a larger
+    ``?limit`` is clamped to this ceiling, so the default response stays bounded
+    for a user with thousands of threads. Default 200."""
+
     allow_anonymous: bool
     """Whether the model-backed stores serve **anonymous** requests. ``False``
     (default) makes them **refuse** anonymous thread / attachment operations
@@ -151,6 +157,7 @@ def get_settings() -> AppSettings:
         transcription_allowed_types=tuple(raw.get("TRANSCRIPTION_ALLOWED_TYPES", ()) or ()),
         drf_mcp_server=raw.get("DRF_MCP_SERVER"),
         service_specs=raw.get("SERVICE_SPECS"),
+        thread_list_limit=int(raw.get("THREAD_LIST_LIMIT", 200)),
         allow_anonymous=bool(raw.get("ALLOW_ANONYMOUS", False)),
     )
 

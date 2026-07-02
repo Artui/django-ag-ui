@@ -26,7 +26,8 @@ def test_save_then_open_round_trips() -> None:
 
     opened = store._open(ref.id, "7")
     assert opened is not None
-    assert opened.content == b"hello"
+    with opened.content as handle:
+        assert handle.read() == b"hello"
     assert opened.ref.id == ref.id
     assert opened.ref.name == "notes.txt"
 
@@ -84,3 +85,18 @@ def test_remove_deletes_row_and_bytes() -> None:
 def test_remove_missing_is_noop() -> None:
     # No row for this id — must not raise.
     assert DefaultAttachmentStore()._remove("absent", "7") is None
+
+
+def test_save_caps_long_filename_preserving_extension() -> None:
+    store = DefaultAttachmentStore()
+    ref = store._save(_upload(name="a" * 300 + ".txt"), "7")
+    assert len(ref.name) == 255
+    assert ref.name.endswith(".txt")
+    # The stored row honors the model's max_length too.
+    assert StoredAttachment.objects.get(attachment_id=ref.id).name == ref.name
+
+
+def test_save_hard_truncates_a_long_name_without_extension() -> None:
+    store = DefaultAttachmentStore()
+    ref = store._save(_upload(name="b" * 300), "7")
+    assert ref.name == "b" * 255

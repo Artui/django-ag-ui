@@ -68,12 +68,14 @@ class DefaultConversationStore(ModelConversationStore):
     def _remove(self, thread_id: str, owner_id: str | None) -> None:
         StoredConversation.objects.filter(owner_id=owner_id or "", thread_id=thread_id).delete()
 
-    def _list(self, owner_id: str | None) -> ConversationMetaList:
+    def _list(self, owner_id: str | None, limit: int | None) -> ConversationMetaList:
         rows = (
             StoredConversation.objects.filter(owner_id=owner_id or "")
             .order_by("-updated_at")
             .values("thread_id", "title", "preview", "updated_at", "owner_id")
         )
+        if limit is not None:
+            rows = rows[:limit]
         return [
             ConversationMeta(
                 thread_id=row["thread_id"],
@@ -84,6 +86,13 @@ class DefaultConversationStore(ModelConversationStore):
             )
             for row in rows
         ]
+
+    def _exists(self, thread_id: str, owner_id: str | None) -> bool:
+        # A metadata-only presence check — no message body deserialized, unlike
+        # the base's ``_fetch`` fallback.
+        return StoredConversation.objects.filter(
+            owner_id=owner_id or "", thread_id=thread_id
+        ).exists()
 
     def _rename(self, thread_id: str, title: str, owner_id: str | None) -> None:
         StoredConversation.objects.filter(owner_id=owner_id or "", thread_id=thread_id).update(

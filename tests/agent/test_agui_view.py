@@ -321,14 +321,14 @@ async def test_drf_mcp_toolset_built_per_request_when_configured() -> None:
 
     view = DjangoAGUIView(_registry(), model=TestModel())
     request = RequestFactory().post("/agent/")
-    toolsets = view._drf_mcp_toolsets("tests.integrations.drf_server.server", request)
+    toolsets = view._drf_mcp_toolsets("tests.integrations.drf_server.server", request, set())
     assert len(toolsets) == 1
     assert isinstance(toolsets[0], DrfMcpToolset)
 
 
 async def test_no_drf_mcp_toolset_without_the_setting() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
-    assert view._drf_mcp_toolsets(None, RequestFactory().post("/agent/")) == []
+    assert view._drf_mcp_toolsets(None, RequestFactory().post("/agent/"), set()) == []
 
 
 _DEFAULT_ATTACHMENT_STORE = (
@@ -339,7 +339,7 @@ _DEFAULT_ATTACHMENT_STORE = (
 async def test_attachment_toolset_built_per_request_when_configured() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
     toolsets = view._attachment_toolsets(
-        _DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/")
+        _DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/"), set()
     )
     assert len(toolsets) == 1
     assert toolsets[0].id == "django-ag-ui-attachments"
@@ -347,21 +347,42 @@ async def test_attachment_toolset_built_per_request_when_configured() -> None:
 
 async def test_no_attachment_toolset_without_the_setting() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
-    assert view._attachment_toolsets(None, RequestFactory().post("/agent/")) == []
+    assert view._attachment_toolsets(None, RequestFactory().post("/agent/"), set()) == []
 
 
-async def test_attachment_toolset_skipped_when_registry_owns_the_name() -> None:
-    reg = ToolRegistry()
-
-    @tool(reg)
-    def read_attachment(attachment_id: str) -> str:
-        """A consumer's own read_attachment wins over the built-in."""
-        return attachment_id
-
-    view = DjangoAGUIView(reg, model=TestModel())
+async def test_attachment_toolset_skipped_when_a_prior_tool_owns_the_name() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    # ``read_attachment`` already claimed upstream (registry / drf-mcp / spec):
+    # the attachment toolset yields to it rather than raising a duplicate.
+    seen = {"read_attachment"}
     assert (
-        view._attachment_toolsets(_DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/")) == []
+        view._attachment_toolsets(_DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/"), seen)
+        == []
     )
+
+
+async def test_seen_set_guards_three_way_name_collisions() -> None:
+    # AGH-2: drf-mcp → spec → attachment precedence, threaded through one ``seen``
+    # set so a name exposed by two sources can't reach pydantic-ai as a duplicate.
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    request = RequestFactory().post("/agent/")
+    seen: set[str] = set()
+
+    # drf-mcp reserves its server's tool names.
+    view._drf_mcp_toolsets("tests.integrations.drf_server.server", request, seen)
+    assert {"add", "invalid", "denied"} <= seen
+
+    # spec: ``add`` collides with drf-mcp (dropped, drf-mcp wins); ``unique_spec``
+    # survives; ``read_attachment`` is now reserved by the spec toolset.
+    (spec_toolset,) = view._spec_toolsets(
+        "tests.integrations.drf_specs_colliding.SPECS", request, seen
+    )
+    assert "add" not in spec_toolset._specs
+    assert "unique_spec" in spec_toolset._specs
+    assert "read_attachment" in seen
+
+    # attachment: yields because a spec already claimed ``read_attachment``.
+    assert view._attachment_toolsets(_DEFAULT_ATTACHMENT_STORE, request, seen) == []
 
 
 @pytest.mark.django_db(transaction=True)

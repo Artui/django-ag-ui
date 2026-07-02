@@ -52,12 +52,13 @@ async def test_list_defaults_to_empty_for_subclasses_that_dont_override() -> Non
 
 
 class _ListableStore(_DictStore):
-    def _list(self, owner_id: str | None) -> list[ConversationMeta]:
-        return [
+    def _list(self, owner_id: str | None, limit: int | None) -> list[ConversationMeta]:
+        metas = [
             ConversationMeta(thread_id=thread_id, title=thread_id, owner_id=owner)
             for (owner, thread_id) in self.rows
             if owner == owner_id
         ]
+        return metas[:limit] if limit is not None else metas
 
 
 async def test_list_uses_subclass_override_and_owner_scoping() -> None:
@@ -88,3 +89,11 @@ async def test_rename_uses_subclass_override_with_owner_scoping() -> None:
     store = _RenamableStore()
     await store.rename("t1", "Renamed", request=_authed_request())
     assert store.renames == [("7", "t1", "Renamed")]
+
+
+async def test_exists_defaults_to_the_fetch_probe() -> None:
+    store = _DictStore()
+    request = _authed_request()
+    await store.save(Conversation(thread_id="t1"), request=request)
+    assert await store.exists("t1", request=request) is True
+    assert await store.exists("absent", request=request) is False

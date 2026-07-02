@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import io
 import json
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import HttpRequest
 from django.test import RequestFactory, override_settings
@@ -114,7 +116,7 @@ async def test_max_bytes_zero_disables_the_cap() -> None:
 
 
 async def test_upload_empty_file_passes_the_size_check() -> None:
-    # A zero-byte upload exercises the falsy ``size`` branch in validation.
+    # A zero-byte upload is accepted (well under any cap).
     response = await AttachmentsView(_FakeStore())(_upload_request(content=b""))
     assert response.status_code == 201
 
@@ -140,14 +142,15 @@ async def test_download_streams_bytes_as_attachment() -> None:
     store = _FakeStore(
         opened=OpenedAttachment(
             ref=AttachmentRef(id="a1", name="notes.txt", mime="text/plain", size=5),
-            content=b"hello",
+            content=io.BytesIO(b"hello"),
         )
     )
     response = await AttachmentsView(store)(
         RequestFactory().get("/agent/attachments/a1/"), attachment_id="a1"
     )
     assert response.status_code == 200
-    assert response.content == b"hello"
+    # ``FileResponse`` streams the handle in chunks.
+    assert b"".join(response.streaming_content) == b"hello"
     assert response["Content-Type"] == "text/plain"
     assert response["Content-Disposition"] == 'attachment; filename="notes.txt"'
     assert response["X-Content-Type-Options"] == "nosniff"
@@ -155,7 +158,9 @@ async def test_download_streams_bytes_as_attachment() -> None:
 
 async def test_download_empty_mime_falls_back_to_octet_stream() -> None:
     store = _FakeStore(
-        opened=OpenedAttachment(ref=AttachmentRef(id="a1", name='"', mime="", size=1), content=b"x")
+        opened=OpenedAttachment(
+            ref=AttachmentRef(id="a1", name='"', mime="", size=1), content=io.BytesIO(b"x")
+        )
     )
     response = await AttachmentsView(store)(
         RequestFactory().get("/agent/attachments/a1/"), attachment_id="a1"
@@ -202,3 +207,42 @@ async def test_get_user_hook_opens_the_endpoint() -> None:
     )
     response = await view(_upload_request())
     assert response.status_code == 201
+
+
+# --- AGH-1: view-level cross-owner scoping (the F6 plan's ask) ----------------
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_download_and_delete_are_cross_owner_scoped() -> None:
+    from asgiref.sync import sync_to_async
+
+    from django_ag_ui.contrib.store.default_attachment_store import DefaultAttachmentStore
+
+    store = DefaultAttachmentStore()
+    ref = await sync_to_async(store._save)(
+        SimpleUploadedFile("secret.txt", b"top secret", content_type="text/plain"), "A"
+    )
+    view = AttachmentsView(store)
+
+    def _req(method: str, pk: str) -> HttpRequest:
+        request: HttpRequest = getattr(RequestFactory(), method)(f"/agent/attachments/{ref.id}/")
+        request.user = SimpleNamespace(is_authenticated=True, pk=pk)  # type: ignore[attr-defined]
+        return request
+
+    # Owner A downloads their file; a different user B gets a 404 — never A's bytes.
+    assert (await view(_req("get", "A"), attachment_id=ref.id)).status_code == 200
+    assert (await view(_req("get", "B"), attachment_id=ref.id)).status_code == 404
+
+    # B's DELETE is owner-scoped too: it removes nothing, so A's file survives.
+    assert (await view(_req("delete", "B"), attachment_id=ref.id)).status_code == 204
+    assert (await view(_req("get", "A"), attachment_id=ref.id)).status_code == 200
+
+
+@override_settings(DJANGO_AG_UI={"ATTACHMENT_MAX_BYTES": 3})
+async def test_oversize_upload_is_aborted_before_reaching_the_store() -> None:
+    # AGH-3: the size guard aborts an oversized upload mid-parse, so the store's
+    # ``save`` is never called (the bytes never fully spool).
+    store = _FakeStore()
+    response = await AttachmentsView(store)(_upload_request(content=b"way too big"))
+    assert response.status_code == 413
+    assert store.saved == []
