@@ -1295,6 +1295,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AppSettings.allow_anonymous" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        allow_anonymous
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2681,6 +2692,17 @@
     <span class="md-ellipsis">
       
         service_specs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AppSettings.allow_anonymous" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        allow_anonymous
       
     </span>
   </a>
@@ -4425,7 +4447,10 @@ catalog down whenever the agent endpoint is locked down.</p>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">threads</span><span class="p">:</span> <span class="n">ConversationStore</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">attachments</span><span class="p">:</span> <span class="n">AttachmentStore</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">transcribe</span><span class="p">:</span> <span class="n">TranscriptionBackend</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">URLPattern</span><span class="p">]</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">require_authenticated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">get_user</span><span class="p">:</span> <span class="n">GetUser</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">authorize</span><span class="p">:</span> <span class="n">AuthorizePredicate</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">URLPattern</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -4440,26 +4465,36 @@ component's <code>data-tools-url</code> — friendly card labels for server-side
 <code>resolve_conversation_store(get_settings().conversation_store)</code>) is given,
 also mounts the <strong>thread index</strong> for the chat-history drawer
 (<code>data-threads-url</code>): <code>&lt;prefix&gt;threads/</code> (GET — owner-scoped metadata)
-and <code>&lt;prefix&gt;threads/&lt;id&gt;/</code> (GET messages, DELETE). Both default open like
-the catalogs — mount :class:<code>~django_ag_ui.persistence.threads_view.ThreadsView</code>
-yourself with <code>require_authenticated</code> / <code>get_user</code> to lock them down.</p>
+and <code>&lt;prefix&gt;threads/&lt;id&gt;/</code> (GET messages, <strong>PATCH rename</strong>, DELETE).</p>
 <p>When <code>attachments</code> (an
 :class:<code>~django_ag_ui.persistence.types.attachment_store.AttachmentStore</code>,
 e.g. <code>resolve_attachment_store(get_settings().attachment_store)</code>) is given,
 also mounts the <strong>file-upload endpoint</strong> for the composer's
 <code>data-attachments-url</code>: <code>&lt;prefix&gt;attachments/</code> (POST upload) and
-<code>&lt;prefix&gt;attachments/&lt;id&gt;/</code> (GET download, DELETE). Owner-scoped and open
-by default like the catalogs — mount
-:class:<code>~django_ag_ui.persistence.attachments_view.AttachmentsView</code> yourself
-to lock it down.</p>
+<code>&lt;prefix&gt;attachments/&lt;id&gt;/</code> (GET download, DELETE).</p>
 <p>When <code>transcribe</code> (a
 :class:<code>~django_ag_ui.persistence.types.transcription_backend.TranscriptionBackend</code>,
 e.g. <code>resolve_transcription_backend(get_settings().transcription_backend)</code>)
 is given, also mounts the <strong>voice-input endpoint</strong> for the composer's
-<code>data-transcribe-url</code>: <code>&lt;prefix&gt;transcribe/</code> (POST audio → <code>{"text"}</code>).
-Open by default like the catalogs — mount
-:class:<code>~django_ag_ui.persistence.transcribe_view.TranscribeView</code> yourself to
-lock it down.</p>
+<code>data-transcribe-url</code>: <code>&lt;prefix&gt;transcribe/</code> (POST audio → <code>{"text"}</code>).</p>
+<p><strong>Authentication seam.</strong> <code>require_authenticated</code> / <code>get_user</code> /
+<code>authorize</code> are forwarded to <strong>every</strong> sub-view this function constructs
+(skills, tools, threads, attachments, transcribe), so one policy locks down
+the whole mount: <code>require_authenticated=True</code> → <code>401</code> for anonymous
+requests, an <code>authorize</code> predicate → <code>403</code> for an established-but-forbidden
+user (a staff gate that returns JSON, not an HTML login redirect), and
+<code>get_user</code> establishes the acting user (sync or async). Configure the
+<strong>agent</strong> <code>view</code>'s own auth when you construct :class:<code>DjangoAGUIView</code> (it
+takes the same kwargs) — it is passed in pre-built. Everything defaults open
+for backwards compatibility; the endpoints are unauthenticated until you set
+these.</p>
+<p><strong>Anonymous scoping caveat.</strong> With the endpoints left open (the default) and
+a model-backed store, an anonymous request has no owner id. The reference
+contrib stores refuse anonymous thread / attachment operations unless
+<code>ALLOW_ANONYMOUS</code> is set (in which case they bucket per browser session) —
+so pass <code>require_authenticated=True</code> (or a <code>get_user</code> hook) whenever the
+store persists, rather than relying on owner scoping to isolate anonymous
+visitors from one another.</p>
 <p>Include the result from your project's root URLconf::</p>
 <div class="language-text highlight"><pre><span></span><code>urlpatterns = [
     ...,
@@ -5387,6 +5422,38 @@ the agent as tools via <code>djangorestframework-pydantic-ai</code>'s <code>Spec
 
 </div>
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.AppSettings.allow_anonymous" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">allow_anonymous</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.AppSettings.allow_anonymous" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">allow_anonymous</span><span class="p">:</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Whether the model-backed stores serve <strong>anonymous</strong> requests. <code>False</code>
+(default) makes them <strong>refuse</strong> anonymous thread / attachment operations
+(raising
+:class:<code>~django_ag_ui.persistence.anonymous_operation_error.AnonymousOperationError</code>,
+which the views turn into <code>403</code>) — rather than silently collapsing every
+anonymous visitor into one shared owner bucket, where they could read and
+delete each other's data. <code>True</code> opts in to anonymous use and buckets each
+request by its <code>request.session.session_key</code> (per browser session; needs
+session middleware). Authenticated requests are unaffected either way.</p>
+
+    </div>
+
+</div>
+
 
 
 
@@ -6117,11 +6184,14 @@ cheap thread list. Enable it by adding <code>"django_ag_ui.contrib.store"</code>
 <code>INSTALLED_APPS</code>, running <code>migrate</code>, and setting
 <code>DJANGO_AG_UI["CONVERSATION_STORE"]</code> to this class's dotted path. For a
 bespoke schema, subclass :class:<code>ModelConversationStore</code> instead.</p>
-<p>Owner scoping: <code>owner_id</code> is stored as <code>""</code> for anonymous requests (the
-<code>ModelConversationStore</code> base passes <code>None</code>), so the unique
-<code>(owner_id, thread_id)</code> constraint holds and every query filters by owner.
-Titles are derived from the first user message at first save and then left
-alone except by :meth:<code>_rename</code>; <code>preview</code> re-derives on every save.</p>
+<p>Owner scoping: every query filters by the <code>owner_id</code> the
+<code>ModelConversationStore</code> base resolves — the authenticated user's pk, or a
+per-browser <code>anon:&lt;session_key&gt;</code> bucket when
+<code>DJANGO_AG_UI["ALLOW_ANONYMOUS"]</code> is set (otherwise anonymous requests are
+refused rather than sharing one <code>""</code> bucket). The unique
+<code>(owner_id, thread_id)</code> constraint holds regardless. Titles are derived
+from the first user message at first save and then left alone except by
+:meth:<code>_rename</code>; <code>preview</code> re-derives on every save.</p>
 
 
 
@@ -6173,8 +6243,9 @@ alone except by :meth:<code>_rename</code>; <code>preview</code> re-derives on e
 <p>One row per <code>(owner_id, thread_id)</code>. <code>messages</code> holds the AG-UI message
 list as JSON (the same shape every store round-trips); <code>title</code> and
 <code>preview</code> are denormalised so the thread drawer's list query never loads
-message bodies, and <code>updated_at</code> orders it. <code>owner_id</code> is the acting
-user's id (<code>""</code> for anonymous) — the store always filters by it.</p>
+message bodies, and <code>updated_at</code> orders it. <code>owner_id</code> is the resolved
+owner (the user's pk, or an <code>anon:&lt;session_key&gt;</code> bucket under
+<code>ALLOW_ANONYMOUS</code>) — the store always filters by it, the security boundary.</p>
 <p>Used by
 :class:<code>~django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore</code>.
 Run lineage (<code>run_id</code> / step ledger) is intentionally out of scope here;
@@ -6629,11 +6700,14 @@ projects that don't opt in get no model and no migration.</p>
 it by adding <code>"django_ag_ui.contrib.store"</code> to <code>INSTALLED_APPS</code>, running
 <code>migrate</code>, and setting <code>DJANGO_AG_UI["ATTACHMENT_STORE"]</code> to this class's
 dotted path. For a bespoke schema, subclass :class:<code>ModelAttachmentStore</code>.</p>
-<p>Owner scoping: <code>owner_id</code> is stored as <code>""</code> for anonymous requests (the
-<code>ModelAttachmentStore</code> base passes <code>None</code>), so the unique
-<code>(owner_id, attachment_id)</code> constraint holds and every query filters by
-owner — one user's id never resolves another's file. The public
-<code>attachment_id</code> is an opaque UUID, kept separate from the storage filename.</p>
+<p>Owner scoping: every query filters by the <code>owner_id</code> the
+<code>ModelAttachmentStore</code> base resolves — the authenticated user's pk, or a
+per-browser <code>anon:&lt;session_key&gt;</code> bucket when
+<code>DJANGO_AG_UI["ALLOW_ANONYMOUS"]</code> is set (otherwise anonymous requests are
+refused rather than sharing one <code>""</code> bucket) — so one user's id never
+resolves another's file. The unique <code>(owner_id, attachment_id)</code> constraint
+holds regardless. The public <code>attachment_id</code> is an opaque UUID, kept
+separate from the storage filename.</p>
 
 
 
@@ -6686,8 +6760,9 @@ owner — one user's id never resolves another's file. The public
 holds the bytes via Django <code>Storage</code> (so S3 etc. come free through
 <code>STORAGES</code>/<code>DEFAULT_FILE_STORAGE</code>), while <code>name</code> / <code>mime</code> / <code>size</code>
 are the denormalised metadata returned without reading the file back.
-<code>owner_id</code> is the acting user's id (<code>""</code> for anonymous) — the store
-always filters by it, the security boundary. <code>thread_id</code> optionally ties an
+<code>owner_id</code> is the resolved owner (the user's pk, or an <code>anon:&lt;session_key&gt;</code>
+bucket under <code>ALLOW_ANONYMOUS</code>) — the store always filters by it, the
+security boundary. <code>thread_id</code> optionally ties an
 attachment to one conversation; it is left blank when a file is uploaded
 before a thread exists, so attachments never depend on a conversation row.</p>
 <p>Used by

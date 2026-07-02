@@ -640,6 +640,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#authentication-anonymous-scoping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication &amp; anonymous scoping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Authentication &amp; anonymous scoping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allow_anonymous" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ALLOW_ANONYMOUS
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -959,6 +987,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#authentication-anonymous-scoping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication &amp; anonymous scoping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Authentication &amp; anonymous scoping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allow_anonymous" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ALLOW_ANONYMOUS
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1131,6 +1187,12 @@ default, and what it does.</p>
 <td>dotted <code>str</code></td>
 <td><code>None</code></td>
 <td>drf-services specs mapping exposed as tools, no MCP hop (<code>[spec-tools]</code> extra).</td>
+</tr>
+<tr>
+<td><code>ALLOW_ANONYMOUS</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Whether the model-backed stores serve anonymous requests (see <a href="#authentication-anonymous-scoping">Authentication &amp; anonymous scoping</a>).</td>
 </tr>
 </tbody>
 </table>
@@ -1418,6 +1480,50 @@ when you already run one (or want MCP clients to share the tools).</p>
 </span></code></pre></div>
 <p>The spec tools' card labels are surfaced to the web component through the same
 <code>get_urls(view, tools=registry)</code> catalog (<code>data-tools-url</code>).</p>
+<h2 id="authentication-anonymous-scoping">Authentication &amp; anonymous scoping<a class="headerlink" href="#authentication-anonymous-scoping" title="Permanent link">&para;</a></h2>
+<p>The agent endpoint and every mounted sub-view (tools, skills, threads,
+attachments, transcribe) share <strong>one authentication seam</strong>, and it defaults
+<strong>open</strong> — an unauthenticated visitor can drive the agent and reach the stores.
+Lock a mount down by passing the seam to <code>get_urls</code> (it forwards to every
+sub-view it builds; give <code>DjangoAGUIView</code> the same kwargs for the agent
+endpoint):</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">DjangoAGUIView</span><span class="p">,</span> <span class="n">get_urls</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="n">view</span> <span class="o">=</span> <span class="n">DjangoAGUIView</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">require_authenticated</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    <span class="o">*</span><span class="n">get_urls</span><span class="p">(</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>        <span class="n">view</span><span class="p">,</span>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>        <span class="n">tools</span><span class="o">=</span><span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>        <span class="n">threads</span><span class="o">=</span><span class="n">store</span><span class="p">,</span>
+</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>        <span class="n">require_authenticated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>   <span class="c1"># 401 for anonymous requests</span>
+</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>        <span class="c1"># authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user</span>
+</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>        <span class="c1"># get_user=lambda r: token_user(r),     # establish the acting user</span>
+</span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>    <span class="p">),</span>
+</span><span id="__span-16-13"><a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="p">]</span>
+</span></code></pre></div>
+<ul>
+<li><strong><code>require_authenticated=True</code></strong> → an anonymous request gets <strong>401</strong> (JSON).</li>
+<li><strong><code>authorize=&lt;predicate&gt;</code></strong> runs after the user is established; a falsy return
+  gives <strong>403</strong> (JSON, never an HTML login redirect). Use it for a staff gate.</li>
+<li><strong><code>get_user=&lt;hook&gt;</code></strong> establishes <code>request.user</code> (sync or async — a sync ORM
+  token lookup runs off the event loop).</li>
+</ul>
+<h3 id="allow_anonymous"><code>ALLOW_ANONYMOUS</code><a class="headerlink" href="#allow_anonymous" title="Permanent link">&para;</a></h3>
+<p>Governs how the <strong>model-backed stores</strong> (<code>ModelConversationStore</code> /
+<code>ModelAttachmentStore</code> and the <code>contrib.store</code> reference implementations) treat
+anonymous requests. It exists because owner scoping alone can't isolate
+anonymous visitors from one another — they have no user id.</p>
+<ul>
+<li><strong><code>False</code> (default)</strong> — anonymous store operations are <strong>refused</strong>
+  (<code>AnonymousOperationError</code>, surfaced as <strong>403</strong> by the persistence views; the
+  agent endpoint's save path skips persistence so the run still streams). This
+  prevents every anonymous visitor from sharing one owner bucket and reading or
+  deleting each other's threads and attachments.</li>
+<li><strong><code>True</code></strong> — anonymous requests are bucketed per browser by
+  <code>request.session.session_key</code> (<code>anon:&lt;key&gt;</code>; requires session middleware).</li>
+</ul>
+<p>Whenever a store persists, prefer authenticating the endpoints
+(<code>require_authenticated=True</code> / <code>get_user</code>) over relying on <code>ALLOW_ANONYMOUS</code>.</p>
 
 
 
