@@ -5,6 +5,7 @@ from typing import Any, cast
 from asgiref.sync import markcoroutinefunction, sync_to_async
 from django.core.files.uploadedfile import UploadedFile
 from django.http import (
+    FileResponse,
     HttpRequest,
     HttpResponse,
     HttpResponseNotAllowed,
@@ -14,6 +15,7 @@ from django.http.response import HttpResponseBase
 
 from django_ag_ui.conf import get_settings
 from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
+from django_ag_ui.persistence.capped_upload_handler import CappedUploadHandler
 from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
 from django_ag_ui.persistence.types.attachment_ref import AttachmentRef
 from django_ag_ui.persistence.types.attachment_store import AttachmentStore
@@ -91,17 +93,26 @@ class AttachmentsView:
             return HttpResponseNotAllowed(["POST"])
         if isinstance(self._store, NullAttachmentStore):
             return JsonResponse({"error": "attachments are disabled"}, status=410)
-        # Parse the multipart body off the event loop — for a large upload Django
-        # spills it to a temp file, which is blocking I/O.
+        settings = get_settings()
+        # Insert the size guard *before* parsing so an oversized upload is aborted
+        # mid-stream — Django doesn't spool the whole body to a temp file first.
+        guard = CappedUploadHandler(settings.attachment_max_bytes)
+        request.upload_handlers.insert(0, guard)
+        # Parse the multipart body off the event loop — an in-cap upload may still
+        # spill to a temp file, which is blocking I/O.
         upload = await sync_to_async(_read_upload)(request)
+        if guard.exceeded:
+            return JsonResponse(
+                {"error": f"file exceeds the {settings.attachment_max_bytes}-byte limit"},
+                status=413,
+            )
         if upload is None:
             return JsonResponse(
                 {"error": "a single file under the 'file' field is required"}, status=400
             )
-        settings = get_settings()
-        rejection = _validate(
-            upload, settings.attachment_max_bytes, settings.attachment_allowed_types
-        )
+        # The size cap is enforced up-front by the guard; here only the
+        # (client-declared) content-type allowlist remains.
+        rejection = _validate_type(upload, settings.attachment_allowed_types)
         if rejection is not None:
             return rejection
         ref = await self._store.save(upload, request=request)
@@ -131,18 +142,14 @@ def _read_upload(request: HttpRequest) -> UploadedFile | None:
     return files[0]
 
 
-def _validate(
-    upload: UploadedFile, max_bytes: int, allowed_types: tuple[str, ...]
-) -> JsonResponse | None:
-    """Enforce the configured size cap + type allowlist; ``None`` when accepted.
+def _validate_type(upload: UploadedFile, allowed_types: tuple[str, ...]) -> JsonResponse | None:
+    """Enforce the content-type allowlist; ``None`` when accepted.
 
-    ``max_bytes`` of ``0`` disables the size cap; an empty ``allowed_types``
-    accepts any declared content type. The content type is client-declared, so
-    it is a coarse filter — the store decides what to do with the bytes.
+    An empty ``allowed_types`` accepts any declared content type. The content
+    type is client-declared, so it is a coarse filter — the store decides what to
+    do with the bytes. The size cap lives in :class:`CappedUploadHandler`, which
+    aborts an oversized upload before it is fully parsed.
     """
-    size = upload.size or 0
-    if max_bytes and size > max_bytes:
-        return JsonResponse({"error": f"file exceeds the {max_bytes}-byte limit"}, status=413)
     if allowed_types and (upload.content_type or "") not in allowed_types:
         return JsonResponse(
             {"error": f"content type {upload.content_type!r} is not allowed"}, status=415
@@ -158,11 +165,19 @@ def _ref_to_json(ref: AttachmentRef) -> dict[str, Any]:
     return data
 
 
-def _download_response(opened: OpenedAttachment) -> HttpResponse:
-    """Stream bytes back as a download — never inline, never content-sniffed."""
+def _download_response(opened: OpenedAttachment) -> HttpResponseBase:
+    """Stream the file back as a download — never inline, never content-sniffed.
+
+    ``FileResponse`` streams the open handle in chunks (and closes it), so a
+    large attachment is never buffered whole in memory.
+    """
     ref = opened.ref
-    response = HttpResponse(opened.content, content_type=ref.mime or "application/octet-stream")
-    response["Content-Disposition"] = f'attachment; filename="{_safe_filename(ref.name)}"'
+    response = FileResponse(
+        opened.content,
+        as_attachment=True,
+        filename=_safe_filename(ref.name),
+        content_type=ref.mime or "application/octet-stream",
+    )
     response["X-Content-Type-Options"] = "nosniff"
     return response
 

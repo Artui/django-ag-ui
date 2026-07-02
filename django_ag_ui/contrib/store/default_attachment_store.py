@@ -31,6 +31,9 @@ class DefaultAttachmentStore(ModelAttachmentStore):
 
     def _save(self, upload: UploadedFile, owner_id: str | None) -> AttachmentRef:
         attachment_id = uuid4().hex
+        # Django's ``UploadedFile`` already truncates ``name`` to 255 chars
+        # (preserving the extension), so it fits the model's ``CharField`` limit
+        # without a DB ``DataError``; ``_basename`` only strips any path.
         name = _basename(upload.name)
         mime = upload.content_type or ""
         size = upload.size or 0
@@ -53,11 +56,12 @@ class DefaultAttachmentStore(ModelAttachmentStore):
         ).first()
         if row is None:
             return None
-        with row.file.open("rb") as handle:
-            content = handle.read()
+        # Hand back the open storage handle rather than reading the whole file:
+        # ``FileResponse`` (download) and the tool's ``with`` block both stream /
+        # close it, so a large attachment never lands in memory whole (AGH-3).
         return OpenedAttachment(
             ref=AttachmentRef(id=row.attachment_id, name=row.name, mime=row.mime, size=row.size),
-            content=content,
+            content=row.file.open("rb"),
         )
 
     def _remove(self, attachment_id: str, owner_id: str | None) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 from typing import Any
 
 from django.http import HttpRequest
@@ -28,7 +29,7 @@ def _read_attachment(store: Any, request: HttpRequest) -> Any:
 
 def _opened(mime: str, content: bytes, *, name: str = "f", size: int = 3) -> OpenedAttachment:
     return OpenedAttachment(
-        ref=AttachmentRef(id="a1", name=name, mime=mime, size=size), content=content
+        ref=AttachmentRef(id="a1", name=name, mime=mime, size=size), content=io.BytesIO(content)
     )
 
 

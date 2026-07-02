@@ -12,11 +12,17 @@ from django.http import (
 )
 from django.http.response import HttpResponseBase
 
+from django_ag_ui.conf import get_settings
 from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
 from django_ag_ui.persistence.types.conversation_meta import ConversationMeta
 from django_ag_ui.persistence.types.conversation_store import ConversationStore
 from django_ag_ui.persistence.utils import messages_to_jsonable
 from django_ag_ui.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
+
+# The model stores back ``title`` with ``CharField(max_length=255)``; cap the
+# rename here (truncate — a title is cosmetic) so an over-long PATCH is a clean
+# save on every backend rather than a ``DataError`` on a strict database.
+_MAX_TITLE_LEN = 255
 
 
 class ThreadsView:
@@ -82,7 +88,8 @@ class ThreadsView:
     async def _list(self, request: HttpRequest) -> HttpResponseBase:
         if request.method != "GET":
             return HttpResponseNotAllowed(["GET"])
-        metas = await self._store.list(request=request)
+        limit = _effective_limit(request)
+        metas = await self._store.list(request=request, limit=limit)
         return JsonResponse({"threads": [_meta_to_json(meta) for meta in metas]})
 
     async def _detail(self, request: HttpRequest, thread_id: str) -> HttpResponseBase:
@@ -107,9 +114,10 @@ class ThreadsView:
         title = _parse_title(request)
         if title is None:
             return JsonResponse({"error": "a non-empty 'title' is required"}, status=400)
-        # Load first so a missing / cross-owner thread is a 404 rather than a
-        # silent rename of nothing.
-        if await self._store.load(thread_id, request=request) is None:
+        # Probe existence (metadata only) so a missing / cross-owner thread is a
+        # 404 rather than a silent rename of nothing — without deserializing the
+        # whole message body just to answer.
+        if not await self._store.exists(thread_id, request=request):
             return JsonResponse({"error": "not found"}, status=404)
         await self._store.rename(thread_id, title, request=request)
         return JsonResponse({"thread_id": thread_id, "title": title})
@@ -126,15 +134,34 @@ def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
 
 
 def _parse_title(request: HttpRequest) -> str | None:
-    """The stripped, non-empty ``title`` from a JSON PATCH body, else ``None``."""
+    """The stripped, capped, non-empty ``title`` from a JSON PATCH body, else ``None``."""
     try:
         body = json.loads(request.body)
     except (ValueError, TypeError):
         return None
     title = body.get("title") if isinstance(body, dict) else None
     if isinstance(title, str) and title.strip():
-        return title.strip()
+        return title.strip()[:_MAX_TITLE_LEN]
     return None
+
+
+def _effective_limit(request: HttpRequest) -> int:
+    """The thread-list cap for this request: ``?limit`` clamped to the setting.
+
+    A missing / non-positive / non-integer ``?limit`` falls back to the configured
+    ceiling; a larger one is clamped down to it, so the response is always bounded.
+    """
+    cap = get_settings().thread_list_limit
+    raw = request.GET.get("limit")
+    if raw is None:
+        return cap
+    try:
+        requested = int(raw)
+    except (TypeError, ValueError):
+        return cap
+    if requested < 1:
+        return cap
+    return min(requested, cap)
 
 
 __all__ = ["ThreadsView"]

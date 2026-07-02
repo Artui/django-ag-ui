@@ -37,7 +37,7 @@ def test_fetch_missing_returns_none() -> None:
 def test_store_denormalizes_title_and_preview() -> None:
     store = DefaultConversationStore()
     store._store(_conv(text="book a flight"), "7")
-    (meta,) = store._list("7")
+    (meta,) = store._list("7", None)
     assert meta.thread_id == "t1"
     assert meta.title == "book a flight"
     assert meta.preview == "book a flight"
@@ -50,7 +50,7 @@ def test_list_is_owner_scoped() -> None:
     store._store(_conv("t1"), "7")
     store._store(_conv("t2"), "7")
     store._store(_conv("t3"), "99")  # a different owner
-    assert {meta.thread_id for meta in store._list("7")} == {"t1", "t2"}
+    assert {meta.thread_id for meta in store._list("7", None)} == {"t1", "t2"}
 
 
 def test_resave_preserves_title_and_refreshes_preview() -> None:
@@ -67,7 +67,7 @@ def test_resave_preserves_title_and_refreshes_preview() -> None:
         ),
         "7",
     )
-    (meta,) = store._list("7")
+    (meta,) = store._list("7", None)
     assert meta.title == "book a flight"  # title frozen at first message
     assert meta.preview == "actually, cancel it"  # preview follows the latest
 
@@ -76,7 +76,7 @@ def test_rename_updates_title() -> None:
     store = DefaultConversationStore()
     store._store(_conv(), "7")
     store._rename("t1", "Trip planning", "7")
-    (meta,) = store._list("7")
+    (meta,) = store._list("7", None)
     assert meta.title == "Trip planning"
 
 
@@ -94,5 +94,21 @@ def test_anonymous_owner_normalized_to_empty_string() -> None:
     assert fetched is not None
     assert fetched.owner_id is None  # stored "" maps back to None
     assert StoredConversation.objects.get(thread_id="t1").owner_id == ""
-    (meta,) = store._list(None)
+    (meta,) = store._list(None, None)
     assert meta.owner_id is None
+
+
+def test_list_applies_limit() -> None:
+    store = DefaultConversationStore()
+    for i in range(5):
+        store._store(_conv(f"t{i}"), "7")
+    assert len(store._list("7", 2)) == 2
+    assert len(store._list("7", None)) == 5
+
+
+def test_exists_is_owner_scoped_and_reads_no_body() -> None:
+    store = DefaultConversationStore()
+    store._store(_conv("t1"), "7")
+    assert store._exists("t1", "7") is True
+    assert store._exists("t1", "99") is False  # a different owner
+    assert store._exists("absent", "7") is False

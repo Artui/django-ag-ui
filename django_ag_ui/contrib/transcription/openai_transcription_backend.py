@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from asgiref.sync import sync_to_async
 from django.core.files.uploadedfile import UploadedFile
 from django.http import HttpRequest
@@ -32,6 +34,17 @@ class OpenAITranscriptionBackend:
     model: str = "whisper-1"
     #: Optional base URL for an OpenAI-compatible endpoint (``None`` → OpenAI).
     base_url: str | None = None
+    #: Per-request timeout (seconds) for the transcription call. The SDK default
+    #: is 10 minutes; a bounded default keeps a stalled upstream from pinning a
+    #: worker. Override on a subclass for slower endpoints.
+    timeout: float | None = 60.0
+
+    def __init__(self) -> None:
+        # The client (and its HTTP connection pool) is cached on the instance —
+        # the ``TranscribeView`` holds one backend per process — so a new session
+        # isn't built per request. Typed ``Any``: ``AsyncOpenAI`` is an optional
+        # dependency imported lazily.
+        self._client: Any = None
 
     async def transcribe(self, audio: UploadedFile, *, request: HttpRequest) -> str:
         try:
@@ -44,8 +57,9 @@ class OpenAITranscriptionBackend:
         # Read the bytes off the event loop — a large recording may be spooled to
         # a temp file, so the read is blocking I/O.
         data = await sync_to_async(audio.read)()
-        client = AsyncOpenAI(base_url=self.base_url)
-        result = await client.audio.transcriptions.create(
+        if self._client is None:
+            self._client = AsyncOpenAI(base_url=self.base_url, timeout=self.timeout)
+        result = await self._client.audio.transcriptions.create(
             model=self.model,
             file=(audio.name or "audio", data, audio.content_type or "application/octet-stream"),
         )

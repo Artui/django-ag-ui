@@ -31,12 +31,19 @@ class _FakeStore:
         self.conversations = conversations or {}
         self.deleted: list[str] = []
         self.renamed: list[tuple[str, str]] = []
+        self.received_limit: int | None = None
 
-    async def list(self, *, request: HttpRequest) -> list[ConversationMeta]:
-        return self.metas
+    async def list(
+        self, *, request: HttpRequest, limit: int | None = None
+    ) -> list[ConversationMeta]:
+        self.received_limit = limit
+        return self.metas[:limit] if limit is not None else self.metas
 
     async def load(self, thread_id: str, *, request: HttpRequest) -> Conversation | None:
         return self.conversations.get(thread_id)
+
+    async def exists(self, thread_id: str, *, request: HttpRequest) -> bool:
+        return thread_id in self.conversations
 
     async def delete(self, thread_id: str, *, request: HttpRequest) -> None:
         self.deleted.append(thread_id)
@@ -94,7 +101,9 @@ async def test_detail_get_returns_messages() -> None:
 
 async def test_anonymous_operation_refused_is_403() -> None:
     class _RefusingStore(_FakeStore):
-        async def list(self, *, request: HttpRequest) -> list[ConversationMeta]:
+        async def list(
+            self, *, request: HttpRequest, limit: int | None = None
+        ) -> list[ConversationMeta]:
             raise AnonymousOperationError("anonymous refused")
 
     response = await ThreadsView(_RefusingStore())(RequestFactory().get("/agent/threads/"))
@@ -216,3 +225,59 @@ async def test_round_trips_against_the_session_store() -> None:
     detail = await view(request, thread_id="t1")
     assert _body(detail)["thread_id"] == "t1"
     assert [m["id"] for m in _body(detail)["messages"]] == ["u1"]
+
+
+# --- AGH-1: title cap, thread-list limit, existence probe --------------------
+
+
+async def test_rename_truncates_an_over_long_title() -> None:
+    store = _FakeStore(conversations={"t1": Conversation(thread_id="t1")})
+    request = RequestFactory().patch(
+        "/agent/threads/t1/", data={"title": "x" * 300}, content_type="application/json"
+    )
+    response = await ThreadsView(store)(request, thread_id="t1")
+    assert response.status_code == 200
+    assert store.renamed == [("t1", "x" * 255)]
+    assert _body(response)["title"] == "x" * 255
+
+
+async def test_list_defaults_to_the_configured_limit(settings) -> None:
+    settings.DJANGO_AG_UI = {"THREAD_LIST_LIMIT": 2}
+    store = _FakeStore(metas=[ConversationMeta(thread_id=f"t{i}", title=f"t{i}") for i in range(5)])
+    response = await ThreadsView(store)(RequestFactory().get("/agent/threads/"))
+    assert store.received_limit == 2
+    assert len(_body(response)["threads"]) == 2
+
+
+async def test_list_query_limit_is_clamped_to_the_ceiling(settings) -> None:
+    settings.DJANGO_AG_UI = {"THREAD_LIST_LIMIT": 2}
+    store = _FakeStore(metas=[ConversationMeta(thread_id=f"t{i}", title=f"t{i}") for i in range(5)])
+    # A smaller ``?limit`` is honored; a larger one is clamped down to the cap.
+    await ThreadsView(store)(RequestFactory().get("/agent/threads/?limit=1"))
+    assert store.received_limit == 1
+    await ThreadsView(store)(RequestFactory().get("/agent/threads/?limit=99"))
+    assert store.received_limit == 2
+
+
+async def test_list_ignores_a_non_positive_or_garbage_limit(settings) -> None:
+    settings.DJANGO_AG_UI = {"THREAD_LIST_LIMIT": 3}
+    store = _FakeStore()
+    for bad in ("0", "-4", "abc"):
+        await ThreadsView(store)(RequestFactory().get(f"/agent/threads/?limit={bad}"))
+        assert store.received_limit == 3
+
+
+async def test_rename_probes_exists_without_loading_the_body() -> None:
+    # A store whose ``load`` would blow up but whose ``exists`` answers cheaply:
+    # the rename must consult ``exists`` only, never deserialize the thread.
+    class _NoLoadStore(_FakeStore):
+        async def load(self, thread_id: str, *, request: HttpRequest) -> Conversation | None:
+            raise AssertionError("rename must not load the full conversation body")
+
+    store = _NoLoadStore(conversations={"t1": Conversation(thread_id="t1")})
+    request = RequestFactory().patch(
+        "/agent/threads/t1/", data={"title": "Renamed"}, content_type="application/json"
+    )
+    response = await ThreadsView(store)(request, thread_id="t1")
+    assert response.status_code == 200
+    assert store.renamed == [("t1", "Renamed")]

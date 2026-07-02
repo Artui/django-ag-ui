@@ -21,6 +21,7 @@ default, and what it does.
 | `TOOLSETS` | `tuple[str, ...]` | `()` | Extra Pydantic-AI toolsets. |
 | `CAPABILITIES` | `tuple[str, ...]` | `()` | Pydantic-AI capabilities. |
 | `CONVERSATION_STORE` | dotted `str` | `None` | Server-side conversation persistence. |
+| `THREAD_LIST_LIMIT` | `int` | `200` | Max threads the index endpoint returns per call; `?limit=N` requests fewer, a larger value is clamped down. |
 | `ATTACHMENT_STORE` | dotted `str` | `None` | Server-side file-upload storage (uploads off when unset). |
 | `ATTACHMENT_MAX_BYTES` | `int` | `10485760` | Max accepted upload size in bytes (`0` disables the cap). |
 | `ATTACHMENT_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed upload content types (empty = any). |

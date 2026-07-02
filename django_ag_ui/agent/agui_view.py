@@ -266,10 +266,18 @@ class DjangoAGUIView:
         factory = resolve_agent_factory(settings.agent_factory)
         if factory is not None:
             return factory(self._registry, settings)
+        # One name set threaded through every toolset builder so runtime
+        # exclusion matches ``build_tool_catalog``'s dedup precedence exactly:
+        # registry → drf-mcp → spec → attachment. Each builder excludes names
+        # already claimed and reserves its own, so a name exposed by two sources
+        # (e.g. ``DRF_MCP_SERVER`` and ``SERVICE_SPECS`` both defining ``foo``, or
+        # either defining ``read_attachment``) can't reach pydantic-ai as a
+        # duplicate and raise ``UserError`` mid-run while the catalog looks clean.
+        seen: set[str] = {binding.spec.name for binding in self._registry}
         toolsets = resolve_dotted_instances(settings.toolsets)
-        toolsets += self._drf_mcp_toolsets(settings.drf_mcp_server, request)
-        toolsets += self._spec_toolsets(settings.service_specs, request)
-        toolsets += self._attachment_toolsets(settings.attachment_store, request)
+        toolsets += self._drf_mcp_toolsets(settings.drf_mcp_server, request, seen)
+        toolsets += self._spec_toolsets(settings.service_specs, request, seen)
+        toolsets += self._attachment_toolsets(settings.attachment_store, request, seen)
         return build_agent(
             self._registry,
             AgentConfig(
@@ -283,53 +291,63 @@ class DjangoAGUIView:
             ),
         )
 
-    def _drf_mcp_toolsets(self, dotted_path: str | None, request: HttpRequest) -> list[Any]:
+    def _drf_mcp_toolsets(
+        self, dotted_path: str | None, request: HttpRequest, seen: set[str]
+    ) -> list[Any]:
         """Build the per-request drf-mcp toolset, or ``[]`` when not configured.
 
         Imported lazily so ``rest_framework_mcp`` stays an optional extra; the
         toolset carries ``request`` so the agent acts as the logged-in user.
+        Excludes names already in ``seen`` (registry tools win) and reserves the
+        server's own tool names into ``seen`` — the full ``server.tools.all()``
+        registry, the same source ``build_tool_catalog`` dedups against — so a
+        later spec / attachment toolset can't expose a duplicate.
         """
         if dotted_path is None:
             return []
         from django_ag_ui.integrations.drf_mcp import DrfMcpToolset
 
         server = import_string(dotted_path)
-        # "Registry tools win" on name collisions — the same rule
-        # ``build_tool_catalog`` applies. Without the exclusion, pydantic-ai
-        # raises ``UserError`` at run time for the duplicate name: a clean
-        # catalog but a broken agent.
-        registered = frozenset(binding.spec.name for binding in self._registry)
-        return [DrfMcpToolset(server, request, exclude_names=registered)]
+        toolset = DrfMcpToolset(server, request, exclude_names=frozenset(seen))
+        seen.update(binding.name for binding in server.tools.all())
+        return [toolset]
 
-    def _spec_toolsets(self, dotted_path: str | None, request: HttpRequest) -> list[Any]:
+    def _spec_toolsets(
+        self, dotted_path: str | None, request: HttpRequest, seen: set[str]
+    ) -> list[Any]:
         """Build the per-request drf-services `SpecToolset`, or `[]` when not set.
 
         Imported lazily so `djangorestframework-pydantic-ai` (and drf-services)
         stay an optional `[spec-tools]` extra; the toolset carries `request` so
-        the agent acts as the logged-in user. Registry tool names are excluded so
-        a `@tool` wins a collision (same rule as the drf-mcp bridge).
+        the agent acts as the logged-in user. Excludes names already in ``seen``
+        (registry + drf-mcp win the collision) and reserves the spec names so the
+        attachment toolset that follows can't shadow one.
         """
         if dotted_path is None:
             return []
         from django_ag_ui.integrations.build_spec_toolset import build_spec_toolset
 
         specs = import_string(dotted_path)
-        registered = frozenset(binding.spec.name for binding in self._registry)
-        return [build_spec_toolset(specs, request, exclude_names=registered)]
+        toolset = build_spec_toolset(specs, request, exclude_names=frozenset(seen))
+        seen.update(specs)
+        return [toolset]
 
-    def _attachment_toolsets(self, dotted_path: str | None, request: HttpRequest) -> list[Any]:
+    def _attachment_toolsets(
+        self, dotted_path: str | None, request: HttpRequest, seen: set[str]
+    ) -> list[Any]:
         """Build the per-request ``read_attachment`` toolset, or ``[]`` when off.
 
         Returns an empty list when uploads are disabled (the default
-        ``NullAttachmentStore``) or when a registry tool already owns the
-        ``read_attachment`` name (registry tools win, the same rule the drf-mcp
-        bridge applies) — otherwise pydantic-ai raises ``UserError`` for the
-        duplicate name at run time. The toolset carries ``request`` so the model
-        reads only the acting user's files.
+        ``NullAttachmentStore``) or when ``read_attachment`` is already claimed by
+        a registry / drf-mcp / spec tool (those win, the same precedence
+        ``build_tool_catalog`` applies) — otherwise pydantic-ai raises
+        ``UserError`` for the duplicate name at run time. The toolset carries
+        ``request`` so the model reads only the acting user's files.
         """
         store = resolve_attachment_store(dotted_path)
-        if isinstance(store, NullAttachmentStore) or "read_attachment" in self._registry:
+        if isinstance(store, NullAttachmentStore) or "read_attachment" in seen:
             return []
+        seen.add("read_attachment")
         return [build_attachment_toolset(store, request)]
 
     async def _authorize(self, request: HttpRequest) -> int | None:

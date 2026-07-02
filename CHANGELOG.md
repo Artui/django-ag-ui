@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-07-02
+
+### Added
+
+- **Thread-index cap + `?limit` (AGH-1).** `GET threads/` returns at most
+  `DJANGO_AG_UI["THREAD_LIST_LIMIT"]` rows (default 200); the client may request
+  fewer via `?limit=N` and a larger value is clamped to the ceiling, so a user
+  with thousands of threads no longer fetches and serializes all of them per
+  drawer open. `ConversationStore.list` gains a `limit` argument.
+- **`ConversationStore.exists()` (AGH-1).** A cheap owner-scoped presence check
+  (no message body loaded). The rename endpoint now probes it instead of loading
+  and deserializing the whole thread just to 404. Model-backed stores answer with
+  a metadata-only `.exists()` query.
+
+### Changed (breaking)
+
+- **`OpenedAttachment.content` is now an open readable stream, not `bytes`
+  (AGH-3).** Downloads stream the file via `FileResponse` instead of buffering it
+  whole in memory, so a large attachment (with the size cap disabled) no longer
+  lands in memory. `AttachmentStore.open` returns the open handle; the download
+  view and the `read_attachment` tool consume/close it. A custom
+  `AttachmentStore` that built `OpenedAttachment(content=<bytes>)` must now pass a
+  readable binary handle.
+- **`ConversationStore` gains required `exists()` and a `limit` on `list()`.** A
+  custom store implementation must add `exists()` and accept `limit=` on `list()`.
+
+### Fixed
+
+- **Rename / upload title & filename caps (AGH-1).** A `PATCH threads/<id>/`
+  title longer than the model's `CharField(max_length=255)` is truncated rather
+  than raising a database `DataError` on a strict backend. (Uploaded filenames
+  were already truncated to 255 by Django's `UploadedFile`.)
+- **Cross-toolset name-collision guard (AGH-2).** The drf-mcp, `SpecToolset`, and
+  `read_attachment` toolset builders previously each excluded only the `@tool`
+  registry's names, so if `DRF_MCP_SERVER` and `SERVICE_SPECS` exposed the same
+  tool name (or either exposed `read_attachment`), pydantic-ai raised a duplicate
+  `UserError` mid-run while the catalog looked clean. One `seen` set is now
+  threaded through all three builders in `build_tool_catalog`'s precedence order
+  (registry → drf-mcp → spec → attachment) so a duplicate can't reach the run.
+- **Early upload abort (AGH-3).** A `CappedUploadHandler` aborts an oversized
+  upload mid-parse (honoring `ATTACHMENT_MAX_BYTES`) instead of spooling the whole
+  body to a temp file before the 413.
+- **Transcription client reuse + timeout (AGH-3).** `OpenAITranscriptionBackend`
+  caches its `AsyncOpenAI` client on the instance rather than constructing one
+  (with a new connection pool) per call, and sets a bounded default `timeout`
+  (60 s, overridable) instead of the SDK's 10-minute default.
+
 ## [0.10.0] — 2026-07-02
 
 ### Added
@@ -377,7 +424,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/Artui/django-ag-ui/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Artui/django-ag-ui/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Artui/django-ag-ui/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Artui/django-ag-ui/compare/v0.7.0...v0.8.0

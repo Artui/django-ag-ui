@@ -27,9 +27,11 @@ class _FakeClient:
 
     calls: list[dict[str, Any]] = []
     init_kwargs: dict[str, Any] = {}
+    constructed: int = 0
 
     def __init__(self, **kwargs: Any) -> None:
         _FakeClient.init_kwargs = kwargs
+        _FakeClient.constructed += 1
         self.audio = SimpleNamespace(transcriptions=_FakeTranscriptions(_FakeClient.calls))
 
 
@@ -48,8 +50,9 @@ async def test_transcribes_via_the_openai_client(monkeypatch: pytest.MonkeyPatch
     text = await OpenAITranscriptionBackend().transcribe(_audio(), request=_request())
 
     assert text == "the transcript"
-    # Default model + no base_url; the audio rides as a (name, bytes, mime) tuple.
-    assert _FakeClient.init_kwargs == {"base_url": None}
+    # Default model + no base_url + the bounded default timeout; the audio rides
+    # as a (name, bytes, mime) tuple.
+    assert _FakeClient.init_kwargs == {"base_url": None, "timeout": 60.0}
     (call,) = _FakeClient.calls
     assert call["model"] == "whisper-1"
     assert call["file"] == ("clip.webm", b"audio-bytes", "audio/webm")
@@ -65,8 +68,35 @@ async def test_subclass_overrides_model_and_base_url(monkeypatch: pytest.MonkeyP
 
     await GroqTranscription().transcribe(_audio(), request=_request())
 
-    assert _FakeClient.init_kwargs == {"base_url": "https://api.groq.com/openai/v1"}
+    assert _FakeClient.init_kwargs == {
+        "base_url": "https://api.groq.com/openai/v1",
+        "timeout": 60.0,
+    }
     assert _FakeClient.calls[0]["model"] == "whisper-large-v3"
+
+
+async def test_client_is_cached_across_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    _FakeClient.calls = []
+    _FakeClient.constructed = 0
+    monkeypatch.setattr("openai.AsyncOpenAI", _FakeClient)
+
+    backend = OpenAITranscriptionBackend()
+    await backend.transcribe(_audio(), request=_request())
+    await backend.transcribe(_audio(), request=_request())
+
+    # One client for both calls — the session/pool is reused, not rebuilt.
+    assert _FakeClient.constructed == 1
+    assert len(_FakeClient.calls) == 2
+
+
+async def test_timeout_is_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("openai.AsyncOpenAI", _FakeClient)
+
+    class SlowEndpoint(OpenAITranscriptionBackend):
+        timeout = 5.0
+
+    await SlowEndpoint().transcribe(_audio(), request=_request())
+    assert _FakeClient.init_kwargs["timeout"] == 5.0
 
 
 async def test_missing_openai_dependency_raises_a_clear_error(

@@ -53,7 +53,11 @@ def build_attachment_toolset(store: AttachmentStore, request: HttpRequest) -> Fu
 def _render(opened: OpenedAttachment) -> str:
     """Decoded text for a textual attachment, else a one-line binary manifest."""
     ref = opened.ref
-    text = _as_text(opened.content, ref.mime)
+    # The tool needs the whole content to decode / classify; read it under a
+    # ``with`` so the streaming handle is always closed.
+    with opened.content as handle:
+        data = handle.read()
+    text = _as_text(data, ref.mime)
     if text is not None:
         return text
     return (

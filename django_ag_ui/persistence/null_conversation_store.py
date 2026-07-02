@@ -23,8 +23,11 @@ class NullConversationStore:
     async def delete(self, thread_id: str, *, request: HttpRequest) -> None:
         return None
 
-    async def list(self, *, request: HttpRequest) -> ConversationMetaList:
+    async def list(self, *, request: HttpRequest, limit: int | None = None) -> ConversationMetaList:
         return []
+
+    async def exists(self, thread_id: str, *, request: HttpRequest) -> bool:
+        return False
 
     async def rename(self, thread_id: str, title: str, *, request: HttpRequest) -> None:
         return None
