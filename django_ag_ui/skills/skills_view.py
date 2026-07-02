@@ -7,7 +7,7 @@ from django.http import HttpRequest, HttpResponseNotAllowed, JsonResponse
 from django.http.response import HttpResponseBase
 
 from django_ag_ui.skills.skill_registry import SkillRegistry
-from django_ag_ui.utils import authorize
+from django_ag_ui.utils import AuthorizePredicate, auth_error_response, authorize
 
 
 class SkillsView:
@@ -33,20 +33,24 @@ class SkillsView:
         get_user: Callable[[HttpRequest], Any]
         | Callable[[HttpRequest], Awaitable[Any]]
         | None = None,
+        authorize: AuthorizePredicate | None = None,
     ) -> None:
         self._registry = registry
         self._require_authenticated = require_authenticated
         self._get_user = get_user
+        self._authorize_predicate = authorize
 
     def __call__(self, request: HttpRequest) -> HttpResponseBase:
         if request.method != "GET":
             return HttpResponseNotAllowed(["GET"])
-        if not authorize(
+        deny = authorize(
             request,
             get_user=self._get_user,
             require_authenticated=self._require_authenticated,
-        ):
-            return JsonResponse({"error": "authentication required"}, status=401)
+            authorize=self._authorize_predicate,
+        )
+        if deny is not None:
+            return auth_error_response(deny)
         return JsonResponse(self._registry.payload(), safe=False)
 
 

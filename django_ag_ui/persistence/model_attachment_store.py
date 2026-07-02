@@ -8,7 +8,7 @@ from django.http import HttpRequest
 
 from django_ag_ui.persistence.types.attachment_ref import AttachmentRef
 from django_ag_ui.persistence.types.opened_attachment import OpenedAttachment
-from django_ag_ui.persistence.utils import owner_id_for
+from django_ag_ui.persistence.utils import resolve_owner_id
 
 
 class ModelAttachmentStore(ABC):
@@ -36,13 +36,25 @@ class ModelAttachmentStore(ABC):
     """
 
     async def save(self, upload: UploadedFile, *, request: HttpRequest) -> AttachmentRef:
-        return await sync_to_async(self._save)(upload, owner_id_for(request))
+        return await sync_to_async(self._save_scoped)(upload, request)
 
     async def open(self, attachment_id: str, *, request: HttpRequest) -> OpenedAttachment | None:
-        return await sync_to_async(self._open)(attachment_id, owner_id_for(request))
+        return await sync_to_async(self._open_scoped)(attachment_id, request)
 
     async def delete(self, attachment_id: str, *, request: HttpRequest) -> None:
-        await sync_to_async(self._remove)(attachment_id, owner_id_for(request))
+        await sync_to_async(self._remove_scoped)(attachment_id, request)
+
+    # Owner resolution + the sync op run in one thread (``resolve_owner_id`` may
+    # create a session row for the anonymous bucket, so it can't run on the event
+    # loop). ``AnonymousOperationError`` propagates up to the view (→ 403).
+    def _save_scoped(self, upload: UploadedFile, request: HttpRequest) -> AttachmentRef:
+        return self._save(upload, resolve_owner_id(request))
+
+    def _open_scoped(self, attachment_id: str, request: HttpRequest) -> OpenedAttachment | None:
+        return self._open(attachment_id, resolve_owner_id(request))
+
+    def _remove_scoped(self, attachment_id: str, request: HttpRequest) -> None:
+        self._remove(attachment_id, resolve_owner_id(request))
 
     @abstractmethod
     def _save(self, upload: UploadedFile, owner_id: str | None) -> AttachmentRef: ...

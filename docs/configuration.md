@@ -30,6 +30,7 @@ default, and what it does.
 | `TRANSCRIPTION_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed audio content types (empty = any). |
 | `DRF_MCP_SERVER` | dotted `str` | `None` | drf-mcp server whose tools the agent gets. |
 | `SERVICE_SPECS` | dotted `str` | `None` | drf-services specs mapping exposed as tools, no MCP hop (`[spec-tools]` extra). |
+| `ALLOW_ANONYMOUS` | `bool` | `False` | Whether the model-backed stores serve anonymous requests (see [Authentication & anonymous scoping](#authentication-anonymous-scoping)). |
 
 ## `MODEL`
 
@@ -398,3 +399,52 @@ DJANGO_AG_UI = {"SERVICE_SPECS": "myproject.specs.SPECS"}
 
 The spec tools' card labels are surfaced to the web component through the same
 `get_urls(view, tools=registry)` catalog (`data-tools-url`).
+
+## Authentication & anonymous scoping
+
+The agent endpoint and every mounted sub-view (tools, skills, threads,
+attachments, transcribe) share **one authentication seam**, and it defaults
+**open** — an unauthenticated visitor can drive the agent and reach the stores.
+Lock a mount down by passing the seam to `get_urls` (it forwards to every
+sub-view it builds; give `DjangoAGUIView` the same kwargs for the agent
+endpoint):
+
+```python
+from django_ag_ui import DjangoAGUIView, get_urls
+
+view = DjangoAGUIView(registry, require_authenticated=True)
+urlpatterns = [
+    *get_urls(
+        view,
+        tools=registry,
+        threads=store,
+        require_authenticated=True,   # 401 for anonymous requests
+        # authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user
+        # get_user=lambda r: token_user(r),     # establish the acting user
+    ),
+]
+```
+
+- **`require_authenticated=True`** → an anonymous request gets **401** (JSON).
+- **`authorize=<predicate>`** runs after the user is established; a falsy return
+  gives **403** (JSON, never an HTML login redirect). Use it for a staff gate.
+- **`get_user=<hook>`** establishes `request.user` (sync or async — a sync ORM
+  token lookup runs off the event loop).
+
+### `ALLOW_ANONYMOUS`
+
+Governs how the **model-backed stores** (`ModelConversationStore` /
+`ModelAttachmentStore` and the `contrib.store` reference implementations) treat
+anonymous requests. It exists because owner scoping alone can't isolate
+anonymous visitors from one another — they have no user id.
+
+- **`False` (default)** — anonymous store operations are **refused**
+  (`AnonymousOperationError`, surfaced as **403** by the persistence views; the
+  agent endpoint's save path skips persistence so the run still streams). This
+  prevents every anonymous visitor from sharing one owner bucket and reading or
+  deleting each other's threads and attachments.
+- **`True`** — anonymous requests are bucketed per browser by
+  `request.session.session_key` (`anon:<key>`; requires session middleware).
+
+Whenever a store persists, prefer authenticating the endpoints
+(`require_authenticated=True` / `get_user`) over relying on `ALLOW_ANONYMOUS`.

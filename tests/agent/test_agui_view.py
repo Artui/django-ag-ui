@@ -295,6 +295,27 @@ async def test_conversation_is_persisted_when_a_store_is_configured() -> None:
     assert len(loaded.messages) >= 1
 
 
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    DJANGO_AG_UI={
+        "CONVERSATION_STORE": (
+            "django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore"
+        ),
+    },
+)
+async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
+    # An open agent endpoint + a model store that refuses anonymous writes (the
+    # default, no ALLOW_ANONYMOUS): the run streams to completion and the save is
+    # skipped rather than crashing the stream — no row is written.
+    from django_ag_ui.contrib.store.models import StoredConversation
+
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    response = await view(_post(_run_input("double 5")))  # anonymous request
+    body = await _drain(response)
+    assert "RUN_FINISHED" in body
+    assert await StoredConversation.objects.acount() == 0
+
+
 async def test_drf_mcp_toolset_built_per_request_when_configured() -> None:
     from django_ag_ui.integrations.drf_mcp import DrfMcpToolset
 

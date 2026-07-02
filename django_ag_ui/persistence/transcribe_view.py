@@ -14,7 +14,7 @@ from django.http.response import HttpResponseBase
 from django_ag_ui.conf import get_settings
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
-from django_ag_ui.utils import GetUser, aauthorize
+from django_ag_ui.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 
 class TranscribeView:
@@ -44,10 +44,12 @@ class TranscribeView:
         *,
         require_authenticated: bool = False,
         get_user: GetUser | None = None,
+        authorize: AuthorizePredicate | None = None,
     ) -> None:
         self._backend = backend
         self._require_authenticated = require_authenticated
         self._get_user = get_user
+        self._authorize_predicate = authorize
         # Mark this callable instance async so Django awaits ``__call__`` (see
         # DjangoAGUIView for the rationale); the backend operation is async.
         markcoroutinefunction(cast("Any", self))
@@ -56,12 +58,14 @@ class TranscribeView:
         # Establish + authorize the acting user first: this materializes
         # ``request.user`` off the event loop, so a backend that scopes by user
         # is loop-safe.
-        if not await aauthorize(
+        deny = await aauthorize(
             request,
             get_user=self._get_user,
             require_authenticated=self._require_authenticated,
-        ):
-            return JsonResponse({"error": "authentication required"}, status=401)
+            authorize=self._authorize_predicate,
+        )
+        if deny is not None:
+            return auth_error_response(deny)
         if request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
         if isinstance(self._backend, NullTranscriptionBackend):

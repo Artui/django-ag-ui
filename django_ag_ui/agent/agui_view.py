@@ -33,6 +33,7 @@ from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.agent_config import AgentConfig
 from django_ag_ui.conf import get_settings
+from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
 from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
 from django_ag_ui.persistence.null_conversation_store import NullConversationStore
 from django_ag_ui.persistence.resolve_attachment_store import resolve_attachment_store
@@ -44,7 +45,7 @@ from django_ag_ui.policy.audit.resolve_audit_logger import resolve_audit_logger
 from django_ag_ui.policy.audit.types.audit_event import AuditEvent
 from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
 from django_ag_ui.registry.tool_registry import ToolRegistry
-from django_ag_ui.utils import aauthorize
+from django_ag_ui.utils import AuthorizePredicate, aauthorize, auth_error_response
 
 
 class DjangoAGUIView:
@@ -93,6 +94,7 @@ class DjangoAGUIView:
         get_user: Callable[[HttpRequest], Any]
         | Callable[[HttpRequest], Awaitable[Any]]
         | None = None,
+        authorize: AuthorizePredicate | None = None,
     ) -> None:
         self._registry = registry
         self._model = model
@@ -100,6 +102,7 @@ class DjangoAGUIView:
         self._audit_logger = audit_logger
         self._require_authenticated = require_authenticated
         self._get_user = get_user
+        self._authorize_predicate = authorize
         # Django's CsrfViewMiddleware reads this attribute off the view
         # callable. AG-UI clients authenticate via headers/session and post
         # JSON; CSRF is the consumer's call. Default exempt, overridable.
@@ -115,8 +118,9 @@ class DjangoAGUIView:
         self._warn_if_not_asgi(request)
         if request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
-        if not await self._authorize(request):
-            return JsonResponse({"error": "authentication required"}, status=401)
+        deny = await self._authorize(request)
+        if deny is not None:
+            return auth_error_response(deny)
         try:
             run_input = AGUIAdapter.build_run_input(request.body)
         except ValidationError as error:
@@ -198,7 +202,14 @@ class DjangoAGUIView:
                 messages=messages,
                 owner_id=owner_id,
             )
-            await store.save(conversation, request=request)
+            try:
+                await store.save(conversation, request=request)
+            except AnonymousOperationError:
+                # An anonymous run on an open agent endpoint with a persisting
+                # store that refuses anonymous writes (the default, no
+                # ``ALLOW_ANONYMOUS``): the run still streams, it just isn't
+                # saved — better than crashing the completed stream.
+                return
 
         return _save
 
@@ -321,24 +332,26 @@ class DjangoAGUIView:
             return []
         return [build_attachment_toolset(store, request)]
 
-    async def _authorize(self, request: HttpRequest) -> bool:
-        """Establish the user (via ``get_user``) and enforce authentication.
+    async def _authorize(self, request: HttpRequest) -> int | None:
+        """Establish the user (via ``get_user``) and apply the auth gates.
 
-        Returns ``False`` only when ``require_authenticated`` is set and the
-        resolved user is anonymous — the caller then 401s. A ``get_user`` hook
-        (sync **or** async; sync hooks run off the event loop so the ORM is
-        safe) is assigned onto ``request.user`` so tools / the drf-mcp bridge /
-        conversation ownership act as that user. Without a hook, the
-        middleware's lazy ``request.user`` is materialized in a worker thread
-        first — touching it on the loop with DB-backed sessions raises
-        ``SynchronousOnlyOperation``, and downstream loop-side readers (the
-        drf-mcp bridge's ``TokenInfo``, conversation ownership) rely on the
-        cached resolution.
+        Returns the HTTP status the caller should deny with (``401`` when
+        ``require_authenticated`` is set and the resolved user is anonymous;
+        ``403`` when the ``authorize`` predicate rejects an established user), or
+        ``None`` to proceed. A ``get_user`` hook (sync **or** async; sync hooks
+        run off the event loop so the ORM is safe) is assigned onto
+        ``request.user`` so tools / the drf-mcp bridge / conversation ownership
+        act as that user. Without a hook, the middleware's lazy ``request.user``
+        is materialized in a worker thread first — touching it on the loop with
+        DB-backed sessions raises ``SynchronousOnlyOperation``, and downstream
+        loop-side readers (the drf-mcp bridge's ``TokenInfo``, conversation
+        ownership) rely on the cached resolution.
         """
         return await aauthorize(
             request,
             get_user=self._get_user,
             require_authenticated=self._require_authenticated,
+            authorize=self._authorize_predicate,
         )
 
     @staticmethod

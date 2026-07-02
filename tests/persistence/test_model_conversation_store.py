@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+from django.http import HttpRequest
 from django.test import RequestFactory
 
 from django_ag_ui.persistence.model_conversation_store import ModelConversationStore
 from django_ag_ui.persistence.types.conversation import Conversation
 from django_ag_ui.persistence.types.conversation_meta import ConversationMeta
+
+
+def _authed_request(pk: str = "7") -> HttpRequest:
+    """A request whose user resolves to ``owner_id == pk`` (no DB / session)."""
+    request = RequestFactory().get("/")
+    request.user = SimpleNamespace(is_authenticated=True, pk=pk)  # type: ignore[attr-defined]
+    return request
 
 
 class _DictStore(ModelConversationStore):
@@ -25,11 +35,12 @@ class _DictStore(ModelConversationStore):
 
 async def test_base_wraps_sync_ops_with_owner_scoping() -> None:
     store = _DictStore()
-    request = RequestFactory().get("/")  # anonymous → owner_id None
+    request = _authed_request()
     conv = Conversation(thread_id="t1")
 
     await store.save(conv, request=request)
     assert await store.load("t1", request=request) is conv
+    assert ("7", "t1") in store.rows  # scoped to the resolved owner id
 
     await store.delete("t1", request=request)
     assert await store.load("t1", request=request) is None
@@ -37,7 +48,7 @@ async def test_base_wraps_sync_ops_with_owner_scoping() -> None:
 
 async def test_list_defaults_to_empty_for_subclasses_that_dont_override() -> None:
     # ``_DictStore`` doesn't override ``_list`` — listing stays opt-in.
-    assert await _DictStore().list(request=RequestFactory().get("/")) == []
+    assert await _DictStore().list(request=_authed_request()) == []
 
 
 class _ListableStore(_DictStore):
@@ -51,7 +62,7 @@ class _ListableStore(_DictStore):
 
 async def test_list_uses_subclass_override_and_owner_scoping() -> None:
     store = _ListableStore()
-    request = RequestFactory().get("/")  # anonymous → owner_id None
+    request = _authed_request()
     await store.save(Conversation(thread_id="t1"), request=request)
     await store.save(Conversation(thread_id="t2"), request=request)
     store.rows[("99", "other")] = Conversation(thread_id="other")  # a different owner
@@ -61,7 +72,7 @@ async def test_list_uses_subclass_override_and_owner_scoping() -> None:
 
 
 async def test_rename_defaults_to_noop_for_subclasses_that_dont_override() -> None:
-    assert await _DictStore().rename("t1", "x", request=RequestFactory().get("/")) is None
+    assert await _DictStore().rename("t1", "x", request=_authed_request()) is None
 
 
 class _RenamableStore(_DictStore):
@@ -75,5 +86,5 @@ class _RenamableStore(_DictStore):
 
 async def test_rename_uses_subclass_override_with_owner_scoping() -> None:
     store = _RenamableStore()
-    await store.rename("t1", "Renamed", request=RequestFactory().get("/"))
-    assert store.renames == [(None, "t1", "Renamed")]
+    await store.rename("t1", "Renamed", request=_authed_request())
+    assert store.renames == [("7", "t1", "Renamed")]

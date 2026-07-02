@@ -8,7 +8,7 @@ from django.http.response import HttpResponseBase
 
 from django_ag_ui.agent.build_tool_catalog import build_tool_catalog
 from django_ag_ui.registry.tool_registry import ToolRegistry
-from django_ag_ui.utils import authorize
+from django_ag_ui.utils import AuthorizePredicate, auth_error_response, authorize
 
 
 class ToolsView:
@@ -36,20 +36,24 @@ class ToolsView:
         get_user: Callable[[HttpRequest], Any]
         | Callable[[HttpRequest], Awaitable[Any]]
         | None = None,
+        authorize: AuthorizePredicate | None = None,
     ) -> None:
         self._registry = registry
         self._require_authenticated = require_authenticated
         self._get_user = get_user
+        self._authorize_predicate = authorize
 
     def __call__(self, request: HttpRequest) -> HttpResponseBase:
         if request.method != "GET":
             return HttpResponseNotAllowed(["GET"])
-        if not authorize(
+        deny = authorize(
             request,
             get_user=self._get_user,
             require_authenticated=self._require_authenticated,
-        ):
-            return JsonResponse({"error": "authentication required"}, status=401)
+            authorize=self._authorize_predicate,
+        )
+        if deny is not None:
+            return auth_error_response(deny)
         return JsonResponse(build_tool_catalog(self._registry), safe=False)
 
 

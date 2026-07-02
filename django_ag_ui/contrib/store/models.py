@@ -9,8 +9,9 @@ class StoredConversation(models.Model):
     One row per ``(owner_id, thread_id)``. ``messages`` holds the AG-UI message
     list as JSON (the same shape every store round-trips); ``title`` and
     ``preview`` are denormalised so the thread drawer's list query never loads
-    message bodies, and ``updated_at`` orders it. ``owner_id`` is the acting
-    user's id (``""`` for anonymous) — the store always filters by it.
+    message bodies, and ``updated_at`` orders it. ``owner_id`` is the resolved
+    owner (the user's pk, or an ``anon:<session_key>`` bucket under
+    ``ALLOW_ANONYMOUS``) — the store always filters by it, the security boundary.
 
     Used by
     :class:`~django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore`.
@@ -45,8 +46,9 @@ class StoredAttachment(models.Model):
     holds the bytes via Django ``Storage`` (so S3 etc. come free through
     ``STORAGES``/``DEFAULT_FILE_STORAGE``), while ``name`` / ``mime`` / ``size``
     are the denormalised metadata returned without reading the file back.
-    ``owner_id`` is the acting user's id (``""`` for anonymous) — the store
-    always filters by it, the security boundary. ``thread_id`` optionally ties an
+    ``owner_id`` is the resolved owner (the user's pk, or an ``anon:<session_key>``
+    bucket under ``ALLOW_ANONYMOUS``) — the store always filters by it, the
+    security boundary. ``thread_id`` optionally ties an
     attachment to one conversation; it is left blank when a file is uploaded
     before a thread exists, so attachments never depend on a conversation row.
 

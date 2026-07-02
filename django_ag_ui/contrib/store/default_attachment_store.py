@@ -19,11 +19,14 @@ class DefaultAttachmentStore(ModelAttachmentStore):
     ``migrate``, and setting ``DJANGO_AG_UI["ATTACHMENT_STORE"]`` to this class's
     dotted path. For a bespoke schema, subclass :class:`ModelAttachmentStore`.
 
-    Owner scoping: ``owner_id`` is stored as ``""`` for anonymous requests (the
-    ``ModelAttachmentStore`` base passes ``None``), so the unique
-    ``(owner_id, attachment_id)`` constraint holds and every query filters by
-    owner — one user's id never resolves another's file. The public
-    ``attachment_id`` is an opaque UUID, kept separate from the storage filename.
+    Owner scoping: every query filters by the ``owner_id`` the
+    ``ModelAttachmentStore`` base resolves — the authenticated user's pk, or a
+    per-browser ``anon:<session_key>`` bucket when
+    ``DJANGO_AG_UI["ALLOW_ANONYMOUS"]`` is set (otherwise anonymous requests are
+    refused rather than sharing one ``""`` bucket) — so one user's id never
+    resolves another's file. The unique ``(owner_id, attachment_id)`` constraint
+    holds regardless. The public ``attachment_id`` is an opaque UUID, kept
+    separate from the storage filename.
     """
 
     def _save(self, upload: UploadedFile, owner_id: str | None) -> AttachmentRef:
