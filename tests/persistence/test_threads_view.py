@@ -227,7 +227,7 @@ async def test_round_trips_against_the_session_store() -> None:
     assert [m["id"] for m in _body(detail)["messages"]] == ["u1"]
 
 
-# --- AGH-1: title cap, thread-list limit, existence probe --------------------
+# --- title cap, thread-list limit, existence probe ---
 
 
 async def test_rename_truncates_an_over_long_title() -> None:

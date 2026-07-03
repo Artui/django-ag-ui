@@ -40,7 +40,7 @@ with per-tool risk metadata.
 
 ## Where it sits
 
-`django-ag-ui` is **Phase 1** of a three-package design — the Django side of
+`django-ag-ui` is **the Django side** of a three-package design — the base of
 the bridge, with no admin specifics:
 
 | Package | Role |

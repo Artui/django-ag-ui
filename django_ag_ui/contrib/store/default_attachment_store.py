@@ -58,7 +58,7 @@ class DefaultAttachmentStore(ModelAttachmentStore):
             return None
         # Hand back the open storage handle rather than reading the whole file:
         # ``FileResponse`` (download) and the tool's ``with`` block both stream /
-        # close it, so a large attachment never lands in memory whole (AGH-3).
+        # close it, so a large attachment never lands in memory whole.
         return OpenedAttachment(
             ref=AttachmentRef(id=row.attachment_id, name=row.name, mime=row.mime, size=row.size),
             content=row.file.open("rb"),
