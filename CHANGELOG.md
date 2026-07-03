@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Adopted the current sibling-package release lines. The `[spec-tools]` extra now
+  requires `djangorestframework-pydantic-ai>=0.2,<0.3` — 0.2.0 renamed its import
+  to `rest_framework_pydantic_ai`, and `build_spec_toolset` was updated to import
+  the new name. The `[drf-mcp]` extra's `djangorestframework-mcp-server` pin was
+  widened to `>=0.9,<0.11` to allow the published 0.10.x line.
+
 ## [0.11.0] — 2026-07-02
 
 ### Added
