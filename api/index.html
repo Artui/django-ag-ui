@@ -6482,7 +6482,7 @@ download view and the <code>read_attachment</code> tool both get the content <em
 :class:<code>AttachmentRef</code> (name / mime / size) in a single owner-scoped call.</p>
 <p><code>content</code> is an <strong>open, readable binary stream</strong> (a file handle), not the
 whole bytes — so a large attachment streams out via <code>FileResponse</code> rather
-than being buffered in memory (AGH-3). The consumer owns it: the download view
+than being buffered in memory. The consumer owns it: the download view
 hands it to <code>FileResponse</code> (which closes it) and the tool reads it under a
 <code>with</code> block. Read it exactly once.</p>
 
