@@ -209,7 +209,7 @@ async def test_get_user_hook_opens_the_endpoint() -> None:
     assert response.status_code == 201
 
 
-# --- AGH-1: view-level cross-owner scoping (the F6 plan's ask) ----------------
+# --- view-level cross-owner scoping ---
 
 
 @pytest.mark.django_db(transaction=True)
@@ -240,7 +240,7 @@ async def test_download_and_delete_are_cross_owner_scoped() -> None:
 
 @override_settings(DJANGO_AG_UI={"ATTACHMENT_MAX_BYTES": 3})
 async def test_oversize_upload_is_aborted_before_reaching_the_store() -> None:
-    # AGH-3: the size guard aborts an oversized upload mid-parse, so the store's
+    # The size guard aborts an oversized upload mid-parse, so the store's
     # ``save`` is never called (the bytes never fully spool).
     store = _FakeStore()
     response = await AttachmentsView(store)(_upload_request(content=b"way too big"))

@@ -17,7 +17,7 @@ class OpenedAttachment:
 
     ``content`` is an **open, readable binary stream** (a file handle), not the
     whole bytes — so a large attachment streams out via ``FileResponse`` rather
-    than being buffered in memory (AGH-3). The consumer owns it: the download view
+    than being buffered in memory. The consumer owns it: the download view
     hands it to ``FileResponse`` (which closes it) and the tool reads it under a
     ``with`` block. Read it exactly once.
     """
