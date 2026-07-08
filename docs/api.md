@@ -35,11 +35,11 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ## Agent and view
 
+::: django_ag_ui.AGUIServer
+
 ::: django_ag_ui.DjangoAGUIView
 
 ::: django_ag_ui.ToolsView
-
-::: django_ag_ui.get_urls
 
 ::: django_ag_ui.build_agent
 

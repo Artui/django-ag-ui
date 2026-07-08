@@ -222,8 +222,8 @@ DJANGO_AG_UI = {
 ```
 
 The base package ships no model, so projects that don't opt in get no migration.
-To expose the **thread-history drawer** endpoints over HTTP, pass the same store
-to `get_urls(view, threads=store)` — see
+When this setting resolves to an active (non-`Null`) store, `AGUIServer` mounts
+the **thread-history drawer** endpoints automatically — see
 [Thread history](concepts.md#thread-history).
 
 ## `ATTACHMENT_STORE`
@@ -261,8 +261,8 @@ DJANGO_AG_UI = {
 }
 ```
 
-To expose the upload endpoints over HTTP, pass the same store to
-`get_urls(view, attachments=store)` — see
+When this setting resolves to an active (non-`Null`) store, `AGUIServer` mounts
+the upload endpoints over HTTP automatically — see
 [File uploads](concepts.md#file-uploads).
 
 ## `ATTACHMENT_MAX_BYTES`
@@ -329,10 +329,10 @@ DJANGO_AG_UI = {
 }
 ```
 
-To expose the voice endpoint over HTTP, pass the resolved backend to
-`get_urls(view, transcribe=backend)`: it mounts `POST <prefix>transcribe/`, which
-accepts a multipart `audio` clip and returns `{"text": "<transcript>"}` for the
-web component's `data-transcribe-url`.
+When this setting resolves to an active (non-`Null`) backend, `AGUIServer` mounts
+the voice endpoint automatically: `POST <prefix>transcribe/` accepts a multipart
+`audio` clip and returns `{"text": "<transcript>"}` for the web component's
+`data-transcribe-url`.
 
 ## `TRANSCRIPTION_MAX_BYTES`
 
@@ -358,9 +358,9 @@ and permission checks apply. See
 [Installation → the `[drf-mcp]` extra](installation.md#the-drf-mcp-extra).
 
 The drf-mcp tools also appear in the
-[tool metadata catalog](concepts.md#tool-metadata-catalog) (mounted by
-`get_urls(view, tools=registry)`), which reads each tool's `display_name` /
-`display_description` as the web component's card label.
+[tool metadata catalog](concepts.md#tool-metadata-catalog) (mounted automatically
+by `AGUIServer`), which reads each tool's `display_name` / `display_description`
+as the web component's card label.
 
 ```python
 DJANGO_AG_UI = {
@@ -399,30 +399,29 @@ DJANGO_AG_UI = {"SERVICE_SPECS": "myproject.specs.SPECS"}
 ```
 
 The spec tools' card labels are surfaced to the web component through the same
-`get_urls(view, tools=registry)` catalog (`data-tools-url`).
+`AGUIServer`-mounted tool catalog (`data-tools-url`).
 
 ## Authentication & anonymous scoping
 
 The agent endpoint and every mounted sub-view (tools, skills, threads,
 attachments, transcribe) share **one authentication seam**, and it defaults
 **open** — an unauthenticated visitor can drive the agent and reach the stores.
-Lock a mount down by passing the seam to `get_urls` (it forwards to every
-sub-view it builds; give `DjangoAGUIView` the same kwargs for the agent
-endpoint):
+Lock a mount down by passing the seam to `AGUIServer`; it forwards to every view
+it builds, including the agent endpoint:
 
 ```python
-from django_ag_ui import DjangoAGUIView, get_urls
+from django.urls import path
 
-view = DjangoAGUIView(registry, require_authenticated=True)
+from django_ag_ui import AGUIServer
+
+agent = AGUIServer(
+    registry,
+    require_authenticated=True,   # 401 for anonymous requests
+    # authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user
+    # get_user=lambda r: token_user(r),     # establish the acting user
+)
 urlpatterns = [
-    *get_urls(
-        view,
-        tools=registry,
-        threads=store,
-        require_authenticated=True,   # 401 for anonymous requests
-        # authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user
-        # get_user=lambda r: token_user(r),     # establish the acting user
-    ),
+    path("agent/", agent.urls),
 ]
 ```
 
