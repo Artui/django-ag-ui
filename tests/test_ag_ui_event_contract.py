@@ -1,8 +1,8 @@
-"""Cross-repo AG-UI event-set contract (roadmap CI-1).
+"""Cross-repo AG-UI event-set contract.
 
 The Python (`ag-ui-protocol`) and JS (`@ag-ui/core`) event sets are identical
 today, and the trio relies on that — e.g. reasoning rides the ``REASONING_*``
-family on both sides (THINK-1). Nothing else in CI would catch them drifting
+family on both sides. Nothing else in CI would catch them drifting
 when either dependency bumps, so this test pins the canonical set: if a bump
 adds, removes, or renames an event, this fails and forces a deliberate review.
 
@@ -60,7 +60,7 @@ def test_python_event_set_matches_the_canonical_contract() -> None:
 
 
 def test_reasoning_family_is_present() -> None:
-    # THINK-1 forwards a reasoning model's chain-of-thought on this family; the
+    # The stack forwards a reasoning model's chain-of-thought on this family; the
     # pinned stack emits REASONING_* (>= 0.1.13, 7 events) and the legacy
     # THINKING_* (5 events) the JS client maps onto it.
     reasoning = {e for e in CANONICAL_AG_UI_EVENTS if e.startswith(("REASONING", "THINKING"))}

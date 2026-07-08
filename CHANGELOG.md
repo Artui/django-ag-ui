@@ -7,24 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-07-08
+
+### Added
+
+- **`AGUIServer` — one config object with a namespaced `.urls`.** The
+  Django-idiomatic front door for the package: construct it once with the tool
+  registry (plus optional stores / skills / auth) and mount its `.urls` the
+  `django.contrib.admin` `site.urls` way — `path("agent/", server.urls)`. It
+  builds the agent view **and** every sub-view (tools / skills / threads /
+  attachments / transcribe) internally from the registry passed **once** (no
+  `tools=registry` echo), forwards one `require_authenticated` / `get_user` /
+  `authorize` policy to all of them, and mounts each persistence sub-view only
+  when its backend is active (a non-`Null` store, resolved from `DJANGO_AG_UI` by
+  default or passed explicitly). `.urls` returns the
+  `(patterns, app_name, namespace)` triple `path()` mounts directly — the
+  `admin.site.urls` idiom, `path("agent/", server.urls)` with no `include()` — so
+  endpoints are **namespaced** and reversible — `reverse("ag_ui:endpoint")`,
+  `"ag_ui:tools"`, `"ag_ui:threads"`, … — and two mounts no longer collide on flat
+  global names. Override the namespace with `namespace=`.
+
+### Removed (breaking)
+
+- **`get_urls` is removed** in favour of `AGUIServer`. It was a free factory that
+  returned a bare, un-namespaced pattern list and required pre-building the view
+  then re-passing the same registry as `tools=`. Migrate:
+
+  ```python
+  # before
+  from django_ag_ui import DjangoAGUIView, get_urls
+  urlpatterns = [
+      *get_urls(DjangoAGUIView(registry), prefix="agent/", tools=registry, threads=store),
+  ]
+
+  # after
+  from django_ag_ui import AGUIServer
+  urlpatterns = [
+      path("agent/", AGUIServer(registry, conversation_store=store).urls),
+  ]
+  ```
+
+  The endpoint URL **names are now namespaced** — update `reverse()` /
+  `{% url %}` calls from the old flat names (`django_ag_ui`, `django_ag_ui_tools`,
+  `django_ag_ui_threads`, …) to `"<namespace>:endpoint"`, `"<namespace>:tools"`,
+  `"<namespace>:threads"`, … (default namespace `"ag_ui"`). The threads /
+  attachments / transcribe sub-views now mount automatically when their store is
+  configured in settings, so passing them explicitly is only needed to override
+  the settings-resolved backend.
+
+## [0.11.1] — 2026-07-03
+
+### Changed
+
+- Adopted the current sibling-package release lines. The `[spec-tools]` extra now
+  requires `djangorestframework-pydantic-ai>=0.2,<0.3` — 0.2.0 renamed its import
+  to `rest_framework_pydantic_ai`, and `build_spec_toolset` was updated to import
+  the new name. The `[drf-mcp]` extra's `djangorestframework-mcp-server` pin was
+  widened to `>=0.9,<0.11` to allow the published 0.10.x line.
+
 ## [0.11.0] — 2026-07-02
 
 ### Added
 
-- **Thread-index cap + `?limit` (AGH-1).** `GET threads/` returns at most
+- **Thread-index cap + `?limit`.** `GET threads/` returns at most
   `DJANGO_AG_UI["THREAD_LIST_LIMIT"]` rows (default 200); the client may request
   fewer via `?limit=N` and a larger value is clamped to the ceiling, so a user
   with thousands of threads no longer fetches and serializes all of them per
   drawer open. `ConversationStore.list` gains a `limit` argument.
-- **`ConversationStore.exists()` (AGH-1).** A cheap owner-scoped presence check
+- **`ConversationStore.exists()`.** A cheap owner-scoped presence check
   (no message body loaded). The rename endpoint now probes it instead of loading
   and deserializing the whole thread just to 404. Model-backed stores answer with
   a metadata-only `.exists()` query.
 
 ### Changed (breaking)
 
-- **`OpenedAttachment.content` is now an open readable stream, not `bytes`
-  (AGH-3).** Downloads stream the file via `FileResponse` instead of buffering it
+- **`OpenedAttachment.content` is now an open readable stream, not `bytes`.**
+  Downloads stream the file via `FileResponse` instead of buffering it
   whole in memory, so a large attachment (with the size cap disabled) no longer
   lands in memory. `AttachmentStore.open` returns the open handle; the download
   view and the `read_attachment` tool consume/close it. A custom
@@ -35,21 +93,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Rename / upload title & filename caps (AGH-1).** A `PATCH threads/<id>/`
+- **Rename / upload title & filename caps.** A `PATCH threads/<id>/`
   title longer than the model's `CharField(max_length=255)` is truncated rather
   than raising a database `DataError` on a strict backend. (Uploaded filenames
   were already truncated to 255 by Django's `UploadedFile`.)
-- **Cross-toolset name-collision guard (AGH-2).** The drf-mcp, `SpecToolset`, and
+- **Cross-toolset name-collision guard.** The drf-mcp, `SpecToolset`, and
   `read_attachment` toolset builders previously each excluded only the `@tool`
   registry's names, so if `DRF_MCP_SERVER` and `SERVICE_SPECS` exposed the same
   tool name (or either exposed `read_attachment`), pydantic-ai raised a duplicate
   `UserError` mid-run while the catalog looked clean. One `seen` set is now
   threaded through all three builders in `build_tool_catalog`'s precedence order
   (registry → drf-mcp → spec → attachment) so a duplicate can't reach the run.
-- **Early upload abort (AGH-3).** A `CappedUploadHandler` aborts an oversized
+- **Early upload abort.** A `CappedUploadHandler` aborts an oversized
   upload mid-parse (honoring `ATTACHMENT_MAX_BYTES`) instead of spooling the whole
   body to a temp file before the 413.
-- **Transcription client reuse + timeout (AGH-3).** `OpenAITranscriptionBackend`
+- **Transcription client reuse + timeout.** `OpenAITranscriptionBackend`
   caches its `AsyncOpenAI` client on the instance rather than constructing one
   (with a new connection pool) per call, and sets a bounded default `timeout`
   (60 s, overridable) instead of the SDK's 10-minute default.
@@ -97,7 +155,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **drf-services specs as tools, no MCP hop (PAI-2).** A new `SERVICE_SPECS`
+- **drf-services specs as tools, no MCP hop.** A new `SERVICE_SPECS`
   setting (dotted path to a `name -> ServiceSpec/SelectorSpec` mapping) exposes
   drf-services specs to the agent via `djangorestframework-pydantic-ai`'s
   `SpecToolset` — dispatched in-process through drf-services' transport-neutral
@@ -253,11 +311,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failed), now work too. A sync hook that returns a coroutine (e.g. a
   `functools.partial` over an async fn) is awaited rather than leaked.
 - **`require_authenticated` no longer crashes under ASGI with DB-backed
-  sessions** (ASYNC-1). The lazy `request.user` is materialized in a worker
+  sessions**. The lazy `request.user` is materialized in a worker
   thread before the gate, instead of being resolved on the event loop; the
   cached resolution also makes later loop-side readers (the drf-mcp
   bridge's `TokenInfo`, conversation ownership) safe.
-- **Bridge errors no longer kill the chat** (ERR-2). The drf-mcp bridge
+- **Bridge errors no longer kill the chat**. The drf-mcp bridge
   previously raised `RuntimeError` for every `JsonRpcError`, which
   pydantic-ai treats as fatal — the most common failure (the model sending
   slightly wrong arguments) emitted `RUN_ERROR` and ended the run. Now:
@@ -267,19 +325,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `isError` results) are returned as model-readable `{"error": {...}}`
   content; a hard `RuntimeError` is reserved for genuine protocol faults
   (unknown tool, auth, rate limits).
-- **Tool-name collisions no longer break the agent** (DUP-1). The catalog
+- **Tool-name collisions no longer break the agent**. The catalog
   deduped registry-vs-drf-mcp collisions ("registry wins") but the agent
   registered both, so pydantic-ai raised `UserError` at the first run. The
   drf-mcp toolset now receives the registry's names and skips collisions —
   catalog and agent agree on one rule.
-- **The bridge no longer pins a hardcoded MCP protocol version** (PROTO-1).
+- **The bridge no longer pins a hardcoded MCP protocol version**.
   Synthesised in-process calls advertise drf-mcp's own first supported
   version (`REST_FRAMEWORK_MCP["PROTOCOL_VERSIONS"][0]`), so the bridge
   tracks the server across upgrades.
 
 ### Added
 
-- **Auth seam on the catalog views** (SEC-6). `ToolsView` and `SkillsView`
+- **Auth seam on the catalog views**. `ToolsView` and `SkillsView`
   accept the same `require_authenticated` / `get_user` (sync or async) pair
   as `DjangoAGUIView`, so one policy covers the agent endpoint and the
   catalogs it advertises — previously both answered any anonymous GET, even
@@ -291,12 +349,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Dependency ranges tightened** (VER-2): `pydantic-ai-slim[ag-ui]` is now
+- **Dependency ranges tightened**: `pydantic-ai-slim[ag-ui]` is now
   capped `>=1.0,<2` (the bridge touches semi-internal pydantic-ai surface —
   `ExternalToolset.tool_defs`, tool-def re-stamping), and the `drf-mcp`
   extra now requires `djangorestframework-mcp-server>=0.7,<0.8` — the range
   actually tested, and the floor that returns business failures as
-  `isError` results (which ERR-2's mapping consumes).
+  `isError` results (which the bridge's error mapping consumes).
 - **CSRF guidance made prominent**: the view keeps `csrf_exempt=True` by
   default (right for header-token auth), but cookie-authenticated
   deployments should pass `csrf_exempt=False` — tools act as
@@ -424,7 +482,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/Artui/django-ag-ui/compare/v0.11.1...v0.12.0
+[0.11.1]: https://github.com/Artui/django-ag-ui/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/Artui/django-ag-ui/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Artui/django-ag-ui/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Artui/django-ag-ui/compare/v0.8.0...v0.9.0

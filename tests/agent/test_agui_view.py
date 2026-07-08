@@ -82,7 +82,7 @@ async def test_reasoning_opt_out_still_streams_the_answer() -> None:
 @pytest.mark.django_db
 @override_settings(DJANGO_AG_UI={"SERVICE_SPECS": "tests.integrations.drf_specs.SPECS"})
 async def test_service_specs_tool_runs_in_process() -> None:
-    # The no-MCP-hop path (PAI-2): a drf-services spec exposed via SERVICE_SPECS
+    # The no-MCP-hop path: a drf-services spec exposed via SERVICE_SPECS
     # is wired as a SpecToolset and executed in-process during the run. A
     # get_user hook stands in for the auth middleware that sets request.user in
     # a real deployment (the toolset binds it as the acting user).
@@ -362,7 +362,7 @@ async def test_attachment_toolset_skipped_when_a_prior_tool_owns_the_name() -> N
 
 
 async def test_seen_set_guards_three_way_name_collisions() -> None:
-    # AGH-2: drf-mcp → spec → attachment precedence, threaded through one ``seen``
+    # drf-mcp → spec → attachment precedence, threaded through one ``seen``
     # set so a name exposed by two sources can't reach pydantic-ai as a duplicate.
     view = DjangoAGUIView(_registry(), model=TestModel())
     request = RequestFactory().post("/agent/")
@@ -570,7 +570,7 @@ async def test_disconnect_without_a_store_still_audits_and_reraises() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_lazy_request_user_is_materialized_off_the_loop() -> None:
-    # ASYNC-1: with DB-backed sessions, request.user is a SimpleLazyObject
+    # With DB-backed sessions, request.user is a SimpleLazyObject
     # whose first touch runs ORM queries — forbidden on the event loop. The
     # view must resolve it in a worker thread, so this passes instead of
     # raising SynchronousOnlyOperation.

@@ -36,7 +36,7 @@ def build_spec_toolset(
     ``get_user`` hook ignores ``ctx.deps`` and returns the request's user, which
     the view has already materialized off the event loop.
     """
-    from drf_pydantic_ai import SpecToolset
+    from rest_framework_pydantic_ai import SpecToolset
 
     selected = {name: spec for name, spec in specs.items() if name not in exclude_names}
     return SpecToolset(selected, get_user=lambda _ctx: request.user)

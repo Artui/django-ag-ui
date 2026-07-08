@@ -1,12 +1,12 @@
 """Django ↔ Pydantic-AI ↔ AG-UI integration."""
 
 from django_ag_ui.agent.agent_factory import build_agent
+from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.agent_config import AgentConfig
 from django_ag_ui.agent.types.agent_factory_fn import AgentFactoryFn
-from django_ag_ui.agent.urls import get_urls
 from django_ag_ui.conf import AppSettings, get_settings
 from django_ag_ui.constants import (
     X_CATEGORY_KEY,
@@ -53,6 +53,7 @@ from django_ag_ui.version import __version__
 
 __all__ = [
     "DEFAULT_SYSTEM_PROMPT",
+    "AGUIServer",
     "AgentConfig",
     "AgentFactoryFn",
     "AppSettings",
@@ -92,7 +93,6 @@ __all__ = [
     "build_agent",
     "build_input_schema",
     "get_settings",
-    "get_urls",
     "needs_confirmation",
     "resolve_attachment_store",
     "resolve_audit_logger",

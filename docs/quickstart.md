@@ -82,33 +82,40 @@ an AG-UI client can gate it behind an inline confirmation card. The optional
 as `x-summary` (the card's label). The first paragraph of the docstring becomes
 the tool description unless you pass `description=`.
 
-## 3. Mount the view
+## 3. Mount the server
 
-[`DjangoAGUIView`][django_ag_ui.DjangoAGUIView] is a callable instance that
-holds one registry. [`get_urls`][django_ag_ui.get_urls] returns the URL
-patterns; include them from your root URLconf.
+[`AGUIServer`][django_ag_ui.AGUIServer] is the package's front door: construct it
+**once** with the tool registry, then mount its namespaced
+[`.urls`][django_ag_ui.AGUIServer.urls] with `include()` — the
+`django.contrib.admin` `site.urls` idiom.
 
 ```python
 # urls.py
-from django.urls import include, path
+from django.urls import path
 
-from django_ag_ui import DjangoAGUIView, get_urls
+from django_ag_ui import AGUIServer
 
 from agent_tools import registry
 
-agent_view = DjangoAGUIView(registry)
+agent = AGUIServer(registry)
 
 urlpatterns = [
-    path("", include(get_urls(agent_view))),
+    path("agent/", agent.urls),
 ]
 ```
 
-This mounts a POST endpoint at `agent/` (override with
-`get_urls(view, prefix="chat/")`). The endpoint accepts a `RunAgentInput` JSON
-body and streams AG-UI events back as `text/event-stream`.
+This mounts a POST endpoint at `agent/` (choose any prefix the Django way —
+`path("chat/", agent.urls)`) plus a read-only tool catalog at `agent/tools/`. The
+agent endpoint accepts a `RunAgentInput` JSON body and streams AG-UI events back
+as `text/event-stream`.
 
-Because the view is an instance, you can mount several with independent
-registries — one per surface, each with its own tools.
+`.urls` is the `(patterns, app_name, namespace)` triple `path()` mounts directly
+(like `admin.site.urls` — no `include()`), so the endpoint names are
+**namespaced** (`"ag_ui"` by default) and reversible —
+`reverse("ag_ui:endpoint")`, `reverse("ag_ui:tools")`. Two mounts don't collide;
+pass `namespace="…"` to distinguish them. Because the server holds its own
+registry and config, you can mount several with independent registries — one per
+surface, each with its own tools.
 
 ## 4. (Optional) override per mount
 
@@ -119,7 +126,7 @@ be passed explicitly — handy in tests, where you inject a Pydantic-AI
 ```python
 from pydantic_ai.models.test import TestModel
 
-view = DjangoAGUIView(registry, model=TestModel())
+agent = AGUIServer(registry, model=TestModel())
 ```
 
 !!! warning "CSRF and cookie-authenticated deployments"
@@ -144,30 +151,26 @@ def get_user(request):
     return Token.objects.select_related("user").get(key=token).user
 
 
-view = DjangoAGUIView(
+agent = AGUIServer(
     registry,
     require_authenticated=True,
     get_user=get_user,
 )
 ```
 
-The tool and skill catalog views accept the same pair — lock them down
-whenever the agent endpoint is locked down (the catalogs enumerate every
-server tool and skill prompt):
-
-```python
-ToolsView(registry, require_authenticated=True, get_user=get_user)
-SkillsView(skills, require_authenticated=True, get_user=get_user)
-```
+`AGUIServer` forwards `require_authenticated` / `get_user` / `authorize` to
+**every** view it builds — the agent endpoint *and* the tool / skill / thread /
+attachment catalogs — so one policy locks down the whole mount (the catalogs
+enumerate every server tool and skill prompt, so they're worth gating too).
 
 ## 5. (Optional) offer skills
 
 Register pre-defined prompts in a [`SkillRegistry`][django_ag_ui.SkillRegistry]
-and pass it to `get_urls(..., skills=...)` to mount a `<prefix>skills/` catalog
+and pass it as `AGUIServer(..., skills=...)` to mount a `<prefix>skills/` catalog
 the web component fetches via `data-skills-url`:
 
 ```python
-from django_ag_ui import SkillRegistry
+from django_ag_ui import AGUIServer, SkillRegistry
 
 skills = SkillRegistry()
 skills.add(
@@ -178,22 +181,17 @@ skills.add(
 )
 
 urlpatterns = [
-    *get_urls(DjangoAGUIView(registry), prefix="agent/", skills=skills),
+    path("agent/", AGUIServer(registry, skills=skills).urls),
 ]
 ```
 
-## 6. (Optional) publish the tool catalog
+## 6. The tool catalog
 
-Pass `tools=registry` (the **same** registry the view holds) to mount a
-read-only tool catalog at `<prefix>tools/` (GET, JSON). The web component fetches
-it via `data-tools-url` to label tool-call cards for server-side tools — whose
-JSON Schema never reaches the browser:
-
-```python
-urlpatterns = [
-    *get_urls(DjangoAGUIView(registry), prefix="agent/", tools=registry),
-]
-```
+The read-only tool catalog is mounted automatically at `<prefix>tools/` (GET,
+JSON) — the server builds it from the **same** registry you pass, so there's
+nothing extra to wire. The web component fetches it via `data-tools-url` to
+label tool-call cards for server-side tools, whose JSON Schema never reaches the
+browser.
 
 Each entry is `{"name", "summary", "description"?}`; `summary` falls back from
 `@tool(summary=…)` to a prettified tool name. With
