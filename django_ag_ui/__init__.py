@@ -1,12 +1,12 @@
 """Django ↔ Pydantic-AI ↔ AG-UI integration."""
 
 from django_ag_ui.agent.agent_factory import build_agent
+from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.agent_config import AgentConfig
 from django_ag_ui.agent.types.agent_factory_fn import AgentFactoryFn
-from django_ag_ui.agent.urls import get_urls
 from django_ag_ui.conf import AppSettings, get_settings
 from django_ag_ui.constants import (
     X_CATEGORY_KEY,
@@ -15,16 +15,27 @@ from django_ag_ui.constants import (
     X_SUMMARY_KEY,
     ToolCategory,
 )
+from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
 )
+from django_ag_ui.persistence.model_attachment_store import ModelAttachmentStore
 from django_ag_ui.persistence.model_conversation_store import ModelConversationStore
+from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
 from django_ag_ui.persistence.null_conversation_store import NullConversationStore
+from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
+from django_ag_ui.persistence.resolve_attachment_store import resolve_attachment_store
 from django_ag_ui.persistence.resolve_conversation_store import resolve_conversation_store
+from django_ag_ui.persistence.resolve_transcription_backend import resolve_transcription_backend
 from django_ag_ui.persistence.threads_view import ThreadsView
+from django_ag_ui.persistence.transcribe_view import TranscribeView
+from django_ag_ui.persistence.types.attachment_ref import AttachmentRef
+from django_ag_ui.persistence.types.attachment_store import AttachmentStore
 from django_ag_ui.persistence.types.conversation import Conversation
 from django_ag_ui.persistence.types.conversation_meta import ConversationMeta
 from django_ag_ui.persistence.types.conversation_store import ConversationStore
+from django_ag_ui.persistence.types.opened_attachment import OpenedAttachment
+from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
 from django_ag_ui.policy.audit.logging_audit_logger import LoggingAuditLogger
 from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
 from django_ag_ui.policy.audit.resolve_audit_logger import resolve_audit_logger
@@ -42,9 +53,13 @@ from django_ag_ui.version import __version__
 
 __all__ = [
     "DEFAULT_SYSTEM_PROMPT",
+    "AGUIServer",
     "AgentConfig",
     "AgentFactoryFn",
     "AppSettings",
+    "AttachmentRef",
+    "AttachmentStore",
+    "AttachmentsView",
     "AuditEvent",
     "AuditLogger",
     "Conversation",
@@ -53,9 +68,13 @@ __all__ = [
     "DjangoAGUIView",
     "DjangoSessionConversationStore",
     "LoggingAuditLogger",
+    "ModelAttachmentStore",
     "ModelConversationStore",
+    "NullAttachmentStore",
     "NullAuditLogger",
     "NullConversationStore",
+    "NullTranscriptionBackend",
+    "OpenedAttachment",
     "SkillRegistry",
     "SkillSpec",
     "ThreadsView",
@@ -64,6 +83,8 @@ __all__ = [
     "ToolRegistry",
     "ToolSpec",
     "ToolsView",
+    "TranscribeView",
+    "TranscriptionBackend",
     "X_CATEGORY_KEY",
     "X_CONFIRM_KEY",
     "X_DESTRUCTIVE_KEY",
@@ -72,9 +93,10 @@ __all__ = [
     "build_agent",
     "build_input_schema",
     "get_settings",
-    "get_urls",
     "needs_confirmation",
+    "resolve_attachment_store",
     "resolve_audit_logger",
     "resolve_conversation_store",
+    "resolve_transcription_backend",
     "tool",
 ]

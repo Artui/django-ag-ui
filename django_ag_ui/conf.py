@@ -72,10 +72,64 @@ class AppSettings:
     """Dotted path to a ``ConversationStore`` for server-side persistence.
     ``None`` keeps the server stateless (the default ``NullConversationStore``)."""
 
+    attachment_store: str | None
+    """Dotted path to an ``AttachmentStore`` for file uploads. ``None`` keeps
+    uploads disabled (the default ``NullAttachmentStore``)."""
+
+    attachment_max_bytes: int
+    """Maximum accepted upload size in bytes (server-authoritative). ``0``
+    disables the cap. Default 10 MiB."""
+
+    attachment_allowed_types: tuple[str, ...]
+    """Allowed (client-declared) content types for uploads. Empty accepts any
+    type; otherwise an upload whose ``Content-Type`` is not listed is rejected."""
+
+    forward_reasoning: bool
+    """When ``True`` (default), forward a reasoning model's chain-of-thought to
+    the client as AG-UI reasoning events (a pure adapter pass-through — only
+    emitted if a thinking budget is enabled via ``MODEL_SETTINGS``). Set ``False``
+    to let the model reason privately while stripping those events from the
+    stream."""
+
+    transcription_backend: str | None
+    """Dotted path to a ``TranscriptionBackend`` for voice input. ``None`` keeps
+    voice disabled (the default ``NullTranscriptionBackend``)."""
+
+    transcription_max_bytes: int
+    """Maximum accepted audio-clip size in bytes (server-authoritative). ``0``
+    disables the cap. Default 25 MiB (the OpenAI transcription limit)."""
+
+    transcription_allowed_types: tuple[str, ...]
+    """Allowed (client-declared) content types for voice clips. Empty accepts any
+    type; otherwise a clip whose ``Content-Type`` is not listed is rejected."""
+
     drf_mcp_server: str | None
     """Dotted path to a ``drf-mcp-server`` ``MCPServer`` instance whose tools
     are exposed to the agent in-process (requires the ``[drf-mcp]`` extra).
     ``None`` disables the bridge."""
+
+    service_specs: str | None
+    """Dotted path to a ``name -> ServiceSpec/SelectorSpec`` mapping exposed to
+    the agent as tools via ``djangorestframework-pydantic-ai``'s ``SpecToolset``
+    — drf-services specs called in-process, **no MCP server** (requires the
+    ``[spec-tools]`` extra). ``None`` disables it."""
+
+    thread_list_limit: int
+    """Maximum number of threads the index endpoint returns in one call (the
+    chat-history drawer). The client may request fewer via ``?limit=N``; a larger
+    ``?limit`` is clamped to this ceiling, so the default response stays bounded
+    for a user with thousands of threads. Default 200."""
+
+    allow_anonymous: bool
+    """Whether the model-backed stores serve **anonymous** requests. ``False``
+    (default) makes them **refuse** anonymous thread / attachment operations
+    (raising
+    :class:`~django_ag_ui.persistence.anonymous_operation_error.AnonymousOperationError`,
+    which the views turn into ``403``) — rather than silently collapsing every
+    anonymous visitor into one shared owner bucket, where they could read and
+    delete each other's data. ``True`` opts in to anonymous use and buckets each
+    request by its ``request.session.session_key`` (per browser session; needs
+    session middleware). Authenticated requests are unaffected either way."""
 
 
 def get_settings() -> AppSettings:
@@ -94,7 +148,17 @@ def get_settings() -> AppSettings:
         toolsets=tuple(raw.get("TOOLSETS", ()) or ()),
         capabilities=tuple(raw.get("CAPABILITIES", ()) or ()),
         conversation_store=raw.get("CONVERSATION_STORE"),
+        attachment_store=raw.get("ATTACHMENT_STORE"),
+        attachment_max_bytes=int(raw.get("ATTACHMENT_MAX_BYTES", 10 * 1024 * 1024)),
+        attachment_allowed_types=tuple(raw.get("ATTACHMENT_ALLOWED_TYPES", ()) or ()),
+        forward_reasoning=bool(raw.get("FORWARD_REASONING", True)),
+        transcription_backend=raw.get("TRANSCRIPTION_BACKEND"),
+        transcription_max_bytes=int(raw.get("TRANSCRIPTION_MAX_BYTES", 25 * 1024 * 1024)),
+        transcription_allowed_types=tuple(raw.get("TRANSCRIPTION_ALLOWED_TYPES", ()) or ()),
         drf_mcp_server=raw.get("DRF_MCP_SERVER"),
+        service_specs=raw.get("SERVICE_SPECS"),
+        thread_list_limit=int(raw.get("THREAD_LIST_LIMIT", 200)),
+        allow_anonymous=bool(raw.get("ALLOW_ANONYMOUS", False)),
     )
 
 

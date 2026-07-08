@@ -23,15 +23,20 @@ from pydantic_ai import Agent
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_factory import build_agent
+from django_ag_ui.agent.attachment_toolset import build_attachment_toolset
 from django_ag_ui.agent.build_model import build_model
 from django_ag_ui.agent.guarded_stream import guarded_stream
+from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.resolve_agent_factory import resolve_agent_factory
 from django_ag_ui.agent.resolve_dotted_instances import resolve_dotted_instances
 from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.agent_config import AgentConfig
 from django_ag_ui.conf import get_settings
+from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
+from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
 from django_ag_ui.persistence.null_conversation_store import NullConversationStore
+from django_ag_ui.persistence.resolve_attachment_store import resolve_attachment_store
 from django_ag_ui.persistence.resolve_conversation_store import resolve_conversation_store
 from django_ag_ui.persistence.types.conversation import Conversation
 from django_ag_ui.persistence.types.conversation_store import ConversationStore
@@ -40,7 +45,7 @@ from django_ag_ui.policy.audit.resolve_audit_logger import resolve_audit_logger
 from django_ag_ui.policy.audit.types.audit_event import AuditEvent
 from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
 from django_ag_ui.registry.tool_registry import ToolRegistry
-from django_ag_ui.utils import aauthorize
+from django_ag_ui.utils import AuthorizePredicate, aauthorize, auth_error_response
 
 
 class DjangoAGUIView:
@@ -89,6 +94,7 @@ class DjangoAGUIView:
         get_user: Callable[[HttpRequest], Any]
         | Callable[[HttpRequest], Awaitable[Any]]
         | None = None,
+        authorize: AuthorizePredicate | None = None,
     ) -> None:
         self._registry = registry
         self._model = model
@@ -96,6 +102,7 @@ class DjangoAGUIView:
         self._audit_logger = audit_logger
         self._require_authenticated = require_authenticated
         self._get_user = get_user
+        self._authorize_predicate = authorize
         # Django's CsrfViewMiddleware reads this attribute off the view
         # callable. AG-UI clients authenticate via headers/session and post
         # JSON; CSRF is the consumer's call. Default exempt, overridable.
@@ -111,8 +118,9 @@ class DjangoAGUIView:
         self._warn_if_not_asgi(request)
         if request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
-        if not await self._authorize(request):
-            return JsonResponse({"error": "authentication required"}, status=401)
+        deny = await self._authorize(request)
+        if deny is not None:
+            return auth_error_response(deny)
         try:
             run_input = AGUIAdapter.build_run_input(request.body)
         except ValidationError as error:
@@ -135,6 +143,11 @@ class DjangoAGUIView:
         transcript = RunTranscript()
         native = adapter.run_stream_native()
         events = adapter.transform_stream(native, on_complete=on_complete)
+        # A reasoning model's chain-of-thought rides through as AG-UI reasoning
+        # events (adapter pass-through). Forward it by default; strip it when the
+        # consumer opts out, so the model can reason privately.
+        if not get_settings().forward_reasoning:
+            events = drop_reasoning_events(events)
         stream = guarded_stream(
             adapter.encode_stream(transcript.observe(events)),
             native_events=native,
@@ -189,7 +202,14 @@ class DjangoAGUIView:
                 messages=messages,
                 owner_id=owner_id,
             )
-            await store.save(conversation, request=request)
+            try:
+                await store.save(conversation, request=request)
+            except AnonymousOperationError:
+                # An anonymous run on an open agent endpoint with a persisting
+                # store that refuses anonymous writes (the default, no
+                # ``ALLOW_ANONYMOUS``): the run still streams, it just isn't
+                # saved — better than crashing the completed stream.
+                return
 
         return _save
 
@@ -246,8 +266,18 @@ class DjangoAGUIView:
         factory = resolve_agent_factory(settings.agent_factory)
         if factory is not None:
             return factory(self._registry, settings)
+        # One name set threaded through every toolset builder so runtime
+        # exclusion matches ``build_tool_catalog``'s dedup precedence exactly:
+        # registry → drf-mcp → spec → attachment. Each builder excludes names
+        # already claimed and reserves its own, so a name exposed by two sources
+        # (e.g. ``DRF_MCP_SERVER`` and ``SERVICE_SPECS`` both defining ``foo``, or
+        # either defining ``read_attachment``) can't reach pydantic-ai as a
+        # duplicate and raise ``UserError`` mid-run while the catalog looks clean.
+        seen: set[str] = {binding.spec.name for binding in self._registry}
         toolsets = resolve_dotted_instances(settings.toolsets)
-        toolsets += self._drf_mcp_toolsets(settings.drf_mcp_server, request)
+        toolsets += self._drf_mcp_toolsets(settings.drf_mcp_server, request, seen)
+        toolsets += self._spec_toolsets(settings.service_specs, request, seen)
+        toolsets += self._attachment_toolsets(settings.attachment_store, request, seen)
         return build_agent(
             self._registry,
             AgentConfig(
@@ -261,42 +291,85 @@ class DjangoAGUIView:
             ),
         )
 
-    def _drf_mcp_toolsets(self, dotted_path: str | None, request: HttpRequest) -> list[Any]:
+    def _drf_mcp_toolsets(
+        self, dotted_path: str | None, request: HttpRequest, seen: set[str]
+    ) -> list[Any]:
         """Build the per-request drf-mcp toolset, or ``[]`` when not configured.
 
         Imported lazily so ``rest_framework_mcp`` stays an optional extra; the
         toolset carries ``request`` so the agent acts as the logged-in user.
+        Excludes names already in ``seen`` (registry tools win) and reserves the
+        server's own tool names into ``seen`` — the full ``server.tools.all()``
+        registry, the same source ``build_tool_catalog`` dedups against — so a
+        later spec / attachment toolset can't expose a duplicate.
         """
         if dotted_path is None:
             return []
         from django_ag_ui.integrations.drf_mcp import DrfMcpToolset
 
         server = import_string(dotted_path)
-        # "Registry tools win" on name collisions — the same rule
-        # ``build_tool_catalog`` applies. Without the exclusion, pydantic-ai
-        # raises ``UserError`` at run time for the duplicate name: a clean
-        # catalog but a broken agent.
-        registered = frozenset(binding.spec.name for binding in self._registry)
-        return [DrfMcpToolset(server, request, exclude_names=registered)]
+        toolset = DrfMcpToolset(server, request, exclude_names=frozenset(seen))
+        seen.update(binding.name for binding in server.tools.all())
+        return [toolset]
 
-    async def _authorize(self, request: HttpRequest) -> bool:
-        """Establish the user (via ``get_user``) and enforce authentication.
+    def _spec_toolsets(
+        self, dotted_path: str | None, request: HttpRequest, seen: set[str]
+    ) -> list[Any]:
+        """Build the per-request drf-services `SpecToolset`, or `[]` when not set.
 
-        Returns ``False`` only when ``require_authenticated`` is set and the
-        resolved user is anonymous — the caller then 401s. A ``get_user`` hook
-        (sync **or** async; sync hooks run off the event loop so the ORM is
-        safe) is assigned onto ``request.user`` so tools / the drf-mcp bridge /
-        conversation ownership act as that user. Without a hook, the
-        middleware's lazy ``request.user`` is materialized in a worker thread
-        first — touching it on the loop with DB-backed sessions raises
-        ``SynchronousOnlyOperation``, and downstream loop-side readers (the
-        drf-mcp bridge's ``TokenInfo``, conversation ownership) rely on the
-        cached resolution.
+        Imported lazily so `djangorestframework-pydantic-ai` (and drf-services)
+        stay an optional `[spec-tools]` extra; the toolset carries `request` so
+        the agent acts as the logged-in user. Excludes names already in ``seen``
+        (registry + drf-mcp win the collision) and reserves the spec names so the
+        attachment toolset that follows can't shadow one.
+        """
+        if dotted_path is None:
+            return []
+        from django_ag_ui.integrations.build_spec_toolset import build_spec_toolset
+
+        specs = import_string(dotted_path)
+        toolset = build_spec_toolset(specs, request, exclude_names=frozenset(seen))
+        seen.update(specs)
+        return [toolset]
+
+    def _attachment_toolsets(
+        self, dotted_path: str | None, request: HttpRequest, seen: set[str]
+    ) -> list[Any]:
+        """Build the per-request ``read_attachment`` toolset, or ``[]`` when off.
+
+        Returns an empty list when uploads are disabled (the default
+        ``NullAttachmentStore``) or when ``read_attachment`` is already claimed by
+        a registry / drf-mcp / spec tool (those win, the same precedence
+        ``build_tool_catalog`` applies) — otherwise pydantic-ai raises
+        ``UserError`` for the duplicate name at run time. The toolset carries
+        ``request`` so the model reads only the acting user's files.
+        """
+        store = resolve_attachment_store(dotted_path)
+        if isinstance(store, NullAttachmentStore) or "read_attachment" in seen:
+            return []
+        seen.add("read_attachment")
+        return [build_attachment_toolset(store, request)]
+
+    async def _authorize(self, request: HttpRequest) -> int | None:
+        """Establish the user (via ``get_user``) and apply the auth gates.
+
+        Returns the HTTP status the caller should deny with (``401`` when
+        ``require_authenticated`` is set and the resolved user is anonymous;
+        ``403`` when the ``authorize`` predicate rejects an established user), or
+        ``None`` to proceed. A ``get_user`` hook (sync **or** async; sync hooks
+        run off the event loop so the ORM is safe) is assigned onto
+        ``request.user`` so tools / the drf-mcp bridge / conversation ownership
+        act as that user. Without a hook, the middleware's lazy ``request.user``
+        is materialized in a worker thread first — touching it on the loop with
+        DB-backed sessions raises ``SynchronousOnlyOperation``, and downstream
+        loop-side readers (the drf-mcp bridge's ``TokenInfo``, conversation
+        ownership) rely on the cached resolution.
         """
         return await aauthorize(
             request,
             get_user=self._get_user,
             require_authenticated=self._require_authenticated,
+            authorize=self._authorize_predicate,
         )
 
     @staticmethod

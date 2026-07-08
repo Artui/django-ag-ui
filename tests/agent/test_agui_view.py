@@ -6,6 +6,7 @@ import warnings
 from types import SimpleNamespace
 
 import pytest
+from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured
 from django.http import StreamingHttpResponse
 from django.test import RequestFactory, override_settings
@@ -64,6 +65,36 @@ async def test_streams_ag_ui_events() -> None:
     assert "RUN_FINISHED" in body
     # TestModel exercises the registered server-side tool.
     assert "double" in body
+
+
+@override_settings(DJANGO_AG_UI={"FORWARD_REASONING": False})
+async def test_reasoning_opt_out_still_streams_the_answer() -> None:
+    # With FORWARD_REASONING off the stream is wrapped in the reasoning filter;
+    # a normal run (TestModel emits no reasoning) must still stream end-to-end.
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    response = await view(_post(_run_input("double 5")))
+    body = await _drain(response)
+    assert "RUN_STARTED" in body
+    assert "RUN_FINISHED" in body
+    assert "REASONING" not in body
+
+
+@pytest.mark.django_db
+@override_settings(DJANGO_AG_UI={"SERVICE_SPECS": "tests.integrations.drf_specs.SPECS"})
+async def test_service_specs_tool_runs_in_process() -> None:
+    # The no-MCP-hop path: a drf-services spec exposed via SERVICE_SPECS
+    # is wired as a SpecToolset and executed in-process during the run. A
+    # get_user hook stands in for the auth middleware that sets request.user in
+    # a real deployment (the toolset binds it as the acting user).
+    view = DjangoAGUIView(
+        ToolRegistry(),
+        model=TestModel(call_tools=["ping"]),
+        get_user=lambda _request: AnonymousUser(),
+    )
+    response = await view(_post(_run_input("ping the server")))
+    body = await _drain(response)
+    assert "RUN_FINISHED" in body
+    assert "ping" in body
 
 
 def test_view_is_marked_as_a_coroutine_function() -> None:
@@ -264,19 +295,94 @@ async def test_conversation_is_persisted_when_a_store_is_configured() -> None:
     assert len(loaded.messages) >= 1
 
 
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    DJANGO_AG_UI={
+        "CONVERSATION_STORE": (
+            "django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore"
+        ),
+    },
+)
+async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
+    # An open agent endpoint + a model store that refuses anonymous writes (the
+    # default, no ALLOW_ANONYMOUS): the run streams to completion and the save is
+    # skipped rather than crashing the stream — no row is written.
+    from django_ag_ui.contrib.store.models import StoredConversation
+
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    response = await view(_post(_run_input("double 5")))  # anonymous request
+    body = await _drain(response)
+    assert "RUN_FINISHED" in body
+    assert await StoredConversation.objects.acount() == 0
+
+
 async def test_drf_mcp_toolset_built_per_request_when_configured() -> None:
     from django_ag_ui.integrations.drf_mcp import DrfMcpToolset
 
     view = DjangoAGUIView(_registry(), model=TestModel())
     request = RequestFactory().post("/agent/")
-    toolsets = view._drf_mcp_toolsets("tests.integrations.drf_server.server", request)
+    toolsets = view._drf_mcp_toolsets("tests.integrations.drf_server.server", request, set())
     assert len(toolsets) == 1
     assert isinstance(toolsets[0], DrfMcpToolset)
 
 
 async def test_no_drf_mcp_toolset_without_the_setting() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
-    assert view._drf_mcp_toolsets(None, RequestFactory().post("/agent/")) == []
+    assert view._drf_mcp_toolsets(None, RequestFactory().post("/agent/"), set()) == []
+
+
+_DEFAULT_ATTACHMENT_STORE = (
+    "django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore"
+)
+
+
+async def test_attachment_toolset_built_per_request_when_configured() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    toolsets = view._attachment_toolsets(
+        _DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/"), set()
+    )
+    assert len(toolsets) == 1
+    assert toolsets[0].id == "django-ag-ui-attachments"
+
+
+async def test_no_attachment_toolset_without_the_setting() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    assert view._attachment_toolsets(None, RequestFactory().post("/agent/"), set()) == []
+
+
+async def test_attachment_toolset_skipped_when_a_prior_tool_owns_the_name() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    # ``read_attachment`` already claimed upstream (registry / drf-mcp / spec):
+    # the attachment toolset yields to it rather than raising a duplicate.
+    seen = {"read_attachment"}
+    assert (
+        view._attachment_toolsets(_DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/"), seen)
+        == []
+    )
+
+
+async def test_seen_set_guards_three_way_name_collisions() -> None:
+    # drf-mcp → spec → attachment precedence, threaded through one ``seen``
+    # set so a name exposed by two sources can't reach pydantic-ai as a duplicate.
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    request = RequestFactory().post("/agent/")
+    seen: set[str] = set()
+
+    # drf-mcp reserves its server's tool names.
+    view._drf_mcp_toolsets("tests.integrations.drf_server.server", request, seen)
+    assert {"add", "invalid", "denied"} <= seen
+
+    # spec: ``add`` collides with drf-mcp (dropped, drf-mcp wins); ``unique_spec``
+    # survives; ``read_attachment`` is now reserved by the spec toolset.
+    (spec_toolset,) = view._spec_toolsets(
+        "tests.integrations.drf_specs_colliding.SPECS", request, seen
+    )
+    assert "add" not in spec_toolset._specs
+    assert "unique_spec" in spec_toolset._specs
+    assert "read_attachment" in seen
+
+    # attachment: yields because a spec already claimed ``read_attachment``.
+    assert view._attachment_toolsets(_DEFAULT_ATTACHMENT_STORE, request, seen) == []
 
 
 @pytest.mark.django_db(transaction=True)
@@ -464,7 +570,7 @@ async def test_disconnect_without_a_store_still_audits_and_reraises() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_lazy_request_user_is_materialized_off_the_loop() -> None:
-    # ASYNC-1: with DB-backed sessions, request.user is a SimpleLazyObject
+    # With DB-backed sessions, request.user is a SimpleLazyObject
     # whose first touch runs ORM queries — forbidden on the event loop. The
     # view must resolve it in a worker thread, so this passes instead of
     # raising SynchronousOnlyOperation.

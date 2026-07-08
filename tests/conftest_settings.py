@@ -23,6 +23,12 @@ DATABASES = {
     }
 }
 
+# In-memory file storage so the reference attachment store's FileField never
+# touches disk during tests (unique UUID names keep entries from colliding).
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+}
+
 MIDDLEWARE: list[str] = []
 
 CACHES = {

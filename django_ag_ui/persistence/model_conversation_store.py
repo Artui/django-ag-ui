@@ -7,7 +7,7 @@ from django.http import HttpRequest
 
 from django_ag_ui.persistence.types.conversation import Conversation
 from django_ag_ui.persistence.types.conversation_meta import ConversationMetaList
-from django_ag_ui.persistence.utils import owner_id_for
+from django_ag_ui.persistence.utils import resolve_owner_id
 
 
 class ModelConversationStore(ABC):
@@ -32,19 +32,43 @@ class ModelConversationStore(ABC):
     """
 
     async def load(self, thread_id: str, *, request: HttpRequest) -> Conversation | None:
-        return await sync_to_async(self._fetch)(thread_id, owner_id_for(request))
+        return await sync_to_async(self._load)(thread_id, request)
 
     async def save(self, conversation: Conversation, *, request: HttpRequest) -> None:
-        await sync_to_async(self._store)(conversation, owner_id_for(request))
+        await sync_to_async(self._save)(conversation, request)
 
     async def delete(self, thread_id: str, *, request: HttpRequest) -> None:
-        await sync_to_async(self._remove)(thread_id, owner_id_for(request))
+        await sync_to_async(self._delete)(thread_id, request)
 
-    async def list(self, *, request: HttpRequest) -> ConversationMetaList:
-        return await sync_to_async(self._list)(owner_id_for(request))
+    async def list(self, *, request: HttpRequest, limit: int | None = None) -> ConversationMetaList:
+        return await sync_to_async(self._list_scoped)(request, limit)
+
+    async def exists(self, thread_id: str, *, request: HttpRequest) -> bool:
+        return await sync_to_async(self._exists_scoped)(thread_id, request)
 
     async def rename(self, thread_id: str, title: str, *, request: HttpRequest) -> None:
-        await sync_to_async(self._rename)(thread_id, title, owner_id_for(request))
+        await sync_to_async(self._rename_scoped)(thread_id, title, request)
+
+    # Owner resolution + the sync row op run in one thread (``resolve_owner_id``
+    # may create a session row for the anonymous bucket, so it can't run on the
+    # event loop). ``AnonymousOperationError`` propagates up to the view (→ 403).
+    def _load(self, thread_id: str, request: HttpRequest) -> Conversation | None:
+        return self._fetch(thread_id, resolve_owner_id(request))
+
+    def _save(self, conversation: Conversation, request: HttpRequest) -> None:
+        self._store(conversation, resolve_owner_id(request))
+
+    def _delete(self, thread_id: str, request: HttpRequest) -> None:
+        self._remove(thread_id, resolve_owner_id(request))
+
+    def _list_scoped(self, request: HttpRequest, limit: int | None) -> ConversationMetaList:
+        return self._list(resolve_owner_id(request), limit)
+
+    def _exists_scoped(self, thread_id: str, request: HttpRequest) -> bool:
+        return self._exists(thread_id, resolve_owner_id(request))
+
+    def _rename_scoped(self, thread_id: str, title: str, request: HttpRequest) -> None:
+        self._rename(thread_id, title, resolve_owner_id(request))
 
     @abstractmethod
     def _fetch(self, thread_id: str, owner_id: str | None) -> Conversation | None: ...
@@ -55,15 +79,25 @@ class ModelConversationStore(ABC):
     @abstractmethod
     def _remove(self, thread_id: str, owner_id: str | None) -> None: ...
 
-    def _list(self, owner_id: str | None) -> ConversationMetaList:
+    def _list(self, owner_id: str | None, limit: int | None) -> ConversationMetaList:
         """Owner-scoped thread metadata for the drawer. Override to enable it.
 
         Concrete (not abstract) with a ``[]`` default so existing subclasses
         keep working without a forced change — thread listing is opt-in. A
         subclass with ``title`` / ``updated_at`` columns overrides this for a
-        cheap single-query listing (no message bodies loaded).
+        cheap single-query listing (no message bodies loaded), applying ``limit``
+        (when not ``None``) as a queryset slice so the cap reaches the DB.
         """
         return []
+
+    def _exists(self, thread_id: str, owner_id: str | None) -> bool:
+        """Owner-scoped presence check. Default probes via :meth:`_fetch`.
+
+        Concrete so existing subclasses keep working; the default loads the row
+        (message body included) to answer, so a subclass with a metadata table
+        should override with a cheap ``.exists()`` query that reads no body.
+        """
+        return self._fetch(thread_id, owner_id) is not None
 
     def _rename(self, thread_id: str, title: str, owner_id: str | None) -> None:
         """Persist a renamed display title. Default no-op; override to store it.

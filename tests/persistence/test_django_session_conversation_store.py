@@ -115,3 +115,26 @@ async def test_rename_missing_thread_is_a_noop() -> None:
     request = _request()
     await store.rename("absent", "x", request=request)
     assert await store.list(request=request) == []
+
+
+async def test_exists_reflects_session_presence() -> None:
+    store = DjangoSessionConversationStore()
+    request = _request()
+    await store.save(Conversation(thread_id="t1"), request=request)
+    assert await store.exists("t1", request=request) is True
+    assert await store.exists("absent", request=request) is False
+
+
+async def test_list_orders_newest_first_and_applies_limit() -> None:
+    store = DjangoSessionConversationStore()
+    request = _request()
+    # Two saved threads carry ``updated_at``; a legacy entry saved without one
+    # sorts last (exercises the ``updated_at is None`` sort branch).
+    await store.save(Conversation(thread_id="t1"), request=request)
+    await store.save(Conversation(thread_id="t2"), request=request)
+    request.session["django_ag_ui_conversations"]["legacy"] = {"messages": [], "owner_id": None}
+    request.session.modified = True
+
+    metas = await store.list(request=request)
+    assert metas[-1].thread_id == "legacy"  # no timestamp → last
+    assert len(await store.list(request=request, limit=1)) == 1

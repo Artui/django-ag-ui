@@ -28,8 +28,9 @@ with per-tool risk metadata.
 - A **skill catalog** ([`SkillRegistry`][django_ag_ui.SkillRegistry]) of
   pre-defined prompts, served at `<prefix>skills/` for the web component.
 - A **tool metadata catalog** ([`ToolsView`][django_ag_ui.ToolsView]), served at
-  `<prefix>tools/` via `get_urls(view, tools=registry)`, giving the web component
-  friendly card labels for server-side tools.
+  `<prefix>tools/` — mounted automatically by
+  [`AGUIServer`][django_ag_ui.AGUIServer] — giving the web component friendly card
+  labels for server-side tools.
 - Optional, pluggable **conversation persistence**
   ([`ConversationStore`][django_ag_ui.ConversationStore]), off by default — with
   a **thread history** drawer endpoint ([`ThreadsView`][django_ag_ui.ThreadsView])
@@ -40,7 +41,7 @@ with per-tool risk metadata.
 
 ## Where it sits
 
-`django-ag-ui` is **Phase 1** of a three-package design — the Django side of
+`django-ag-ui` is **the Django side** of a three-package design — the base of
 the bridge, with no admin specifics:
 
 | Package | Role |

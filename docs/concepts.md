@@ -136,8 +136,49 @@ coroutine function so Django awaits it under ASGI; served over WSGI it emits a
 one-time `RuntimeWarning` (SSE streaming needs ASGI). Frontend-declared tools in
 the request are merged into the catalog by the adapter automatically.
 
-[`get_urls`][django_ag_ui.get_urls] returns the URL pattern(s) mounting a view
-at a prefix (default `agent/`).
+[`AGUIServer`][django_ag_ui.AGUIServer] builds this view (plus its sub-views)
+from the registry and exposes a namespaced [`.urls`][django_ag_ui.AGUIServer.urls]
+tuple you mount at any prefix — see [Mounting](#mounting) below.
+
+## Mounting
+
+[`AGUIServer`][django_ag_ui.AGUIServer] is the package's front door — one
+instance-configured object holding the registry, stores, and auth policy, mounted
+the `django.contrib.admin` `site.urls` way. Construct it **once** and `include()`
+its [`.urls`][django_ag_ui.AGUIServer.urls]:
+
+```python
+from django.urls import path
+
+from django_ag_ui import AGUIServer
+
+agent = AGUIServer(registry, require_authenticated=True)
+
+urlpatterns = [
+    path("agent/", agent.urls),
+]
+```
+
+- **The registry is passed once.** The object builds the agent view *and* the
+  tool catalog from it — no `tools=registry` echo.
+- **You choose the mount point** the Django way (`path("<prefix>", agent.urls)`);
+  there is no `prefix=` argument.
+- **`.urls` is namespaced.** It returns the `(patterns, app_name, namespace)`
+  triple `path()` mounts directly (like `admin.site.urls` — no `include()`), so
+  the endpoints reverse as `reverse("ag_ui:endpoint")`,
+  `"ag_ui:tools"`, `"ag_ui:skills"`, `"ag_ui:threads"`, `"ag_ui:thread"`,
+  `"ag_ui:attachments"`, `"ag_ui:attachment"`, `"ag_ui:transcribe"`. Two mounts
+  don't collide; override the namespace with `namespace="…"`.
+- **Sub-views mount when their backend is active.** The agent endpoint and its
+  tool catalog always mount; `skills` mounts when a `SkillRegistry` is passed;
+  `threads` / `attachments` / `transcribe` mount when their store/backend
+  (resolved from settings by default, or passed explicitly) is not the `Null`
+  one. A bare `AGUIServer(registry)` mounts only `endpoint` + `tools`.
+- **One auth policy covers the whole mount.** `require_authenticated` /
+  `get_user` / `authorize` forward to every view the object builds.
+
+Because the object holds its own registry and config, you can mount several with
+independent registries — one per surface — each namespaced separately.
 
 ## Skills
 
@@ -173,12 +214,12 @@ client catalog as a list of camelCase dicts (`name`, `title`, `prompt`, and the
 optional `description`, `sendImmediately`, `chip` keys, omitted when at their
 default). It is served by `SkillsView`
 (`django_ag_ui.skills.skills_view.SkillsView`) — a GET-only callable view — which
-[`get_urls`][django_ag_ui.get_urls] mounts at `<prefix>skills/` when you pass
-`skills=`:
+[`AGUIServer`][django_ag_ui.AGUIServer] mounts at `<prefix>skills/` (named
+`skills`) when you pass `skills=`:
 
 ```python
 urlpatterns = [
-    *get_urls(DjangoAGUIView(registry), prefix="agent/", skills=skills),
+    path("agent/", AGUIServer(registry, skills=skills).urls),
 ]
 ```
 
@@ -213,12 +254,13 @@ the MCP wire), so the catalog surfaces friendly labels for those tools too.
 
 `ToolsView` (`django_ag_ui.ToolsView`) — a GET-only callable view holding the
 same [`ToolRegistry`][django_ag_ui.ToolRegistry] the agent uses — serves the
-catalog. [`get_urls`][django_ag_ui.get_urls] mounts it at `<prefix>tools/` (named
-`django_ag_ui_tools`) when you pass `tools=` the same registry:
+catalog. [`AGUIServer`][django_ag_ui.AGUIServer] builds it from the registry you
+pass and mounts it at `<prefix>tools/` (named `tools`) automatically — no extra
+argument:
 
 ```python
 urlpatterns = [
-    *get_urls(DjangoAGUIView(registry), prefix="agent/", tools=registry),
+    path("agent/", AGUIServer(registry).urls),
 ]
 ```
 
@@ -275,9 +317,11 @@ owner-scoped:
   session store persists it (overriding the derived title);
   `ModelConversationStore._rename` is a no-op until overridden.
 
-Mount [`ThreadsView`][django_ag_ui.ThreadsView] with
-`get_urls(view, threads=store)` to expose them over HTTP for the web component's
-`data-threads-url`:
+[`AGUIServer`][django_ag_ui.AGUIServer] mounts [`ThreadsView`][django_ag_ui.ThreadsView]
+automatically whenever the conversation store is active (a non-`Null` store,
+resolved from [`CONVERSATION_STORE`](configuration.md#conversation_store) by
+default or passed as `conversation_store=`), exposing them over HTTP for the web
+component's `data-threads-url`:
 
 | Route | Method | Action |
 | --- | --- | --- |
@@ -308,6 +352,59 @@ single cheap query. Projects that don't opt in get no model and no migration.
     the run's messages on completion and the client remains the source of truth
     for the posted history. (The owner-scoped rehydration endpoint **is** now
     shipped — `GET <prefix>threads/<id>/` above.)
+
+## File uploads
+
+A user can attach files to a conversation — drop a PDF or image into the
+composer, send a message, and let the agent read it. The design keeps the AG-UI
+wire **vanilla**: files upload out-of-band to their own endpoint and travel as
+lightweight **refs** (`id` / `name` / `mime` / `size`), never as base64 on the
+message stream — the same principle the [tool metadata
+catalog](#tool-metadata-catalog) uses to keep schemas off the wire.
+
+The lifecycle:
+
+1. The composer uploads each file (multipart `POST <prefix>attachments/`) and
+   gets back an [`AttachmentRef`][django_ag_ui.AttachmentRef] — a durable handle,
+   not bytes.
+2. The user sends a message carrying the refs.
+3. When the model needs a file's contents, it calls the built-in
+   `read_attachment(attachment_id)` tool, which resolves the bytes **server-side,
+   owner-scoped to the acting user**.
+
+### The store
+
+[`AttachmentStore`][django_ag_ui.AttachmentStore] is the persistence seam, set
+via [`ATTACHMENT_STORE`](configuration.md#attachment_store). Every method is
+async and owner-scoped — one user's id can never resolve another's file, the
+security boundary for the feature. The default
+[`NullAttachmentStore`][django_ag_ui.NullAttachmentStore] keeps uploads off
+(`410 Gone`); subclass the abstract
+[`ModelAttachmentStore`][django_ag_ui.ModelAttachmentStore] for your own model,
+or opt into the [ready-made durable store](#a-ready-made-durable-store) which
+keeps bytes in Django `Storage` (filesystem by default, S3/GCS via `STORAGES`).
+
+### The endpoints
+
+[`AGUIServer`][django_ag_ui.AGUIServer] mounts
+[`AttachmentsView`][django_ag_ui.AttachmentsView] automatically whenever the
+attachment store is active (a non-`Null` store, resolved from
+[`ATTACHMENT_STORE`](configuration.md#attachment_store) by default or passed as
+`attachment_store=`):
+
+- `POST   <prefix>attachments/`      — multipart upload under the `file` field;
+  validates [size](configuration.md#attachment_max_bytes) and
+  [type](configuration.md#attachment_allowed_types) **server-side**, then returns
+  `201` with the ref JSON.
+- `GET    <prefix>attachments/<id>/` — stream the bytes back (owner-checked), as
+  an `attachment` with `X-Content-Type-Options: nosniff` so an uploaded
+  `text/html` can't execute as a same-origin page; missing / cross-owner → `404`.
+- `DELETE <prefix>attachments/<id>/` — drop the attachment (`204`).
+
+All owner-scoped and open by default like the catalog views — construct
+`AttachmentsView` yourself with `require_authenticated` / `get_user` to lock it
+down whenever the agent endpoint is. The web component reads
+`data-attachments-url` to drive the composer's upload tray.
 
 ## Cancelling a run
 

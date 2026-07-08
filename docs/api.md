@@ -35,11 +35,11 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ## Agent and view
 
+::: django_ag_ui.AGUIServer
+
 ::: django_ag_ui.DjangoAGUIView
 
 ::: django_ag_ui.ToolsView
-
-::: django_ag_ui.get_urls
 
 ::: django_ag_ui.build_agent
 
@@ -99,6 +99,55 @@ Projects that don't opt in get no model and no migration.
 
 ::: django_ag_ui.contrib.store.models.StoredConversation
 
+## File uploads
+
+::: django_ag_ui.AttachmentStore
+
+::: django_ag_ui.AttachmentRef
+
+::: django_ag_ui.OpenedAttachment
+
+::: django_ag_ui.NullAttachmentStore
+
+::: django_ag_ui.ModelAttachmentStore
+
+::: django_ag_ui.resolve_attachment_store
+
+::: django_ag_ui.AttachmentsView
+
+### Reference attachment store (opt-in)
+
+The same `django_ag_ui.contrib.store` app ships a ready-to-use durable file
+store. With the app installed and migrated, set
+`DJANGO_AG_UI["ATTACHMENT_STORE"]` to
+`django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore`. The
+bytes go to Django `Storage` (S3/GCS via `STORAGES` / `DEFAULT_FILE_STORAGE`);
+projects that don't opt in get no model and no migration.
+
+::: django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore
+
+::: django_ag_ui.contrib.store.models.StoredAttachment
+
+## Voice input
+
+::: django_ag_ui.TranscriptionBackend
+
+::: django_ag_ui.NullTranscriptionBackend
+
+::: django_ag_ui.resolve_transcription_backend
+
+::: django_ag_ui.TranscribeView
+
+### Reference transcription backend (opt-in)
+
+A ready-to-use backend over any OpenAI-compatible `/audio/transcriptions`
+endpoint. Install the `[openai]` extra and set
+`DJANGO_AG_UI["TRANSCRIPTION_BACKEND"]` to
+`django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend`;
+subclass it to change the model or point at another OpenAI-compatible server.
+
+::: django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend
+
 ## Internal helpers
 
 These are not part of the public re-export surface but are referenced from the
@@ -111,4 +160,6 @@ guides.
 ::: django_ag_ui.agent.build_tool_catalog.build_tool_catalog
 
 ::: django_ag_ui.integrations.drf_mcp.DrfMcpToolset
+
+::: django_ag_ui.agent.attachment_toolset.build_attachment_toolset
 </content>
