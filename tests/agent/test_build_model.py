@@ -19,7 +19,10 @@ def test_builds_anthropic_from_api_key() -> None:
 
 
 def test_builds_openai_from_api_key() -> None:
-    assert isinstance(build_model("openai:gpt-4o", api_key="sk-test"), OpenAIChatModel)
+    # Pydantic-AI 2.x maps the bare ``openai:`` prefix to the Responses API model;
+    # ``openai-chat:`` still selects the Chat Completions model.
+    assert isinstance(build_model("openai:gpt-4o", api_key="sk-test"), OpenAIResponsesModel)
+    assert isinstance(build_model("openai-chat:gpt-4o", api_key="sk-test"), OpenAIChatModel)
 
 
 def test_builds_openai_responses_from_api_key() -> None:
@@ -34,8 +37,10 @@ def test_builds_google_from_api_key() -> None:
 
 
 def test_google_aliases_select_the_google_model() -> None:
+    # ``gemini:`` is our own back-compat alias for Pydantic-AI's ``google:``
+    # provider (its only Google provider name in 2.x — the 1.x ``google-gla:`` /
+    # ``google-vertex:`` prefixes were dropped upstream).
     assert isinstance(build_model("gemini:gemini-2.0-flash", api_key="k"), GoogleModel)
-    assert isinstance(build_model("google-gla:gemini-2.0-flash", api_key="k"), GoogleModel)
 
 
 def test_provider_instance_takes_precedence() -> None:
@@ -52,10 +57,12 @@ def test_provider_dotted_path_is_resolved() -> None:
     assert isinstance(model, AnthropicModel)
 
 
-def test_infers_provider_from_a_bare_model_name() -> None:
-    # Pydantic-AI maps a recognisable bare name to its provider (claude → anthropic),
-    # so a prefix isn't strictly required for known model families.
-    assert isinstance(build_model("claude-sonnet-4-5", api_key="k"), AnthropicModel)
+def test_bare_model_name_no_longer_infers_a_provider() -> None:
+    # Pydantic-AI 2.x dropped bare-name provider inference: a recognisable name
+    # like ``claude-…`` without a ``provider:`` prefix no longer resolves and now
+    # points the user at the PROVIDER setting, same as any uninferable name.
+    with pytest.raises(ImproperlyConfigured, match="PROVIDER"):
+        build_model("claude-sonnet-4-5", api_key="k")
 
 
 def test_uninferable_bare_model_points_at_provider_setting() -> None:

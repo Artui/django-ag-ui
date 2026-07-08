@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Widen the `pydantic-ai-slim` dependency constraint from `>=1.0,<2` to
+  `>=1.0,<3` (core plus the `anthropic` / `openai` / `google` provider extras),
+  so the package installs against Pydantic-AI 2.x. Verified against
+  `pydantic-ai-slim` 2.6.0. The 1.x line remains supported.
+- Widen the `[spec-tools]` extra's `djangorestframework-pydantic-ai` pin to
+  `>=0.2,<0.4` (was `<0.3` — stale; the backing package is at 0.3.x) and the
+  `[drf-mcp]` extra's `djangorestframework-mcp-server` pin to `>=0.9,<0.12`
+  (was `<0.11`). Together these let a project resolve `pydantic-ai-slim` 2.x
+  through the optional bridges without back-tracking to the 1.x line.
+
+### Notes on Pydantic-AI 2.x
+
+`build_model` delegates provider-prefix → model-class resolution to Pydantic-AI
+(there is no hand-maintained table), so it inherits these 2.x vocabulary
+changes for projects that install `pydantic-ai-slim>=2`:
+
+- The bare `openai:` prefix now builds an `OpenAIResponsesModel` (the Responses
+  API) rather than an `OpenAIChatModel`. Use `openai-chat:` for the Chat
+  Completions model.
+- Bare model names no longer infer a provider — `claude-sonnet-4-5` (no
+  `provider:` prefix) previously resolved to Anthropic; it now raises
+  `ImproperlyConfigured` pointing at the `PROVIDER` setting. Pass an explicit
+  `provider:name` string.
+- The `google-gla:` and `google-vertex:` provider prefixes were removed
+  upstream; only `google:` remains (our `gemini:` → `google:` alias is
+  unaffected).
+
 ## [0.12.0] — 2026-07-08
 
 ### Added

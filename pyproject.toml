@@ -40,21 +40,21 @@ dependencies = [
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
-    "pydantic-ai-slim[ag-ui]>=1.0,<2",
+    "pydantic-ai-slim[ag-ui]>=1.0,<3",
 ]
 
 [project.optional-dependencies]
 # Model-provider extras (slim ships none). Install one to use a "provider:model"
 # MODEL string, e.g. `pip install django-ag-ui[anthropic]`.
-anthropic = ["pydantic-ai-slim[anthropic]>=1.0,<2"]
-openai = ["pydantic-ai-slim[openai]>=1.0,<2"]
-google = ["pydantic-ai-slim[google]>=1.0,<2"]
+anthropic = ["pydantic-ai-slim[anthropic]>=1.0,<3"]
+openai = ["pydantic-ai-slim[openai]>=1.0,<3"]
+google = ["pydantic-ai-slim[google]>=1.0,<3"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
-drf-mcp = ["djangorestframework-mcp-server>=0.9,<0.11"]
+drf-mcp = ["djangorestframework-mcp-server>=0.9,<0.12"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
 # pydantic-ai's SpecToolset — no MCP server in the path (DJANGO_AG_UI["SERVICE_SPECS"]).
-spec-tools = ["djangorestframework-pydantic-ai>=0.2,<0.3"]
+spec-tools = ["djangorestframework-pydantic-ai>=0.2,<0.4"]
 
 [project.urls]
 Homepage = "https://github.com/Artui/django-ag-ui"
@@ -81,9 +81,9 @@ dev = [
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
-    "djangorestframework-mcp-server>=0.9,<0.11",
+    "djangorestframework-mcp-server>=0.9,<0.12",
     # The [spec-tools] extra's backing package, so its toolset + tests run in dev.
-    "djangorestframework-pydantic-ai>=0.2,<0.3",
+    "djangorestframework-pydantic-ai>=0.2,<0.4",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
     # in dev/CI (the extras above ship to consumers, not the dev env).
     "pydantic-ai-slim[anthropic,openai,google]>=1.0",
