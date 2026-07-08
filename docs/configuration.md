@@ -21,7 +21,17 @@ default, and what it does.
 | `TOOLSETS` | `tuple[str, ...]` | `()` | Extra Pydantic-AI toolsets. |
 | `CAPABILITIES` | `tuple[str, ...]` | `()` | Pydantic-AI capabilities. |
 | `CONVERSATION_STORE` | dotted `str` | `None` | Server-side conversation persistence. |
+| `THREAD_LIST_LIMIT` | `int` | `200` | Max threads the index endpoint returns per call; `?limit=N` requests fewer, a larger value is clamped down. |
+| `ATTACHMENT_STORE` | dotted `str` | `None` | Server-side file-upload storage (uploads off when unset). |
+| `ATTACHMENT_MAX_BYTES` | `int` | `10485760` | Max accepted upload size in bytes (`0` disables the cap). |
+| `ATTACHMENT_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed upload content types (empty = any). |
+| `FORWARD_REASONING` | `bool` | `True` | Forward a reasoning model's thoughts to the client (`False` strips them). |
+| `TRANSCRIPTION_BACKEND` | dotted `str` | `None` | Speech-to-text backend for voice input (voice off when unset). |
+| `TRANSCRIPTION_MAX_BYTES` | `int` | `26214400` | Max accepted audio-clip size in bytes (`0` disables the cap). |
+| `TRANSCRIPTION_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed audio content types (empty = any). |
 | `DRF_MCP_SERVER` | dotted `str` | `None` | drf-mcp server whose tools the agent gets. |
+| `SERVICE_SPECS` | dotted `str` | `None` | drf-services specs mapping exposed as tools, no MCP hop (`[spec-tools]` extra). |
+| `ALLOW_ANONYMOUS` | `bool` | `False` | Whether the model-backed stores serve anonymous requests (see [Authentication & anonymous scoping](#authentication-anonymous-scoping)). |
 
 ## `MODEL`
 
@@ -212,9 +222,130 @@ DJANGO_AG_UI = {
 ```
 
 The base package ships no model, so projects that don't opt in get no migration.
-To expose the **thread-history drawer** endpoints over HTTP, pass the same store
-to `get_urls(view, threads=store)` — see
+When this setting resolves to an active (non-`Null`) store, `AGUIServer` mounts
+the **thread-history drawer** endpoints automatically — see
 [Thread history](concepts.md#thread-history).
+
+## `ATTACHMENT_STORE`
+
+A dotted path to an [`AttachmentStore`][django_ag_ui.AttachmentStore] class,
+importable with no arguments. `None` (the default) keeps **uploads disabled**
+using [`NullAttachmentStore`][django_ag_ui.NullAttachmentStore] — the upload
+endpoint answers `410 Gone`. Resolution is done by
+[`resolve_attachment_store`][django_ag_ui.resolve_attachment_store], which raises
+`TypeError` if the path does not produce an `AttachmentStore`.
+
+When a store is set, the view wires a per-request `read_attachment(attachment_id)`
+tool onto the agent, scoped to the acting user, so the model can read the bytes a
+user attached — the AG-UI message stream stays free of file payloads (uploads go
+out-of-band and travel as lightweight refs). A consumer that registers its own
+`read_attachment` tool keeps it (registry tools win).
+
+The package ships an abstract
+[`ModelAttachmentStore`][django_ag_ui.ModelAttachmentStore] base you can subclass
+with your own model + storage. For a ready-made store, opt into the
+`django_ag_ui.contrib.store` app — add it to `INSTALLED_APPS`, run `migrate`, and
+point the setting at its store (bytes go to Django `Storage`, so S3/GCS come free
+via `STORAGES` / `DEFAULT_FILE_STORAGE`):
+
+```python
+INSTALLED_APPS = [
+    # ...
+    "django_ag_ui.contrib.store",
+]
+
+DJANGO_AG_UI = {
+    "ATTACHMENT_STORE": (
+        "django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore"
+    ),
+}
+```
+
+When this setting resolves to an active (non-`Null`) store, `AGUIServer` mounts
+the upload endpoints over HTTP automatically — see
+[File uploads](concepts.md#file-uploads).
+
+## `ATTACHMENT_MAX_BYTES`
+
+The maximum accepted upload size in bytes, enforced **server-side** by
+[`AttachmentsView`][django_ag_ui.AttachmentsView] (an oversize upload → `413`).
+Defaults to `10485760` (10 MiB); set `0` to disable the cap. Client-side checks
+in the web component are a UX nicety — this is the authoritative limit.
+
+## `ATTACHMENT_ALLOWED_TYPES`
+
+A tuple of allowed (client-declared) content types for uploads, e.g.
+`("image/png", "image/jpeg", "application/pdf", "text/plain")`. Empty (the
+default) accepts any type; otherwise an upload whose `Content-Type` is not listed
+is rejected with `415`. The content type is client-declared, so treat this as a
+coarse filter — the store decides what to do with the bytes.
+
+## `FORWARD_REASONING`
+
+Whether a reasoning model's chain-of-thought is forwarded to the client. When
+`True` (the default), the AG-UI reasoning events Pydantic-AI emits for a
+`ThinkingPart` pass straight through to the browser (where the web component can
+render a collapsible "thinking" region). Set `False` to let the model reason
+privately — the events are stripped from the stream before encoding, so the
+chain-of-thought never leaves the server.
+
+Reasoning is only emitted when the model is actually configured to think, which
+is a `MODEL_SETTINGS` concern, not a separate switch. For an Anthropic model:
+
+```python
+DJANGO_AG_UI = {
+    "MODEL": "anthropic:claude-sonnet-4.6",
+    "MODEL_SETTINGS": {"anthropic_thinking": {"type": "enabled", "budget_tokens": 2048}},
+    # "FORWARD_REASONING": False,  # think privately; don't stream the thoughts
+}
+```
+
+It is a pure pass-through (no protocol extension): the events ride the standard
+AG-UI reasoning event family, and the server-side transcript ignores them (they
+are ephemeral and never persisted).
+
+## `TRANSCRIPTION_BACKEND`
+
+A dotted path to a [`TranscriptionBackend`][django_ag_ui.TranscriptionBackend]
+class, importable with no arguments. `None` (the default) keeps **voice input
+disabled** using [`NullTranscriptionBackend`][django_ag_ui.NullTranscriptionBackend]
+— the transcribe endpoint answers `410 Gone`. Resolution is done by
+[`resolve_transcription_backend`][django_ag_ui.resolve_transcription_backend],
+which raises `TypeError` if the path does not produce a `TranscriptionBackend`.
+
+The package ships a ready reference backend over any OpenAI-compatible
+`/audio/transcriptions` endpoint —
+`django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend`
+— self-configuring from the `OPENAI_API_KEY` environment variable (requires the
+`[openai]` extra). Subclass it to change the model or point at another
+OpenAI-compatible server (Azure OpenAI, Groq, a local Whisper server):
+
+```python
+DJANGO_AG_UI = {
+    "TRANSCRIPTION_BACKEND": (
+        "django_ag_ui.contrib.transcription.openai_transcription_backend"
+        ".OpenAITranscriptionBackend"
+    ),
+}
+```
+
+When this setting resolves to an active (non-`Null`) backend, `AGUIServer` mounts
+the voice endpoint automatically: `POST <prefix>transcribe/` accepts a multipart
+`audio` clip and returns `{"text": "<transcript>"}` for the web component's
+`data-transcribe-url`.
+
+## `TRANSCRIPTION_MAX_BYTES`
+
+The maximum accepted audio-clip size in bytes, enforced **server-side** by
+[`TranscribeView`][django_ag_ui.TranscribeView] (an oversize clip → `413`).
+Defaults to `26214400` (25 MiB, the OpenAI transcription limit); set `0` to
+disable the cap.
+
+## `TRANSCRIPTION_ALLOWED_TYPES`
+
+A tuple of allowed (client-declared) content types for voice clips, e.g.
+`("audio/webm", "audio/mp4", "audio/mpeg")`. Empty (the default) accepts any
+type; otherwise a clip whose `Content-Type` is not listed is rejected with `415`.
 
 ## `DRF_MCP_SERVER`
 
@@ -227,9 +358,9 @@ and permission checks apply. See
 [Installation → the `[drf-mcp]` extra](installation.md#the-drf-mcp-extra).
 
 The drf-mcp tools also appear in the
-[tool metadata catalog](concepts.md#tool-metadata-catalog) (mounted by
-`get_urls(view, tools=registry)`), which reads each tool's `display_name` /
-`display_description` as the web component's card label.
+[tool metadata catalog](concepts.md#tool-metadata-catalog) (mounted automatically
+by `AGUIServer`), which reads each tool's `display_name` / `display_description`
+as the web component's card label.
 
 ```python
 DJANGO_AG_UI = {
@@ -237,3 +368,83 @@ DJANGO_AG_UI = {
 }
 ```
 </content>
+
+## `SERVICE_SPECS`
+
+A dotted path to a `name -> spec` mapping (drf-services `ServiceSpec` /
+`SelectorSpec` objects) exposed to the agent as tools **without an MCP server**,
+via `djangorestframework-pydantic-ai`'s `SpecToolset`. `None` (the default)
+disables it. Requires the `[spec-tools]` extra
+(`pip install "django-ag-ui[spec-tools]"`), imported lazily.
+
+This is the no-MCP-hop sibling of [`DRF_MCP_SERVER`](#drf_mcp_server): the specs
+are dispatched in-process through drf-services' transport-neutral surface
+(`dispatch_spec` + its off-HTTP helpers), enforcing each spec's
+`permission_classes`. The agent acts as the **logged-in AG-UI user** (bound from
+`request`), and a registry `@tool` wins a name collision. Use it when you have
+drf-services specs but no reason to stand up an MCP server; use `DRF_MCP_SERVER`
+when you already run one (or want MCP clients to share the tools).
+
+```python
+# myproject/specs.py
+from rest_framework_services import SelectorSpec, ServiceSpec
+SPECS = {
+    "list_orders": SelectorSpec(serializer=OrderSerializer, queryset=Order.objects.all()),
+    "create_order": ServiceSpec(service=create_order, input_serializer=CreateOrderInput),
+}
+```
+
+```python title="settings.py"
+DJANGO_AG_UI = {"SERVICE_SPECS": "myproject.specs.SPECS"}
+```
+
+The spec tools' card labels are surfaced to the web component through the same
+`AGUIServer`-mounted tool catalog (`data-tools-url`).
+
+## Authentication & anonymous scoping
+
+The agent endpoint and every mounted sub-view (tools, skills, threads,
+attachments, transcribe) share **one authentication seam**, and it defaults
+**open** — an unauthenticated visitor can drive the agent and reach the stores.
+Lock a mount down by passing the seam to `AGUIServer`; it forwards to every view
+it builds, including the agent endpoint:
+
+```python
+from django.urls import path
+
+from django_ag_ui import AGUIServer
+
+agent = AGUIServer(
+    registry,
+    require_authenticated=True,   # 401 for anonymous requests
+    # authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user
+    # get_user=lambda r: token_user(r),     # establish the acting user
+)
+urlpatterns = [
+    path("agent/", agent.urls),
+]
+```
+
+- **`require_authenticated=True`** → an anonymous request gets **401** (JSON).
+- **`authorize=<predicate>`** runs after the user is established; a falsy return
+  gives **403** (JSON, never an HTML login redirect). Use it for a staff gate.
+- **`get_user=<hook>`** establishes `request.user` (sync or async — a sync ORM
+  token lookup runs off the event loop).
+
+### `ALLOW_ANONYMOUS`
+
+Governs how the **model-backed stores** (`ModelConversationStore` /
+`ModelAttachmentStore` and the `contrib.store` reference implementations) treat
+anonymous requests. It exists because owner scoping alone can't isolate
+anonymous visitors from one another — they have no user id.
+
+- **`False` (default)** — anonymous store operations are **refused**
+  (`AnonymousOperationError`, surfaced as **403** by the persistence views; the
+  agent endpoint's save path skips persistence so the run still streams). This
+  prevents every anonymous visitor from sharing one owner bucket and reading or
+  deleting each other's threads and attachments.
+- **`True`** — anonymous requests are bucketed per browser by
+  `request.session.session_key` (`anon:<key>`; requires session middleware).
+
+Whenever a store persists, prefer authenticating the endpoints
+(`require_authenticated=True` / `get_user`) over relying on `ALLOW_ANONYMOUS`.

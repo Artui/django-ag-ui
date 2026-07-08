@@ -19,7 +19,15 @@ def test_defaults_when_unconfigured() -> None:
     assert s.toolsets == ()
     assert s.capabilities == ()
     assert s.conversation_store is None
+    assert s.attachment_store is None
+    assert s.attachment_max_bytes == 10 * 1024 * 1024
+    assert s.attachment_allowed_types == ()
+    assert s.forward_reasoning is True
+    assert s.transcription_backend is None
+    assert s.transcription_max_bytes == 25 * 1024 * 1024
+    assert s.transcription_allowed_types == ()
     assert s.drf_mcp_server is None
+    assert s.service_specs is None
 
 
 @override_settings(
@@ -38,7 +46,17 @@ def test_defaults_when_unconfigured() -> None:
         "CONVERSATION_STORE": (
             "django_ag_ui.persistence.null_conversation_store.NullConversationStore"
         ),
+        "ATTACHMENT_STORE": ("django_ag_ui.persistence.null_attachment_store.NullAttachmentStore"),
+        "ATTACHMENT_MAX_BYTES": 2048,
+        "ATTACHMENT_ALLOWED_TYPES": ["text/plain", "image/png"],
+        "FORWARD_REASONING": False,
+        "TRANSCRIPTION_BACKEND": (
+            "django_ag_ui.persistence.null_transcription_backend.NullTranscriptionBackend"
+        ),
+        "TRANSCRIPTION_MAX_BYTES": 4096,
+        "TRANSCRIPTION_ALLOWED_TYPES": ["audio/webm", "audio/mp4"],
         "DRF_MCP_SERVER": "myapp.mcp.server",
+        "SERVICE_SPECS": "myapp.specs.SPECS",
     },
 )
 def test_reads_from_settings_dict() -> None:
@@ -56,7 +74,17 @@ def test_reads_from_settings_dict() -> None:
     assert s.capabilities == ("tests.agent.factories.make_toolset",)
     assert s.conversation_store is not None
     assert s.conversation_store.endswith("NullConversationStore")
+    assert s.attachment_store is not None
+    assert s.attachment_store.endswith("NullAttachmentStore")
+    assert s.attachment_max_bytes == 2048
+    assert s.attachment_allowed_types == ("text/plain", "image/png")
+    assert s.forward_reasoning is False
+    assert s.transcription_backend is not None
+    assert s.transcription_backend.endswith("NullTranscriptionBackend")
+    assert s.transcription_max_bytes == 4096
+    assert s.transcription_allowed_types == ("audio/webm", "audio/mp4")
     assert s.drf_mcp_server == "myapp.mcp.server"
+    assert s.service_specs == "myapp.specs.SPECS"
 
 
 @override_settings(DJANGO_AG_UI=None)

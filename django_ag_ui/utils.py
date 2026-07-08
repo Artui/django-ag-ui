@@ -7,12 +7,22 @@ from inspect import isawaitable
 from typing import Any
 
 from asgiref.sync import async_to_sync, iscoroutinefunction, sync_to_async
-from django.http import HttpRequest
+from django.http import HttpRequest, JsonResponse
 
 # The ``get_user`` hook contract shared by every view that authenticates:
 # sync or async, returning the acting user. Sync hooks may freely use the
 # ORM — the async callers below run them off the event loop.
 GetUser = Callable[[HttpRequest], Any] | Callable[[HttpRequest], Awaitable[Any]]
+
+# The ``authorize`` predicate contract: a fast, synchronous check run *after*
+# the acting user is established, returning ``True`` to allow the request. It
+# reads already-resolved request attributes (e.g. ``request.user.is_staff``);
+# a failing predicate denies with **403** (authenticated-but-forbidden), as
+# distinct from ``require_authenticated``'s **401** (no user at all). This is
+# the seam a staff-gated mount (django-admin-agent) uses to return JSON, not an
+# HTML login redirect. The async callers run it off the event loop, so a
+# predicate that does touch the ORM stays safe.
+AuthorizePredicate = Callable[[HttpRequest], bool]
 
 
 async def acall_get_user(hook: GetUser, request: HttpRequest) -> Any:
@@ -77,22 +87,32 @@ async def aauthorize(
     *,
     get_user: GetUser | None,
     require_authenticated: bool,
-) -> bool:
+    authorize: AuthorizePredicate | None = None,
+) -> int | None:
     """The shared authorize policy, async flavour (the AG-UI SSE endpoint).
 
     Establishes the acting user — via the ``get_user`` hook when supplied,
     else by materializing the middleware-provided lazy user off the loop —
-    then enforces ``require_authenticated``. Returns ``False`` when the
-    gate is on and the resolved user is anonymous; the caller 401s.
+    then applies the two gates in order. Returns the HTTP status the caller
+    should deny with, or ``None`` when the request is allowed:
+
+    - ``401`` — ``require_authenticated`` is set and the resolved user is
+      anonymous (no acting user).
+    - ``403`` — an ``authorize`` predicate is supplied and rejects the
+      established user (authenticated but not permitted, e.g. non-staff).
+
+    The predicate runs off the event loop so it may safely read the ORM.
     """
     if get_user is not None:
         request.user = await acall_get_user(get_user, request)
         user: Any = request.user
     else:
         user = await sync_to_async(materialize_request_user, thread_sensitive=True)(request)
-    if not require_authenticated:
-        return True
-    return bool(getattr(user, "is_authenticated", False))
+    if require_authenticated and not getattr(user, "is_authenticated", False):
+        return 401
+    if authorize is not None and not await sync_to_async(authorize, thread_sensitive=True)(request):
+        return 403
+    return None
 
 
 def authorize(
@@ -100,17 +120,31 @@ def authorize(
     *,
     get_user: GetUser | None,
     require_authenticated: bool,
-) -> bool:
+    authorize: AuthorizePredicate | None = None,
+) -> int | None:
     """Sync flavour of :func:`aauthorize` for the catalog views.
 
-    Same policy, same hook contract — one place to reason about who may
-    read the tool / skill catalogs and who the agent acts as.
+    Same policy, same hook contract, same ``int | None`` deny-status return —
+    one place to reason about who may read the tool / skill catalogs and who
+    the agent acts as.
     """
     if get_user is not None:
         request.user = call_get_user(get_user, request)
         user: Any = request.user
     else:
         user = getattr(request, "user", None)
-    if not require_authenticated:
-        return True
-    return bool(getattr(user, "is_authenticated", False))
+    if require_authenticated and not getattr(user, "is_authenticated", False):
+        return 401
+    if authorize is not None and not authorize(request):
+        return 403
+    return None
+
+
+def auth_error_response(status: int) -> JsonResponse:
+    """The JSON deny response for an :func:`authorize` / :func:`aauthorize` status.
+
+    ``401`` → ``authentication required``; ``403`` → ``forbidden``. Keeps every
+    view's deny branch identical (and JSON, never an HTML login redirect).
+    """
+    message = "authentication required" if status == 401 else "forbidden"
+    return JsonResponse({"error": message}, status=status)

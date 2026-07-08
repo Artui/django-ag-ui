@@ -192,7 +192,7 @@ async def test_non_dict_error_payload_falls_back(monkeypatch: pytest.MonkeyPatch
 
 
 async def test_excluded_names_are_skipped_registry_wins() -> None:
-    # DUP-1: a name collision with the @tool registry must not reach the
+    # A name collision with the @tool registry must not reach the
     # agent — pydantic-ai raises UserError for duplicate tool names.
     toolset = DrfMcpToolset(server, _request(), exclude_names=frozenset({"add"}))
     tools = await toolset.get_tools(None)  # type: ignore[arg-type]

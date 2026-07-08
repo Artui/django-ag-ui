@@ -39,8 +39,11 @@ class DjangoSessionConversationStore:
     async def delete(self, thread_id: str, *, request: HttpRequest) -> None:
         await sync_to_async(self._delete)(thread_id, request)
 
-    async def list(self, *, request: HttpRequest) -> ConversationMetaList:
-        return await sync_to_async(self._list)(request)
+    async def list(self, *, request: HttpRequest, limit: int | None = None) -> ConversationMetaList:
+        return await sync_to_async(self._list)(request, limit)
+
+    async def exists(self, thread_id: str, *, request: HttpRequest) -> bool:
+        return await sync_to_async(self._exists)(thread_id, request)
 
     async def rename(self, thread_id: str, title: str, *, request: HttpRequest) -> None:
         await sync_to_async(self._rename)(thread_id, title, request)
@@ -72,9 +75,16 @@ class DjangoSessionConversationStore:
             request.session[_SESSION_KEY] = store
             request.session.modified = True
 
-    def _list(self, request: HttpRequest) -> ConversationMetaList:
+    def _list(self, request: HttpRequest, limit: int | None) -> ConversationMetaList:
         store = request.session.get(_SESSION_KEY, {})
-        return [_meta(thread_id, raw) for thread_id, raw in store.items()]
+        metas = [_meta(thread_id, raw) for thread_id, raw in store.items()]
+        # Newest first so a ``limit`` returns the most recent threads (mirrors the
+        # model store's ``-updated_at`` ordering); ``None`` timestamps sort last.
+        metas.sort(key=lambda m: (m.updated_at is not None, m.updated_at), reverse=True)
+        return metas[:limit] if limit is not None else metas
+
+    def _exists(self, thread_id: str, request: HttpRequest) -> bool:
+        return thread_id in request.session.get(_SESSION_KEY, {})
 
     def _rename(self, thread_id: str, title: str, request: HttpRequest) -> None:
         store = request.session.get(_SESSION_KEY, {})

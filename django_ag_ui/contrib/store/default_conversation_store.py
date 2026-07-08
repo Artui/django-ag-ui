@@ -23,11 +23,14 @@ class DefaultConversationStore(ModelConversationStore):
     ``DJANGO_AG_UI["CONVERSATION_STORE"]`` to this class's dotted path. For a
     bespoke schema, subclass :class:`ModelConversationStore` instead.
 
-    Owner scoping: ``owner_id`` is stored as ``""`` for anonymous requests (the
-    ``ModelConversationStore`` base passes ``None``), so the unique
-    ``(owner_id, thread_id)`` constraint holds and every query filters by owner.
-    Titles are derived from the first user message at first save and then left
-    alone except by :meth:`_rename`; ``preview`` re-derives on every save.
+    Owner scoping: every query filters by the ``owner_id`` the
+    ``ModelConversationStore`` base resolves — the authenticated user's pk, or a
+    per-browser ``anon:<session_key>`` bucket when
+    ``DJANGO_AG_UI["ALLOW_ANONYMOUS"]`` is set (otherwise anonymous requests are
+    refused rather than sharing one ``""`` bucket). The unique
+    ``(owner_id, thread_id)`` constraint holds regardless. Titles are derived
+    from the first user message at first save and then left alone except by
+    :meth:`_rename`; ``preview`` re-derives on every save.
     """
 
     def _fetch(self, thread_id: str, owner_id: str | None) -> Conversation | None:
@@ -65,12 +68,14 @@ class DefaultConversationStore(ModelConversationStore):
     def _remove(self, thread_id: str, owner_id: str | None) -> None:
         StoredConversation.objects.filter(owner_id=owner_id or "", thread_id=thread_id).delete()
 
-    def _list(self, owner_id: str | None) -> ConversationMetaList:
+    def _list(self, owner_id: str | None, limit: int | None) -> ConversationMetaList:
         rows = (
             StoredConversation.objects.filter(owner_id=owner_id or "")
             .order_by("-updated_at")
             .values("thread_id", "title", "preview", "updated_at", "owner_id")
         )
+        if limit is not None:
+            rows = rows[:limit]
         return [
             ConversationMeta(
                 thread_id=row["thread_id"],
@@ -81,6 +86,13 @@ class DefaultConversationStore(ModelConversationStore):
             )
             for row in rows
         ]
+
+    def _exists(self, thread_id: str, owner_id: str | None) -> bool:
+        # A metadata-only presence check — no message body deserialized, unlike
+        # the base's ``_fetch`` fallback.
+        return StoredConversation.objects.filter(
+            owner_id=owner_id or "", thread_id=thread_id
+        ).exists()
 
     def _rename(self, thread_id: str, title: str, owner_id: str | None) -> None:
         StoredConversation.objects.filter(owner_id=owner_id or "", thread_id=thread_id).update(
