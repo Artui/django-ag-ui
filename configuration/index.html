@@ -1348,8 +1348,8 @@ subclass with your own model. See
 </span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>The base package ships no model, so projects that don't opt in get no migration.
-To expose the <strong>thread-history drawer</strong> endpoints over HTTP, pass the same store
-to <code>get_urls(view, threads=store)</code> — see
+When this setting resolves to an active (non-<code>Null</code>) store, <code>AGUIServer</code> mounts
+the <strong>thread-history drawer</strong> endpoints automatically — see
 <a href="../concepts/#thread-history">Thread history</a>.</p>
 <h2 id="attachment_store"><code>ATTACHMENT_STORE</code><a class="headerlink" href="#attachment_store" title="Permanent link">&para;</a></h2>
 <p>A dotted path to an <a class="autorefs autorefs-internal" title="AttachmentStore" href="../api/#django_ag_ui.AttachmentStore"><code>AttachmentStore</code></a> class,
@@ -1380,8 +1380,8 @@ via <code>STORAGES</code> / <code>DEFAULT_FILE_STORAGE</code>):</p>
 </span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="p">),</span>
 </span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>To expose the upload endpoints over HTTP, pass the same store to
-<code>get_urls(view, attachments=store)</code> — see
+<p>When this setting resolves to an active (non-<code>Null</code>) store, <code>AGUIServer</code> mounts
+the upload endpoints over HTTP automatically — see
 <a href="../concepts/#file-uploads">File uploads</a>.</p>
 <h2 id="attachment_max_bytes"><code>ATTACHMENT_MAX_BYTES</code><a class="headerlink" href="#attachment_max_bytes" title="Permanent link">&para;</a></h2>
 <p>The maximum accepted upload size in bytes, enforced <strong>server-side</strong> by
@@ -1432,10 +1432,10 @@ OpenAI-compatible server (Azure OpenAI, Groq, a local Whisper server):</p>
 </span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="p">),</span>
 </span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>To expose the voice endpoint over HTTP, pass the resolved backend to
-<code>get_urls(view, transcribe=backend)</code>: it mounts <code>POST &lt;prefix&gt;transcribe/</code>, which
-accepts a multipart <code>audio</code> clip and returns <code>{"text": "&lt;transcript&gt;"}</code> for the
-web component's <code>data-transcribe-url</code>.</p>
+<p>When this setting resolves to an active (non-<code>Null</code>) backend, <code>AGUIServer</code> mounts
+the voice endpoint automatically: <code>POST &lt;prefix&gt;transcribe/</code> accepts a multipart
+<code>audio</code> clip and returns <code>{"text": "&lt;transcript&gt;"}</code> for the web component's
+<code>data-transcribe-url</code>.</p>
 <h2 id="transcription_max_bytes"><code>TRANSCRIPTION_MAX_BYTES</code><a class="headerlink" href="#transcription_max_bytes" title="Permanent link">&para;</a></h2>
 <p>The maximum accepted audio-clip size in bytes, enforced <strong>server-side</strong> by
 <a class="autorefs autorefs-internal" title="TranscribeView" href="../api/#django_ag_ui.TranscribeView"><code>TranscribeView</code></a> (an oversize clip → <code>413</code>).
@@ -1454,9 +1454,9 @@ tools are exposed to the agent in-process (requires the <code>[drf-mcp]</code> e
 and permission checks apply. See
 <a href="../installation/#the-drf-mcp-extra">Installation → the <code>[drf-mcp]</code> extra</a>.</p>
 <p>The drf-mcp tools also appear in the
-<a href="../concepts/#tool-metadata-catalog">tool metadata catalog</a> (mounted by
-<code>get_urls(view, tools=registry)</code>), which reads each tool's <code>display_name</code> /
-<code>display_description</code> as the web component's card label.</p>
+<a href="../concepts/#tool-metadata-catalog">tool metadata catalog</a> (mounted automatically
+by <code>AGUIServer</code>), which reads each tool's <code>display_name</code> / <code>display_description</code>
+as the web component's card label.</p>
 <p><div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    <span class="s2">&quot;DRF_MCP_SERVER&quot;</span><span class="p">:</span> <span class="s2">&quot;myproject.mcp.server&quot;</span><span class="p">,</span>
 </span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="p">}</span>
@@ -1485,26 +1485,25 @@ when you already run one (or want MCP clients to share the tools).</p>
 <div class="language-python highlight"><span class="filename">settings.py</span><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;SERVICE_SPECS&quot;</span><span class="p">:</span> <span class="s2">&quot;myproject.specs.SPECS&quot;</span><span class="p">}</span>
 </span></code></pre></div>
 <p>The spec tools' card labels are surfaced to the web component through the same
-<code>get_urls(view, tools=registry)</code> catalog (<code>data-tools-url</code>).</p>
+<code>AGUIServer</code>-mounted tool catalog (<code>data-tools-url</code>).</p>
 <h2 id="authentication-anonymous-scoping">Authentication &amp; anonymous scoping<a class="headerlink" href="#authentication-anonymous-scoping" title="Permanent link">&para;</a></h2>
 <p>The agent endpoint and every mounted sub-view (tools, skills, threads,
 attachments, transcribe) share <strong>one authentication seam</strong>, and it defaults
 <strong>open</strong> — an unauthenticated visitor can drive the agent and reach the stores.
-Lock a mount down by passing the seam to <code>get_urls</code> (it forwards to every
-sub-view it builds; give <code>DjangoAGUIView</code> the same kwargs for the agent
-endpoint):</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">DjangoAGUIView</span><span class="p">,</span> <span class="n">get_urls</span>
+Lock a mount down by passing the seam to <code>AGUIServer</code>; it forwards to every view
+it builds, including the agent endpoint:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.urls</span><span class="w"> </span><span class="kn">import</span> <span class="n">path</span>
 </span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="n">view</span> <span class="o">=</span> <span class="n">DjangoAGUIView</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">require_authenticated</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    <span class="o">*</span><span class="n">get_urls</span><span class="p">(</span>
-</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>        <span class="n">view</span><span class="p">,</span>
-</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>        <span class="n">tools</span><span class="o">=</span><span class="n">registry</span><span class="p">,</span>
-</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>        <span class="n">threads</span><span class="o">=</span><span class="n">store</span><span class="p">,</span>
-</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>        <span class="n">require_authenticated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>   <span class="c1"># 401 for anonymous requests</span>
-</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>        <span class="c1"># authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user</span>
-</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>        <span class="c1"># get_user=lambda r: token_user(r),     # establish the acting user</span>
-</span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>    <span class="p">),</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGUIServer</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>    <span class="n">require_authenticated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>   <span class="c1"># 401 for anonymous requests</span>
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>    <span class="c1"># authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user</span>
+</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>    <span class="c1"># get_user=lambda r: token_user(r),     # establish the acting user</span>
+</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="p">)</span>
+</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">agent</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
 </span><span id="__span-16-13"><a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="p">]</span>
 </span></code></pre></div>
 <ul>

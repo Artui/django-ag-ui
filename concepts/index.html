@@ -498,6 +498,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mounting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mounting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#skills" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -735,6 +746,17 @@
     <span class="md-ellipsis">
       
         Streaming: DjangoAGUIView and the AGUIAdapter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mounting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mounting
       
     </span>
   </a>
@@ -1051,23 +1073,70 @@ agent endpoint and the catalogs it advertises.
 coroutine function so Django awaits it under ASGI; served over WSGI it emits a
 one-time <code>RuntimeWarning</code> (SSE streaming needs ASGI). Frontend-declared tools in
 the request are merged into the catalog by the adapter automatically.</p>
-<p><a class="autorefs autorefs-internal" title="get_urls" href="../api/#django_ag_ui.get_urls"><code>get_urls</code></a> returns the URL pattern(s) mounting a view
-at a prefix (default <code>agent/</code>).</p>
+<p><a class="autorefs autorefs-internal" title="AGUIServer" href="../api/#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> builds this view (plus its sub-views)
+from the registry and exposes a namespaced <a class="autorefs autorefs-internal" title="urls
+
+
+  
+      property
+  " href="../api/#django_ag_ui.AGUIServer.urls"><code>.urls</code></a>
+tuple you mount at any prefix — see <a href="#mounting">Mounting</a> below.</p>
+<h2 id="mounting">Mounting<a class="headerlink" href="#mounting" title="Permanent link">&para;</a></h2>
+<p><a class="autorefs autorefs-internal" title="AGUIServer" href="../api/#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> is the package's front door — one
+instance-configured object holding the registry, stores, and auth policy, mounted
+the <code>django.contrib.admin</code> <code>site.urls</code> way. Construct it <strong>once</strong> and <code>include()</code>
+its <a class="autorefs autorefs-internal" title="urls
+
+
+  
+      property
+  " href="../api/#django_ag_ui.AGUIServer.urls"><code>.urls</code></a>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.urls</span><span class="w"> </span><span class="kn">import</span> <span class="n">path</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGUIServer</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">require_authenticated</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">agent</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">]</span>
+</span></code></pre></div>
+<ul>
+<li><strong>The registry is passed once.</strong> The object builds the agent view <em>and</em> the
+  tool catalog from it — no <code>tools=registry</code> echo.</li>
+<li><strong>You choose the mount point</strong> the Django way (<code>path("&lt;prefix&gt;", agent.urls)</code>);
+  there is no <code>prefix=</code> argument.</li>
+<li><strong><code>.urls</code> is namespaced.</strong> It returns the <code>(patterns, app_name, namespace)</code>
+  triple <code>path()</code> mounts directly (like <code>admin.site.urls</code> — no <code>include()</code>), so
+  the endpoints reverse as <code>reverse("ag_ui:endpoint")</code>,
+  <code>"ag_ui:tools"</code>, <code>"ag_ui:skills"</code>, <code>"ag_ui:threads"</code>, <code>"ag_ui:thread"</code>,
+  <code>"ag_ui:attachments"</code>, <code>"ag_ui:attachment"</code>, <code>"ag_ui:transcribe"</code>. Two mounts
+  don't collide; override the namespace with <code>namespace="…"</code>.</li>
+<li><strong>Sub-views mount when their backend is active.</strong> The agent endpoint and its
+  tool catalog always mount; <code>skills</code> mounts when a <code>SkillRegistry</code> is passed;
+  <code>threads</code> / <code>attachments</code> / <code>transcribe</code> mount when their store/backend
+  (resolved from settings by default, or passed explicitly) is not the <code>Null</code>
+  one. A bare <code>AGUIServer(registry)</code> mounts only <code>endpoint</code> + <code>tools</code>.</li>
+<li><strong>One auth policy covers the whole mount.</strong> <code>require_authenticated</code> /
+  <code>get_user</code> / <code>authorize</code> forward to every view the object builds.</li>
+</ul>
+<p>Because the object holds its own registry and config, you can mount several with
+independent registries — one per surface — each namespaced separately.</p>
 <h2 id="skills">Skills<a class="headerlink" href="#skills" title="Permanent link">&para;</a></h2>
 <p>A <a class="autorefs autorefs-internal" title="SkillRegistry" href="../api/#django_ag_ui.SkillRegistry"><code>SkillRegistry</code></a> is an instance (like the tool
 registry) holding a catalog of <strong>skills</strong>: pre-defined prompts the client
 surfaces as chips and/or a <code>/</code>-command palette. Skills are <strong>data, not
 callables</strong> — there is no <code>@skill</code> decorator; you register them imperatively:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillRegistry</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">skills</span> <span class="o">=</span> <span class="n">SkillRegistry</span><span class="p">()</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">skills</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="s2">&quot;summarise&quot;</span><span class="p">,</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Summarise&quot;</span><span class="p">,</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;Summarise the </span><span class="si">{selection}</span><span class="s2"> for me.&quot;</span><span class="p">,</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Condense the current selection.&quot;</span><span class="p">,</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">chip</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillRegistry</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">skills</span> <span class="o">=</span> <span class="n">SkillRegistry</span><span class="p">()</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">skills</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="s2">&quot;summarise&quot;</span><span class="p">,</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Summarise&quot;</span><span class="p">,</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;Summarise the </span><span class="si">{selection}</span><span class="s2"> for me.&quot;</span><span class="p">,</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Condense the current selection.&quot;</span><span class="p">,</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="n">chip</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Each entry is a frozen <a class="autorefs autorefs-internal" title="SkillSpec
 
@@ -1087,11 +1156,11 @@ client catalog as a list of camelCase dicts (<code>name</code>, <code>title</cod
 optional <code>description</code>, <code>sendImmediately</code>, <code>chip</code> keys, omitted when at their
 default). It is served by <code>SkillsView</code>
 (<code>django_ag_ui.skills.skills_view.SkillsView</code>) — a GET-only callable view — which
-<a class="autorefs autorefs-internal" title="get_urls" href="../api/#django_ag_ui.get_urls"><code>get_urls</code></a> mounts at <code>&lt;prefix&gt;skills/</code> when you pass
-<code>skills=</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="o">*</span><span class="n">get_urls</span><span class="p">(</span><span class="n">DjangoAGUIView</span><span class="p">(</span><span class="n">registry</span><span class="p">),</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">skills</span><span class="o">=</span><span class="n">skills</span><span class="p">),</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="p">]</span>
+<a class="autorefs autorefs-internal" title="AGUIServer" href="../api/#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> mounts at <code>&lt;prefix&gt;skills/</code> (named
+<code>skills</code>) when you pass <code>skills=</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">skills</span><span class="o">=</span><span class="n">skills</span><span class="p">)</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="p">]</span>
 </span></code></pre></div>
 <p>The web component fetches this endpoint via its <code>data-skills-url</code> attribute.</p>
 <h2 id="tool-metadata-catalog">Tool metadata catalog<a class="headerlink" href="#tool-metadata-catalog" title="Permanent link">&para;</a></h2>
@@ -1125,11 +1194,12 @@ builds the catalog as a list of entries, each
 the MCP wire), so the catalog surfaces friendly labels for those tools too.</p>
 <p><code>ToolsView</code> (<code>django_ag_ui.ToolsView</code>) — a GET-only callable view holding the
 same <a class="autorefs autorefs-internal" title="ToolRegistry" href="../api/#django_ag_ui.ToolRegistry"><code>ToolRegistry</code></a> the agent uses — serves the
-catalog. <a class="autorefs autorefs-internal" title="get_urls" href="../api/#django_ag_ui.get_urls"><code>get_urls</code></a> mounts it at <code>&lt;prefix&gt;tools/</code> (named
-<code>django_ag_ui_tools</code>) when you pass <code>tools=</code> the same registry:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="o">*</span><span class="n">get_urls</span><span class="p">(</span><span class="n">DjangoAGUIView</span><span class="p">(</span><span class="n">registry</span><span class="p">),</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="n">registry</span><span class="p">),</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="p">]</span>
+catalog. <a class="autorefs autorefs-internal" title="AGUIServer" href="../api/#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> builds it from the registry you
+pass and mounts it at <code>&lt;prefix&gt;tools/</code> (named <code>tools</code>) automatically — no extra
+argument:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">)</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="p">]</span>
 </span></code></pre></div>
 <h2 id="conversation-persistence">Conversation persistence<a class="headerlink" href="#conversation-persistence" title="Permanent link">&para;</a></h2>
 <p>By default the server is <strong>stateless</strong>: the conversation lives in the message
@@ -1189,9 +1259,11 @@ owner-scoped:</p>
   session store persists it (overriding the derived title);
   <code>ModelConversationStore._rename</code> is a no-op until overridden.</li>
 </ul>
-<p>Mount <a class="autorefs autorefs-internal" title="ThreadsView" href="../api/#django_ag_ui.ThreadsView"><code>ThreadsView</code></a> with
-<code>get_urls(view, threads=store)</code> to expose them over HTTP for the web component's
-<code>data-threads-url</code>:</p>
+<p><a class="autorefs autorefs-internal" title="AGUIServer" href="../api/#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> mounts <a class="autorefs autorefs-internal" title="ThreadsView" href="../api/#django_ag_ui.ThreadsView"><code>ThreadsView</code></a>
+automatically whenever the conversation store is active (a non-<code>Null</code> store,
+resolved from <a href="../configuration/#conversation_store"><code>CONVERSATION_STORE</code></a> by
+default or passed as <code>conversation_store=</code>), exposing them over HTTP for the web
+component's <code>data-threads-url</code>:</p>
 <table>
 <thead>
 <tr>
@@ -1277,9 +1349,11 @@ security boundary for the feature. The default
 or opt into the <a href="#a-ready-made-durable-store">ready-made durable store</a> which
 keeps bytes in Django <code>Storage</code> (filesystem by default, S3/GCS via <code>STORAGES</code>).</p>
 <h3 id="the-endpoints">The endpoints<a class="headerlink" href="#the-endpoints" title="Permanent link">&para;</a></h3>
-<p>Pass the store to <code>get_urls(view, attachments=store)</code> to mount
-<a class="autorefs autorefs-internal" title="AttachmentsView" href="../api/#django_ag_ui.AttachmentsView"><code>AttachmentsView</code></a> (typically the same store the
-agent uses, <code>resolve_attachment_store(get_settings().attachment_store)</code>):</p>
+<p><a class="autorefs autorefs-internal" title="AGUIServer" href="../api/#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> mounts
+<a class="autorefs autorefs-internal" title="AttachmentsView" href="../api/#django_ag_ui.AttachmentsView"><code>AttachmentsView</code></a> automatically whenever the
+attachment store is active (a non-<code>Null</code> store, resolved from
+<a href="../configuration/#attachment_store"><code>ATTACHMENT_STORE</code></a> by default or passed as
+<code>attachment_store=</code>):</p>
 <ul>
 <li><code>POST   &lt;prefix&gt;attachments/</code>      — multipart upload under the <code>file</code> field;
   validates <a href="../configuration/#attachment_max_bytes">size</a> and

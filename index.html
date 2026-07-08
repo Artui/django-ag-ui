@@ -635,8 +635,9 @@ with per-tool risk metadata.</p>
 <li>A <strong>skill catalog</strong> (<a class="autorefs autorefs-internal" title="SkillRegistry" href="api/#django_ag_ui.SkillRegistry"><code>SkillRegistry</code></a>) of
   pre-defined prompts, served at <code>&lt;prefix&gt;skills/</code> for the web component.</li>
 <li>A <strong>tool metadata catalog</strong> (<a class="autorefs autorefs-internal" title="ToolsView" href="api/#django_ag_ui.ToolsView"><code>ToolsView</code></a>), served at
-  <code>&lt;prefix&gt;tools/</code> via <code>get_urls(view, tools=registry)</code>, giving the web component
-  friendly card labels for server-side tools.</li>
+  <code>&lt;prefix&gt;tools/</code> — mounted automatically by
+  <a class="autorefs autorefs-internal" title="AGUIServer" href="api/#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> — giving the web component friendly card
+  labels for server-side tools.</li>
 <li>Optional, pluggable <strong>conversation persistence</strong>
   (<a class="autorefs autorefs-internal" title="ConversationStore" href="api/#django_ag_ui.ConversationStore"><code>ConversationStore</code></a>), off by default — with
   a <strong>thread history</strong> drawer endpoint (<a class="autorefs autorefs-internal" title="ThreadsView" href="api/#django_ag_ui.ThreadsView"><code>ThreadsView</code></a>)
