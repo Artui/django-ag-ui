@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`AGUIServer` — one config object with a namespaced `.urls`.** The
+  Django-idiomatic front door for the package: construct it once with the tool
+  registry (plus optional stores / skills / auth) and mount its `.urls` the
+  `django.contrib.admin` `site.urls` way — `path("agent/", server.urls)`. It
+  builds the agent view **and** every sub-view (tools / skills / threads /
+  attachments / transcribe) internally from the registry passed **once** (no
+  `tools=registry` echo), forwards one `require_authenticated` / `get_user` /
+  `authorize` policy to all of them, and mounts each persistence sub-view only
+  when its backend is active (a non-`Null` store, resolved from `DJANGO_AG_UI` by
+  default or passed explicitly). `.urls` returns the
+  `(patterns, app_name, namespace)` triple `path()` mounts directly — the
+  `admin.site.urls` idiom, `path("agent/", server.urls)` with no `include()` — so
+  endpoints are **namespaced** and reversible — `reverse("ag_ui:endpoint")`,
+  `"ag_ui:tools"`, `"ag_ui:threads"`, … — and two mounts no longer collide on flat
+  global names. Override the namespace with `namespace=`.
+
+### Removed (breaking)
+
+- **`get_urls` is removed** in favour of `AGUIServer`. It was a free factory that
+  returned a bare, un-namespaced pattern list and required pre-building the view
+  then re-passing the same registry as `tools=`. Migrate:
+
+  ```python
+  # before
+  from django_ag_ui import DjangoAGUIView, get_urls
+  urlpatterns = [
+      *get_urls(DjangoAGUIView(registry), prefix="agent/", tools=registry, threads=store),
+  ]
+
+  # after
+  from django_ag_ui import AGUIServer
+  urlpatterns = [
+      path("agent/", AGUIServer(registry, conversation_store=store).urls),
+  ]
+  ```
+
+  The endpoint URL **names are now namespaced** — update `reverse()` /
+  `{% url %}` calls from the old flat names (`django_ag_ui`, `django_ag_ui_tools`,
+  `django_ag_ui_threads`, …) to `"<namespace>:endpoint"`, `"<namespace>:tools"`,
+  `"<namespace>:threads"`, … (default namespace `"ag_ui"`). The threads /
+  attachments / transcribe sub-views now mount automatically when their store is
+  configured in settings, so passing them explicitly is only needed to override
+  the settings-resolved backend.
+
 ## [0.11.1] — 2026-07-03
 
 ### Changed

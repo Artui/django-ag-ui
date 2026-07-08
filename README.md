@@ -32,32 +32,36 @@ browser half is
 - **Authentication hooks** — `require_authenticated=True` fails closed (`401`)
   for anonymous requests, and a `get_user(request)` hook establishes the user
   tools, the drf-mcp bridge, and conversation ownership act as.
+- **One-object mounting** — an `AGUIServer(registry, …)` config object exposing a
+  namespaced `.urls`, mounted the `admin.site` way with
+  `path("agent/", server.urls)`. It builds the agent view and every sub-view from
+  the registry passed **once**, and forwards one auth policy to all of them.
 - **Skills** — a `SkillRegistry` / `SkillSpec` catalog of pre-defined prompts
-  served at `<prefix>skills/` via `get_urls(view, skills=...)`, surfaced by the
+  served at `<prefix>skills/` (via `AGUIServer(..., skills=...)`), surfaced by the
   web component as chips and a `/`-command palette.
 - **Tool metadata catalog** — a read-only `ToolsView` served at `<prefix>tools/`
-  via `get_urls(view, tools=registry)`, giving the web component (`data-tools-url`)
-  friendly card labels for server-side tools whose schema never reaches the
-  browser.
+  (mounted automatically by `AGUIServer`), giving the web component
+  (`data-tools-url`) friendly card labels for server-side tools whose schema never
+  reaches the browser.
 - **Audit boundary** — an `AuditLogger` Protocol (`Null` / `Logging` shipped,
   pluggable by dotted path) records every server-side tool call.
 - **Opt-in conversation persistence** — a `ConversationStore` Protocol with a
   no-op default, a session-backed store, and an abstract model-backed base.
 - **Thread history** — the store can `list` and `rename` a user's threads, and a
-  `ThreadsView` served at `<prefix>threads/` via `get_urls(view, threads=store)`
-  backs a chat-history drawer (owner-scoped GET list / GET messages / PATCH
+  `ThreadsView` served at `<prefix>threads/` (mounted by `AGUIServer` when a store
+  is active) backs a chat-history drawer (owner-scoped GET list / GET messages / PATCH
   rename / DELETE). An opt-in `django_ag_ui.contrib.store` app ships a ready-made
   durable model + `DefaultConversationStore` (add it to `INSTALLED_APPS` and
   `migrate`); the base package still ships no model.
 - **File uploads** — an `AttachmentStore` Protocol (owner-scoped, off by default)
-  with an `AttachmentsView` served at `<prefix>attachments/` via
-  `get_urls(view, attachments=store)` (server-validated POST upload / owner-checked
+  with an `AttachmentsView` served at `<prefix>attachments/` (mounted by
+  `AGUIServer` when a store is active; server-validated POST upload / owner-checked
   GET download / DELETE). Uploads travel as lightweight refs, and a per-request
   `read_attachment` tool lets the agent read the bytes server-side. The same
   `contrib.store` app ships a `Storage`-backed `DefaultAttachmentStore`.
 - **Voice input** — a `TranscriptionBackend` Protocol (off by default) with a
-  `TranscribeView` served at `<prefix>transcribe/` via
-  `get_urls(view, transcribe=backend)` (multipart audio in, `{"text"}` out). An
+  `TranscribeView` served at `<prefix>transcribe/` (mounted by `AGUIServer` when a
+  backend is active; multipart audio in, `{"text"}` out). An
   opt-in `OpenAITranscriptionBackend` works against any OpenAI-compatible
   `/audio/transcriptions` endpoint (the `[openai]` extra).
 - **Model reasoning** — when a reasoning model is configured to think (via
@@ -112,14 +116,14 @@ def count_active_users() -> int:
 
 ```python
 # urls.py
-from django.urls import path  # noqa: F401
+from django.urls import path
 
-from django_ag_ui import DjangoAGUIView, get_urls
+from django_ag_ui import AGUIServer
 
 from .tools import registry
 
 urlpatterns = [
-    *get_urls(DjangoAGUIView(registry), prefix="agent/"),
+    path("agent/", AGUIServer(registry).urls),
 ]
 ```
 
