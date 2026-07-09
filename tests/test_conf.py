@@ -10,7 +10,6 @@ def test_defaults_when_unconfigured() -> None:
     assert s.model is None
     assert s.api_key is None
     assert s.provider is None
-    assert s.auto_confirm is False
     assert s.audit_logger is None
     assert s.system_prompt is None
     assert s.model_settings is None
@@ -35,7 +34,6 @@ def test_defaults_when_unconfigured() -> None:
         "MODEL": "anthropic:claude-sonnet-4.6",
         "API_KEY": "sk-test",
         "PROVIDER": "myapp.providers.custom",
-        "AUTO_CONFIRM": True,
         "AUDIT_LOGGER": "django_ag_ui.policy.audit.null_audit_logger.NullAuditLogger",
         "SYSTEM_PROMPT": "Be terse.",
         "MODEL_SETTINGS": {"temperature": 0.2, "max_tokens": 512},
@@ -64,7 +62,6 @@ def test_reads_from_settings_dict() -> None:
     assert s.model == "anthropic:claude-sonnet-4.6"
     assert s.api_key == "sk-test"
     assert s.provider == "myapp.providers.custom"
-    assert s.auto_confirm is True
     assert s.audit_logger.endswith("NullAuditLogger")
     assert s.system_prompt == "Be terse."
     assert s.model_settings == {"temperature": 0.2, "max_tokens": 512}
@@ -89,4 +86,4 @@ def test_reads_from_settings_dict() -> None:
 
 @override_settings(DJANGO_AG_UI=None)
 def test_none_setting_is_treated_as_empty() -> None:
-    assert get_settings().auto_confirm is False
+    assert get_settings().model is None

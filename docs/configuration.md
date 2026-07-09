@@ -12,7 +12,6 @@ default, and what it does.
 | `MODEL` | `str` | `None` | Pydantic-AI model string (or pre-built `Model`). |
 | `API_KEY` | `str` | `None` | Explicit provider key (builds the model via `build_model`). |
 | `PROVIDER` | `Provider` / dotted `str` | `None` | Explicit Pydantic-AI `Provider`; takes precedence over `API_KEY`. |
-| `AUTO_CONFIRM` | `bool` | `False` | Whether destructive tools skip confirmation. |
 | `AUDIT_LOGGER` | dotted `str` | `None` | `AuditLogger` implementation. |
 | `SYSTEM_PROMPT` | `str` | `None` | Override the agent's instructions. |
 | `MODEL_SETTINGS` | `dict` | `None` | Pydantic-AI `ModelSettings`. |
@@ -87,14 +86,6 @@ DJANGO_AG_UI = {
     "PROVIDER": "myproject.providers.gateway_provider",
 }
 ```
-
-## `AUTO_CONFIRM`
-
-When `True`, destructive tools no longer require client-side confirmation (the
-"autopilot" toggle). This is the value [`needs_confirmation`][django_ag_ui.needs_confirmation]
-consults: a tool needs confirmation when it is `destructive` **and**
-`auto_confirm` is `False`. The actual modal is rendered client-side; this flag
-is the canonical server-side statement of the rule. Defaults to `False`.
 
 ## `AUDIT_LOGGER`
 

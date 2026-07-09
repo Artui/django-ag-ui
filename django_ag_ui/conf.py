@@ -33,10 +33,6 @@ class AppSettings:
     is just the model name's ``"provider:name"`` string and ``API_KEY`` is
     ignored (the provider carries its own credentials)."""
 
-    auto_confirm: bool
-    """When ``True``, destructive tools do not require client-side
-    confirmation. Surfaced to the frontend so it can skip the modal."""
-
     audit_logger: str | None
     """Dotted path to an ``AuditLogger`` implementation. ``None`` means
     use the package default (a no-op logger)."""
@@ -139,7 +135,6 @@ def get_settings() -> AppSettings:
         model=raw.get("MODEL"),
         api_key=raw.get("API_KEY"),
         provider=raw.get("PROVIDER"),
-        auto_confirm=bool(raw.get("AUTO_CONFIRM", False)),
         audit_logger=raw.get("AUDIT_LOGGER"),
         system_prompt=raw.get("SYSTEM_PROMPT"),
         model_settings=raw.get("MODEL_SETTINGS"),

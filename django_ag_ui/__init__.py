@@ -41,7 +41,6 @@ from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
 from django_ag_ui.policy.audit.resolve_audit_logger import resolve_audit_logger
 from django_ag_ui.policy.audit.types.audit_event import AuditEvent
 from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
-from django_ag_ui.policy.auto_confirm import needs_confirmation
 from django_ag_ui.registry.build_input_schema import build_input_schema
 from django_ag_ui.registry.decorator import tool
 from django_ag_ui.registry.tool_registry import ToolRegistry
@@ -93,7 +92,6 @@ __all__ = [
     "build_agent",
     "build_input_schema",
     "get_settings",
-    "needs_confirmation",
     "resolve_attachment_store",
     "resolve_audit_logger",
     "resolve_conversation_store",
