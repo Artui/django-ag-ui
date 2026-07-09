@@ -45,11 +45,12 @@ extensions at the schema root:
 AG-UI passes these extensions through verbatim. A client (such as the
 `@artooi/ag-ui-web-component`) reads `x-destructive` and gates execution behind
 an inline confirmation card (showing `x-confirm` as the prompt and `x-summary`
-as the card label). **The wire stays vanilla AG-UI** — the gating is purely
-client-side. The server's canonical statement of the policy is
-[`needs_confirmation`][django_ag_ui.needs_confirmation]: a tool needs
-confirmation when it is destructive and the project has not set
-[`AUTO_CONFIRM`](configuration.md#auto_confirm).
+as the card label). **The wire stays vanilla AG-UI** — this gating is purely
+client-side and applies only to **client-registered** tools. Server-side tools
+(this package's `@tool` registry and drf-mcp-bridged tools) run mid-stream and
+are **not** gated: `x-destructive` reaches the LLM as a schema hint, but no
+server-side confirmation happens today. A real server-side gate is planned (a
+`ToolGuard` + typed `ask_user` mechanism).
 [`DEFAULT_SYSTEM_PROMPT`][django_ag_ui.DEFAULT_SYSTEM_PROMPT] steers the model to
 call destructive tools directly (with the right arguments) and let the client
 gate them, rather than refusing or asking for confirmation in-band.

@@ -57,8 +57,6 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ## Policy and audit
 
-::: django_ag_ui.needs_confirmation
-
 ::: django_ag_ui.AuditLogger
 
 ::: django_ag_ui.AuditEvent

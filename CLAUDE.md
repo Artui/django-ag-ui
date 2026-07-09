@@ -81,10 +81,10 @@ the JSON Schema as `x-destructive: true`. **What that flag gates depends on wher
 - **Server-side tools** (this package's `@tool` registry, and drf-mcp-bridged tools) are **not**
   gated. They run **server-side, mid-stream**, so by the time the browser sees `TOOL_CALL_END`
   the tool already executed; the `x-destructive` / `x-confirm` stamps reach only the **LLM** (as
-  schema hints), never a browser gate. `needs_confirmation` and the `AUTO_CONFIRM` setting are
-  currently inert for server tools — do **not** rely on `@tool(destructive=True)` to gate a
-  dangerous server-side operation. A real server-side gate is still an open design decision (see
-  the ecosystem roadmap). The wire stays vanilla AG-UI either way.
+  schema hints), never a browser gate. There is **no server-side confirmation gate** — do **not**
+  rely on `@tool(destructive=True)` to gate a dangerous server-side operation. A real server-side
+  gate is planned via a `ToolGuard` + typed `ask_user` mechanism, not yet implemented. The wire
+  stays vanilla AG-UI either way.
 
 The `AuditLogger` Protocol is the audit boundary. `LoggingAuditLogger` is the default;
 projects supply their own (Sentry, Honeycomb, custom) by setting `DJANGO_AG_UI["AUDIT_LOGGER"]`
