@@ -1115,17 +1115,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#django_ag_ui.AppSettings.auto_confirm" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        auto_confirm
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#django_ag_ui.AppSettings.audit_logger" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1355,17 +1344,6 @@
     <span class="md-ellipsis">
       
         Policy and audit
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#django_ag_ui.needs_confirmation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        needs_confirmation
       
     </span>
   </a>
@@ -2546,17 +2524,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#django_ag_ui.AppSettings.auto_confirm" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        auto_confirm
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#django_ag_ui.AppSettings.audit_logger" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2786,17 +2753,6 @@
     <span class="md-ellipsis">
       
         Policy and audit
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#django_ag_ui.needs_confirmation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        needs_confirmation
       
     </span>
   </a>
@@ -5083,31 +5039,6 @@ ignored (the provider carries its own credentials).</p>
 
 
 
-<h3 id="django_ag_ui.AppSettings.auto_confirm" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">auto_confirm</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#django_ag_ui.AppSettings.auto_confirm" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">auto_confirm</span><span class="p">:</span> <span class="nb">bool</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>When <code>True</code>, destructive tools do not require client-side
-confirmation. Surfaced to the frontend so it can skip the modal.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
 <h3 id="django_ag_ui.AppSettings.audit_logger" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">audit_logger</span>
 
@@ -5628,31 +5559,6 @@ session middleware). Authenticated requests are unaffected either way.</p>
 
 </div><h2 id="policy-and-audit">Policy and audit<a class="headerlink" href="#policy-and-audit" title="Permanent link">&para;</a></h2>
 
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="django_ag_ui.needs_confirmation" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">needs_confirmation</span>
-
-
-<a href="#django_ag_ui.needs_confirmation" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">needs_confirmation</span><span class="p">(</span><span class="n">binding</span><span class="p">:</span> <span class="n">ToolBinding</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">auto_confirm</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>Return whether <code>binding</code> should prompt for confirmation.</p>
-<p>A tool needs confirmation when it is destructive and the project has
-not opted into autopilot (<code>auto_confirm=False</code>). The actual modal
-is rendered client-side; this helper is the canonical server-side
-statement of the rule, used to annotate tool listings and to keep the
-confirmation policy in one place.</p>
-
-
-    </div>
-
-</div>
 
 <div class="doc doc-object doc-class">
 

@@ -443,17 +443,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#auto_confirm" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        AUTO_CONFIRM
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#audit_logger" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -790,17 +779,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#auto_confirm" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        AUTO_CONFIRM
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#audit_logger" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1081,12 +1059,6 @@ default, and what it does.</p>
 <td>Explicit Pydantic-AI <code>Provider</code>; takes precedence over <code>API_KEY</code>.</td>
 </tr>
 <tr>
-<td><code>AUTO_CONFIRM</code></td>
-<td><code>bool</code></td>
-<td><code>False</code></td>
-<td>Whether destructive tools skip confirmation.</td>
-</tr>
-<tr>
 <td><code>AUDIT_LOGGER</code></td>
 <td>dotted <code>str</code></td>
 <td><code>None</code></td>
@@ -1244,12 +1216,6 @@ provider extra must be installed.</p>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;PROVIDER&quot;</span><span class="p">:</span> <span class="s2">&quot;myproject.providers.gateway_provider&quot;</span><span class="p">,</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="p">}</span>
 </span></code></pre></div>
-<h2 id="auto_confirm"><code>AUTO_CONFIRM</code><a class="headerlink" href="#auto_confirm" title="Permanent link">&para;</a></h2>
-<p>When <code>True</code>, destructive tools no longer require client-side confirmation (the
-"autopilot" toggle). This is the value <a class="autorefs autorefs-internal" title="needs_confirmation" href="../api/#django_ag_ui.needs_confirmation"><code>needs_confirmation</code></a>
-consults: a tool needs confirmation when it is <code>destructive</code> <strong>and</strong>
-<code>auto_confirm</code> is <code>False</code>. The actual modal is rendered client-side; this flag
-is the canonical server-side statement of the rule. Defaults to <code>False</code>.</p>
 <h2 id="audit_logger"><code>AUDIT_LOGGER</code><a class="headerlink" href="#audit_logger" title="Permanent link">&para;</a></h2>
 <p>A dotted path to an <a class="autorefs autorefs-internal" title="AuditLogger" href="../api/#django_ag_ui.AuditLogger"><code>AuditLogger</code></a> class, importable
 with no arguments. <code>None</code> (the default) uses
