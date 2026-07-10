@@ -4,8 +4,6 @@ from django_ag_ui.agent.agent_factory import build_agent
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
-from django_ag_ui.agent.clear_tool_results import ClearToolResults
-from django_ag_ui.agent.sliding_window_compaction import SlidingWindowCompaction
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.agent_config import AgentConfig
@@ -50,10 +48,7 @@ from django_ag_ui.registry.decorator import tool
 from django_ag_ui.registry.tool_registry import ToolRegistry
 from django_ag_ui.registry.types.tool_binding import ToolBinding
 from django_ag_ui.registry.types.tool_spec import ToolSpec
-from django_ag_ui.skills.load_skill_directories import load_skill_directories
 from django_ag_ui.skills.skill_registry import SkillRegistry
-from django_ag_ui.skills.skills_capability import SkillsCapability
-from django_ag_ui.skills.types.agent_skill import AgentSkill
 from django_ag_ui.skills.types.skill_spec import SkillSpec
 from django_ag_ui.version import __version__
 
@@ -63,7 +58,6 @@ __all__ = [
     "AgentConfig",
     "AgentFactoryFn",
     "AgentSession",
-    "AgentSkill",
     "AppSettings",
     "AttachmentRef",
     "AttachmentStore",
@@ -71,7 +65,6 @@ __all__ = [
     "AuditCapability",
     "AuditEvent",
     "AuditLogger",
-    "ClearToolResults",
     "Conversation",
     "ConversationMeta",
     "ConversationStore",
@@ -87,8 +80,6 @@ __all__ = [
     "OpenedAttachment",
     "SkillRegistry",
     "SkillSpec",
-    "SkillsCapability",
-    "SlidingWindowCompaction",
     "ThreadsView",
     "ToolBinding",
     "ToolCategory",
@@ -105,7 +96,6 @@ __all__ = [
     "build_agent",
     "build_input_schema",
     "get_settings",
-    "load_skill_directories",
     "resolve_attachment_store",
     "resolve_audit_logger",
     "resolve_conversation_store",

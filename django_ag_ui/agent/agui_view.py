@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import warnings
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from asgiref.sync import markcoroutinefunction
@@ -77,7 +77,6 @@ class DjangoAGUIView:
         model: Any = None,
         instructions: str | None = None,
         audit_logger: AuditLogger | None = None,
-        capabilities: Sequence[Any] | None = None,
         csrf_exempt: bool = True,
         require_authenticated: bool = False,
         get_user: Callable[[HttpRequest], Any]
@@ -89,7 +88,6 @@ class DjangoAGUIView:
         self._model = model
         self._instructions = instructions
         self._audit_logger = audit_logger
-        self._capabilities = tuple(capabilities or ())
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
@@ -169,12 +167,7 @@ class DjangoAGUIView:
                 model_settings=settings.model_settings,
                 retries=settings.retries,
                 toolsets=toolsets,
-                # Instance-passed capabilities (e.g. AGUIServer's agent skills)
-                # compose ahead of the settings-resolved dotted paths.
-                capabilities=[
-                    *self._capabilities,
-                    *resolve_dotted_instances(settings.capabilities),
-                ],
+                capabilities=resolve_dotted_instances(settings.capabilities),
             ),
         )
 

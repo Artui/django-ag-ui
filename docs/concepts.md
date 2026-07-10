@@ -236,44 +236,6 @@ urlpatterns = [
 
 The web component fetches this endpoint via its `data-skills-url` attribute.
 
-### Agent skills (progressive disclosure)
-
-Palette skills are prompts a *human* picks. The second kind —
-[`AgentSkill`][django_ag_ui.AgentSkill], served by a
-[`SkillsCapability`][django_ag_ui.SkillsCapability] — is discovered and
-activated by the *agent* via progressive disclosure: up front the model sees
-only each skill's name + description (a couple of instruction lines) and two
-tools, `search_skills` and `activate_skill`. Activating a skill injects its
-full `instructions` into the **model context** — never the visible transcript —
-and makes its scoped `tools` callable. A skill that bundles files gets a
-path-traversal-guarded `read_skill_resource` tool while active. Activation
-state is per run: every run starts with no skills active.
-
-Build skills programmatically, or load `SKILL.md` bundles (the
-[agentskills.io](https://agentskills.io) interop format — a `---`-fenced
-`name:`/`description:` frontmatter followed by the instructions body) with
-[`load_skill_directories`][django_ag_ui.load_skill_directories]:
-
-```python
-from django_ag_ui import AGUIServer, AgentSkill, SkillsCapability
-
-agent_skills = SkillsCapability(
-    [AgentSkill(name="triage", description="Triage a bug report.", instructions="...")],
-    directories=[BASE_DIR / "skills"],
-)
-
-urlpatterns = [
-    path("agent/", AGUIServer(registry, agent_skills=agent_skills).urls),
-]
-```
-
-`AGUIServer(agent_skills=...)` composes the capability into the agent and
-appends the skills to the GET catalog as `{"name", "description", "agent": true}`
-entries — promptless, so a palette-only client ignores them. Outside
-`AGUIServer`, compose the capability through
-[`CAPABILITIES`](configuration.md#capabilities) or
-`AgentConfig.capabilities` directly.
-
 ## Tool metadata catalog
 
 Server-side tools — the `@tool` registry and (when

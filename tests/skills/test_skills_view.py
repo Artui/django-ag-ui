@@ -36,20 +36,6 @@ def test_anonymous_is_rejected_when_require_authenticated() -> None:
     assert response.status_code == 401
 
 
-def test_agent_skills_are_appended_as_promptless_entries() -> None:
-    from django_ag_ui.skills.skills_capability import SkillsCapability
-    from django_ag_ui.skills.types.agent_skill import AgentSkill
-
-    capability = SkillsCapability(
-        [AgentSkill(name="triage", description="Triage bugs.", instructions="...")]
-    )
-    view = SkillsView(_registry(), agent_skills=capability)
-    payload = json.loads(view(RequestFactory().get("/agent/skills/")).content)
-    assert payload[0]["name"] == "summarize"  # palette skills first, unchanged
-    assert payload[1] == {"name": "triage", "description": "Triage bugs.", "agent": True}
-    assert "prompt" not in payload[1]  # today's palette-only client filters it out
-
-
 def test_async_get_user_hook_opens_the_catalog() -> None:
     from types import SimpleNamespace
 
