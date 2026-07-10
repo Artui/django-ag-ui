@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-07-10
+
+### Added
+
+- `DRFMCPToolset(max_retries=...)` — each tool's retry budget: how many times a
+  `ModelRetry` (malformed arguments, a service-raised validation error) is fed
+  back to the model before the run aborts. Defaults to `1`, matching
+  pydantic-ai's own function-tool default.
+
+### Changed (breaking)
+
+- **`DrfMcpToolset` is renamed `DRFMCPToolset`**, matching the capitalized
+  acronyms of its sibling classes (`MCPServer`, `AGUIServer`) and PEP 8's
+  CapWords convention. The class is built internally by the view from the
+  `DRF_MCP_SERVER` setting, so only code importing it directly from
+  `django_ag_ui.integrations.drf_mcp` needs the one-line rename; no alias is
+  kept.
+
+### Changed
+
+- `DRFMCPToolset` now subclasses `pydantic_ai.toolsets.AbstractToolset`
+  directly (the documented extension point) instead of `ExternalToolset`,
+  building its tool definitions `kind="function"` from the start. Previously
+  it inherited from a base class that models the opposite of in-process
+  execution (external tools are *deferred* to the client) and re-stamped every
+  tool definition back to `kind="function"` per run — the version-fragile seam
+  behind the historically tight `<2` pydantic-ai pin. Public API and tool
+  behaviour are otherwise unchanged.
+
+### Fixed
+
+- A bridged tool's `ModelRetry` (malformed arguments, a service-raised
+  validation error) now actually reaches the model to self-correct, as
+  documented. `ExternalToolset` pinned every tool's retry budget to `0`, so in
+  a real agent run the first `ModelRetry` aborted the run with
+  `UnexpectedModelBehavior` instead of retrying. Pinned by a full agent-run
+  integration test.
+
 ## [0.13.0] — 2026-07-09
 
 ### Removed
@@ -529,7 +567,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/Artui/django-ag-ui/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Artui/django-ag-ui/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/Artui/django-ag-ui/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/Artui/django-ag-ui/compare/v0.11.1...v0.12.0

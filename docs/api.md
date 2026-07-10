@@ -157,7 +157,7 @@ guides.
 
 ::: django_ag_ui.agent.build_tool_catalog.build_tool_catalog
 
-::: django_ag_ui.integrations.drf_mcp.DrfMcpToolset
+::: django_ag_ui.integrations.drf_mcp.DRFMCPToolset
 
 ::: django_ag_ui.agent.attachment_toolset.build_attachment_toolset
 </content>

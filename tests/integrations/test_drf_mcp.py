@@ -5,11 +5,12 @@ from django.contrib.auth.models import AnonymousUser
 from django.http import HttpRequest
 from django.test import RequestFactory
 from pydantic_ai import Agent, ModelRetry
-from pydantic_ai.messages import ToolReturnPart
+from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart
+from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.test import TestModel
 from rest_framework_mcp import JsonRpcError, JsonRpcErrorCode
 
-from django_ag_ui.integrations.drf_mcp import DrfMcpToolset
+from django_ag_ui.integrations.drf_mcp import DRFMCPToolset
 from tests.integrations.drf_server import server
 
 
@@ -20,7 +21,7 @@ def _request() -> HttpRequest:
 
 
 async def test_toolset_exposes_drf_tools_with_schemas() -> None:
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     tools = await toolset.get_tools(None)  # type: ignore[arg-type]
     assert "add" in tools
     tool_def = tools["add"].tool_def
@@ -41,7 +42,7 @@ async def test_agent_run_executes_drf_tool_in_process() -> None:
     # The real regression: drive a full agent run. With `kind="external"` the
     # tool was deferred to the client and never executed (the run stalled); as a
     # `function` tool Pydantic-AI runs it in-process and returns its result.
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     agent = Agent(TestModel(call_tools=["add"]), toolsets=[toolset])
     result = await agent.run("add two numbers")
     returns = [
@@ -52,6 +53,38 @@ async def test_agent_run_executes_drf_tool_in_process() -> None:
     ]
     assert returns, "drf-mcp 'add' tool was deferred, not executed in-process"
     assert "result" in returns[0].content
+
+
+@pytest.mark.django_db
+async def test_agent_run_recovers_from_model_retry() -> None:
+    # A ModelRetry (malformed arguments) must be fed back to the model to
+    # self-correct, consuming one unit of the tool's retry budget — not abort
+    # the run. The budget was previously pinned to 0, so the first retry died
+    # with UnexpectedModelBehavior.
+    def model_fn(messages: list, info: object) -> ModelResponse:
+        last = messages[-1]
+        if any(part.part_kind == "retry-prompt" for part in last.parts):
+            return ModelResponse(parts=[ToolCallPart(tool_name="add", args={"a": 5, "b": 3})])
+        if any(part.part_kind == "tool-return" for part in last.parts):
+            return ModelResponse(parts=[TextPart("done")])
+        return ModelResponse(
+            parts=[ToolCallPart(tool_name="add", args={"a": "not_a_number", "b": 3})]
+        )
+
+    toolset = DRFMCPToolset(server, _request())
+    agent = Agent(FunctionModel(model_fn), toolsets=[toolset])
+    result = await agent.run("add two numbers")
+    assert result.output == "done"
+
+
+async def test_max_retries_default_and_override() -> None:
+    toolset = DRFMCPToolset(server, _request())
+    assert toolset.id == "drf-mcp"
+    tools = await toolset.get_tools(None)  # type: ignore[arg-type]
+    assert tools["add"].max_retries == 1
+    toolset = DRFMCPToolset(server, _request(), max_retries=3)
+    tools = await toolset.get_tools(None)  # type: ignore[arg-type]
+    assert tools["add"].max_retries == 3
 
 
 async def test_loads_all_pages_from_tools_list(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -72,7 +105,7 @@ async def test_loads_all_pages_from_tools_list(monkeypatch: pytest.MonkeyPatch) 
         return pages[len(calls) - 1]
 
     monkeypatch.setattr(server, "list_tools", fake_list)
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     tools = await toolset.get_tools(None)  # type: ignore[arg-type]
     assert {"p1", "p2"} <= set(tools)
     assert calls == [None, "c2", "c3"]
@@ -85,14 +118,14 @@ async def test_loads_all_pages_from_tools_list(monkeypatch: pytest.MonkeyPatch) 
 async def test_tools_list_error_is_raised(monkeypatch: pytest.MonkeyPatch) -> None:
     error = JsonRpcError(JsonRpcErrorCode.INVALID_PARAMS, "bad request")
     monkeypatch.setattr(server, "list_tools", lambda *_a, **_k: error)
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     with pytest.raises(RuntimeError, match="drf-mcp tools/list failed"):
         await toolset.get_tools(None)  # type: ignore[arg-type]
 
 
 @pytest.mark.django_db
 async def test_toolset_invokes_drf_tool_as_acting_user() -> None:
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     tools = await toolset.get_tools(None)  # type: ignore[arg-type]
     result = await toolset.call_tool("add", {"a": 5, "b": 3}, None, tools["add"])
     assert result == {"result": 8}
@@ -100,7 +133,7 @@ async def test_toolset_invokes_drf_tool_as_acting_user() -> None:
 
 async def test_call_tool_raises_on_a_protocol_fault() -> None:
     # Unknown tool is a genuine protocol fault — unrecoverable mid-run.
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     with pytest.raises(RuntimeError, match="drf-mcp tool 'nope'"):
         await toolset.call_tool("nope", {}, None, None)
 
@@ -109,7 +142,7 @@ async def test_malformed_arguments_raise_model_retry_with_detail() -> None:
     # JSON-RPC -32602 (the serializer rejecting the arguments *shape*) becomes
     # ``ModelRetry`` carrying the field errors, so the model self-corrects
     # instead of the run dying with RUN_ERROR.
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     with pytest.raises(ModelRetry, match="Invalid arguments") as excinfo:
         await toolset.call_tool("add", {"a": "not_a_number", "b": 1}, None, None)
     # The per-field DRF detail rides in the retry text for the model.
@@ -125,7 +158,7 @@ async def test_invalid_params_error_raises_model_retry(monkeypatch: pytest.Monke
         return JsonRpcError(JsonRpcErrorCode.INVALID_PARAMS, "Invalid arguments")
 
     monkeypatch.setattr(server, "acall_tool", fake_call)
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     with pytest.raises(ModelRetry, match="Invalid arguments"):
         await toolset.call_tool("add", {"a": 1, "b": 2}, None, None)
 
@@ -133,7 +166,7 @@ async def test_invalid_params_error_raises_model_retry(monkeypatch: pytest.Monke
 async def test_service_validation_error_result_raises_model_retry() -> None:
     # drf-mcp 0.7+ returns service-raised validation as an ``isError`` tool
     # result; the bridge still maps it to a retry.
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     with pytest.raises(ModelRetry, match="must be even"):
         await toolset.call_tool("invalid", {"a": 1, "b": 2}, None, None)
 
@@ -141,7 +174,7 @@ async def test_service_validation_error_result_raises_model_retry() -> None:
 async def test_service_error_result_returns_model_readable_content() -> None:
     # A business-rule denial is content the model can read and act on — not
     # an exception that kills the chat.
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     result = await toolset.call_tool("denied", {"a": 1, "b": 2}, None, None)
     assert result == {"error": {"type": "service_error", "message": "denied by policy"}}
 
@@ -162,7 +195,7 @@ async def test_validation_error_payload_raises_model_retry(monkeypatch: pytest.M
         return {"isError": True, "content": [{"type": "text", "text": json_module.dumps(payload)}]}
 
     monkeypatch.setattr(server, "acall_tool", fake_call)
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     with pytest.raises(ModelRetry, match="bad.*nope"):
         await toolset.call_tool("add", {"a": 1, "b": 2}, None, None)
 
@@ -174,7 +207,7 @@ async def test_unparseable_error_content_falls_back(monkeypatch: pytest.MonkeyPa
         return {"isError": True, "content": [{"type": "text", "text": "not json"}]}
 
     monkeypatch.setattr(server, "acall_tool", fake_call)
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     result = await toolset.call_tool("add", {"a": 1, "b": 2}, None, None)
     assert result == {"error": {"type": "unknown", "message": "not json"}}
 
@@ -186,7 +219,7 @@ async def test_non_dict_error_payload_falls_back(monkeypatch: pytest.MonkeyPatch
         return {"isError": True, "content": [{"type": "text", "text": '{"error": "boom"}'}]}
 
     monkeypatch.setattr(server, "acall_tool", fake_call)
-    toolset = DrfMcpToolset(server, _request())
+    toolset = DRFMCPToolset(server, _request())
     result = await toolset.call_tool("add", {"a": 1, "b": 2}, None, None)
     assert result == {"error": {"type": "unknown", "message": "boom"}}
 
@@ -194,7 +227,7 @@ async def test_non_dict_error_payload_falls_back(monkeypatch: pytest.MonkeyPatch
 async def test_excluded_names_are_skipped_registry_wins() -> None:
     # A name collision with the @tool registry must not reach the
     # agent — pydantic-ai raises UserError for duplicate tool names.
-    toolset = DrfMcpToolset(server, _request(), exclude_names=frozenset({"add"}))
+    toolset = DRFMCPToolset(server, _request(), exclude_names=frozenset({"add"}))
     tools = await toolset.get_tools(None)  # type: ignore[arg-type]
     assert "add" not in tools
     assert "denied" in tools
