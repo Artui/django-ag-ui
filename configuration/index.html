@@ -520,6 +520,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#manage_system_prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MANAGE_SYSTEM_PROMPT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#allow_uploaded_files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ALLOW_UPLOADED_FILES
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#conversation_store" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -849,6 +871,28 @@
     <span class="md-ellipsis">
       
         CAPABILITIES
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#manage_system_prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MANAGE_SYSTEM_PROMPT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#allow_uploaded_files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ALLOW_UPLOADED_FILES
       
     </span>
   </a>
@@ -1282,6 +1326,20 @@ Empty by default. (Ignored when <code>AGENT_FACTORY</code> is set.)</p>
 <p>A tuple of dotted paths to Pydantic-AI capabilities passed to the <code>Agent</code>,
 resolved the same way as <code>TOOLSETS</code>. Empty by default. (Ignored when
 <code>AGENT_FACTORY</code> is set.)</p>
+<h2 id="manage_system_prompt"><code>MANAGE_SYSTEM_PROMPT</code><a class="headerlink" href="#manage_system_prompt" title="Permanent link">&para;</a></h2>
+<p>Who owns the system prompt on the AG-UI wire: <code>"server"</code> (the default — the
+agent's configured prompt is authoritative and a client-posted system message
+is stripped before it reaches the model) or <code>"client"</code> (the client-supplied
+system message is honoured). <code>instructions</code> are always injected server-side
+regardless. Client-submitted history is additionally passed through
+Pydantic-AI's <code>sanitize_messages</code> hardening on every run.</p>
+<h2 id="allow_uploaded_files"><code>ALLOW_UPLOADED_FILES</code><a class="headerlink" href="#allow_uploaded_files" title="Permanent link">&para;</a></h2>
+<p>Whether <code>UploadedFile</code> references in client-submitted messages are honoured.
+<code>False</code> (the default) drops them with a warning before the messages reach the
+model — an <code>UploadedFile</code> is fetched by the model provider using the server's
+credentials, so it should only be accepted from trusted clients. The
+<a href="../concepts/#file-uploads">file-upload flow</a> is unaffected either way: it
+travels server-issued refs in message text, not AG-UI file parts.</p>
 <h2 id="conversation_store"><code>CONVERSATION_STORE</code><a class="headerlink" href="#conversation_store" title="Permanent link">&para;</a></h2>
 <p>A dotted path to a <a class="autorefs autorefs-internal" title="ConversationStore" href="../api/#django_ag_ui.ConversationStore"><code>ConversationStore</code></a> class,
 importable with no arguments. <code>None</code> (the default) keeps the server stateless

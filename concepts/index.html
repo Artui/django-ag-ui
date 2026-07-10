@@ -1009,10 +1009,12 @@ types fall back to an empty (but wire-valid) schema fragment.</p>
 / <code>capabilities</code> — so the call site passes one record instead of a long keyword
 list.</p>
 <p>Each registry tool is registered as a plain Pydantic-AI tool. When an
-<code>audit_logger</code> is set, <code>build_agent</code> wraps every tool call to time it and record
-success or failure, preserving the original signature so Pydantic-AI's schema
-generation is unaffected. Frontend tools declared in the request are merged by
-the adapter and are not registered here.</p>
+<code>audit_logger</code> is set, <code>build_agent</code> composes an
+<a class="autorefs autorefs-internal" title="AuditCapability" href="../api/#django_ag_ui.AuditCapability"><code>AuditCapability</code></a> — a Pydantic-AI capability on
+the <code>wrap_tool_execute</code> lifecycle hook — that times and records <strong>every</strong> tool
+the agent runs: registry tools and composed toolsets (drf-mcp / spec /
+attachment / skill tools) alike. Frontend tools declared in the request are
+merged by the adapter and are not registered here.</p>
 <p>For total control over construction, set
 <a href="../configuration/#agent_factory"><code>AGENT_FACTORY</code></a> to a callable matching
 <a class="autorefs autorefs-internal" title="AgentFactoryFn" href="../api/#django_ag_ui.AgentFactoryFn"><code>AgentFactoryFn</code></a>; it replaces <code>build_agent</code>
@@ -1027,7 +1029,14 @@ single method, <code>record(event: AuditEvent)</code>. Each
       dataclass
   " href="../api/#django_ag_ui.AuditEvent"><code>AuditEvent</code></a> is a frozen record of one tool
 invocation: tool name, a string-ified arguments repr, duration in milliseconds,
-a success flag, and either an error string or a result size.</p>
+a success flag, and either an error string or a result size — plus optional
+request/tenancy context (<code>ip_address</code>, filled by the view from the driving
+request; <code>organization_id</code> / <code>target_type</code> / <code>target_id</code> for custom sinks that
+know their tenancy and domain objects).</p>
+<p>Recording is <strong>non-raising</strong>: a sink that throws is caught by the
+<a class="autorefs autorefs-internal" title="AuditCapability" href="../api/#django_ag_ui.AuditCapability"><code>AuditCapability</code></a> and logged to the
+<code>django_ag_ui.audit</code> Python logger, so a broken audit backend degrades to lost
+audit records, never a broken agent run.</p>
 <p>Two implementations ship:</p>
 <ul>
 <li><a class="autorefs autorefs-internal" title="NullAuditLogger" href="../api/#django_ag_ui.NullAuditLogger"><code>NullAuditLogger</code></a> — discards every event. The
