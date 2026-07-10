@@ -136,7 +136,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.13.0"
+current_version = "0.14.0"
 allow_dirty = false
 commit = false
 tag = false

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-07-10
+
 ### Added
 
 - `DrfMcpToolset(max_retries=...)` — each tool's retry budget: how many times a
@@ -556,7 +558,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/Artui/django-ag-ui/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Artui/django-ag-ui/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/Artui/django-ag-ui/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/Artui/django-ag-ui/compare/v0.11.1...v0.12.0
