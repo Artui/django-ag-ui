@@ -1409,7 +1409,8 @@ configured (matching the client, which keeps the partial assistant bubble).</p>
 <h2 id="the-drf-mcp-toolset-bridge">The drf-mcp toolset bridge<a class="headerlink" href="#the-drf-mcp-toolset-bridge" title="Permanent link">&para;</a></h2>
 <p>With the <a href="../installation/#the-drf-mcp-extra"><code>[drf-mcp]</code> extra</a> installed and
 <a href="../configuration/#drf_mcp_server"><code>DRF_MCP_SERVER</code></a> set, the view builds a
-per-request <code>DrfMcpToolset</code> — a Pydantic-AI <code>ExternalToolset</code> that exposes a
+per-request <code>DRFMCPToolset</code> — a Pydantic-AI toolset (an <code>AbstractToolset</code>
+subclass) that exposes a
 <code>djangorestframework-mcp-server</code> registry's tools to the agent <strong>in-process</strong>,
 with no network MCP hop.</p>
 <ul>

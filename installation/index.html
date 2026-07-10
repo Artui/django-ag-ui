@@ -703,7 +703,7 @@ tool registry to the agent in-process (no network MCP hop), install the extra:</
 </span></code></pre></div>
 <p>This pulls in <code>djangorestframework-mcp-server&gt;=0.6.1</code> (which in turn pulls
 <code>djangorestframework-services&gt;=0.15.0</code>). The bridge
-(<a href="../concepts/#the-drf-mcp-toolset-bridge"><code>DrfMcpToolset</code></a>) is imported lazily,
+(<a href="../concepts/#the-drf-mcp-toolset-bridge"><code>DRFMCPToolset</code></a>) is imported lazily,
 only when <code>DJANGO_AG_UI["DRF_MCP_SERVER"]</code> is set, so the dependency stays
 optional for projects that do not use it. See
 <a href="../configuration/#drf_mcp_server">Configuration → <code>DRF_MCP_SERVER</code></a>.

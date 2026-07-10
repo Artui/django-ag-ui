@@ -1415,7 +1415,7 @@ type; otherwise a clip whose <code>Content-Type</code> is not listed is rejected
 <p>A dotted path to a <code>djangorestframework-mcp-server</code> <code>MCPServer</code> instance whose
 tools are exposed to the agent in-process (requires the <code>[drf-mcp]</code> extra).
 <code>None</code> (the default) disables the bridge. When set, the view builds a per-request
-<a href="../concepts/#the-drf-mcp-toolset-bridge"><code>DrfMcpToolset</code></a> carrying the current
+<a href="../concepts/#the-drf-mcp-toolset-bridge"><code>DRFMCPToolset</code></a> carrying the current
 <code>request</code>, so the agent acts as the logged-in user and drf-mcp's own validation
 and permission checks apply. See
 <a href="../installation/#the-drf-mcp-extra">Installation → the <code>[drf-mcp]</code> extra</a>.</p>

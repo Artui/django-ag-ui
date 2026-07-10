@@ -1798,19 +1798,19 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#django_ag_ui.integrations.drf_mcp.DrfMcpToolset" class="md-nav__link">
+  <a href="#django_ag_ui.integrations.drf_mcp.DRFMCPToolset" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DrfMcpToolset
+        DRFMCPToolset
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="DrfMcpToolset">
+    <nav class="md-nav" aria-label="DRFMCPToolset">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#django_ag_ui.integrations.drf_mcp.DrfMcpToolset.get_tools" class="md-nav__link">
+  <a href="#django_ag_ui.integrations.drf_mcp.DRFMCPToolset.get_tools" class="md-nav__link">
     <span class="md-ellipsis">
       
         get_tools
@@ -3207,19 +3207,19 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#django_ag_ui.integrations.drf_mcp.DrfMcpToolset" class="md-nav__link">
+  <a href="#django_ag_ui.integrations.drf_mcp.DRFMCPToolset" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DrfMcpToolset
+        DRFMCPToolset
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="DrfMcpToolset">
+    <nav class="md-nav" aria-label="DRFMCPToolset">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#django_ag_ui.integrations.drf_mcp.DrfMcpToolset.get_tools" class="md-nav__link">
+  <a href="#django_ag_ui.integrations.drf_mcp.DRFMCPToolset.get_tools" class="md-nav__link">
     <span class="md-ellipsis">
       
         get_tools
@@ -7247,16 +7247,16 @@ Registry tools win on name collisions.</p>
 
 
 
-<h2 id="django_ag_ui.integrations.drf_mcp.DrfMcpToolset" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">DrfMcpToolset</span>
+<h2 id="django_ag_ui.integrations.drf_mcp.DRFMCPToolset" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">DRFMCPToolset</span>
 
 
-<a href="#django_ag_ui.integrations.drf_mcp.DrfMcpToolset" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#django_ag_ui.integrations.drf_mcp.DRFMCPToolset" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="pydantic_ai.toolsets.external.ExternalToolset">ExternalToolset</span>[<span title="typing.Any">Any</span>]</code></p>
+              Bases: <code><span title="pydantic_ai.toolsets.AbstractToolset">AbstractToolset</span>[<span title="typing.Any">Any</span>]</code></p>
 
 
 
@@ -7265,11 +7265,18 @@ Registry tools win on name collisions.</p>
 schemas and execution both route through drf-mcp's public in-process
 surface (<code>MCPServer.list_tools</code> / <code>acall_tool</code>), so the advertised
 parameters, serializer validation, and permissions match the HTTP transport
-exactly.</p>
+exactly. Tool definitions carry the default <code>kind="function"</code> — the
+in-process kind the run loop routes into <code>call_tool</code>, which then emits a
+<code>TOOL_CALL_RESULT</code> and lets the model continue (an <code>external</code> tool
+would instead be deferred to the client and never run).</p>
 <p><code>exclude_names</code> carries the <code>@tool</code> registry's names: on a collision
 the registry tool wins (the same rule <code>build_tool_catalog</code> applies) and
 the drf-mcp twin is skipped — otherwise pydantic-ai raises <code>UserError</code>
 for the duplicate name at run time.</p>
+<p><code>max_retries</code> is each tool's retry budget: how many times a
+:class:<code>pydantic_ai.ModelRetry</code> (malformed arguments, a service-raised
+validation error) is fed back to the model before the run aborts. Defaults
+to <code>1</code>, matching pydantic-ai's own function-tool default.</p>
 
 
 
@@ -7295,7 +7302,7 @@ for the duplicate name at run time.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="django_ag_ui.integrations.drf_mcp.DrfMcpToolset.get_tools" class="doc doc-heading">
+<h3 id="django_ag_ui.integrations.drf_mcp.DRFMCPToolset.get_tools" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">get_tools</span>
 
 
@@ -7303,13 +7310,13 @@ for the duplicate name at run time.</p>
       <small class="doc doc-label doc-label-async"><code>async</code></small>
   </span>
 
-<a href="#django_ag_ui.integrations.drf_mcp.DrfMcpToolset.get_tools" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_tools</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+<a href="#django_ag_ui.integrations.drf_mcp.DRFMCPToolset.get_tools" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_tools</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolsetTool</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Load tool defs from drf-mcp's <code>tools/list</code> once, then defer to base.</p>
+        <p>Load tool defs from drf-mcp's <code>tools/list</code> once, then wrap them.</p>
 <p>Loading runs in a thread (<code>sync_to_async</code>) because the sync
 <code>list_tools</code> may evaluate per-user listing permissions against the DB,
 which Django forbids on the async event loop.</p>
