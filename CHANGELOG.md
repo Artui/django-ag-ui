@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-07-10
+
+### Added
+
+- **`AuditCapability`.** The audit boundary re-modelled as a Pydantic-AI
+  capability on the `wrap_tool_execute` lifecycle hook, so **every** tool the
+  agent runs is audited — registry tools and composed toolsets (drf-mcp / spec /
+  attachment) alike, where the old per-tool wrapper saw only registry tools.
+  `AuditEvent` gains optional context fields: `ip_address` (filled by the view
+  from the driving request via the new `AgentConfig.audit_ip_address`), and
+  `organization_id` / `target_type` / `target_id` for custom sinks;
+  `LoggingAuditLogger` appends them to the log line when set. Recording is
+  **non-raising** — a sink that throws is caught and logged to the
+  `django_ag_ui.audit` Python logger, so a broken audit backend degrades to
+  lost audit records instead of a broken agent run.
+- **`AgentSession`** — one run's orchestration (adapter, stream composition,
+  persistence, cancel handling) extracted from `DjangoAGUIView` into a public
+  class, so the pipeline is drivable as a plain async iterator (testable apart
+  from SSE, reusable under another transport). The view keeps its exact
+  behaviour and public API.
+- **`MANAGE_SYSTEM_PROMPT` setting** (`"server"` default): who owns the system
+  prompt on the AG-UI wire. `"server"` strips a client-posted system message
+  before it reaches the model; `"client"` honours it.
+- **`ALLOW_UPLOADED_FILES` setting** (`False` default): whether `UploadedFile`
+  references in client-submitted messages are honoured — they are fetched with
+  the server's credentials, so they stay off unless the client is trusted. The
+  attachment flow is unaffected (it travels server-issued refs in message text,
+  not AG-UI file parts).
+
+### Changed (breaking)
+
+- **The `pydantic-ai-slim` floor moves to `>=2,<3`** (core and the
+  `anthropic` / `openai` / `google` extras): the capability seam
+  `AuditCapability` is built on (`pydantic_ai.capabilities`) and the AG-UI
+  adapter's server-trust knobs are v2-only. The 1.x line is no longer supported.
+
+### Verified
+
+- Pydantic-AI's `sanitize_messages` hardening runs on the view's hand-composed
+  streaming path (client-posted system prompts are stripped by default), the
+  reasoning filter's `REASONING_*` event naming holds on the locked 2.x, and
+  the attachment flow is unaffected by the `allow_uploaded_files` default —
+  each now pinned by session-level tests.
+
 ## [0.14.0] — 2026-07-10
 
 ### Added
@@ -567,7 +611,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/Artui/django-ag-ui/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Artui/django-ag-ui/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Artui/django-ag-ui/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/Artui/django-ag-ui/compare/v0.12.0...v0.12.1

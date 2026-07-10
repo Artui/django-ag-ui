@@ -28,6 +28,10 @@ class AgentConfig:
     """Wraps every server-side tool call for timing + success/failure
     records. ``None`` means no auditing (a no-op logger)."""
 
+    audit_ip_address: str | None = None
+    """Client IP stamped onto every audit event this agent records (the view
+    fills it from the driving request). ``None`` leaves the field unset."""
+
     model_settings: dict[str, Any] | None = None
     """Pydantic-AI ``ModelSettings`` (temperature, max_tokens, …)."""
 

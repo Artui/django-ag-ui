@@ -39,6 +39,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.DjangoAGUIView
 
+::: django_ag_ui.AgentSession
+
 ::: django_ag_ui.ToolsView
 
 ::: django_ag_ui.build_agent
@@ -58,6 +60,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 ## Policy and audit
 
 ::: django_ag_ui.AuditLogger
+
+::: django_ag_ui.AuditCapability
 
 ::: django_ag_ui.AuditEvent
 

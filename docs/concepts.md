@@ -69,10 +69,12 @@ types fall back to an empty (but wire-valid) schema fragment.
 list.
 
 Each registry tool is registered as a plain Pydantic-AI tool. When an
-`audit_logger` is set, `build_agent` wraps every tool call to time it and record
-success or failure, preserving the original signature so Pydantic-AI's schema
-generation is unaffected. Frontend tools declared in the request are merged by
-the adapter and are not registered here.
+`audit_logger` is set, `build_agent` composes an
+[`AuditCapability`][django_ag_ui.AuditCapability] — a Pydantic-AI capability on
+the `wrap_tool_execute` lifecycle hook — that times and records **every** tool
+the agent runs: registry tools and composed toolsets (drf-mcp / spec /
+attachment / skill tools) alike. Frontend tools declared in the request are
+merged by the adapter and are not registered here.
 
 For total control over construction, set
 [`AGENT_FACTORY`](configuration.md#agent_factory) to a callable matching
@@ -85,7 +87,15 @@ entirely.
 single method, `record(event: AuditEvent)`. Each
 [`AuditEvent`][django_ag_ui.AuditEvent] is a frozen record of one tool
 invocation: tool name, a string-ified arguments repr, duration in milliseconds,
-a success flag, and either an error string or a result size.
+a success flag, and either an error string or a result size — plus optional
+request/tenancy context (`ip_address`, filled by the view from the driving
+request; `organization_id` / `target_type` / `target_id` for custom sinks that
+know their tenancy and domain objects).
+
+Recording is **non-raising**: a sink that throws is caught by the
+[`AuditCapability`][django_ag_ui.AuditCapability] and logged to the
+`django_ag_ui.audit` Python logger, so a broken audit backend degrades to lost
+audit records, never a broken agent run.
 
 Two implementations ship:
 

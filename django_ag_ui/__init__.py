@@ -1,6 +1,7 @@
 """Django ↔ Pydantic-AI ↔ AG-UI integration."""
 
 from django_ag_ui.agent.agent_factory import build_agent
+from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
@@ -36,6 +37,7 @@ from django_ag_ui.persistence.types.conversation_meta import ConversationMeta
 from django_ag_ui.persistence.types.conversation_store import ConversationStore
 from django_ag_ui.persistence.types.opened_attachment import OpenedAttachment
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
+from django_ag_ui.policy.audit.audit_capability import AuditCapability
 from django_ag_ui.policy.audit.logging_audit_logger import LoggingAuditLogger
 from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
 from django_ag_ui.policy.audit.resolve_audit_logger import resolve_audit_logger
@@ -55,10 +57,12 @@ __all__ = [
     "AGUIServer",
     "AgentConfig",
     "AgentFactoryFn",
+    "AgentSession",
     "AppSettings",
     "AttachmentRef",
     "AttachmentStore",
     "AttachmentsView",
+    "AuditCapability",
     "AuditEvent",
     "AuditLogger",
     "Conversation",

@@ -137,7 +137,7 @@ defaults, dispatch tables) are fine — module-level **mutable** state is not.
 | --- | --- | --- |
 | Python | 3.10 | 3.10, 3.11, 3.12, 3.13, 3.14 |
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0 |
-| Pydantic-AI | 1.0 (with `pydantic-ai-slim[ag-ui]` extra) | latest in matrix |
+| Pydantic-AI | 2.0 (with `pydantic-ai-slim[ag-ui]` extra; the capability seam is v2-only) | latest in matrix |
 
 ## Branching
 
