@@ -11,21 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `DrfMcpToolset(max_retries=...)` — each tool's retry budget: how many times a
+- `DRFMCPToolset(max_retries=...)` — each tool's retry budget: how many times a
   `ModelRetry` (malformed arguments, a service-raised validation error) is fed
   back to the model before the run aborts. Defaults to `1`, matching
   pydantic-ai's own function-tool default.
 
+### Changed (breaking)
+
+- **`DrfMcpToolset` is renamed `DRFMCPToolset`**, matching the capitalized
+  acronyms of its sibling classes (`MCPServer`, `AGUIServer`) and PEP 8's
+  CapWords convention. The class is built internally by the view from the
+  `DRF_MCP_SERVER` setting, so only code importing it directly from
+  `django_ag_ui.integrations.drf_mcp` needs the one-line rename; no alias is
+  kept.
+
 ### Changed
 
-- `DrfMcpToolset` now subclasses `pydantic_ai.toolsets.AbstractToolset`
+- `DRFMCPToolset` now subclasses `pydantic_ai.toolsets.AbstractToolset`
   directly (the documented extension point) instead of `ExternalToolset`,
   building its tool definitions `kind="function"` from the start. Previously
   it inherited from a base class that models the opposite of in-process
   execution (external tools are *deferred* to the client) and re-stamped every
   tool definition back to `kind="function"` per run — the version-fragile seam
   behind the historically tight `<2` pydantic-ai pin. Public API and tool
-  behaviour are unchanged.
+  behaviour are otherwise unchanged.
 
 ### Fixed
 

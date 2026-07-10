@@ -48,7 +48,7 @@ from rest_framework_mcp import JsonRpcError, JsonRpcErrorCode
 _TOOL_ARGS_VALIDATOR = SchemaValidator(schema=core_schema.any_schema())
 
 
-class DrfMcpToolset(AbstractToolset[Any]):
+class DRFMCPToolset(AbstractToolset[Any]):
     """Exposes a drf-mcp ``MCPServer``'s tools as a Pydantic-AI toolset.
 
     Built per request so the acting user is the current AG-UI user. Tool
@@ -201,4 +201,4 @@ def _retry_message(message: str, detail: Any) -> str:
     return f"{message}: {json.dumps(detail, default=str)}"
 
 
-__all__ = ["DrfMcpToolset"]
+__all__ = ["DRFMCPToolset"]

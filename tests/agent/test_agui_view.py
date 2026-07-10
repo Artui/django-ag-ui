@@ -317,13 +317,13 @@ async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
 
 
 async def test_drf_mcp_toolset_built_per_request_when_configured() -> None:
-    from django_ag_ui.integrations.drf_mcp import DrfMcpToolset
+    from django_ag_ui.integrations.drf_mcp import DRFMCPToolset
 
     view = DjangoAGUIView(_registry(), model=TestModel())
     request = RequestFactory().post("/agent/")
     toolsets = view._drf_mcp_toolsets("tests.integrations.drf_server.server", request, set())
     assert len(toolsets) == 1
-    assert isinstance(toolsets[0], DrfMcpToolset)
+    assert isinstance(toolsets[0], DRFMCPToolset)
 
 
 async def test_no_drf_mcp_toolset_without_the_setting() -> None:

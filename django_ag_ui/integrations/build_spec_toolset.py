@@ -9,7 +9,7 @@ path: ``djangorestframework-pydantic-ai``'s ``SpecToolset`` calls the specs in
 process through drf-services' transport-neutral surface (`dispatch_spec` + its
 off-HTTP helpers), enforcing each spec's ``permission_classes``. The agent acts
 as the **logged-in AG-UI user**: the user is bound from ``request`` here (rather
-than read off ``RunContext.deps``), matching how :class:`DrfMcpToolset` carries
+than read off ``RunContext.deps``), matching how :class:`DRFMCPToolset` carries
 the request, so it drops into the same per-request ``AgentConfig.toolsets`` seam.
 """
 

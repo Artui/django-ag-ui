@@ -305,10 +305,10 @@ class DjangoAGUIView:
         """
         if dotted_path is None:
             return []
-        from django_ag_ui.integrations.drf_mcp import DrfMcpToolset
+        from django_ag_ui.integrations.drf_mcp import DRFMCPToolset
 
         server = import_string(dotted_path)
-        toolset = DrfMcpToolset(server, request, exclude_names=frozenset(seen))
+        toolset = DRFMCPToolset(server, request, exclude_names=frozenset(seen))
         seen.update(binding.name for binding in server.tools.all())
         return [toolset]
 
