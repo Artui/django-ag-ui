@@ -80,6 +80,19 @@ class AppSettings:
     """Allowed (client-declared) content types for uploads. Empty accepts any
     type; otherwise an upload whose ``Content-Type`` is not listed is rejected."""
 
+    manage_system_prompt: str
+    """Who owns the system prompt on the AG-UI wire: ``"server"`` (default —
+    the agent's configured prompt is authoritative and a client-posted system
+    message is ignored) or ``"client"`` (the client-supplied system message is
+    honoured). Passed to Pydantic-AI's ``AGUIAdapter``; ``instructions`` are
+    always server-side regardless."""
+
+    allow_uploaded_files: bool
+    """Whether ``UploadedFile`` references in client-submitted messages are
+    honoured. ``False`` (default) drops them with a warning before the messages
+    reach the agent — the F6 attachment flow is unaffected either way (it
+    travels server-issued refs in message text, not AG-UI file parts)."""
+
     forward_reasoning: bool
     """When ``True`` (default), forward a reasoning model's chain-of-thought to
     the client as AG-UI reasoning events (a pure adapter pass-through — only
@@ -146,6 +159,8 @@ def get_settings() -> AppSettings:
         attachment_store=raw.get("ATTACHMENT_STORE"),
         attachment_max_bytes=int(raw.get("ATTACHMENT_MAX_BYTES", 10 * 1024 * 1024)),
         attachment_allowed_types=tuple(raw.get("ATTACHMENT_ALLOWED_TYPES", ()) or ()),
+        manage_system_prompt=str(raw.get("MANAGE_SYSTEM_PROMPT", "server")),
+        allow_uploaded_files=bool(raw.get("ALLOW_UPLOADED_FILES", False)),
         forward_reasoning=bool(raw.get("FORWARD_REASONING", True)),
         transcription_backend=raw.get("TRANSCRIPTION_BACKEND"),
         transcription_max_bytes=int(raw.get("TRANSCRIPTION_MAX_BYTES", 25 * 1024 * 1024)),

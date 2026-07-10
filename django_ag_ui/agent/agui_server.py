@@ -22,6 +22,7 @@ from django_ag_ui.persistence.types.transcription_backend import TranscriptionBa
 from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
 from django_ag_ui.registry.tool_registry import ToolRegistry
 from django_ag_ui.skills.skill_registry import SkillRegistry
+from django_ag_ui.skills.skills_capability import SkillsCapability
 from django_ag_ui.skills.skills_view import SkillsView
 from django_ag_ui.utils import AuthorizePredicate, GetUser
 
@@ -56,7 +57,12 @@ class AGUIServer:
     backend is *active*:
 
     - ``skills`` — when a :class:`~django_ag_ui.skills.skill_registry.SkillRegistry`
-      is passed (``skills/``, GET JSON for ``data-skills-url``).
+      and/or an ``agent_skills``
+      :class:`~django_ag_ui.skills.skills_capability.SkillsCapability` is passed
+      (``skills/``, GET JSON for ``data-skills-url``; agent skills are appended
+      as promptless ``{"agent": true}`` entries). ``agent_skills`` is also
+      composed into the agent itself, ahead of the settings-resolved
+      ``CAPABILITIES``.
     - ``threads`` / ``thread`` — when the conversation store is not a
       :class:`~django_ag_ui.persistence.null_conversation_store.NullConversationStore`
       (``threads/`` + ``threads/<id>/`` for the history drawer's ``data-threads-url``).
@@ -111,6 +117,7 @@ class AGUIServer:
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
         skills: SkillRegistry | None = None,
+        agent_skills: SkillsCapability | None = None,
         conversation_store: ConversationStore | None = None,
         attachment_store: AttachmentStore | None = None,
         transcription_backend: TranscriptionBackend | None = None,
@@ -118,6 +125,7 @@ class AGUIServer:
     ) -> None:
         self._registry = registry
         self._skills = skills
+        self._agent_skills = agent_skills
         self._namespace = namespace
         # The auth policy shared by every view this object builds — splatted into
         # each constructor. Typed ``Any`` so the mixed-value dict satisfies each
@@ -132,6 +140,7 @@ class AGUIServer:
             model=model,
             instructions=instructions,
             audit_logger=audit_logger,
+            capabilities=[agent_skills] if agent_skills is not None else None,
             csrf_exempt=csrf_exempt,
             **self._auth,
         )
@@ -170,8 +179,13 @@ class AGUIServer:
             path("", self._view, name="endpoint"),
             path("tools/", ToolsView(self._registry, **self._auth), name="tools"),
         ]
-        if self._skills is not None:
-            patterns.append(path("skills/", SkillsView(self._skills, **self._auth), name="skills"))
+        if self._skills is not None or self._agent_skills is not None:
+            skills_view = SkillsView(
+                self._skills if self._skills is not None else SkillRegistry(),
+                agent_skills=self._agent_skills,
+                **self._auth,
+            )
+            patterns.append(path("skills/", skills_view, name="skills"))
         if not isinstance(self._conversation_store, NullConversationStore):
             threads_view = ThreadsView(self._conversation_store, **self._auth)
             patterns.append(path("threads/", threads_view, name="threads"))

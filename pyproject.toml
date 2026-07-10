@@ -40,15 +40,15 @@ dependencies = [
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
-    "pydantic-ai-slim[ag-ui]>=1.0,<3",
+    "pydantic-ai-slim[ag-ui]>=2,<3",
 ]
 
 [project.optional-dependencies]
 # Model-provider extras (slim ships none). Install one to use a "provider:model"
 # MODEL string, e.g. `pip install django-ag-ui[anthropic]`.
-anthropic = ["pydantic-ai-slim[anthropic]>=1.0,<3"]
-openai = ["pydantic-ai-slim[openai]>=1.0,<3"]
-google = ["pydantic-ai-slim[google]>=1.0,<3"]
+anthropic = ["pydantic-ai-slim[anthropic]>=2,<3"]
+openai = ["pydantic-ai-slim[openai]>=2,<3"]
+google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
 drf-mcp = ["djangorestframework-mcp-server>=0.9,<0.12"]
@@ -86,7 +86,7 @@ dev = [
     "djangorestframework-pydantic-ai>=0.2,<0.4",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
     # in dev/CI (the extras above ship to consumers, not the dev env).
-    "pydantic-ai-slim[anthropic,openai,google]>=1.0",
+    "pydantic-ai-slim[anthropic,openai,google]>=2",
 ]
 docs = [
     "mkdocs>=1.6",

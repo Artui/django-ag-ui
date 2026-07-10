@@ -84,6 +84,36 @@ def test_skills_endpoint_omitted_by_default() -> None:
     assert "skills" not in _names(_server())
 
 
+def _agent_skills() -> Any:
+    from django_ag_ui.skills.skills_capability import SkillsCapability
+    from django_ag_ui.skills.types.agent_skill import AgentSkill
+
+    return SkillsCapability(
+        [AgentSkill(name="triage", description="Triage bugs.", instructions="...")]
+    )
+
+
+def test_agent_skills_mount_the_catalog_without_a_palette_registry() -> None:
+    import json
+
+    from django.test import RequestFactory
+
+    patterns, _, _ = _server(agent_skills=_agent_skills()).urls
+    skills = next(p for p in patterns if p.name == "skills")
+    payload = json.loads(skills.callback(RequestFactory().get("/agent/skills/")).content)
+    assert payload == [{"name": "triage", "description": "Triage bugs.", "agent": True}]
+
+
+def test_agent_skills_compose_into_the_agent_view() -> None:
+    server = _server(agent_skills=_agent_skills())
+    patterns, _, _ = server.urls
+    endpoint = next(p for p in patterns if p.name == "endpoint")
+    view = endpoint.callback
+    assert isinstance(view, DjangoAGUIView)
+    (capability,) = view._capabilities
+    assert capability.catalog()[0]["name"] == "triage"
+
+
 def test_thread_endpoints_mount_for_a_non_null_store() -> None:
     patterns, _, _ = _server(conversation_store=_DummyStore()).urls
     collection = next(p for p in patterns if p.name == "threads")

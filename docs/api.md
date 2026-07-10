@@ -33,11 +33,19 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.skills.skills_view.SkillsView
 
+::: django_ag_ui.SkillsCapability
+
+::: django_ag_ui.AgentSkill
+
+::: django_ag_ui.load_skill_directories
+
 ## Agent and view
 
 ::: django_ag_ui.AGUIServer
 
 ::: django_ag_ui.DjangoAGUIView
+
+::: django_ag_ui.AgentSession
 
 ::: django_ag_ui.ToolsView
 
@@ -49,6 +57,12 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.DEFAULT_SYSTEM_PROMPT
 
+## Context management
+
+::: django_ag_ui.SlidingWindowCompaction
+
+::: django_ag_ui.ClearToolResults
+
 ## Configuration
 
 ::: django_ag_ui.AppSettings
@@ -58,6 +72,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 ## Policy and audit
 
 ::: django_ag_ui.AuditLogger
+
+::: django_ag_ui.AuditCapability
 
 ::: django_ag_ui.AuditEvent
 

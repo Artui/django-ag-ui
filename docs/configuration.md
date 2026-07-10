@@ -173,6 +173,43 @@ A tuple of dotted paths to Pydantic-AI capabilities passed to the `Agent`,
 resolved the same way as `TOOLSETS`. Empty by default. (Ignored when
 `AGENT_FACTORY` is set.)
 
+The package ships capabilities you can point these paths at: a
+[`SkillsCapability`][django_ag_ui.SkillsCapability] (progressive-disclosure
+agent skills), and the context-management pair
+[`SlidingWindowCompaction`][django_ag_ui.SlidingWindowCompaction] /
+[`ClearToolResults`][django_ag_ui.ClearToolResults] for long, tool-heavy runs.
+Each path resolves to an instance or a zero-argument callable — for a
+capability that takes arguments, define a module-level instance and point the
+path at it:
+
+```python
+# myproject/agent.py
+from django_ag_ui import SlidingWindowCompaction
+
+COMPACTION = SlidingWindowCompaction(max_messages=40)
+
+# settings.py
+DJANGO_AG_UI = {"CAPABILITIES": ("myproject.agent.COMPACTION",)}
+```
+
+## `MANAGE_SYSTEM_PROMPT`
+
+Who owns the system prompt on the AG-UI wire: `"server"` (the default — the
+agent's configured prompt is authoritative and a client-posted system message
+is stripped before it reaches the model) or `"client"` (the client-supplied
+system message is honoured). `instructions` are always injected server-side
+regardless. Client-submitted history is additionally passed through
+Pydantic-AI's `sanitize_messages` hardening on every run.
+
+## `ALLOW_UPLOADED_FILES`
+
+Whether `UploadedFile` references in client-submitted messages are honoured.
+`False` (the default) drops them with a warning before the messages reach the
+model — an `UploadedFile` is fetched by the model provider using the server's
+credentials, so it should only be accepted from trusted clients. The
+[file-upload flow](concepts.md#file-uploads) is unaffected either way: it
+travels server-issued refs in message text, not AG-UI file parts.
+
 ## `CONVERSATION_STORE`
 
 A dotted path to a [`ConversationStore`][django_ag_ui.ConversationStore] class,

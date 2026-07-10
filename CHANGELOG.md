@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Agent skills — progressive disclosure.** A new
+  [`SkillsCapability`](https://artui.github.io/django-ag-ui/concepts/#agent-skills-progressive-disclosure)
+  exposes `AgentSkill`s the *agent* discovers and activates (the counterpart to
+  the human-picked `/`-palette `SkillSpec`s): up front the model sees only each
+  skill's name + description plus `search_skills` / `activate_skill` tools;
+  activation injects the skill's full instructions into the **model context**
+  (never the visible transcript) and makes its scoped tools callable. Skills
+  bundling files get a path-traversal-guarded `read_skill_resource` tool while
+  active. Activation state is per run. Build skills programmatically or load
+  `SKILL.md` directories (the agentskills.io interop format) with
+  `load_skill_directories`. Wire via `AGUIServer(agent_skills=...)` — which also
+  appends promptless `{"agent": true}` entries to the GET skills catalog
+  (invisible to palette-only clients) — or via `CAPABILITIES` /
+  `AgentConfig.capabilities`. `DjangoAGUIView` gains a `capabilities=` parameter,
+  composed ahead of the settings-resolved ones.
+- **`AuditCapability`.** The audit boundary re-modelled as a Pydantic-AI
+  capability on the `wrap_tool_execute` lifecycle hook. `AuditEvent` gains
+  optional context fields: `ip_address` (filled by the view from the driving
+  request via the new `AgentConfig.audit_ip_address`), and
+  `organization_id` / `target_type` / `target_id` for custom sinks;
+  `LoggingAuditLogger` appends them to the log line when set.
+- **Context-management capabilities** for long, tool-heavy runs:
+  `SlidingWindowCompaction(max_messages=…)` caps the history sent to the model
+  (pinning the opening message; the cut never orphans a tool call) and
+  `ClearToolResults(keep_last=…)` blanks stale tool outputs while preserving
+  message structure. Compose either through `CAPABILITIES` /
+  `AgentConfig.capabilities`.
+- **`AgentSession`** — one run's orchestration (adapter, stream composition,
+  persistence, cancel handling) extracted from `DjangoAGUIView` into a public
+  class, so the pipeline is drivable as a plain async iterator (testable apart
+  from SSE, reusable under another transport). The view keeps its exact
+  behaviour and public API.
+- **`MANAGE_SYSTEM_PROMPT` setting** (`"server"` default): who owns the system
+  prompt on the AG-UI wire. `"server"` strips a client-posted system message
+  before it reaches the model; `"client"` honours it.
+- **`ALLOW_UPLOADED_FILES` setting** (`False` default): whether `UploadedFile`
+  references in client-submitted messages are honoured — they are fetched with
+  the server's credentials, so they stay off unless the client is trusted. The
+  attachment flow is unaffected (it travels server-issued refs in message text,
+  not AG-UI file parts).
+
+### Changed (breaking)
+
+- **The `pydantic-ai-slim` floor moves to `>=2,<3`** (core and the
+  `anthropic` / `openai` / `google` extras): the capability seam the audit and
+  skills machinery is built on (`pydantic_ai.capabilities`) is v2-only. The
+  1.x line is no longer supported.
+
+### Changed
+
+- **Auditing now covers every tool the agent runs.** The old per-tool wrapper
+  saw only registry tools; the `AuditCapability` hooks the run loop, so tools
+  contributed by composed toolsets — the drf-mcp bridge, spec tools, the
+  attachment tool, skill tools — are timed and recorded too.
+- **Audit recording is non-raising.** A sink that throws is caught and logged
+  to the `django_ag_ui.audit` Python logger; a broken audit backend degrades to
+  lost audit records instead of a broken agent run.
+
+### Verified
+
+- Pydantic-AI's `sanitize_messages` hardening runs on the view's hand-composed
+  streaming path (client-posted system prompts are stripped by default), the
+  reasoning filter's `REASONING_*` event naming holds on the locked 2.x, and
+  the attachment flow is unaffected by the `allow_uploaded_files` default —
+  each now pinned by session-level tests.
+
 ## [0.14.0] — 2026-07-10
 
 ### Added

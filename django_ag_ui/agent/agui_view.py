@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import json
-import time
 import warnings
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, cast
 
-from ag_ui.core import Message
 from asgiref.sync import markcoroutinefunction
 from django.core.exceptions import ImproperlyConfigured
 from django.core.handlers.asgi import ASGIRequest
@@ -23,26 +20,17 @@ from pydantic_ai import Agent
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_factory import build_agent
+from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.attachment_toolset import build_attachment_toolset
 from django_ag_ui.agent.build_model import build_model
-from django_ag_ui.agent.guarded_stream import guarded_stream
-from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.resolve_agent_factory import resolve_agent_factory
 from django_ag_ui.agent.resolve_dotted_instances import resolve_dotted_instances
-from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.agent_config import AgentConfig
 from django_ag_ui.conf import get_settings
-from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
 from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
-from django_ag_ui.persistence.null_conversation_store import NullConversationStore
 from django_ag_ui.persistence.resolve_attachment_store import resolve_attachment_store
-from django_ag_ui.persistence.resolve_conversation_store import resolve_conversation_store
-from django_ag_ui.persistence.types.conversation import Conversation
-from django_ag_ui.persistence.types.conversation_store import ConversationStore
-from django_ag_ui.persistence.utils import owner_id_for
 from django_ag_ui.policy.audit.resolve_audit_logger import resolve_audit_logger
-from django_ag_ui.policy.audit.types.audit_event import AuditEvent
 from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
 from django_ag_ui.registry.tool_registry import ToolRegistry
 from django_ag_ui.utils import AuthorizePredicate, aauthorize, auth_error_response
@@ -89,6 +77,7 @@ class DjangoAGUIView:
         model: Any = None,
         instructions: str | None = None,
         audit_logger: AuditLogger | None = None,
+        capabilities: Sequence[Any] | None = None,
         csrf_exempt: bool = True,
         require_authenticated: bool = False,
         get_user: Callable[[HttpRequest], Any]
@@ -100,6 +89,7 @@ class DjangoAGUIView:
         self._model = model
         self._instructions = instructions
         self._audit_logger = audit_logger
+        self._capabilities = tuple(capabilities or ())
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
@@ -130,128 +120,19 @@ class DjangoAGUIView:
                 {"error": "invalid RunAgentInput", "error_count": error.error_count()},
                 status=400,
             )
-        agent = self._build_agent(request)
-        adapter = AGUIAdapter(agent, run_input)
-        on_complete = self._conversation_saver(run_input, request)
-        # Composed by hand (rather than ``adapter.run_stream``) so the view
-        # keeps a reference to the *native* event stream — the innermost
-        # generator, whose context manager owns the provider's streaming
-        # request. On client disconnect ``guarded_stream`` closes it
-        # explicitly, then persists the partial exchange and audits the
-        # cancellation; see the guard's docstring for the two disconnect
-        # shapes it handles.
-        transcript = RunTranscript()
-        native = adapter.run_stream_native()
-        events = adapter.transform_stream(native, on_complete=on_complete)
-        # A reasoning model's chain-of-thought rides through as AG-UI reasoning
-        # events (adapter pass-through). Forward it by default; strip it when the
-        # consumer opts out, so the model can reason privately.
-        if not get_settings().forward_reasoning:
-            events = drop_reasoning_events(events)
-        stream = guarded_stream(
-            adapter.encode_stream(transcript.observe(events)),
-            native_events=native,
-            on_cancel=self._cancellation_handler(run_input, request, transcript),
+        # The transport ends here: the run's orchestration (adapter, stream
+        # composition, persistence, cancel handling) lives on AgentSession, so
+        # it is testable apart from SSE and swappable under another transport.
+        session = AgentSession(
+            self._build_agent(request),
+            run_input,
+            request,
+            audit_logger=self._resolve_audit_logger(),
         )
-        response = StreamingHttpResponse(stream, content_type="text/event-stream")
+        response = StreamingHttpResponse(session.stream(), content_type="text/event-stream")
         response["Cache-Control"] = "no-cache"
         response["X-Accel-Buffering"] = "no"
         return response
-
-    def _conversation_saver(
-        self,
-        run_input: Any,
-        request: HttpRequest,
-    ) -> Callable[[Any], Awaitable[None]] | None:
-        """Build an ``on_complete`` callback that persists the conversation.
-
-        Returns ``None`` when persistence is off (the default
-        ``NullConversationStore``), so the stateless path adds no overhead.
-        Otherwise the callback mirrors the run's full message history into the
-        configured store when the run finishes streaming.
-        """
-        save = self._message_saver(run_input, request)
-        if save is None:
-            return None
-
-        async def _on_complete(result: Any) -> None:
-            await save(AGUIAdapter.dump_messages(result.all_messages()))
-
-        return _on_complete
-
-    def _message_saver(
-        self,
-        run_input: Any,
-        request: HttpRequest,
-    ) -> Callable[[list[Message]], Awaitable[None]] | None:
-        """A closure persisting AG-UI messages to the configured store.
-
-        ``None`` when persistence is off — both the completed-run and the
-        cancelled-run paths build their message list and hand it here, so the
-        two persist with identical thread/owner scoping.
-        """
-        store: ConversationStore = resolve_conversation_store(get_settings().conversation_store)
-        if isinstance(store, NullConversationStore):
-            return None
-        thread_id: str = run_input.thread_id
-        owner_id = owner_id_for(request)
-
-        async def _save(messages: list[Message]) -> None:
-            conversation = Conversation(
-                thread_id=thread_id,
-                messages=messages,
-                owner_id=owner_id,
-            )
-            try:
-                await store.save(conversation, request=request)
-            except AnonymousOperationError:
-                # An anonymous run on an open agent endpoint with a persisting
-                # store that refuses anonymous writes (the default, no
-                # ``ALLOW_ANONYMOUS``): the run still streams, it just isn't
-                # saved — better than crashing the completed stream.
-                return
-
-        return _save
-
-    def _cancellation_handler(
-        self,
-        run_input: Any,
-        request: HttpRequest,
-        transcript: RunTranscript,
-    ) -> Callable[[], Awaitable[None]]:
-        """Build the guard's ``on_cancel``: persist the partial exchange, then audit.
-
-        Persistence mirrors the completed-run shape — the client-sent history
-        plus whatever the transcript observed before the disconnect — so a
-        durable thread reflects the truncated exchange (matching the client,
-        which keeps the partial assistant bubble). The audit record rides the
-        existing ``record(AuditEvent)`` surface as a ``tool_name="agent.run"``
-        event rather than a new protocol method, so custom loggers keep
-        working unchanged; ``duration_ms`` measures run start → cancellation.
-        """
-        save = self._message_saver(run_input, request)
-        audit = self._resolve_audit_logger()
-        started = time.perf_counter()
-        input_messages: list[Message] = list(run_input.messages)
-        run_ref = json.dumps(
-            {"run_id": run_input.run_id, "thread_id": run_input.thread_id},
-            sort_keys=True,
-        )
-
-        async def _on_cancel() -> None:
-            if save is not None:
-                await save([*input_messages, *transcript.messages()])
-            audit.record(
-                AuditEvent(
-                    tool_name="agent.run",
-                    arguments_repr=run_ref,
-                    duration_ms=(time.perf_counter() - started) * 1000.0,
-                    success=False,
-                    error="cancelled: client disconnected mid-run",
-                ),
-            )
-
-        return _on_cancel
 
     def _build_agent(self, request: HttpRequest) -> Agent[None, Any]:
         """Construct the per-request agent.
@@ -284,10 +165,16 @@ class DjangoAGUIView:
                 model=self._resolve_model(),
                 instructions=self._resolve_instructions(),
                 audit_logger=self._resolve_audit_logger(),
+                audit_ip_address=request.META.get("REMOTE_ADDR"),
                 model_settings=settings.model_settings,
                 retries=settings.retries,
                 toolsets=toolsets,
-                capabilities=resolve_dotted_instances(settings.capabilities),
+                # Instance-passed capabilities (e.g. AGUIServer's agent skills)
+                # compose ahead of the settings-resolved dotted paths.
+                capabilities=[
+                    *self._capabilities,
+                    *resolve_dotted_instances(settings.capabilities),
+                ],
             ),
         )
 
