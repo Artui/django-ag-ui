@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `DrfMcpToolset(max_retries=...)` — each tool's retry budget: how many times a
+  `ModelRetry` (malformed arguments, a service-raised validation error) is fed
+  back to the model before the run aborts. Defaults to `1`, matching
+  pydantic-ai's own function-tool default.
+
+### Changed
+
+- `DrfMcpToolset` now subclasses `pydantic_ai.toolsets.AbstractToolset`
+  directly (the documented extension point) instead of `ExternalToolset`,
+  building its tool definitions `kind="function"` from the start. Previously
+  it inherited from a base class that models the opposite of in-process
+  execution (external tools are *deferred* to the client) and re-stamped every
+  tool definition back to `kind="function"` per run — the version-fragile seam
+  behind the historically tight `<2` pydantic-ai pin. Public API and tool
+  behaviour are unchanged.
+
+### Fixed
+
+- A bridged tool's `ModelRetry` (malformed arguments, a service-raised
+  validation error) now actually reaches the model to self-correct, as
+  documented. `ExternalToolset` pinned every tool's retry budget to `0`, so in
+  a real agent run the first `ModelRetry` aborted the run with
+  `UnexpectedModelBehavior` instead of retrying. Pinned by a full agent-run
+  integration test.
+
 ## [0.13.0] — 2026-07-09
 
 ### Removed

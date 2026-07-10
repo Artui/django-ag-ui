@@ -31,30 +31,44 @@ Error semantics follow the MCP protocol-vs-tool boundary:
 from __future__ import annotations
 
 import json
-from dataclasses import replace
 from typing import Any
 
 from asgiref.sync import sync_to_async
 from django.http import HttpRequest
 from pydantic_ai import ModelRetry
 from pydantic_ai.tools import ToolDefinition
-from pydantic_ai.toolsets.external import ExternalToolset
+from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
+from pydantic_core import SchemaValidator, core_schema
 from rest_framework_mcp import JsonRpcError, JsonRpcErrorCode
 
+# Tool args pass through unvalidated: the parameter schemas advertised to the
+# model come verbatim from drf-mcp's ``tools/list`` (advisory, not a Pydantic
+# model), and the real validation is drf-mcp's own serializer at call time — so
+# the per-tool validator is a no-op, exactly the split the HTTP transport has.
+_TOOL_ARGS_VALIDATOR = SchemaValidator(schema=core_schema.any_schema())
 
-class DrfMcpToolset(ExternalToolset[Any]):
+
+class DrfMcpToolset(AbstractToolset[Any]):
     """Exposes a drf-mcp ``MCPServer``'s tools as a Pydantic-AI toolset.
 
     Built per request so the acting user is the current AG-UI user. Tool
     schemas and execution both route through drf-mcp's public in-process
     surface (``MCPServer.list_tools`` / ``acall_tool``), so the advertised
     parameters, serializer validation, and permissions match the HTTP transport
-    exactly.
+    exactly. Tool definitions carry the default ``kind="function"`` — the
+    in-process kind the run loop routes into ``call_tool``, which then emits a
+    ``TOOL_CALL_RESULT`` and lets the model continue (an ``external`` tool
+    would instead be deferred to the client and never run).
 
     ``exclude_names`` carries the ``@tool`` registry's names: on a collision
     the registry tool wins (the same rule ``build_tool_catalog`` applies) and
     the drf-mcp twin is skipped — otherwise pydantic-ai raises ``UserError``
     for the duplicate name at run time.
+
+    ``max_retries`` is each tool's retry budget: how many times a
+    :class:`pydantic_ai.ModelRetry` (malformed arguments, a service-raised
+    validation error) is fed back to the model before the run aborts. Defaults
+    to ``1``, matching pydantic-ai's own function-tool default.
     """
 
     def __init__(
@@ -63,37 +77,38 @@ class DrfMcpToolset(ExternalToolset[Any]):
         request: HttpRequest,
         *,
         exclude_names: frozenset[str] = frozenset(),
+        max_retries: int = 1,
     ) -> None:
         self._server = server
         self._request = request
         self._exclude_names = exclude_names
-        self._loaded = False
+        self._max_retries = max_retries
         # Tool defs are loaded lazily in ``get_tools`` (async): drf-mcp's
         # ``tools/list`` may touch the DB (per-user listing permissions), which
         # is unsafe to run synchronously inside the async view's ``__init__``.
-        super().__init__([], id="drf-mcp")
+        self._tool_defs: list[ToolDefinition] | None = None
 
-    async def get_tools(self, ctx: Any) -> Any:
-        """Load tool defs from drf-mcp's ``tools/list`` once, then defer to base.
+    @property
+    def id(self) -> str | None:
+        return "drf-mcp"
+
+    async def get_tools(self, ctx: Any) -> dict[str, ToolsetTool[Any]]:
+        """Load tool defs from drf-mcp's ``tools/list`` once, then wrap them.
 
         Loading runs in a thread (``sync_to_async``) because the sync
         ``list_tools`` may evaluate per-user listing permissions against the DB,
         which Django forbids on the async event loop.
         """
-        if not self._loaded:
-            self.tool_defs = await sync_to_async(self._load_tool_defs)()
-            self._loaded = True
-        tools = await super().get_tools(ctx)
-        # ExternalToolset stamps every tool ``kind="external"``, which Pydantic-AI
-        # *defers*: it yields the call to the client and ends the run, never
-        # invoking our ``call_tool``. But this bridge executes drf-mcp tools
-        # in-process (``call_tool`` → ``server.acall_tool``), so re-stamp them
-        # ``kind="function"`` to route the run loop into ``call_tool`` — which then
-        # emits a ``TOOL_CALL_RESULT`` and lets the model continue. Without this
-        # the tool is silently handed off and never runs.
+        if self._tool_defs is None:
+            self._tool_defs = await sync_to_async(self._load_tool_defs)()
         return {
-            name: replace(tool, tool_def=replace(tool.tool_def, kind="function"))
-            for name, tool in tools.items()
+            tool_def.name: ToolsetTool(
+                toolset=self,
+                tool_def=tool_def,
+                max_retries=self._max_retries,
+                args_validator=_TOOL_ARGS_VALIDATOR,
+            )
+            for tool_def in self._tool_defs
         }
 
     def _load_tool_defs(self) -> list[ToolDefinition]:

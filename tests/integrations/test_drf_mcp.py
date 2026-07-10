@@ -5,7 +5,8 @@ from django.contrib.auth.models import AnonymousUser
 from django.http import HttpRequest
 from django.test import RequestFactory
 from pydantic_ai import Agent, ModelRetry
-from pydantic_ai.messages import ToolReturnPart
+from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart
+from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.test import TestModel
 from rest_framework_mcp import JsonRpcError, JsonRpcErrorCode
 
@@ -52,6 +53,38 @@ async def test_agent_run_executes_drf_tool_in_process() -> None:
     ]
     assert returns, "drf-mcp 'add' tool was deferred, not executed in-process"
     assert "result" in returns[0].content
+
+
+@pytest.mark.django_db
+async def test_agent_run_recovers_from_model_retry() -> None:
+    # A ModelRetry (malformed arguments) must be fed back to the model to
+    # self-correct, consuming one unit of the tool's retry budget — not abort
+    # the run. The budget was previously pinned to 0, so the first retry died
+    # with UnexpectedModelBehavior.
+    def model_fn(messages: list, info: object) -> ModelResponse:
+        last = messages[-1]
+        if any(part.part_kind == "retry-prompt" for part in last.parts):
+            return ModelResponse(parts=[ToolCallPart(tool_name="add", args={"a": 5, "b": 3})])
+        if any(part.part_kind == "tool-return" for part in last.parts):
+            return ModelResponse(parts=[TextPart("done")])
+        return ModelResponse(
+            parts=[ToolCallPart(tool_name="add", args={"a": "not_a_number", "b": 3})]
+        )
+
+    toolset = DrfMcpToolset(server, _request())
+    agent = Agent(FunctionModel(model_fn), toolsets=[toolset])
+    result = await agent.run("add two numbers")
+    assert result.output == "done"
+
+
+async def test_max_retries_default_and_override() -> None:
+    toolset = DrfMcpToolset(server, _request())
+    assert toolset.id == "drf-mcp"
+    tools = await toolset.get_tools(None)  # type: ignore[arg-type]
+    assert tools["add"].max_retries == 1
+    toolset = DrfMcpToolset(server, _request(), max_retries=3)
+    tools = await toolset.get_tools(None)  # type: ignore[arg-type]
+    assert tools["add"].max_retries == 3
 
 
 async def test_loads_all_pages_from_tools_list(monkeypatch: pytest.MonkeyPatch) -> None:
