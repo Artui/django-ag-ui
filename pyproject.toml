@@ -53,7 +53,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
 drf-mcp = ["djangorestframework-mcp-server>=0.9,<0.12"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
-# pydantic-ai's SpecToolset — no MCP server in the path (DJANGO_AG_UI["SERVICE_SPECS"]).
+# pydantic-ai's SpecCapability — no MCP server in the path (DJANGO_AG_UI["SERVICE_SPECS"]).
 spec-tools = ["djangorestframework-pydantic-ai>=0.5,<0.6"]
 
 [project.urls]
@@ -136,7 +136,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.15.0"
+current_version = "0.16.0"
 allow_dirty = false
 commit = false
 tag = false
