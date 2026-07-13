@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`SERVICE_SPECS` now uses `SpecCapability` instead of a bare `SpecToolset`.**
+  The exposed tool set is byte-identical, but the spec path
+  is now a Pydantic-AI *capability* on `AgentConfig.capabilities`, so it also
+  teaches the model `SpecToolset`'s conventions — that list tools accept
+  `page` / `limit` / `order`, and the error contract (an `{"error": …}` result is
+  a final answer, a retry message means fix the argument, a permission error is
+  final) — via instructions appended to the system prompt, closing the gap where
+  the model rediscovered them by failing a call. Requires
+  `djangorestframework-pydantic-ai>=0.5` (the `[spec-tools]` extra pin moves from
+  `>=0.2,<0.4` to `>=0.5,<0.6`). Name-collision precedence, the tool-card catalog,
+  and the per-request user binding are unchanged. The internal
+  `django_ag_ui.integrations.build_spec_toolset` helper is replaced by
+  `build_spec_capability` (not a public export).
+
 ## [0.15.0] — 2026-07-10
 
 ### Added

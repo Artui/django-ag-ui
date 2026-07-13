@@ -155,7 +155,12 @@ class DjangoAGUIView:
         seen: set[str] = {binding.spec.name for binding in self._registry}
         toolsets = resolve_dotted_instances(settings.toolsets)
         toolsets += self._drf_mcp_toolsets(settings.drf_mcp_server, request, seen)
-        toolsets += self._spec_toolsets(settings.service_specs, request, seen)
+        capabilities = resolve_dotted_instances(settings.capabilities)
+        # The spec path is a capability (not a bare toolset) so its conventions
+        # reach the model via ``get_instructions`` — but it still reserves its
+        # tool names in ``seen`` here, between drf-mcp and the attachment toolset,
+        # keeping the ``build_tool_catalog`` dedup precedence unchanged.
+        capabilities += self._spec_capabilities(settings.service_specs, request, seen)
         toolsets += self._attachment_toolsets(settings.attachment_store, request, seen)
         return build_agent(
             self._registry,
@@ -167,7 +172,7 @@ class DjangoAGUIView:
                 model_settings=settings.model_settings,
                 retries=settings.retries,
                 toolsets=toolsets,
-                capabilities=resolve_dotted_instances(settings.capabilities),
+                capabilities=capabilities,
             ),
         )
 
@@ -192,25 +197,26 @@ class DjangoAGUIView:
         seen.update(binding.name for binding in server.tools.all())
         return [toolset]
 
-    def _spec_toolsets(
+    def _spec_capabilities(
         self, dotted_path: str | None, request: HttpRequest, seen: set[str]
     ) -> list[Any]:
-        """Build the per-request drf-services `SpecToolset`, or `[]` when not set.
+        """Build the per-request drf-services `SpecCapability`, or `[]` when unset.
 
         Imported lazily so `djangorestframework-pydantic-ai` (and drf-services)
-        stay an optional `[spec-tools]` extra; the toolset carries `request` so
-        the agent acts as the logged-in user. Excludes names already in ``seen``
-        (registry + drf-mcp win the collision) and reserves the spec names so the
-        attachment toolset that follows can't shadow one.
+        stay an optional `[spec-tools]` extra; the capability's toolset carries
+        `request` so the agent acts as the logged-in user, and its
+        `get_instructions` teaches the model the spec conventions. Excludes names
+        already in ``seen`` (registry + drf-mcp win the collision) and reserves
+        the spec names so the attachment toolset that follows can't shadow one.
         """
         if dotted_path is None:
             return []
-        from django_ag_ui.integrations.build_spec_toolset import build_spec_toolset
+        from django_ag_ui.integrations.build_spec_capability import build_spec_capability
 
         specs = import_string(dotted_path)
-        toolset = build_spec_toolset(specs, request, exclude_names=frozenset(seen))
+        capability = build_spec_capability(specs, request, exclude_names=frozenset(seen))
         seen.update(specs)
-        return [toolset]
+        return [capability]
 
     def _attachment_toolsets(
         self, dotted_path: str | None, request: HttpRequest, seen: set[str]
