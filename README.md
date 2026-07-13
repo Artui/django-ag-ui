@@ -74,8 +74,8 @@ browser half is
 - **drf-services specs as tools, no MCP hop** — point `SERVICE_SPECS` at a
   `name → spec` mapping and the agent calls them in-process via
   [`djangorestframework-pydantic-ai`](https://github.com/Artui/djangorestframework-pydantic-ai)'s
-  `SpecToolset` (the `[spec-tools]` extra) — permission-checked, acting as the
-  logged-in user.
+  `SpecCapability` (the `[spec-tools]` extra) — permission-checked, acting as the
+  logged-in user, with the spec conventions taught to the model.
 - **100% test coverage**, type-checked, Python 3.10–3.14, Django 4.2–6.0.
 
 📖 **Full documentation:** <https://artui.github.io/django-ag-ui/>
