@@ -382,7 +382,7 @@ DJANGO_AG_UI = {
 
 A dotted path to a `name -> spec` mapping (drf-services `ServiceSpec` /
 `SelectorSpec` objects) exposed to the agent as tools **without an MCP server**,
-via `djangorestframework-pydantic-ai`'s `SpecToolset`. `None` (the default)
+via `djangorestframework-pydantic-ai`'s `SpecCapability`. `None` (the default)
 disables it. Requires the `[spec-tools]` extra
 (`pip install "django-ag-ui[spec-tools]"`), imported lazily.
 
@@ -390,9 +390,14 @@ This is the no-MCP-hop sibling of [`DRF_MCP_SERVER`](#drf_mcp_server): the specs
 are dispatched in-process through drf-services' transport-neutral surface
 (`dispatch_spec` + its off-HTTP helpers), enforcing each spec's
 `permission_classes`. The agent acts as the **logged-in AG-UI user** (bound from
-`request`), and a registry `@tool` wins a name collision. Use it when you have
-drf-services specs but no reason to stand up an MCP server; use `DRF_MCP_SERVER`
-when you already run one (or want MCP clients to share the tools).
+`request`), and a registry `@tool` wins a name collision. Beyond exposing the
+tools, `SpecCapability` teaches the model the spec conventions — that list tools
+accept `page` / `limit` / `order`, and how errors come back (an `{"error": …}`
+result is a final answer, a retry message means fix the argument, a permission
+error is final) — via instructions appended to the system prompt, so the model
+doesn't rediscover them by failing a call. Use it when you have drf-services
+specs but no reason to stand up an MCP server; use `DRF_MCP_SERVER` when you
+already run one (or want MCP clients to share the tools).
 
 ```python
 # myproject/specs.py

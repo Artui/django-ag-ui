@@ -373,12 +373,13 @@ async def test_seen_set_guards_three_way_name_collisions() -> None:
     assert {"add", "invalid", "denied"} <= seen
 
     # spec: ``add`` collides with drf-mcp (dropped, drf-mcp wins); ``unique_spec``
-    # survives; ``read_attachment`` is now reserved by the spec toolset.
-    (spec_toolset,) = view._spec_toolsets(
+    # survives; ``read_attachment`` is now reserved by the spec capability.
+    (spec_capability,) = view._spec_capabilities(
         "tests.integrations.drf_specs_colliding.SPECS", request, seen
     )
-    assert "add" not in spec_toolset._specs
-    assert "unique_spec" in spec_toolset._specs
+    spec_names = set(spec_capability.get_toolset()._specs)
+    assert "add" not in spec_names
+    assert "unique_spec" in spec_names
     assert "read_attachment" in seen
 
     # attachment: yields because a spec already claimed ``read_attachment``.

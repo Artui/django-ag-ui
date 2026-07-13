@@ -119,8 +119,9 @@ class AppSettings:
 
     service_specs: str | None
     """Dotted path to a ``name -> ServiceSpec/SelectorSpec`` mapping exposed to
-    the agent as tools via ``djangorestframework-pydantic-ai``'s ``SpecToolset``
-    — drf-services specs called in-process, **no MCP server** (requires the
+    the agent as tools via ``djangorestframework-pydantic-ai``'s ``SpecCapability``
+    — drf-services specs called in-process, **no MCP server**, with the spec
+    conventions (pagination + error contract) taught to the model (requires the
     ``[spec-tools]`` extra). ``None`` disables it."""
 
     thread_list_limit: int
