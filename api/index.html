@@ -5868,8 +5868,9 @@ are exposed to the agent in-process (requires the <code>[drf-mcp]</code> extra).
     <div class="doc doc-contents ">
 
         <p>Dotted path to a <code>name -&gt; ServiceSpec/SelectorSpec</code> mapping exposed to
-the agent as tools via <code>djangorestframework-pydantic-ai</code>'s <code>SpecToolset</code>
-— drf-services specs called in-process, <strong>no MCP server</strong> (requires the
+the agent as tools via <code>djangorestframework-pydantic-ai</code>'s <code>SpecCapability</code>
+— drf-services specs called in-process, <strong>no MCP server</strong>, with the spec
+conventions (pagination + error contract) taught to the model (requires the
 <code>[spec-tools]</code> extra). <code>None</code> disables it.</p>
 
     </div>

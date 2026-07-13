@@ -1489,16 +1489,21 @@ as the web component's card label.</p>
 <h2 id="service_specs"><code>SERVICE_SPECS</code><a class="headerlink" href="#service_specs" title="Permanent link">&para;</a></h2>
 <p>A dotted path to a <code>name -&gt; spec</code> mapping (drf-services <code>ServiceSpec</code> /
 <code>SelectorSpec</code> objects) exposed to the agent as tools <strong>without an MCP server</strong>,
-via <code>djangorestframework-pydantic-ai</code>'s <code>SpecToolset</code>. <code>None</code> (the default)
+via <code>djangorestframework-pydantic-ai</code>'s <code>SpecCapability</code>. <code>None</code> (the default)
 disables it. Requires the <code>[spec-tools]</code> extra
 (<code>pip install "django-ag-ui[spec-tools]"</code>), imported lazily.</p>
 <p>This is the no-MCP-hop sibling of <a href="#drf_mcp_server"><code>DRF_MCP_SERVER</code></a>: the specs
 are dispatched in-process through drf-services' transport-neutral surface
 (<code>dispatch_spec</code> + its off-HTTP helpers), enforcing each spec's
 <code>permission_classes</code>. The agent acts as the <strong>logged-in AG-UI user</strong> (bound from
-<code>request</code>), and a registry <code>@tool</code> wins a name collision. Use it when you have
-drf-services specs but no reason to stand up an MCP server; use <code>DRF_MCP_SERVER</code>
-when you already run one (or want MCP clients to share the tools).</p>
+<code>request</code>), and a registry <code>@tool</code> wins a name collision. Beyond exposing the
+tools, <code>SpecCapability</code> teaches the model the spec conventions — that list tools
+accept <code>page</code> / <code>limit</code> / <code>order</code>, and how errors come back (an <code>{"error": …}</code>
+result is a final answer, a retry message means fix the argument, a permission
+error is final) — via instructions appended to the system prompt, so the model
+doesn't rediscover them by failing a call. Use it when you have drf-services
+specs but no reason to stand up an MCP server; use <code>DRF_MCP_SERVER</code> when you
+already run one (or want MCP clients to share the tools).</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># myproject/specs.py</span>
 </span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectorSpec</span><span class="p">,</span> <span class="n">ServiceSpec</span>
 </span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="n">SPECS</span> <span class="o">=</span> <span class="p">{</span>
