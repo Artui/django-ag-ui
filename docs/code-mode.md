@@ -53,9 +53,9 @@ the model batches its DRF work into a single sandboxed script.
 
 Pass a name list or a predicate to `tools=` to split the toolset — matching
 tools go behind `run_code`, the rest stay as direct tool calls. This is useful
-to keep, say, a destructive tool a [`ToolGuard`](configuration.md#tool_guard)
-gates as a *direct* call (so its approval interrupt still fires) while batching
-the read-only ones:
+to keep, say, a destructive tool a [`ToolGuard`](tool-approval.md) gates as a
+*direct* call (so its approval interrupt still fires) while batching the
+read-only ones:
 
 ```python
 def code_mode():
