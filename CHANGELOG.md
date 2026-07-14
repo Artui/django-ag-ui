@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`[harness]` extra + a CodeMode batching recipe.** Optional
+  `pip install django-ag-ui[harness]` pulls `pydantic-ai-harness` (and its
+  `pydantic-monty` sandbox) — lazy-imported, so the core install stays `django` +
+  `pydantic-ai-slim`. Its `CodeMode` capability drops into the existing
+  `CAPABILITIES` seam to collapse many tools (notably a large drf-mcp bridge) into
+  one sandboxed `run_code` tool the model batches in a single round-trip. New
+  [CodeMode guide](code-mode.md).
+
+### Changed
+
+- **The drf-mcp bridge now carries each tool's `outputSchema` onto
+  `ToolDefinition.return_schema`.** drf-mcp advertises an output schema by default
+  (`INCLUDE_OUTPUT_SCHEMA`); the bridge previously dropped it. Propagating it means
+  the tool's return type reaches the model — chiefly so CodeMode renders each
+  bridged tool as a **typed** Python stub (`-> <Model>`) instead of `-> Any`. A
+  service with no output serializer advertises no schema, so its stub stays
+  untyped (unchanged). No effect on tool dispatch or results.
+
 ## [0.17.0] — 2026-07-14
 
 ### Added

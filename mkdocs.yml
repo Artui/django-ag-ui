@@ -76,5 +76,6 @@ nav:
   - Installation: installation.md
   - Quickstart: quickstart.md
   - Configuration: configuration.md
+  - Batching tool calls (CodeMode): code-mode.md
   - Key concepts: concepts.md
   - API reference: api.md

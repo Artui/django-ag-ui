@@ -60,6 +60,11 @@ drf-mcp = ["djangorestframework-mcp-server>=0.9,<0.12"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
 # pydantic-ai's SpecCapability — no MCP server in the path (DJANGO_AG_UI["SERVICE_SPECS"]).
 spec-tools = ["djangorestframework-pydantic-ai>=0.5,<0.6"]
+# pydantic-ai-harness capabilities (lazy-imported; core stays slim). Adds
+# CodeMode — wrap many tools (e.g. the drf-mcp bridge) into one sandboxed
+# `run_code` — and the other graduated harness capabilities. The `[code-mode]`
+# extra pulls the sandbox (`pydantic-monty`). Attach via DJANGO_AG_UI["CAPABILITIES"].
+harness = ["pydantic-ai-harness[code-mode]>=0.7,<0.8"]
 
 [project.urls]
 Homepage = "https://github.com/Artui/django-ag-ui"
@@ -89,6 +94,8 @@ dev = [
     "djangorestframework-mcp-server>=0.9,<0.12",
     # The [spec-tools] extra's backing package, so its capability + tests run in dev.
     "djangorestframework-pydantic-ai>=0.5,<0.6",
+    # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
+    "pydantic-ai-harness[code-mode]>=0.7,<0.8",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
     # in dev/CI (the extras above ship to consumers, not the dev env).
     "pydantic-ai-slim[anthropic,openai,google]>=2",
