@@ -11,6 +11,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
+from django_ag_ui.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 
 def _run_input(messages: list[dict[str, str]] | None = None) -> Any:
@@ -129,3 +130,200 @@ async def test_forward_reasoning_opt_out_strips_reasoning_events() -> None:
     assert "THINKING" not in joined
     assert "private pondering" not in joined
     assert "RUN_FINISHED" in joined
+
+
+# --- server-side tool-approval interrupt/resume loop --------------------------------
+#
+# The whole approval lifecycle is upstream (a ``requires_approval`` tool defers to
+# a ``RUN_FINISHED`` interrupt outcome; a follow-up run carrying ``resume[]``
+# approves/denies it). These tests pin that the *latent* loop is driven by our
+# session pipeline — gated only on the protocol floor (0.1.19) and
+# ``DeferredToolRequests`` in the agent ``output_type``. The tool under test is
+# **server-side** (no frontend tool in ``RunAgentInput.tools``), the case the
+# adapter's frontend-only ``output_type`` augmentation would miss.
+
+
+def _approval_agent(calls: list[str]) -> Agent[None, Any]:
+    """A factory-built agent whose one server-side tool requires approval.
+
+    Built through :func:`build_agent` so the test exercises the real
+    ``output_type`` wiring, not a hand-assembled agent. The streamed model calls
+    the tool on the first turn and answers with text once the tool has returned.
+    """
+    from pydantic_ai import Tool
+    from pydantic_ai.models.function import DeltaToolCall
+    from pydantic_ai.toolsets import FunctionToolset
+
+    from django_ag_ui.agent.agent_factory import build_agent
+    from django_ag_ui.agent.types.agent_config import AgentConfig
+    from django_ag_ui.registry.tool_registry import ToolRegistry
+
+    def delete_thing(target: str) -> str:
+        """Delete a thing (destructive; gated for approval)."""
+        calls.append(target)
+        return f"deleted {target}"
+
+    async def stream_fn(messages: list, info: Any) -> Any:
+        tool_returned = any(
+            getattr(part, "part_kind", "") == "tool-return"
+            for message in messages
+            for part in getattr(message, "parts", [])
+        )
+        if tool_returned:
+            yield "all done"
+        else:
+            yield {
+                0: DeltaToolCall(
+                    name="delete_thing", json_args='{"target": "widget-1"}', tool_call_id="call-1"
+                )
+            }
+
+    toolset = FunctionToolset()
+    toolset.add_tool(Tool(delete_thing, requires_approval=True))
+    return build_agent(
+        ToolRegistry(),
+        AgentConfig(model=FunctionModel(stream_function=stream_fn), toolsets=[toolset]),
+    )
+
+
+def _approval_run_input(*, resume: list[dict[str, Any]] | None = None) -> Any:
+    """A ``RunAgentInput`` for the approval flow.
+
+    The resume turn re-posts the assistant tool-call message (as an AG-UI client
+    does) alongside the ``resume[]`` array keyed by the interrupt id.
+    """
+    messages: list[dict[str, Any]] = [{"id": "m1", "role": "user", "content": "delete widget-1"}]
+    payload: dict[str, Any] = {
+        "threadId": "t1",
+        "runId": "r1",
+        "messages": messages,
+        "tools": [],
+        "context": [],
+        "state": None,
+        "forwardedProps": None,
+    }
+    if resume is not None:
+        messages.append(
+            {
+                "id": "a1",
+                "role": "assistant",
+                "toolCalls": [
+                    {
+                        "id": "call-1",
+                        "type": "function",
+                        "function": {"name": "delete_thing", "arguments": '{"target": "widget-1"}'},
+                    }
+                ],
+            }
+        )
+        payload["resume"] = resume
+    return AGUIAdapter.build_run_input(json.dumps(payload).encode())
+
+
+async def test_server_tool_requiring_approval_interrupts_without_running() -> None:
+    calls: list[str] = []
+    session = _session(_approval_agent(calls), _approval_run_input())
+    joined = await _events(session)
+    # The run finishes on an interrupt outcome carrying the tool call id — and the
+    # tool has *not* executed.
+    assert '"type":"interrupt"' in joined
+    assert '"toolCallId":"call-1"' in joined
+    assert calls == []
+
+
+async def test_resume_approve_runs_the_tool() -> None:
+    calls: list[str] = []
+    agent = _approval_agent(calls)
+    resume = [{"interruptId": "int-call-1", "status": "resolved", "payload": {"approved": True}}]
+    joined = await _events(_session(agent, _approval_run_input(resume=resume)))
+    assert calls == ["widget-1"]
+    assert "TOOL_CALL_RESULT" in joined
+    assert "deleted widget-1" in joined
+    assert '"type":"success"' in joined
+
+
+async def test_resume_deny_does_not_run_the_tool() -> None:
+    calls: list[str] = []
+    agent = _approval_agent(calls)
+    resume = [{"interruptId": "int-call-1", "status": "cancelled"}]
+    joined = await _events(_session(agent, _approval_run_input(resume=resume)))
+    assert calls == []
+    assert "RUN_FINISHED" in joined
+
+
+# --- ToolGuard policy end-to-end ----------------------------------------------------
+#
+# The loop above drives an *already-flagged* tool; ``ToolGuard`` is the policy that
+# flags it: a ``@tool(destructive=True)`` registry tool is turned into an approval
+# requirement **by the capability** (not by hand), only when ``TOOL_GUARD`` is
+# enabled. These tests drive the whole chain — registry destructiveness → guard →
+# interrupt — through the real ``build_agent`` factory and the session pipeline.
+
+
+def _guarded_agent(calls: list[str], *, tool_guard: ToolGuardConfig | None) -> Agent[None, Any]:
+    """A factory-built agent with a destructive **registry** tool + a guard config.
+
+    Unlike ``_approval_agent`` (which hand-flags a ``Tool(requires_approval=True)``),
+    here the tool is a plain ``@tool(destructive=True)`` and the ToolGuard is what
+    turns that into an approval requirement — exactly the piece-B policy path.
+    """
+    from pydantic_ai.models.function import DeltaToolCall
+
+    from django_ag_ui.agent.agent_factory import build_agent
+    from django_ag_ui.agent.types.agent_config import AgentConfig
+    from django_ag_ui.registry.decorator import tool
+    from django_ag_ui.registry.tool_registry import ToolRegistry
+
+    registry = ToolRegistry()
+
+    @tool(registry, destructive=True)
+    def delete_thing(target: str) -> str:
+        """Delete a thing."""
+        calls.append(target)
+        return f"deleted {target}"
+
+    async def stream_fn(messages: list, info: Any) -> Any:
+        tool_returned = any(
+            getattr(part, "part_kind", "") == "tool-return"
+            for message in messages
+            for part in getattr(message, "parts", [])
+        )
+        if tool_returned:
+            yield "all done"
+        else:
+            yield {
+                0: DeltaToolCall(
+                    name="delete_thing", json_args='{"target": "widget-1"}', tool_call_id="call-1"
+                )
+            }
+
+    return build_agent(
+        registry,
+        AgentConfig(model=FunctionModel(stream_function=stream_fn), tool_guard=tool_guard),
+    )
+
+
+async def test_tool_guard_gates_a_destructive_registry_tool() -> None:
+    agent = _guarded_agent([], tool_guard=ToolGuardConfig(enabled=True))
+    joined = await _events(_session(agent, _approval_run_input()))
+    assert '"type":"interrupt"' in joined
+    assert '"toolCallId":"call-1"' in joined
+
+
+async def test_tool_guard_disabled_lets_the_tool_run() -> None:
+    # The default posture: no ``TOOL_GUARD`` → the destructive tool runs without a
+    # gate (unchanged behaviour for a project that hasn't opted in).
+    calls: list[str] = []
+    agent = _guarded_agent(calls, tool_guard=None)
+    joined = await _events(_session(agent, _approval_run_input()))
+    assert '"type":"interrupt"' not in joined
+    assert calls == ["widget-1"]
+
+
+async def test_tool_guard_exemption_lets_the_tool_run() -> None:
+    calls: list[str] = []
+    guard = ToolGuardConfig(enabled=True, exempt=frozenset({"delete_thing"}))
+    agent = _guarded_agent(calls, tool_guard=guard)
+    joined = await _events(_session(agent, _approval_run_input()))
+    assert '"type":"interrupt"' not in joined
+    assert calls == ["widget-1"]

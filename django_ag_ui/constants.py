@@ -40,8 +40,18 @@ X_CONFIRM_KEY = "x-confirm"
 # card instead of the raw tool name.
 X_SUMMARY_KEY = "x-summary"
 
+# ``ToolDefinition.metadata`` key carrying our per-tool "this tool mutates"
+# signal into the run. Unlike the ``x-*`` JSON-Schema stamps above (which reach
+# the *client* on the tool schema), this rides pydantic-ai's tool metadata so a
+# server-side capability can read it at ``prepare_tools`` time — the
+# ``ToolGuard`` uses it to flip a tool to ``requires_approval`` for tools whose
+# destructiveness isn't known from the ``@tool`` registry (e.g. drf-mcp bridged
+# tools, whose ``readOnlyHint`` annotation the bridge maps onto this key).
+DESTRUCTIVE_METADATA_KEY = "django_ag_ui.destructive"
+
 
 __all__ = [
+    "DESTRUCTIVE_METADATA_KEY",
     "X_CATEGORY_KEY",
     "X_CONFIRM_KEY",
     "X_DESTRUCTIVE_KEY",

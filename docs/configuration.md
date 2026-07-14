@@ -31,6 +31,7 @@ default, and what it does.
 | `DRF_MCP_SERVER` | dotted `str` | `None` | drf-mcp server whose tools the agent gets. |
 | `SERVICE_SPECS` | dotted `str` | `None` | drf-services specs mapping exposed as tools, no MCP hop (`[spec-tools]` extra). |
 | `ALLOW_ANONYMOUS` | `bool` | `False` | Whether the model-backed stores serve anonymous requests (see [Authentication & anonymous scoping](#authentication-anonymous-scoping)). |
+| `TOOL_GUARD` | `dict` | `{}` | Server-side destructive-tool approval gate (off by default). See [`TOOL_GUARD`](#tool_guard). |
 
 ## `MODEL`
 
@@ -462,3 +463,42 @@ anonymous visitors from one another — they have no user id.
 
 Whenever a store persists, prefer authenticating the endpoints
 (`require_authenticated=True` / `get_user`) over relying on `ALLOW_ANONYMOUS`.
+
+### `TOOL_GUARD`
+
+An **opt-in server-side approval gate** for destructive tools. By default a
+server-side tool (a `@tool` registry tool or a drf-mcp-bridged tool) runs
+mid-stream with no confirmation — the `destructive` flag reaches only the model
+as a schema hint, not a gate. `TOOL_GUARD` changes that: when enabled, a
+`ToolGuard` capability flips destructive tools to require approval, so the run
+**defers** and finishes on a `RUN_FINISHED` *interrupt* the client approves or
+denies via the AG-UI tool-approval loop (`RunAgentInput.resume[]`) — the same
+mechanism the web component already applies to client-registered destructive
+tools, now for server-side ones. The wire stays vanilla AG-UI.
+
+```python
+DJANGO_AG_UI = {
+    # …
+    "TOOL_GUARD": {
+        "ENABLED": True,
+        "EXEMPT": ["refresh_cache"],       # never gate these, even if destructive
+        "REQUIRE_APPROVAL": ["export_pii"], # always gate these, even if not destructive
+    },
+}
+```
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `ENABLED` | `bool` | `False` | Compose the `ToolGuard` capability. |
+| `EXEMPT` | `list[str]` | `[]` | Tool names never gated (wins over `REQUIRE_APPROVAL`). |
+| `REQUIRE_APPROVAL` | `list[str]` | `[]` | Tool names always gated, even if not flagged destructive. |
+
+**What counts as destructive:** a registry `@tool(destructive=True)`, or a
+drf-mcp tool whose MCP `readOnlyHint` annotation is `False` (selectors are
+read-only, services mutate; a project can override per registration). A tool is
+gated when it is destructive **or** named in `REQUIRE_APPROVAL`, **unless** it is
+named in `EXEMPT`.
+
+The gate is only useful with a client that renders the interrupt and resumes —
+the web component's approval card is the front-end half of this feature; a bespoke
+AG-UI client handles the interrupt itself.

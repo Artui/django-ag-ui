@@ -41,6 +41,8 @@ from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
 from pydantic_core import SchemaValidator, core_schema
 from rest_framework_mcp import JsonRpcError, JsonRpcErrorCode
 
+from django_ag_ui.constants import DESTRUCTIVE_METADATA_KEY
+
 # Tool args pass through unvalidated: the parameter schemas advertised to the
 # model come verbatim from drf-mcp's ``tools/list`` (advisory, not a Pydantic
 # model), and the real validation is drf-mcp's own serializer at call time — so
@@ -119,6 +121,16 @@ class DRFMCPToolset(AbstractToolset[Any]):
         ``additionalProperties`` policy) verbatim, so nothing the model could
         send over HTTP is silently dropped in-process. Names colliding with
         the ``@tool`` registry are skipped (registry wins).
+
+        Carries each tool's **destructiveness** onto the def's ``metadata`` so a
+        server-side gate (``ToolGuard``) can require approval for mutating
+        tools. drf-mcp already derives MCP ``ToolAnnotations`` per tool
+        (``readOnlyHint`` true for selectors, false for services) and lets a
+        project override them per registration — so we trust the *annotation*
+        (``readOnlyHint is False`` → mutates) rather than re-deriving from the
+        DRF kind. ``destructiveHint`` is omitted on read-only tools, so keying
+        on ``readOnlyHint`` (not ``destructiveHint``) is what lets a project's
+        ``annotations={"destructiveHint": False}`` override exempt a mutation.
         """
         defs: list[ToolDefinition] = []
         cursor: str | None = None
@@ -131,11 +143,18 @@ class DRFMCPToolset(AbstractToolset[Any]):
             for tool in payload["tools"]:
                 if tool["name"] in self._exclude_names:
                     continue
+                annotations = tool.get("annotations") or {}
+                metadata = (
+                    {DESTRUCTIVE_METADATA_KEY: True}
+                    if annotations.get("readOnlyHint") is False
+                    else None
+                )
                 defs.append(
                     ToolDefinition(
                         name=tool["name"],
                         description=tool.get("description"),
                         parameters_json_schema=tool["inputSchema"],
+                        metadata=metadata,
                     )
                 )
             cursor = payload.get("nextCursor")

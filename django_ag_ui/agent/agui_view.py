@@ -173,6 +173,7 @@ class DjangoAGUIView:
                 retries=settings.retries,
                 toolsets=toolsets,
                 capabilities=capabilities,
+                tool_guard=settings.tool_guard,
             ),
         )
 

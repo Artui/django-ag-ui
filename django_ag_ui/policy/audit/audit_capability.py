@@ -8,7 +8,11 @@ import time
 from typing import Any
 
 from pydantic_ai import RunContext
-from pydantic_ai.capabilities import AbstractCapability, WrapToolExecuteHandler
+from pydantic_ai.capabilities import (
+    AbstractCapability,
+    CapabilityOrdering,
+    WrapToolExecuteHandler,
+)
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
 
@@ -45,6 +49,20 @@ class AuditCapability(AbstractCapability[Any]):
         self._logger = logger
         self._ip_address = ip_address
         self._organization_id = organization_id
+
+    def get_ordering(self) -> CapabilityOrdering:
+        """Pin audit as the **outermost** capability in the chain.
+
+        Audit is the observability layer: its ``wrap_tool_execute`` should
+        surround every other capability's execution hooks so it records the tool
+        regardless of what else composes the run. Declaring the position here
+        (rather than relying on list order at the ``build_agent`` call site)
+        makes composition deterministic once a second capability — e.g.
+        :class:`~django_ag_ui.policy.guard.tool_guard.ToolGuard` — joins the
+        chain: pydantic-ai's ``CombinedCapability`` topologically sorts by these
+        constraints, so audit stays outermost no matter the insertion order.
+        """
+        return CapabilityOrdering(position="outermost")
 
     async def wrap_tool_execute(
         self,
