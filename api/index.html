@@ -1070,6 +1070,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AgentConfig.tool_guard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tool_guard
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1374,6 +1385,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.AppSettings.tool_guard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tool_guard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.AppSettings.allow_anonymous" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1430,6 +1452,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="AuditCapability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AuditCapability.get_ordering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_ordering
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2601,6 +2640,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AgentConfig.tool_guard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tool_guard
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2905,6 +2955,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.AppSettings.tool_guard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tool_guard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.AppSettings.allow_anonymous" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2961,6 +3022,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="AuditCapability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AuditCapability.get_ordering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_ordering
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -4927,7 +5005,12 @@ registered here.</p>
 <p><code>model_settings</code> / <code>retries</code> tune the model; <code>toolsets</code> and
 <code>capabilities</code> compose external Pydantic-AI toolsets/capabilities (e.g. an
 MCP-client toolset) alongside the registry tools, so the agent can reach
-beyond the registered set.</p>
+beyond the registered set. <code>tool_guard</code>, when enabled, adds a
+:class:<code>ToolGuard</code> that flips destructive tools to require approval.</p>
+<p>Capabilities are composed <strong>order-independently</strong>: each declares its
+position via <code>get_ordering</code> (audit is outermost, the guard is orthogonal),
+and pydantic-ai's <code>CombinedCapability</code> topologically sorts them — so the
+list built here needn't be pre-ordered.</p>
 
 
     </div>
@@ -5174,6 +5257,35 @@ fills it from the driving request). <code>None</code> leaves the field unset.</p
     <div class="doc doc-contents ">
 
         <p>Pydantic-AI capabilities passed to the <code>Agent</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.AgentConfig.tool_guard" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">tool_guard</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.AgentConfig.tool_guard" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">tool_guard</span><span class="p">:</span> <span class="n">ToolGuardConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Server-side destructive-tool approval policy. When set and
+<code>enabled</code>, :func:<code>~django_ag_ui.agent.agent_factory.build_agent</code> composes
+a :class:<code>~django_ag_ui.policy.guard.tool_guard.ToolGuard</code> capability built
+from the registry's destructive tools. <code>None</code> (or disabled) leaves the
+agent ungated.</p>
 
     </div>
 
@@ -5908,6 +6020,34 @@ for a user with thousands of threads. Default 200.</p>
 
 
 
+<h3 id="django_ag_ui.AppSettings.tool_guard" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">tool_guard</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.AppSettings.tool_guard" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">tool_guard</span><span class="p">:</span> <span class="n">ToolGuardConfig</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Server-side destructive-tool approval policy (the <code>TOOL_GUARD</code> dict).
+<strong>Disabled by default</strong> — when enabled, a <code>ToolGuard</code> capability flips
+destructive tools (registry <code>@tool(destructive=True)</code> + drf-mcp
+non-read-only tools) to require the AG-UI approval interrupt. See
+:class:<code>~django_ag_ui.policy.guard.types.tool_guard_config.ToolGuardConfig</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="django_ag_ui.AppSettings.allow_anonymous" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">allow_anonymous</span>
 
@@ -6070,6 +6210,34 @@ view passes the client IP; a multi-tenant host can pass its org scope.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_ag_ui.AuditCapability.get_ordering" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_ordering</span>
+
+
+<a href="#django_ag_ui.AuditCapability.get_ordering" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_ordering</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">CapabilityOrdering</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Pin audit as the <strong>outermost</strong> capability in the chain.</p>
+<p>Audit is the observability layer: its <code>wrap_tool_execute</code> should
+surround every other capability's execution hooks so it records the tool
+regardless of what else composes the run. Declaring the position here
+(rather than relying on list order at the <code>build_agent</code> call site)
+makes composition deterministic once a second capability — e.g.
+:class:<code>~django_ag_ui.policy.guard.tool_guard.ToolGuard</code> — joins the
+chain: pydantic-ai's <code>CombinedCapability</code> topologically sorts by these
+constraints, so audit stays outermost no matter the insertion order.</p>
+
+
+    </div>
+
+</div>
 
 
 

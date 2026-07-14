@@ -674,6 +674,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tool_guard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TOOL_GUARD
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1032,6 +1043,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tool_guard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TOOL_GUARD
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1215,6 +1237,12 @@ default, and what it does.</p>
 <td><code>bool</code></td>
 <td><code>False</code></td>
 <td>Whether the model-backed stores serve anonymous requests (see <a href="#authentication-anonymous-scoping">Authentication &amp; anonymous scoping</a>).</td>
+</tr>
+<tr>
+<td><code>TOOL_GUARD</code></td>
+<td><code>dict</code></td>
+<td><code>{}</code></td>
+<td>Server-side destructive-tool approval gate (off by default). See <a href="#tool_guard"><code>TOOL_GUARD</code></a>.</td>
 </tr>
 </tbody>
 </table>
@@ -1558,6 +1586,63 @@ anonymous visitors from one another — they have no user id.</p>
 </ul>
 <p>Whenever a store persists, prefer authenticating the endpoints
 (<code>require_authenticated=True</code> / <code>get_user</code>) over relying on <code>ALLOW_ANONYMOUS</code>.</p>
+<h3 id="tool_guard"><code>TOOL_GUARD</code><a class="headerlink" href="#tool_guard" title="Permanent link">&para;</a></h3>
+<p>An <strong>opt-in server-side approval gate</strong> for destructive tools. By default a
+server-side tool (a <code>@tool</code> registry tool or a drf-mcp-bridged tool) runs
+mid-stream with no confirmation — the <code>destructive</code> flag reaches only the model
+as a schema hint, not a gate. <code>TOOL_GUARD</code> changes that: when enabled, a
+<code>ToolGuard</code> capability flips destructive tools to require approval, so the run
+<strong>defers</strong> and finishes on a <code>RUN_FINISHED</code> <em>interrupt</em> the client approves or
+denies via the AG-UI tool-approval loop (<code>RunAgentInput.resume[]</code>) — the same
+mechanism the web component already applies to client-registered destructive
+tools, now for server-side ones. The wire stays vanilla AG-UI.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="c1"># …</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>        <span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>        <span class="s2">&quot;EXEMPT&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;refresh_cache&quot;</span><span class="p">],</span>       <span class="c1"># never gate these, even if destructive</span>
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>        <span class="s2">&quot;REQUIRE_APPROVAL&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;export_pii&quot;</span><span class="p">],</span> <span class="c1"># always gate these, even if not destructive</span>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>    <span class="p">},</span>
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="p">}</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ENABLED</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Compose the <code>ToolGuard</code> capability.</td>
+</tr>
+<tr>
+<td><code>EXEMPT</code></td>
+<td><code>list[str]</code></td>
+<td><code>[]</code></td>
+<td>Tool names never gated (wins over <code>REQUIRE_APPROVAL</code>).</td>
+</tr>
+<tr>
+<td><code>REQUIRE_APPROVAL</code></td>
+<td><code>list[str]</code></td>
+<td><code>[]</code></td>
+<td>Tool names always gated, even if not flagged destructive.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What counts as destructive:</strong> a registry <code>@tool(destructive=True)</code>, or a
+drf-mcp tool whose MCP <code>readOnlyHint</code> annotation is <code>False</code> (selectors are
+read-only, services mutate; a project can override per registration). A tool is
+gated when it is destructive <strong>or</strong> named in <code>REQUIRE_APPROVAL</code>, <strong>unless</strong> it is
+named in <code>EXEMPT</code>.</p>
+<p>The gate is only useful with a client that renders the interrupt and resumes —
+the web component's approval card is the front-end half of this feature; a bespoke
+AG-UI client handles the interrupt itself.</p>
 
 
 
