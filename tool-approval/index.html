@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/django-ag-ui/installation/">
+        <link rel="canonical" href="https://artui.github.io/django-ag-ui/tool-approval/">
       
       
-        <link rel="prev" href="..">
+        <link rel="prev" href="../configuration/">
       
       
-        <link rel="next" href="../quickstart/">
+        <link rel="next" href="../code-mode/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Installation - django-ag-ui</title>
+        <title>Tool approval (human-in-the-loop) - django-ag-ui</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#installation" class="md-skip">
+        <a href="#human-in-the-loop-tool-approval" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Installation
+              Tool approval (human-in-the-loop)
             
           </span>
         </div>
@@ -293,37 +293,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Installation
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
         
   
   
@@ -339,70 +312,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#compatibility" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Compatibility
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#model-provider-extras" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Model provider extras
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#asgi-is-required" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ASGI is required
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-drf-mcp-extra" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The [drf-mcp] extra
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -465,10 +374,37 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../tool-approval/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool approval (human-in-the-loop)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -484,6 +420,98 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#turn-the-gate-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turn the gate on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-user-sees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the user sees
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What the user sees">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ordering-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ordering note
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom clients
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#asking-the-user-a-question-ask_user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Asking the user a question — ask_user
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security note
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -596,10 +624,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#compatibility" class="md-nav__link">
+  <a href="#turn-the-gate-on" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Compatibility
+        Turn the gate on
       
     </span>
   </a>
@@ -607,10 +635,38 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#model-provider-extras" class="md-nav__link">
+  <a href="#what-the-user-sees" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Model provider extras
+        What the user sees
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What the user sees">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ordering-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ordering note
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom clients
       
     </span>
   </a>
@@ -618,10 +674,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#asgi-is-required" class="md-nav__link">
+  <a href="#asking-the-user-a-question-ask_user" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ASGI is required
+        Asking the user a question — ask_user
       
     </span>
   </a>
@@ -629,10 +685,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-drf-mcp-extra" class="md-nav__link">
+  <a href="#security-note" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The [drf-mcp] extra
+        Security note
       
     </span>
   </a>
@@ -656,7 +712,7 @@
 
 
   
-    <a href="https://github.com/Artui/django-ag-ui/edit/main/docs/installation.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/django-ag-ui/edit/main/docs/tool-approval.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -664,104 +720,115 @@
   
 
 
-<h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-ag-ui
+<h1 id="human-in-the-loop-tool-approval">Human-in-the-loop tool approval<a class="headerlink" href="#human-in-the-loop-tool-approval" title="Permanent link">&para;</a></h1>
+<p>A <strong>server-side</strong> tool runs mid-stream: by the time the browser sees the tool
+call, the agent has already executed it. So the <code>destructive</code> flag on a
+<a class="autorefs autorefs-internal" title="tool" href="../api/#django_ag_ui.tool"><code>@tool</code></a> (and the <code>x-confirm</code> prompt) reaches only the
+model as a hint — it is <strong>not</strong> a gate. This page shows how to add a real
+server-side gate: a destructive tool <strong>pauses</strong> for the user to approve or deny
+before it runs.</p>
+<p>The whole flow rides the AG-UI protocol's own <strong>interrupt / resume</strong> mechanism —
+the wire stays vanilla AG-UI, no custom events. The two halves live in two
+packages:</p>
+<ul>
+<li><strong>Server (this package):</strong> the <code>TOOL_GUARD</code> setting flips destructive tools to
+  <em>require approval</em>, so instead of executing they <strong>defer</strong> and the run finishes
+  on an interrupt.</li>
+<li><strong>Client (the web component):</strong> it renders an inline approval card and, on the
+  user's decision, resumes the run with the answer. Requires
+  <code>@artooi/ag-ui-web-component &gt;= 0.11.0</code> — no configuration, the gate is driven
+  entirely by the server.</li>
+</ul>
+<h2 id="turn-the-gate-on">Turn the gate on<a class="headerlink" href="#turn-the-gate-on" title="Permanent link">&para;</a></h2>
+<p>The gate is <strong>off by default</strong> (no surprise gates). Opt in with the
+<a href="../configuration/#tool_guard"><code>TOOL_GUARD</code></a> setting:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>Core dependencies are <code>django&gt;=4.2</code> and <code>pydantic-ai-slim[ag-ui]&gt;=1.0</code>. The
-AG-UI wire types and the <code>AGUIAdapter</code> come from the <code>pydantic-ai-slim[ag-ui]</code>
-extra; this package does not re-implement them. The <strong>slim</strong> package ships the
-AG-UI adapter and wire types but <strong>no model-provider library</strong> — pick one via a
-provider extra (see below).</p>
-<h2 id="compatibility">Compatibility<a class="headerlink" href="#compatibility" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Component</th>
-<th>Floor</th>
-<th>Tested</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Python</td>
-<td>3.10</td>
-<td>3.10, 3.11, 3.12, 3.13, 3.14</td>
-</tr>
-<tr>
-<td>Django</td>
-<td>4.2 LTS</td>
-<td>4.2, 5.0, 5.1, 5.2, 6.0</td>
-</tr>
-<tr>
-<td>Pydantic-AI</td>
-<td>1.0 (with the <code>pydantic-ai-slim[ag-ui]</code> extra)</td>
-<td>latest in the CI matrix</td>
-</tr>
-</tbody>
-</table>
-<h2 id="model-provider-extras">Model provider extras<a class="headerlink" href="#model-provider-extras" title="Permanent link">&para;</a></h2>
-<p>Because <code>pydantic-ai-slim</code> ships no provider library, install the one matching
-your model via a <code>django-ag-ui</code> provider extra:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[anthropic]&quot;</span><span class="w">   </span><span class="c1"># or [openai], or [google]</span>
+<p>Now any <strong>destructive</strong> tool defers for approval. A tool counts as destructive
+when:</p>
+<ul>
+<li>it is a registry tool declared <code>@tool(destructive=True)</code>; <strong>or</strong></li>
+<li>it is a drf-mcp bridged tool whose MCP <code>readOnlyHint</code> annotation is <code>False</code>
+  (selectors are read-only, services mutate — the bridge maps this automatically,
+  and a project can override it per registration); <strong>or</strong></li>
+<li>its name is listed in <code>TOOL_GUARD["REQUIRE_APPROVAL"]</code> (force-gate a tool that
+  isn't flagged destructive).</li>
+</ul>
+<p><code>TOOL_GUARD["EXEMPT"]</code> un-gates a name even if it is destructive (<code>EXEMPT</code> wins).</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolRegistry</span><span class="p">,</span> <span class="n">tool</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">ToolRegistry</span><span class="p">()</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nd">@tool</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">destructive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">confirm</span><span class="o">=</span><span class="s2">&quot;Delete this project?&quot;</span><span class="p">)</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">delete_project</span><span class="p">(</span><span class="n">project_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Permanently delete a project.&quot;&quot;&quot;</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="o">...</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;deleted&quot;</span><span class="p">:</span> <span class="n">project_id</span><span class="p">}</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nd">@tool</span><span class="p">(</span><span class="n">registry</span><span class="p">)</span>  <span class="c1"># read-only → never gated</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_projects</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;List the caller&#39;s projects.&quot;&quot;&quot;</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="o">...</span>
 </span></code></pre></div>
-<p>Each maps to the corresponding <code>pydantic-ai-slim</code> provider extra:</p>
-<table>
-<thead>
-<tr>
-<th>Extra</th>
-<th>Pulls in</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>django-ag-ui[anthropic]</code></td>
-<td><code>pydantic-ai-slim[anthropic]</code></td>
-</tr>
-<tr>
-<td><code>django-ag-ui[openai]</code></td>
-<td><code>pydantic-ai-slim[openai]</code></td>
-</tr>
-<tr>
-<td><code>django-ag-ui[google]</code></td>
-<td><code>pydantic-ai-slim[google]</code></td>
-</tr>
-</tbody>
-</table>
-<p>When you set <a href="../configuration/#api_key"><code>API_KEY</code> or <code>PROVIDER</code></a> so the model is
-built with an explicit key, the <code>MODEL</code> string's <code>provider:</code> prefix may be <strong>any
-provider Pydantic-AI knows</strong> (<code>anthropic</code>, <code>openai</code>, <code>openai-responses</code>,
-<code>google</code>, <code>google-gla</code>, <code>groq</code>, <code>bedrock</code>, …) — resolution is delegated to
-Pydantic-AI, so the list tracks whatever your installed version supports. A bare
-model name it can map to a provider (e.g. <code>claude-…</code>) works too. When the
-provider can't be resolved, the view raises <code>ImproperlyConfigured</code> (set
-<code>PROVIDER</code> to a <code>Provider</code> instance instead). Install the matching provider
-extra for whichever you use.</p>
-<h2 id="asgi-is-required">ASGI is required<a class="headerlink" href="#asgi-is-required" title="Permanent link">&para;</a></h2>
-<p><a class="autorefs autorefs-internal" title="DjangoAGUIView" href="../api/#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a> is an <strong>async</strong> view that
-returns a <code>StreamingHttpResponse</code> of Server-Sent Events. AG-UI's SSE streaming
-needs an event loop, which the synchronous WSGI worker does not provide. Deploy
-under an ASGI server such as <a href="https://www.uvicorn.org/">Uvicorn</a> or
-<a href="https://github.com/django/daphne">Daphne</a> and point it at your project's
-<code>asgi.py</code>:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>uvicorn<span class="w"> </span>myproject.asgi:application
-</span></code></pre></div>
-<p>The view marks itself as a coroutine function (via
-<code>asgiref.sync.markcoroutinefunction</code>) so Django's request handler awaits it when
-mounted. When served over WSGI, the view emits a one-time <code>RuntimeWarning</code> to
-flag that SSE streaming needs ASGI.</p>
-<h2 id="the-drf-mcp-extra">The <code>[drf-mcp]</code> extra<a class="headerlink" href="#the-drf-mcp-extra" title="Permanent link">&para;</a></h2>
-<p>To expose a
-<a href="https://github.com/Artui/djangorestframework-mcp-server"><code>djangorestframework-mcp-server</code></a>
-tool registry to the agent in-process (no network MCP hop), install the extra:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[drf-mcp]&quot;</span>
-</span></code></pre></div>
-<p>This pulls in <code>djangorestframework-mcp-server&gt;=0.6.1</code> (which in turn pulls
-<code>djangorestframework-services&gt;=0.15.0</code>). The bridge
-(<a href="../concepts/#the-drf-mcp-toolset-bridge"><code>DRFMCPToolset</code></a>) is imported lazily,
-only when <code>DJANGO_AG_UI["DRF_MCP_SERVER"]</code> is set, so the dependency stays
-optional for projects that do not use it. See
-<a href="../configuration/#drf_mcp_server">Configuration → <code>DRF_MCP_SERVER</code></a>.
-</content></p>
+<h2 id="what-the-user-sees">What the user sees<a class="headerlink" href="#what-the-user-sees" title="Permanent link">&para;</a></h2>
+<ol>
+<li>The model calls <code>delete_project</code>. Because it is gated, the tool <strong>does not
+   run</strong> — the run finishes on a <code>RUN_FINISHED</code> <em>interrupt</em> outcome carrying the
+   tool call id and an approve/deny response schema.</li>
+<li>The web component renders an inline <strong>approval card</strong> next to the tool-call
+   card, showing the tool and its arguments.</li>
+<li>The user decides:</li>
+<li><strong>Approve</strong> → the client resumes the run; the server runs the tool and its
+     result streams back into the same card, and the model continues.</li>
+<li><strong>Deny</strong> → the client resumes with a <em>cancelled</em> answer, so the model learns
+     the tool was declined and responds accordingly; the card settles as
+     declined. Denying is <strong>not</strong> the same as stopping the run — the model still
+     gets a turn to react.</li>
+</ol>
+<p>A <strong>Stop</strong> while an approval card is open denies every open card and cancels the
+run.</p>
+<p>Only <code>function</code>-kind tools are gated: a client-registered (frontend) tool is
+already gated in the browser by the web component's confirmation card, and an
+output tool is not executed.</p>
+<h3 id="ordering-note">Ordering note<a class="headerlink" href="#ordering-note" title="Permanent link">&para;</a></h3>
+<p><code>TOOL_GUARD</code> composes a <code>ToolGuard</code> capability alongside the audit capability.
+<code>build_agent</code> relies on each capability declaring its own ordering
+(<code>AuditCapability</code> pins itself outermost so it still records every tool
+execution) — you don't need to order them yourself.</p>
+<h2 id="custom-clients">Custom clients<a class="headerlink" href="#custom-clients" title="Permanent link">&para;</a></h2>
+<p>The gate is pure AG-UI, so any client can drive it — you don't need the web
+component. A bespoke client:</p>
+<ol>
+<li>POSTs a <code>RunAgentInput</code> as usual.</li>
+<li>On a <code>RUN_FINISHED</code> whose <code>outcome.type == "interrupt"</code>, reads
+   <code>outcome.interrupts[]</code> (each carries a <code>toolCallId</code> and a <code>message</code>).</li>
+<li>Collects the user's decisions and POSTs a follow-up run with
+   <code>RunAgentInput.resume[]</code> — one entry per interrupt, keyed by interrupt id,
+   <code>status: "resolved"</code> (with <code>payload.approved = true</code>) to run the tool or
+   <code>status: "cancelled"</code> to deny it.</li>
+</ol>
+<p>The web component does exactly this; see its
+<a href="https://github.com/Artui/ag-ui-web-component#server-side-tool-approval-interrupts">README</a>
+for the client-side hooks (<code>resolveInterrupts</code>, <code>requestApproval</code>) and how to
+restyle or fully replace the approval card.</p>
+<h2 id="asking-the-user-a-question-ask_user">Asking the user a question — <code>ask_user</code><a class="headerlink" href="#asking-the-user-a-question-ask_user" title="Permanent link">&para;</a></h2>
+<p>Approval answers yes/no. When the agent needs a <strong>typed answer</strong> — pick one of
+these options, or type something — the web component ships a built-in <code>ask_user</code>
+frontend tool. It is opt-in on the client (<code>chat.askUser = true</code>); no server
+setup is required, and nothing new crosses the wire (it rides the ordinary
+frontend-tool path). The agent calls
+<code>ask_user(question, options?, allow_custom?)</code> and the user's answer comes back as
+the tool result. See the web component's
+<a href="https://github.com/Artui/ag-ui-web-component#asking-the-user-a-question-ask_user">README</a>.</p>
+<h2 id="security-note">Security note<a class="headerlink" href="#security-note" title="Permanent link">&para;</a></h2>
+<p><code>TOOL_GUARD</code> is a <strong>UX gate</strong>, not an authorization boundary. It asks the acting
+user to confirm an action <em>they are already allowed to take</em>. It does not decide
+<em>who</em> may call a tool — that is the job of your permissions (drf-mcp permission
+classes, the <code>authorize</code> hook, <code>get_user</code>). Enable the gate for destructive
+actions a user should consciously confirm; enforce access separately.</p>
 
 
 

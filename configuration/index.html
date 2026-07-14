@@ -16,7 +16,7 @@
         <link rel="prev" href="../quickstart/">
       
       
-        <link rel="next" href="../concepts/">
+        <link rel="next" href="../tool-approval/">
       
       
         
@@ -694,6 +694,60 @@
   
 </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-approval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool approval (human-in-the-loop)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Batching tool calls (CodeMode)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1595,7 +1649,9 @@ as a schema hint, not a gate. <code>TOOL_GUARD</code> changes that: when enabled
 <strong>defers</strong> and finishes on a <code>RUN_FINISHED</code> <em>interrupt</em> the client approves or
 denies via the AG-UI tool-approval loop (<code>RunAgentInput.resume[]</code>) — the same
 mechanism the web component already applies to client-registered destructive
-tools, now for server-side ones. The wire stays vanilla AG-UI.</p>
+tools, now for server-side ones. The wire stays vanilla AG-UI. For the full
+end-to-end flow (what the user sees, custom clients, <code>ask_user</code>), see
+<a href="../tool-approval/">Tool approval</a>.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="c1"># …</span>
 </span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span>

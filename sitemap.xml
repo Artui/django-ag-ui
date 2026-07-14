@@ -9,6 +9,10 @@
          <lastmod>2026-07-14</lastmod>
     </url>
     <url>
+         <loc>https://artui.github.io/django-ag-ui/code-mode/</loc>
+         <lastmod>2026-07-14</lastmod>
+    </url>
+    <url>
          <loc>https://artui.github.io/django-ag-ui/concepts/</loc>
          <lastmod>2026-07-14</lastmod>
     </url>
@@ -22,6 +26,10 @@
     </url>
     <url>
          <loc>https://artui.github.io/django-ag-ui/quickstart/</loc>
+         <lastmod>2026-07-14</lastmod>
+    </url>
+    <url>
+         <loc>https://artui.github.io/django-ag-ui/tool-approval/</loc>
          <lastmod>2026-07-14</lastmod>
     </url>
 </urlset>
