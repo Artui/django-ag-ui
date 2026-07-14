@@ -131,6 +131,13 @@ class DRFMCPToolset(AbstractToolset[Any]):
         DRF kind. ``destructiveHint`` is omitted on read-only tools, so keying
         on ``readOnlyHint`` (not ``destructiveHint``) is what lets a project's
         ``annotations={"destructiveHint": False}`` override exempt a mutation.
+
+        Also carries drf-mcp's ``outputSchema`` (advertised by default via
+        ``INCLUDE_OUTPUT_SCHEMA``) onto ``return_schema`` so the tool's return
+        type reaches the model — chiefly so a harness ``CodeMode`` capability
+        renders each bridged tool as a **typed** Python stub (``-> <Model>``)
+        inside its ``run_code`` sandbox instead of ``-> Any``. Absent when a
+        project turns the output schema off, in which case the stub is untyped.
         """
         defs: list[ToolDefinition] = []
         cursor: str | None = None
@@ -149,12 +156,15 @@ class DRFMCPToolset(AbstractToolset[Any]):
                     if annotations.get("readOnlyHint") is False
                     else None
                 )
+                output_schema = tool.get("outputSchema")
                 defs.append(
                     ToolDefinition(
                         name=tool["name"],
                         description=tool.get("description"),
                         parameters_json_schema=tool["inputSchema"],
                         metadata=metadata,
+                        return_schema=output_schema,
+                        include_return_schema=output_schema is not None,
                     )
                 )
             cursor = payload.get("nextCursor")

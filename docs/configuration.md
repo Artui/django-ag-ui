@@ -474,7 +474,9 @@ as a schema hint, not a gate. `TOOL_GUARD` changes that: when enabled, a
 **defers** and finishes on a `RUN_FINISHED` *interrupt* the client approves or
 denies via the AG-UI tool-approval loop (`RunAgentInput.resume[]`) — the same
 mechanism the web component already applies to client-registered destructive
-tools, now for server-side ones. The wire stays vanilla AG-UI.
+tools, now for server-side ones. The wire stays vanilla AG-UI. For the full
+end-to-end flow (what the user sees, custom clients, `ask_user`), see
+[Tool approval](tool-approval.md).
 
 ```python
 DJANGO_AG_UI = {
