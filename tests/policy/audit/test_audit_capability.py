@@ -11,6 +11,16 @@ from django_ag_ui.policy.audit.audit_capability import AuditCapability
 from django_ag_ui.policy.audit.types.audit_event import AuditEvent
 
 
+def test_audit_declares_outermost_ordering() -> None:
+    # Audit is the observability layer — it must wrap every other capability's
+    # execution hooks. Declaring the position (rather than relying on list order
+    # at the build_agent call site) is what keeps composition deterministic once
+    # a second capability (ToolGuard) joins the chain.
+    ordering = AuditCapability(_CapturingLogger()).get_ordering()
+    assert ordering is not None
+    assert ordering.position == "outermost"
+
+
 class _CapturingLogger:
     def __init__(self) -> None:
         self.events: list[AuditEvent] = []

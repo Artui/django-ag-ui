@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from pydantic_ai import Agent
+from pydantic_ai import Agent, DeferredToolRequests
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agent_factory import build_agent
@@ -29,6 +29,17 @@ def test_build_agent_returns_agent_with_registry_tools() -> None:
 
     agent = build_agent(reg, AgentConfig(model=TestModel()))
     assert isinstance(agent, Agent)
+
+
+def test_build_agent_puts_deferred_tool_requests_in_output_type() -> None:
+    # Turns on the tool-approval interrupt loop for *server-side* tools. The
+    # AG-UI adapter only augments ``output_type`` with ``DeferredToolRequests``
+    # when the run carries frontend tools, so a server-only gated tool would
+    # otherwise crash the run with a RUN_ERROR ("a deferred tool call was
+    # present, but DeferredToolRequests is not among output types"). Setting it
+    # on the Agent makes the approval path independent of frontend tools.
+    agent = build_agent(ToolRegistry(), AgentConfig(model=TestModel()))
+    assert DeferredToolRequests in agent.output_type
 
 
 def test_build_agent_accepts_model_settings_retries_toolsets_capabilities() -> None:

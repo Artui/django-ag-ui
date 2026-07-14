@@ -41,6 +41,11 @@ dependencies = [
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
     "pydantic-ai-slim[ag-ui]>=2,<3",
+    # The tool-approval interrupt/resume lifecycle (RUN_FINISHED outcomes +
+    # RunAgentInput.resume) is gated on ag-ui-protocol 0.1.19
+    # (INTERRUPTS_VERSION). pydantic-ai-slim only floors it at >=0.1.10, so we
+    # pin the interrupt floor ourselves; see the HITL approval loop.
+    "ag-ui-protocol>=0.1.19,<0.2",
 ]
 
 [project.optional-dependencies]
@@ -136,7 +141,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.16.0"
+current_version = "0.17.0"
 allow_dirty = false
 commit = false
 tag = false

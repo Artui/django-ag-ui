@@ -5,6 +5,8 @@ from typing import Any
 
 from django.conf import settings
 
+from django_ag_ui.policy.guard.types.tool_guard_config import ToolGuardConfig
+
 _SETTING_NAME = "DJANGO_AG_UI"
 
 
@@ -130,6 +132,13 @@ class AppSettings:
     ``?limit`` is clamped to this ceiling, so the default response stays bounded
     for a user with thousands of threads. Default 200."""
 
+    tool_guard: ToolGuardConfig
+    """Server-side destructive-tool approval policy (the ``TOOL_GUARD`` dict).
+    **Disabled by default** — when enabled, a ``ToolGuard`` capability flips
+    destructive tools (registry ``@tool(destructive=True)`` + drf-mcp
+    non-read-only tools) to require the AG-UI approval interrupt. See
+    :class:`~django_ag_ui.policy.guard.types.tool_guard_config.ToolGuardConfig`."""
+
     allow_anonymous: bool
     """Whether the model-backed stores serve **anonymous** requests. ``False``
     (default) makes them **refuse** anonymous thread / attachment operations
@@ -140,6 +149,20 @@ class AppSettings:
     delete each other's data. ``True`` opts in to anonymous use and buckets each
     request by its ``request.session.session_key`` (per browser session; needs
     session middleware). Authenticated requests are unaffected either way."""
+
+
+def _parse_tool_guard(raw: Any) -> ToolGuardConfig:
+    """Build a :class:`ToolGuardConfig` from the ``TOOL_GUARD`` settings dict.
+
+    Absent / falsy → a disabled config (the default). Names are normalised to
+    ``frozenset`` so lookups in the capability are O(1) and order-insensitive.
+    """
+    guard: dict[str, Any] = raw or {}
+    return ToolGuardConfig(
+        enabled=bool(guard.get("ENABLED", False)),
+        exempt=frozenset(guard.get("EXEMPT", ()) or ()),
+        require_approval=frozenset(guard.get("REQUIRE_APPROVAL", ()) or ()),
+    )
 
 
 def get_settings() -> AppSettings:
@@ -169,6 +192,7 @@ def get_settings() -> AppSettings:
         drf_mcp_server=raw.get("DRF_MCP_SERVER"),
         service_specs=raw.get("SERVICE_SPECS"),
         thread_list_limit=int(raw.get("THREAD_LIST_LIMIT", 200)),
+        tool_guard=_parse_tool_guard(raw.get("TOOL_GUARD")),
         allow_anonymous=bool(raw.get("ALLOW_ANONYMOUS", False)),
     )
 

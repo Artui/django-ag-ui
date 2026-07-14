@@ -79,12 +79,21 @@ the JSON Schema as `x-destructive: true`. **What that flag gates depends on wher
   gated — `@artooi/ag-ui-web-component` shows an inline confirmation card before dispatching to
   the local handler.
 - **Server-side tools** (this package's `@tool` registry, and drf-mcp-bridged tools) are **not**
-  gated. They run **server-side, mid-stream**, so by the time the browser sees `TOOL_CALL_END`
-  the tool already executed; the `x-destructive` / `x-confirm` stamps reach only the **LLM** (as
-  schema hints), never a browser gate. There is **no server-side confirmation gate** — do **not**
-  rely on `@tool(destructive=True)` to gate a dangerous server-side operation. A real server-side
-  gate is planned via a `ToolGuard` + typed `ask_user` mechanism, not yet implemented. The wire
-  stays vanilla AG-UI either way.
+  gated by default. They run **server-side, mid-stream**, so by the time the browser sees
+  `TOOL_CALL_END` the tool already executed; the `x-destructive` / `x-confirm` stamps reach only
+  the **LLM** (as schema hints), never a browser gate.
+
+  **Opt-in server-side gate — `ToolGuard`.** Setting `DJANGO_AG_UI["TOOL_GUARD"] = {"ENABLED":
+  True}` composes a `ToolGuard` capability that flips destructive tools to
+  `kind="unapproved"` at `prepare_tools` time — so instead of executing mid-stream, the run
+  **defers** and finishes on a `RUN_FINISHED` *interrupt* the client approves/denies (via
+  `RunAgentInput.resume[]`), the standard AG-UI tool-approval loop. Destructiveness comes from
+  the registry `@tool(destructive=True)` flag and, for drf-mcp tools, the bridge maps
+  `readOnlyHint is False` onto `DESTRUCTIVE_METADATA_KEY`; `EXEMPT` / `REQUIRE_APPROVAL` override
+  per name. Off by default (no surprise gates). **The wire stays vanilla AG-UI** — the gate rides
+  the protocol's own interrupt/resume, not a custom event. The client must handle the interrupt to
+  render an approval card and resume; the web component's card is the front-end half of this wave.
+  The typed `ask_user` question primitive is a separate, still-pending piece.
 
 The `AuditLogger` Protocol is the audit boundary. `LoggingAuditLogger` is the default;
 projects supply their own (Sentry, Honeycomb, custom) by setting `DJANGO_AG_UI["AUDIT_LOGGER"]`

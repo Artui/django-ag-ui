@@ -15,7 +15,10 @@ from __future__ import annotations
 
 from ag_ui.core import EventType
 
-# The 33 AG-UI event types, as of ag-ui-protocol 0.1.18 / @ag-ui/core 0.0.54.
+# The 33 AG-UI event types, as of ag-ui-protocol 0.1.19 / @ag-ui/core 0.0.54.
+# The 0.1.18 -> 0.1.19 bump (tool-approval interrupt/resume) rides
+# RUN_FINISHED *outcomes* + the RunAgentInput.resume field, not new EventType
+# members, so this canonical set is unchanged.
 CANONICAL_AG_UI_EVENTS = frozenset(
     {
         "ACTIVITY_DELTA",

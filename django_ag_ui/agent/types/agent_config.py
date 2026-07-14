@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
+from django_ag_ui.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,13 @@ class AgentConfig:
 
     capabilities: Sequence[Any] | None = None
     """Pydantic-AI capabilities passed to the ``Agent``."""
+
+    tool_guard: ToolGuardConfig | None = None
+    """Server-side destructive-tool approval policy. When set and
+    ``enabled``, :func:`~django_ag_ui.agent.agent_factory.build_agent` composes
+    a :class:`~django_ag_ui.policy.guard.tool_guard.ToolGuard` capability built
+    from the registry's destructive tools. ``None`` (or disabled) leaves the
+    agent ungated."""
 
 
 __all__ = ["AgentConfig"]

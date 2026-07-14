@@ -27,6 +27,10 @@ def test_defaults_when_unconfigured() -> None:
     assert s.transcription_allowed_types == ()
     assert s.drf_mcp_server is None
     assert s.service_specs is None
+    # The server-side approval gate is off unless a project opts in.
+    assert s.tool_guard.enabled is False
+    assert s.tool_guard.exempt == frozenset()
+    assert s.tool_guard.require_approval == frozenset()
 
 
 @override_settings(
@@ -55,6 +59,11 @@ def test_defaults_when_unconfigured() -> None:
         "TRANSCRIPTION_ALLOWED_TYPES": ["audio/webm", "audio/mp4"],
         "DRF_MCP_SERVER": "myapp.mcp.server",
         "SERVICE_SPECS": "myapp.specs.SPECS",
+        "TOOL_GUARD": {
+            "ENABLED": True,
+            "EXEMPT": ["safe_delete"],
+            "REQUIRE_APPROVAL": ["sensitive_read"],
+        },
     },
 )
 def test_reads_from_settings_dict() -> None:
@@ -82,6 +91,9 @@ def test_reads_from_settings_dict() -> None:
     assert s.transcription_allowed_types == ("audio/webm", "audio/mp4")
     assert s.drf_mcp_server == "myapp.mcp.server"
     assert s.service_specs == "myapp.specs.SPECS"
+    assert s.tool_guard.enabled is True
+    assert s.tool_guard.exempt == frozenset({"safe_delete"})
+    assert s.tool_guard.require_approval == frozenset({"sensitive_read"})
 
 
 @override_settings(DJANGO_AG_UI=None)

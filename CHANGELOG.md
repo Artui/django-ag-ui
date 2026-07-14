@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-07-14
+
+### Added
+
+- **Server-side tool-approval interrupt/resume loop (HITL, part 1 — "turn it on").**
+  A tool flagged `requires_approval` now finishes the run on a `RUN_FINISHED`
+  *interrupt* outcome (carrying the tool call id and an approve/deny/edit response
+  schema) instead of executing; a follow-up run carrying `RunAgentInput.resume[]`
+  approves (runs the tool), denies, or overrides its arguments. The entire
+  lifecycle is upstream (pydantic-ai + the AG-UI adapter) and was already driven by
+  `AgentSession` — this release unlocks it:
+  - Pins a direct `ag-ui-protocol>=0.1.19,<0.2` dependency (the interrupt/resume
+    protocol floor; `pydantic-ai-slim` only floors it at `>=0.1.10`).
+  - Puts `DeferredToolRequests` in the agent `output_type`, so approval works for
+    **server-side** tools too — the AG-UI adapter only augments `output_type` when a
+    run carries *frontend* tools, so a server-only gated tool would otherwise crash
+    the run with a `RUN_ERROR`.
+
+  This part turns the loop *on*; the `TOOL_GUARD` policy below is what flags tools.
+
+- **`ToolGuard` — opt-in server-side approval gate (HITL, part 2 — the policy).**
+  A new `DJANGO_AG_UI["TOOL_GUARD"]` setting composes a `ToolGuard` capability
+  that flips **destructive** server-side tools to require approval (`kind=
+  "unapproved"`) at `prepare_tools` time, so they defer to the interrupt loop
+  above instead of running mid-stream. Off by default — no surprise gates.
+  - Destructiveness is unified from three sources: a registry
+    `@tool(destructive=True)`; a drf-mcp tool whose MCP `readOnlyHint` is `False`
+    (the bridge now reads the tool `annotations` it previously discarded and
+    stamps a `DESTRUCTIVE_METADATA_KEY` onto the tool definition — **no drf-mcp
+    release needed**); and per-name `REQUIRE_APPROVAL` / `EXEMPT` overrides
+    (`EXEMPT` wins).
+  - Only `function` tools are flipped — an `external` (frontend) tool is already
+    gated client-side, an `output` tool isn't executed.
+  - See [`TOOL_GUARD`](configuration.md#tool_guard) for the settings shape.
+
+### Changed
+
+- **`AuditCapability` now declares its composition order** (`get_ordering()` →
+  outermost) instead of relying on list position at the `build_agent` call site.
+  This makes capability composition deterministic now that a second capability
+  (`ToolGuard`) can join the chain: pydantic-ai's `CombinedCapability`
+  topologically sorts by these constraints, so audit stays outermost (wrapping
+  every tool execution) regardless of insertion order. No behavioural change with
+  a single capability.
+
 ## [0.16.0] — 2026-07-13
 
 ### Changed
@@ -629,7 +674,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/Artui/django-ag-ui/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Artui/django-ag-ui/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Artui/django-ag-ui/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Artui/django-ag-ui/compare/v0.13.0...v0.14.0
