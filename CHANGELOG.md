@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **New "Tool approval (human-in-the-loop)" guide** documenting the end-to-end
+  approval flow: enabling `TOOL_GUARD`, what counts as destructive, what the user
+  sees (approve / deny / resume), how a custom (non-web-component) client drives
+  the interrupt/resume loop, and the `ask_user` typed-question tool. Cross-linked
+  from the `TOOL_GUARD` configuration section.
+
 ## [0.17.0] — 2026-07-14
 
 ### Added
