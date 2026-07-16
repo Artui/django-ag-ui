@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/django-ag-ui/tool-approval/">
+        <link rel="canonical" href="https://artui.github.io/django-ag-ui/subagents/">
       
       
-        <link rel="prev" href="../configuration/">
+        <link rel="prev" href="../code-mode/">
       
       
-        <link rel="next" href="../code-mode/">
+        <link rel="next" href="../concepts/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Tool approval (human-in-the-loop) - django-ag-ui</title>
+        <title>Delegating to sub-agents - django-ag-ui</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#human-in-the-loop-tool-approval" class="md-skip">
+        <a href="#delegating-to-sub-agents" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Tool approval (human-in-the-loop)
+              Delegating to sub-agents
             
           </span>
         </div>
@@ -374,37 +374,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Tool approval (human-in-the-loop)
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../tool-approval/" class="md-nav__link">
         
   
   
@@ -420,98 +393,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#turn-the-gate-on" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Turn the gate on
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-the-user-sees" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What the user sees
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="What the user sees">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#ordering-note" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Ordering note
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#custom-clients" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Custom clients
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#asking-the-user-a-question-ask_user" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Asking the user a question — ask_user
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#security-note" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Security note
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -547,10 +428,37 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../subagents/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Delegating to sub-agents
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -566,6 +474,59 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wire-it-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wire it in
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-delegate-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-delegate limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -651,10 +612,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#turn-the-gate-on" class="md-nav__link">
+  <a href="#install" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Turn the gate on
+        Install
       
     </span>
   </a>
@@ -662,38 +623,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-the-user-sees" class="md-nav__link">
+  <a href="#wire-it-in" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What the user sees
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="What the user sees">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#ordering-note" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Ordering note
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#custom-clients" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Custom clients
+        Wire it in
       
     </span>
   </a>
@@ -701,21 +634,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#asking-the-user-a-question-ask_user" class="md-nav__link">
+  <a href="#per-delegate-limits" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Asking the user a question — ask_user
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#security-note" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Security note
+        Per-delegate limits
       
     </span>
   </a>
@@ -739,7 +661,7 @@
 
 
   
-    <a href="https://github.com/Artui/django-ag-ui/edit/main/docs/tool-approval.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/django-ag-ui/edit/main/docs/subagents.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -747,115 +669,90 @@
   
 
 
-<h1 id="human-in-the-loop-tool-approval">Human-in-the-loop tool approval<a class="headerlink" href="#human-in-the-loop-tool-approval" title="Permanent link">&para;</a></h1>
-<p>A <strong>server-side</strong> tool runs mid-stream: by the time the browser sees the tool
-call, the agent has already executed it. So the <code>destructive</code> flag on a
-<a class="autorefs autorefs-internal" title="tool" href="../api/#django_ag_ui.tool"><code>@tool</code></a> (and the <code>x-confirm</code> prompt) reaches only the
-model as a hint — it is <strong>not</strong> a gate. This page shows how to add a real
-server-side gate: a destructive tool <strong>pauses</strong> for the user to approve or deny
-before it runs.</p>
-<p>The whole flow rides the AG-UI protocol's own <strong>interrupt / resume</strong> mechanism —
-the wire stays vanilla AG-UI, no custom events. The two halves live in two
-packages:</p>
-<ul>
-<li><strong>Server (this package):</strong> the <code>TOOL_GUARD</code> setting flips destructive tools to
-  <em>require approval</em>, so instead of executing they <strong>defer</strong> and the run finishes
-  on an interrupt.</li>
-<li><strong>Client (the web component):</strong> it renders an inline approval card and, on the
-  user's decision, resumes the run with the answer. Requires
-  <code>@artooi/ag-ui-web-component &gt;= 0.11.0</code> — no configuration, the gate is driven
-  entirely by the server.</li>
-</ul>
-<h2 id="turn-the-gate-on">Turn the gate on<a class="headerlink" href="#turn-the-gate-on" title="Permanent link">&para;</a></h2>
-<p>The gate is <strong>off by default</strong> (no surprise gates). Opt in with the
-<a href="../configuration/#tool_guard"><code>TOOL_GUARD</code></a> setting:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">}</span>
+<h1 id="delegating-to-sub-agents">Delegating to sub-agents<a class="headerlink" href="#delegating-to-sub-agents" title="Permanent link">&para;</a></h1>
+<p>A single request runs a single agent. When a task splits into specialised
+sub-tasks — research this, then draft that — you can give the agent a roster of
+<strong>sub-agents</strong> to delegate to.
+<a href="https://github.com/pydantic/pydantic-ai-harness"><code>pydantic-ai-harness</code></a>'s
+<strong><code>SubAgents</code></strong> capability exposes one <code>delegate_task(agent_name, task)</code> tool:
+the parent picks a named sub-agent, hands it a task, and gets its result back —
+each child runs as a fresh, isolated run.</p>
+<p>Like <a href="../code-mode/">CodeMode</a>, this is pure composition over the
+<a href="../configuration/#capabilities"><code>CAPABILITIES</code></a> seam plus the optional
+<code>[harness]</code> extra — <strong>no django-ag-ui configuration beyond one dotted path.</strong></p>
+<h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[harness]&quot;</span>
 </span></code></pre></div>
-<p>Now any <strong>destructive</strong> tool defers for approval. A tool counts as destructive
-when:</p>
-<ul>
-<li>it is a registry tool declared <code>@tool(destructive=True)</code>; <strong>or</strong></li>
-<li>it is a drf-mcp bridged tool whose MCP <code>readOnlyHint</code> annotation is <code>False</code>
-  (selectors are read-only, services mutate — the bridge maps this automatically,
-  and a project can override it per registration); <strong>or</strong></li>
-<li>its name is listed in <code>TOOL_GUARD["REQUIRE_APPROVAL"]</code> (force-gate a tool that
-  isn't flagged destructive).</li>
-</ul>
-<p><code>TOOL_GUARD["EXEMPT"]</code> un-gates a name even if it is destructive (<code>EXEMPT</code> wins).</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolRegistry</span><span class="p">,</span> <span class="n">tool</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">ToolRegistry</span><span class="p">()</span>
+<p>The <code>[harness]</code> extra pulls <code>pydantic-ai-harness</code>; <code>subagents</code> ships in its base
+package. The core install stays <code>django</code> + <code>pydantic-ai-slim</code> — the harness is
+lazy, only imported by the capability you wire in.</p>
+<h2 id="wire-it-in">Wire it in<a class="headerlink" href="#wire-it-in" title="Permanent link">&para;</a></h2>
+<p><code>CAPABILITIES</code> takes dotted paths to zero-argument callables that return a
+capability. Add one that returns a <code>SubAgents</code> with your child agents:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># myproject/agent.py</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.subagents</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubAgent</span><span class="p">,</span> <span class="n">SubAgents</span>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nd">@tool</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">destructive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">confirm</span><span class="o">=</span><span class="s2">&quot;Delete this project?&quot;</span><span class="p">)</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">delete_project</span><span class="p">(</span><span class="n">project_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Permanently delete a project.&quot;&quot;&quot;</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="o">...</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;deleted&quot;</span><span class="p">:</span> <span class="n">project_id</span><span class="p">}</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">researcher</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span><span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;researcher&quot;</span><span class="p">,</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>                   <span class="n">instructions</span><span class="o">=</span><span class="s2">&quot;Research the topic and return concise findings.&quot;</span><span class="p">)</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">writer</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span><span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;writer&quot;</span><span class="p">,</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>              <span class="n">instructions</span><span class="o">=</span><span class="s2">&quot;Draft prose from the findings you are given.&quot;</span><span class="p">)</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
 </span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nd">@tool</span><span class="p">(</span><span class="n">registry</span><span class="p">)</span>  <span class="c1"># read-only → never gated</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_projects</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;List the caller&#39;s projects.&quot;&quot;&quot;</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="o">...</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">subagents</span><span class="p">():</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="k">return</span> <span class="n">SubAgents</span><span class="p">(</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>        <span class="n">agents</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>            <span class="n">SubAgent</span><span class="p">(</span><span class="n">researcher</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Gathers facts on a topic.&quot;</span><span class="p">),</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>            <span class="n">SubAgent</span><span class="p">(</span><span class="n">writer</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Turns findings into prose.&quot;</span><span class="p">),</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>        <span class="p">],</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>        <span class="n">agent_folders</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># see the note below — disables on-disk auto-discovery</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    <span class="p">)</span>
 </span></code></pre></div>
-<h2 id="what-the-user-sees">What the user sees<a class="headerlink" href="#what-the-user-sees" title="Permanent link">&para;</a></h2>
-<ol>
-<li>The model calls <code>delete_project</code>. Because it is gated, the tool <strong>does not
-   run</strong> — the run finishes on a <code>RUN_FINISHED</code> <em>interrupt</em> outcome carrying the
-   tool call id and an approve/deny response schema.</li>
-<li>The web component renders an inline <strong>approval card</strong> next to the tool-call
-   card, showing the tool and its arguments.</li>
-<li>The user decides:</li>
-<li><strong>Approve</strong> → the client resumes the run; the server runs the tool and its
-     result streams back into the same card, and the model continues.</li>
-<li><strong>Deny</strong> → the client resumes with a <em>cancelled</em> answer, so the model learns
-     the tool was declined and responds accordingly; the card settles as
-     declined. Denying is <strong>not</strong> the same as stopping the run — the model still
-     gets a turn to react.</li>
-</ol>
-<p>A <strong>Stop</strong> while an approval card is open denies every open card and cancels the
-run.</p>
-<p>Only <code>function</code>-kind tools are gated: a client-registered (frontend) tool is
-already gated in the browser by the web component's confirmation card, and an
-output tool is not executed.</p>
-<h3 id="ordering-note">Ordering note<a class="headerlink" href="#ordering-note" title="Permanent link">&para;</a></h3>
-<p><code>TOOL_GUARD</code> composes a <code>ToolGuard</code> capability alongside the audit capability.
-<code>build_agent</code> relies on each capability declaring its own ordering
-(<code>AuditCapability</code> pins itself outermost so it still records every tool
-execution) — you don't need to order them yourself.</p>
-<h2 id="custom-clients">Custom clients<a class="headerlink" href="#custom-clients" title="Permanent link">&para;</a></h2>
-<p>The gate is pure AG-UI, so any client can drive it — you don't need the web
-component. A bespoke client:</p>
-<ol>
-<li>POSTs a <code>RunAgentInput</code> as usual.</li>
-<li>On a <code>RUN_FINISHED</code> whose <code>outcome.type == "interrupt"</code>, reads
-   <code>outcome.interrupts[]</code> (each carries a <code>toolCallId</code> and a <code>message</code>).</li>
-<li>Collects the user's decisions and POSTs a follow-up run with
-   <code>RunAgentInput.resume[]</code> — one entry per interrupt, keyed by interrupt id,
-   <code>status: "resolved"</code> (with <code>payload.approved = true</code>) to run the tool or
-   <code>status: "cancelled"</code> to deny it.</li>
-</ol>
-<p>The web component does exactly this; see its
-<a href="https://github.com/Artui/ag-ui-web-component#server-side-tool-approval-interrupts">README</a>
-for the client-side hooks (<code>resolveInterrupts</code>, <code>requestApproval</code>) and how to
-restyle or fully replace the approval card.</p>
-<h2 id="asking-the-user-a-question-ask_user">Asking the user a question — <code>ask_user</code><a class="headerlink" href="#asking-the-user-a-question-ask_user" title="Permanent link">&para;</a></h2>
-<p>Approval answers yes/no. When the agent needs a <strong>typed answer</strong> — pick one of
-these options, or type something — the web component ships a built-in <code>ask_user</code>
-frontend tool. It is opt-in on the client (<code>chat.askUser = true</code>); no server
-setup is required, and nothing new crosses the wire (it rides the ordinary
-frontend-tool path). The agent calls
-<code>ask_user(question, options?, allow_custom?)</code> and the user's answer comes back as
-the tool result. See the web component's
-<a href="https://github.com/Artui/ag-ui-web-component#asking-the-user-a-question-ask_user">README</a>.</p>
-<h2 id="security-note">Security note<a class="headerlink" href="#security-note" title="Permanent link">&para;</a></h2>
-<p><code>TOOL_GUARD</code> is a <strong>UX gate</strong>, not an authorization boundary. It asks the acting
-user to confirm an action <em>they are already allowed to take</em>. It does not decide
-<em>who</em> may call a tool — that is the job of your permissions (drf-mcp permission
-classes, the <code>authorize</code> hook, <code>get_user</code>). Enable the gate for destructive
-actions a user should consciously confirm; enforce access separately.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># settings.py</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">,</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="s2">&quot;CAPABILITIES&quot;</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;myproject.agent.subagents&quot;</span><span class="p">,),</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Now the agent exposes a <code>delegate_task</code> tool. When it calls
+<code>delegate_task("researcher", "…")</code>, the child runs and its answer returns as the
+tool result — which renders in the web component as an ordinary tool card. The
+tool name is configurable (<code>SubAgents(tool_name="…")</code>).</p>
+<div class="admonition warning">
+<p class="admonition-title">Disable on-disk agent discovery unless you want it</p>
+<p><code>SubAgents</code> defaults <code>agent_folders="agents"</code>, which <strong>auto-loads Markdown
+agent definitions</strong> from <code>./.agents/agents/</code>, <code>~/.agents/agents/</code>, and the
+<code>.claude/</code> equivalents at construction time. In a server process that's
+rarely what you want — pass <code>agent_folders=None</code> to rely only on the
+<code>agents=[…]</code> you list explicitly.</p>
+</div>
+<h2 id="per-delegate-limits">Per-delegate limits<a class="headerlink" href="#per-delegate-limits" title="Permanent link">&para;</a></h2>
+<p>Guardrails are fields on each <code>SubAgent</code> (there is no separate limits class), so
+you can bound each child independently:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai.usage</span><span class="w"> </span><span class="kn">import</span> <span class="n">UsageLimits</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">SubAgent</span><span class="p">(</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">researcher</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Gathers facts on a topic.&quot;</span><span class="p">,</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">usage_limits</span><span class="o">=</span><span class="n">UsageLimits</span><span class="p">(</span><span class="n">request_limit</span><span class="o">=</span><span class="mi">4</span><span class="p">),</span>  <span class="c1"># isolated child accounting</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">timeout_seconds</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>                          <span class="c1"># cancels a runaway child</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">max_calls</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>                                 <span class="c1"># budget per parent run</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">on_failure</span><span class="o">=</span><span class="s2">&quot;Research is unavailable; answer from what you know.&quot;</span><span class="p">,</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>A child that trips a limit degrades softly — the parent receives a steering
+message as the tool result rather than an exception, so the run continues.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code>SubAgents</code> is one of several <code>pydantic-ai-harness</code> capabilities that drop
+into the same <code>CAPABILITIES</code> seam (compaction, step-persistence, CodeMode,
+…). They all ride the <code>[harness]</code> extra.</p>
+<p>Today a delegated child's answer surfaces as the parent's <code>delegate_task</code>
+tool result. Streaming a child's <em>own</em> turn (its intermediate tool calls and
+tokens) into the UI as a nested run is a possible future enhancement — the
+capability accepts an <code>event_stream_handler</code>, but django-ag-ui does not yet
+route child events onto the SSE stream.</p>
+</div>
 
 
 
