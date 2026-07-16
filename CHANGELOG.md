@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Docs recipe: [Delegating to sub-agents](subagents.md) — wire the
+  `pydantic-ai-harness` `SubAgents` capability through the existing
+  `CAPABILITIES` seam (the `[harness]` extra) to give the agent a
+  `delegate_task` tool over a roster of named child agents. Zero new package
+  code — a stateless capability adopted like CodeMode; covered by an
+  `importorskip`-guarded recipe test. Per-delegate limits (`usage_limits` /
+  `timeout_seconds` / `max_calls` / `on_failure`) are fields on `SubAgent`.
+
 ## [0.18.0] — 2026-07-14
 
 ### Added

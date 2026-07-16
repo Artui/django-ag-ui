@@ -78,5 +78,6 @@ nav:
   - Configuration: configuration.md
   - Tool approval (human-in-the-loop): tool-approval.md
   - Batching tool calls (CodeMode): code-mode.md
+  - Delegating to sub-agents: subagents.md
   - Key concepts: concepts.md
   - API reference: api.md
