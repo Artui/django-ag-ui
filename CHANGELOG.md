@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.1] — 2026-07-16
+
+### Added
+
+- Docs recipe: [Delegating to sub-agents](subagents.md) — wire the
+  `pydantic-ai-harness` `SubAgents` capability through the existing
+  `CAPABILITIES` seam (the `[harness]` extra) to give the agent a
+  `delegate_task` tool over a roster of named child agents. Zero new package
+  code — a stateless capability adopted like CodeMode; covered by an
+  `importorskip`-guarded recipe test. Per-delegate limits (`usage_limits` /
+  `timeout_seconds` / `max_calls` / `on_failure`) are fields on `SubAgent`.
+
 ## [0.18.0] — 2026-07-14
 
 ### Added
@@ -704,7 +716,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.18.1...HEAD
+[0.18.1]: https://github.com/Artui/django-ag-ui/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/Artui/django-ag-ui/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Artui/django-ag-ui/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Artui/django-ag-ui/compare/v0.15.0...v0.16.0
