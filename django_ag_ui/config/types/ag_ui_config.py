@@ -93,10 +93,5 @@ class AGUIConfig:
     ``ToolGuard`` capability flips destructive tools to require the AG-UI
     approval interrupt."""
 
-    allow_anonymous: bool
-    """Whether the model-backed stores serve **anonymous** requests. ``False``
-    makes them refuse rather than collapsing every anonymous visitor into one
-    shared owner bucket where they could read and delete each other's data."""
-
 
 __all__ = ["AGUIConfig"]

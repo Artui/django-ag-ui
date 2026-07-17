@@ -2,12 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.conf import settings as django_settings
-
+from django_ag_ui.conf import get_setting
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.policy.guard.types.tool_guard_config import ToolGuardConfig
-
-_SETTING_NAME = "DJANGO_AG_UI"
 
 
 def build_ag_ui_config(
@@ -26,7 +23,6 @@ def build_ag_ui_config(
     transcription_allowed_types: tuple[str, ...] | list[str] | None = None,
     thread_list_limit: int | None = None,
     tool_guard: ToolGuardConfig | None = None,
-    allow_anonymous: bool | None = None,
 ) -> AGUIConfig:
     """Resolve an :class:`AGUIConfig` from ``DJANGO_AG_UI``, applying overrides.
 
@@ -43,12 +39,11 @@ def build_ag_ui_config(
     layers your overrides *over* the project's settings instead of discarding
     them.
     """
-    raw: dict[str, Any] = getattr(django_settings, _SETTING_NAME, {}) or {}
 
     def pick(override: Any, key: str, default: Any) -> Any:
         if override is not None:
             return override
-        return raw.get(key, default)
+        return get_setting(key, default)
 
     return AGUIConfig(
         model=pick(model, "MODEL", None),
@@ -74,8 +69,7 @@ def build_ag_ui_config(
         thread_list_limit=int(pick(thread_list_limit, "THREAD_LIST_LIMIT", 200)),
         tool_guard=tool_guard
         if tool_guard is not None
-        else _parse_tool_guard(raw.get("TOOL_GUARD")),
-        allow_anonymous=bool(pick(allow_anonymous, "ALLOW_ANONYMOUS", False)),
+        else _parse_tool_guard(get_setting("TOOL_GUARD")),
     )
 
 

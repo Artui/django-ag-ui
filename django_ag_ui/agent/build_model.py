@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, cast
 
 from django.core.exceptions import ImproperlyConfigured
-from django.utils.module_loading import import_string
 from pydantic_ai.exceptions import UserError
 from pydantic_ai.models import infer_model
 from pydantic_ai.providers import infer_provider_class
@@ -21,8 +20,8 @@ def build_model(model: str, *, api_key: str | None = None, provider: Any = None)
     own :func:`infer_model`, supplying a ``provider_factory`` that injects the
     credentials instead of letting Pydantic-AI read them from the environment:
 
-    - ``provider`` (a ``Provider`` instance, or a dotted path to one) takes
-      precedence — used as-is, so it can carry a custom ``base_url`` / client.
+    - ``provider`` (a ``Provider`` instance) takes precedence — used as-is, so
+      it can carry a custom ``base_url`` / client.
     - otherwise ``api_key`` is passed to the prefix's default ``Provider`` class
       (resolved via :func:`infer_provider_class`).
 
@@ -38,16 +37,15 @@ def build_model(model: str, *, api_key: str | None = None, provider: Any = None)
     Raises:
         ImproperlyConfigured: when the model's provider can't be resolved — an
             unknown / uninferable prefix, or the matching provider extra not
-            installed. Set ``PROVIDER`` to a ``Provider`` instance or dotted
-            path for anything Pydantic-AI can't infer.
+            installed. Pass ``provider=`` a ``Provider`` instance for anything
+            Pydantic-AI can't infer.
     """
     prefix, sep, name = model.partition(":")
     if sep and prefix in _PREFIX_ALIASES:
         model = f"{_PREFIX_ALIASES[prefix]}:{name}"
     try:
         if provider is not None:
-            provider_obj = import_string(provider) if isinstance(provider, str) else provider
-            return infer_model(model, provider_factory=lambda _name: provider_obj)
+            return infer_model(model, provider_factory=lambda _name: provider)
         # Cast: ``infer_provider_class`` returns ``type[Provider]`` whose base
         # ``__init__`` is argument-less in stubs; provider subclasses accept
         # ``api_key`` — this is the Pydantic-AI boundary where ``Any`` is allowed.
@@ -57,11 +55,11 @@ def build_model(model: str, *, api_key: str | None = None, provider: Any = None)
         )
     except (UserError, ValueError, ImportError) as error:
         raise ImproperlyConfigured(
-            f"DJANGO_AG_UI: could not build model {model!r} with the supplied "
-            f"API_KEY/PROVIDER ({error}). MODEL must be a 'provider:name' string "
-            "(e.g. 'anthropic:claude-sonnet-4.6') whose provider Pydantic-AI knows, "
-            "with the matching provider extra installed — or set "
-            "DJANGO_AG_UI['PROVIDER'] to a Provider instance or dotted path.",
+            f"django-ag-ui: could not build model {model!r} with the supplied "
+            f"api_key / provider ({error}). The model must be a 'provider:name' "
+            "string (e.g. 'anthropic:claude-sonnet-4.6') whose provider "
+            "Pydantic-AI knows, with the matching provider extra installed — or "
+            "pass provider=YourProvider() to AGUIServer.",
         ) from error
 
 

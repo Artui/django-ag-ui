@@ -80,16 +80,18 @@ async def test_reasoning_opt_out_still_streams_the_answer() -> None:
 
 
 @pytest.mark.django_db
-@override_settings(DJANGO_AG_UI={"SERVICE_SPECS": "tests.integrations.drf_specs.SPECS"})
 async def test_service_specs_tool_runs_in_process() -> None:
-    # The no-MCP-hop path: a drf-services spec exposed via SERVICE_SPECS
+    # The no-MCP-hop path: a drf-services spec passed as service_specs=
     # is wired as a SpecToolset and executed in-process during the run. A
     # get_user hook stands in for the auth middleware that sets request.user in
     # a real deployment (the toolset binds it as the acting user).
+    from tests.integrations.drf_specs import SPECS
+
     view = DjangoAGUIView(
         ToolRegistry(),
         model=TestModel(call_tools=["ping"]),
         get_user=lambda _request: AnonymousUser(),
+        service_specs=SPECS,
     )
     response = await view(_post(_run_input("ping the server")))
     body = await _drain(response)
@@ -220,15 +222,18 @@ async def test_explicit_instructions_win() -> None:
     assert view._resolve_instructions() == "Custom."
 
 
-@override_settings(
-    DJANGO_AG_UI={
-        "AUDIT_LOGGER": "django_ag_ui.policy.audit.logging_audit_logger.LoggingAuditLogger",
-    }
-)
-async def test_audit_logger_resolved_from_settings() -> None:
-    from django_ag_ui.policy.audit.logging_audit_logger import LoggingAuditLogger
+async def test_audit_logger_defaults_to_the_null_logger() -> None:
+    """No dotted path to resolve: the logger is passed, or there is none."""
+    from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
 
     view = DjangoAGUIView(_registry(), model=TestModel())
+    assert isinstance(view._resolve_audit_logger(), NullAuditLogger)
+
+
+async def test_audit_logger_is_passed_not_named() -> None:
+    from django_ag_ui.policy.audit.logging_audit_logger import LoggingAuditLogger
+
+    view = DjangoAGUIView(_registry(), model=TestModel(), audit_logger=LoggingAuditLogger())
     assert isinstance(view._resolve_audit_logger(), LoggingAuditLogger)
 
 
@@ -240,11 +245,12 @@ async def test_explicit_audit_logger_wins() -> None:
     assert view._resolve_audit_logger() is sentinel
 
 
-@override_settings(DJANGO_AG_UI={"AGENT_FACTORY": "tests.agent.factories.build_test_agent"})
 async def test_agent_factory_escape_hatch_takes_over_construction() -> None:
     # No model passed and none in settings — the factory supplies the model,
     # proving it fully replaces the built-in construction (no MODEL required).
-    view = DjangoAGUIView(_registry())
+    from tests.agent.factories import build_test_agent
+
+    view = DjangoAGUIView(_registry(), agent_factory=build_test_agent)
     response = await view(_post(_run_input("double 5")))
     body = await _drain(response)
     assert "RUN_FINISHED" in body
@@ -267,14 +273,6 @@ async def test_build_agent_applies_configured_toolsets_capabilities_and_settings
     assert isinstance(agent, Agent)
 
 
-@override_settings(
-    DJANGO_AG_UI={
-        "CONVERSATION_STORE": (
-            "django_ag_ui.persistence.django_session_conversation_store"
-            ".DjangoSessionConversationStore"
-        ),
-    },
-)
 async def test_conversation_is_persisted_when_a_store_is_configured() -> None:
     from django.contrib.sessions.backends.signed_cookies import SessionStore
 
@@ -282,7 +280,9 @@ async def test_conversation_is_persisted_when_a_store_is_configured() -> None:
         DjangoSessionConversationStore,
     )
 
-    view = DjangoAGUIView(_registry(), model=TestModel())
+    view = DjangoAGUIView(
+        _registry(), model=TestModel(), conversation_store=DjangoSessionConversationStore()
+    )
     request = _post(_run_input("double 5"))
     request.session = SessionStore()
     response = await view(request)
@@ -296,20 +296,18 @@ async def test_conversation_is_persisted_when_a_store_is_configured() -> None:
 
 
 @pytest.mark.django_db(transaction=True)
-@override_settings(
-    DJANGO_AG_UI={
-        "CONVERSATION_STORE": (
-            "django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore"
-        ),
-    },
-)
 async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
     # An open agent endpoint + a model store that refuses anonymous writes (the
     # default, no ALLOW_ANONYMOUS): the run streams to completion and the save is
     # skipped rather than crashing the stream — no row is written.
+    from django_ag_ui.contrib.store.default_conversation_store import (
+        DefaultConversationStore,
+    )
     from django_ag_ui.contrib.store.models import StoredConversation
 
-    view = DjangoAGUIView(_registry(), model=TestModel())
+    view = DjangoAGUIView(
+        _registry(), model=TestModel(), conversation_store=DefaultConversationStore()
+    )
     response = await view(_post(_run_input("double 5")))  # anonymous request
     body = await _drain(response)
     assert "RUN_FINISHED" in body
@@ -321,7 +319,9 @@ async def test_drf_mcp_toolset_built_per_request_when_configured() -> None:
 
     view = DjangoAGUIView(_registry(), model=TestModel())
     request = RequestFactory().post("/agent/")
-    toolsets = view._drf_mcp_toolsets("tests.integrations.drf_server.server", request, set())
+    from tests.integrations.drf_server import server as drf_server
+
+    toolsets = view._drf_mcp_toolsets(drf_server, request, set())
     assert len(toolsets) == 1
     assert isinstance(toolsets[0], DRFMCPToolset)
 
@@ -364,19 +364,20 @@ async def test_attachment_toolset_skipped_when_a_prior_tool_owns_the_name() -> N
 async def test_seen_set_guards_three_way_name_collisions() -> None:
     # drf-mcp → spec → attachment precedence, threaded through one ``seen``
     # set so a name exposed by two sources can't reach pydantic-ai as a duplicate.
+    from tests.integrations.drf_server import server as drf_server
+    from tests.integrations.drf_specs_colliding import SPECS as colliding_specs
+
     view = DjangoAGUIView(_registry(), model=TestModel())
     request = RequestFactory().post("/agent/")
     seen: set[str] = set()
 
     # drf-mcp reserves its server's tool names.
-    view._drf_mcp_toolsets("tests.integrations.drf_server.server", request, seen)
+    view._drf_mcp_toolsets(drf_server, request, seen)
     assert {"add", "invalid", "denied"} <= seen
 
     # spec: ``add`` collides with drf-mcp (dropped, drf-mcp wins); ``unique_spec``
     # survives; ``read_attachment`` is now reserved by the spec capability.
-    (spec_capability,) = view._spec_capabilities(
-        "tests.integrations.drf_specs_colliding.SPECS", request, seen
-    )
+    (spec_capability,) = view._spec_capabilities(colliding_specs, request, seen)
     spec_names = set(spec_capability.get_toolset()._specs)
     assert "add" not in spec_names
     assert "unique_spec" in spec_names
@@ -508,14 +509,6 @@ async def _cancel_mid_stream(response: StreamingHttpResponse, marker: str) -> No
         await task
 
 
-@override_settings(
-    DJANGO_AG_UI={
-        "CONVERSATION_STORE": (
-            "django_ag_ui.persistence.django_session_conversation_store"
-            ".DjangoSessionConversationStore"
-        ),
-    },
-)
 async def test_disconnect_persists_partial_audits_and_closes_the_model_stream() -> None:
     from django.contrib.sessions.backends.signed_cookies import SessionStore
 
@@ -525,7 +518,12 @@ async def test_disconnect_persists_partial_audits_and_closes_the_model_stream() 
 
     model_stream_closed = asyncio.Event()
     spy = _SpyAuditLogger()
-    view = DjangoAGUIView(_registry(), model=_blocking_model(model_stream_closed), audit_logger=spy)
+    view = DjangoAGUIView(
+        _registry(),
+        model=_blocking_model(model_stream_closed),
+        audit_logger=spy,
+        conversation_store=DjangoSessionConversationStore(),
+    )
     request = _post(_run_input("hi"))
     request.session = SessionStore()
     response = await view(request)
@@ -554,11 +552,15 @@ async def test_disconnect_persists_partial_audits_and_closes_the_model_stream() 
 
 
 async def test_disconnect_without_a_store_still_audits_and_reraises() -> None:
-    # Default settings → NullConversationStore: no save attempted, no error,
-    # and the cancellation still re-raises (asserted inside the helper).
+    # No conversation_store passed → NullConversationStore: no save attempted,
+    # no error, and the cancellation still re-raises (asserted in the helper).
     model_stream_closed = asyncio.Event()
     spy = _SpyAuditLogger()
-    view = DjangoAGUIView(_registry(), model=_blocking_model(model_stream_closed), audit_logger=spy)
+    view = DjangoAGUIView(
+        _registry(),
+        model=_blocking_model(model_stream_closed),
+        audit_logger=spy,
+    )
     response = await view(_post(_run_input("hi")))
 
     await _cancel_mid_stream(response, "answer")

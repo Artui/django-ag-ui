@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from asgiref.sync import sync_to_async
 from django.http import HttpRequest
 
+from django_ag_ui.conf import get_setting
 from django_ag_ui.persistence.types.conversation import Conversation
 from django_ag_ui.persistence.types.conversation_meta import ConversationMetaList
 from django_ag_ui.persistence.utils import resolve_owner_id
@@ -31,6 +32,29 @@ class ModelConversationStore(ABC):
             def _remove(self, thread_id, owner_id): ...
     """
 
+    # Class-level default (an immutable bool, so no shared-mutable hazard) so a
+    # subclass that overrides __init__ and forgets super() fails **closed** —
+    # refusing anonymous requests — rather than raising AttributeError at
+    # request time or, worse, defaulting open.
+    _allow_anonymous: bool = False
+
+    def __init__(self, *, allow_anonymous: bool | None = None) -> None:
+        """``allow_anonymous`` governs whether anonymous requests are served.
+
+        ``False`` (the default) refuses them rather than collapsing every
+        anonymous visitor into one shared owner bucket, where they could read and
+        delete each other's data. ``None`` takes
+        ``DJANGO_AG_UI["ALLOW_ANONYMOUS"]``, resolved once here — it is a *store*
+        policy, so two endpoints sharing a store necessarily agree on it.
+
+        A subclass that overrides ``__init__`` must call ``super().__init__()``.
+        """
+        self._allow_anonymous: bool = (
+            allow_anonymous
+            if allow_anonymous is not None
+            else bool(get_setting("ALLOW_ANONYMOUS", False))
+        )
+
     async def load(self, thread_id: str, *, request: HttpRequest) -> Conversation | None:
         return await sync_to_async(self._load)(thread_id, request)
 
@@ -53,22 +77,28 @@ class ModelConversationStore(ABC):
     # may create a session row for the anonymous bucket, so it can't run on the
     # event loop). ``AnonymousOperationError`` propagates up to the view (→ 403).
     def _load(self, thread_id: str, request: HttpRequest) -> Conversation | None:
-        return self._fetch(thread_id, resolve_owner_id(request))
+        return self._fetch(
+            thread_id, resolve_owner_id(request, allow_anonymous=self._allow_anonymous)
+        )
 
     def _save(self, conversation: Conversation, request: HttpRequest) -> None:
-        self._store(conversation, resolve_owner_id(request))
+        self._store(conversation, resolve_owner_id(request, allow_anonymous=self._allow_anonymous))
 
     def _delete(self, thread_id: str, request: HttpRequest) -> None:
-        self._remove(thread_id, resolve_owner_id(request))
+        self._remove(thread_id, resolve_owner_id(request, allow_anonymous=self._allow_anonymous))
 
     def _list_scoped(self, request: HttpRequest, limit: int | None) -> ConversationMetaList:
-        return self._list(resolve_owner_id(request), limit)
+        return self._list(resolve_owner_id(request, allow_anonymous=self._allow_anonymous), limit)
 
     def _exists_scoped(self, thread_id: str, request: HttpRequest) -> bool:
-        return self._exists(thread_id, resolve_owner_id(request))
+        return self._exists(
+            thread_id, resolve_owner_id(request, allow_anonymous=self._allow_anonymous)
+        )
 
     def _rename_scoped(self, thread_id: str, title: str, request: HttpRequest) -> None:
-        self._rename(thread_id, title, resolve_owner_id(request))
+        self._rename(
+            thread_id, title, resolve_owner_id(request, allow_anonymous=self._allow_anonymous)
+        )
 
     @abstractmethod
     def _fetch(self, thread_id: str, owner_id: str | None) -> Conversation | None: ...

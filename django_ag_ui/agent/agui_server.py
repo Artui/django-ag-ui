@@ -6,14 +6,14 @@ from django.urls import URLPattern, path
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.tools_view import ToolsView
-from django_ag_ui.conf import get_settings
+from django_ag_ui.agent.types.agent_factory_fn import AgentFactoryFn
+from django_ag_ui.check_removed_settings import check_removed_settings
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
 from django_ag_ui.persistence.null_conversation_store import NullConversationStore
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
-from django_ag_ui.persistence.resolve_attachment_store import resolve_attachment_store
-from django_ag_ui.persistence.resolve_conversation_store import resolve_conversation_store
-from django_ag_ui.persistence.resolve_transcription_backend import resolve_transcription_backend
 from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.persistence.transcribe_view import TranscribeView
 from django_ag_ui.persistence.types.attachment_store import AttachmentStore
@@ -114,11 +114,23 @@ class AGUIServer:
         conversation_store: ConversationStore | None = None,
         attachment_store: AttachmentStore | None = None,
         transcription_backend: TranscriptionBackend | None = None,
+        toolsets: list[Any] | None = None,
+        capabilities: list[Any] | None = None,
+        agent_factory: AgentFactoryFn | None = None,
+        drf_mcp_server: Any = None,
+        service_specs: dict[str, Any] | None = None,
+        provider: Any = None,
+        config: AGUIConfig | None = None,
         namespace: str = DEFAULT_NAMESPACE,
     ) -> None:
+        check_removed_settings()
         self._registry = registry
         self._skills = skills
         self._namespace = namespace
+        # Scalars, resolved once — not on every request, where they could only
+        # ever be global. This is what lets /internal/agent and /public/agent
+        # hold different tool-guard policies, retry budgets, upload caps.
+        self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
         # The auth policy shared by every view this object builds — splatted into
         # each constructor. Typed ``Any`` so the mixed-value dict satisfies each
         # constructor's specific parameter types.
@@ -127,29 +139,39 @@ class AGUIServer:
             "get_user": get_user,
             "authorize": authorize,
         }
+        # Collaborators are passed, never resolved from a dotted path. The
+        # indirection existed only because settings.py can't hold a live object;
+        # urls.py can, so `drf_mcp_server=internal_mcp` is now expressible at all
+        # — with one global dotted path it was not.
+        self._conversation_store: ConversationStore = (
+            conversation_store if conversation_store is not None else NullConversationStore()
+        )
+        self._attachment_store: AttachmentStore = (
+            attachment_store if attachment_store is not None else NullAttachmentStore()
+        )
+        self._transcription_backend: TranscriptionBackend = (
+            transcription_backend
+            if transcription_backend is not None
+            else NullTranscriptionBackend()
+        )
+        self._drf_mcp_server = drf_mcp_server
+        self._service_specs = service_specs
         self._view = DjangoAGUIView(
             registry,
             model=model,
             instructions=instructions,
             audit_logger=audit_logger,
             csrf_exempt=csrf_exempt,
+            toolsets=toolsets,
+            capabilities=capabilities,
+            agent_factory=agent_factory,
+            drf_mcp_server=drf_mcp_server,
+            service_specs=service_specs,
+            provider=provider,
+            attachment_store=self._attachment_store,
+            conversation_store=self._conversation_store,
+            config=self._config,
             **self._auth,
-        )
-        settings = get_settings()
-        self._conversation_store: ConversationStore = (
-            conversation_store
-            if conversation_store is not None
-            else resolve_conversation_store(settings.conversation_store)
-        )
-        self._attachment_store: AttachmentStore = (
-            attachment_store
-            if attachment_store is not None
-            else resolve_attachment_store(settings.attachment_store)
-        )
-        self._transcription_backend: TranscriptionBackend = (
-            transcription_backend
-            if transcription_backend is not None
-            else resolve_transcription_backend(settings.transcription_backend)
         )
 
     @property
@@ -168,22 +190,35 @@ class AGUIServer:
     def _build_patterns(self) -> list[URLPattern]:
         patterns = [
             path("", self._view, name="endpoint"),
-            path("tools/", ToolsView(self._registry, **self._auth), name="tools"),
+            path(
+                "tools/",
+                ToolsView(
+                    self._registry,
+                    drf_mcp_server=self._drf_mcp_server,
+                    service_specs=self._service_specs,
+                    **self._auth,
+                ),
+                name="tools",
+            ),
         ]
         if self._skills is not None:
             patterns.append(path("skills/", SkillsView(self._skills, **self._auth), name="skills"))
         if not isinstance(self._conversation_store, NullConversationStore):
-            threads_view = ThreadsView(self._conversation_store, **self._auth)
+            threads_view = ThreadsView(self._conversation_store, config=self._config, **self._auth)
             patterns.append(path("threads/", threads_view, name="threads"))
             patterns.append(path("threads/<str:thread_id>/", threads_view, name="thread"))
         if not isinstance(self._attachment_store, NullAttachmentStore):
-            attachments_view = AttachmentsView(self._attachment_store, **self._auth)
+            attachments_view = AttachmentsView(
+                self._attachment_store, config=self._config, **self._auth
+            )
             patterns.append(path("attachments/", attachments_view, name="attachments"))
             patterns.append(
                 path("attachments/<str:attachment_id>/", attachments_view, name="attachment")
             )
         if not isinstance(self._transcription_backend, NullTranscriptionBackend):
-            transcribe_view = TranscribeView(self._transcription_backend, **self._auth)
+            transcribe_view = TranscribeView(
+                self._transcription_backend, config=self._config, **self._auth
+            )
             patterns.append(path("transcribe/", transcribe_view, name="transcribe"))
         return patterns
 

@@ -15,10 +15,9 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.guarded_stream import guarded_stream
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_transcript import RunTranscript
-from django_ag_ui.conf import get_settings
+from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
 from django_ag_ui.persistence.null_conversation_store import NullConversationStore
-from django_ag_ui.persistence.resolve_conversation_store import resolve_conversation_store
 from django_ag_ui.persistence.types.conversation import Conversation
 from django_ag_ui.persistence.types.conversation_store import ConversationStore
 from django_ag_ui.persistence.utils import owner_id_for
@@ -48,20 +47,23 @@ class AgentSession:
         request: HttpRequest,
         *,
         audit_logger: AuditLogger,
+        config: AGUIConfig,
+        conversation_store: ConversationStore,
     ) -> None:
         self._agent = agent
         self._run_input = run_input
         self._request = request
         self._audit_logger = audit_logger
-        settings = get_settings()
-        self._forward_reasoning = settings.forward_reasoning
+        self._config = config
+        self._conversation_store = conversation_store
+        self._forward_reasoning = config.forward_reasoning
         self._adapter = AGUIAdapter(
             agent,
             run_input,
-            # A plain string at the settings boundary; the adapter types it as
+            # A plain string at the config boundary; the adapter types it as
             # the Literal["server", "client"].
-            manage_system_prompt=cast("Any", settings.manage_system_prompt),
-            allow_uploaded_files=settings.allow_uploaded_files,
+            manage_system_prompt=cast("Any", config.manage_system_prompt),
+            allow_uploaded_files=config.allow_uploaded_files,
         )
 
     def stream(self) -> AsyncIterator[str]:
@@ -111,7 +113,7 @@ class AgentSession:
         cancelled-run paths build their message list and hand it here, so the
         two persist with identical thread/owner scoping.
         """
-        store: ConversationStore = resolve_conversation_store(get_settings().conversation_store)
+        store: ConversationStore = self._conversation_store
         if isinstance(store, NullConversationStore):
             return None
         thread_id: str = self._run_input.thread_id

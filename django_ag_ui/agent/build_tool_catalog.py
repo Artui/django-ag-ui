@@ -4,17 +4,19 @@ import inspect
 import re
 from typing import Any
 
-from django.utils.module_loading import import_string
-
-from django_ag_ui.conf import get_settings
 from django_ag_ui.registry.tool_registry import ToolRegistry
 
 
-def build_tool_catalog(registry: ToolRegistry) -> list[dict[str, Any]]:
+def build_tool_catalog(
+    registry: ToolRegistry,
+    *,
+    drf_mcp_server: Any = None,
+    service_specs: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     """The agent's server-tool catalog for the frontend to label tool-call cards.
 
-    Server-side tools (the ``@tool`` registry, and drf-mcp tools when
-    ``DJANGO_AG_UI['DRF_MCP_SERVER']`` is set) execute server-side, so their
+    Server-side tools (the ``@tool`` registry, and drf-mcp tools when a
+    ``drf_mcp_server`` is passed) execute server-side, so their
     JSON Schema never reaches the browser — the web component can't read an
     ``x-summary`` off it. This catalog is the channel for those labels: the
     component fetches it via ``data-tools-url`` and maps tool name → label.
@@ -35,19 +37,16 @@ def build_tool_catalog(registry: ToolRegistry) -> list[dict[str, Any]]:
         spec = binding.spec
         catalog.append(_entry(spec.name, spec.summary, spec.description))
         seen.add(spec.name)
-    server_path = get_settings().drf_mcp_server
-    if server_path is not None:
-        server = import_string(server_path)
-        for binding in server.tools.all():
+    if drf_mcp_server is not None:
+        for binding in drf_mcp_server.tools.all():
             if binding.name in seen:
                 continue
             summary = getattr(binding, "display_name", None) or getattr(binding, "title", None)
             description = getattr(binding, "display_description", None) or binding.description
             catalog.append(_entry(binding.name, summary, description))
             seen.add(binding.name)
-    specs_path = get_settings().service_specs
-    if specs_path is not None:
-        for name, spec in import_string(specs_path).items():
+    if service_specs is not None:
+        for name, spec in service_specs.items():
             if name in seen:
                 continue
             catalog.append(_entry(name, None, _spec_description(spec)))

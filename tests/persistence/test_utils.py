@@ -74,34 +74,30 @@ def test_resolve_owner_id_returns_pk_for_authenticated_user() -> None:
         pk = 42
 
     request.user = _User()  # type: ignore[attr-defined]
-    assert resolve_owner_id(request) == "42"
+    assert resolve_owner_id(request, allow_anonymous=False) == "42"
 
 
-def test_resolve_owner_id_refuses_anonymous_by_default() -> None:
+def test_resolve_owner_id_refuses_anonymous_when_disallowed() -> None:
+    """The safe default: refuse, rather than collapse every anonymous visitor
+    into one shared bucket where they can read each other's threads."""
     with pytest.raises(AnonymousOperationError):
-        resolve_owner_id(_anon_request())
+        resolve_owner_id(_anon_request(), allow_anonymous=False)
 
 
-@override_settings(
-    DJANGO_AG_UI={"ALLOW_ANONYMOUS": True},
-    SESSION_ENGINE="django.contrib.sessions.backends.cache",
-)
+@override_settings(SESSION_ENGINE="django.contrib.sessions.backends.cache")
 def test_resolve_owner_id_buckets_anonymous_by_existing_session() -> None:
     request = _anon_request()
     session = SessionStore()
     session.create()  # a browser that already has a session
     request.session = session  # type: ignore[attr-defined]
-    assert resolve_owner_id(request) == f"anon:{session.session_key}"
+    assert resolve_owner_id(request, allow_anonymous=True) == f"anon:{session.session_key}"
 
 
-@override_settings(
-    DJANGO_AG_UI={"ALLOW_ANONYMOUS": True},
-    SESSION_ENGINE="django.contrib.sessions.backends.cache",
-)
+@override_settings(SESSION_ENGINE="django.contrib.sessions.backends.cache")
 def test_resolve_owner_id_creates_a_session_when_the_browser_has_none() -> None:
     request = _anon_request()
     request.session = SessionStore()  # no session_key yet  # type: ignore[attr-defined]
-    owner = resolve_owner_id(request)
+    owner = resolve_owner_id(request, allow_anonymous=True)
     assert owner.startswith("anon:")
     assert request.session.session_key is not None
 
