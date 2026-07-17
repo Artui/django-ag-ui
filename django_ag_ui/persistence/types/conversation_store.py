@@ -12,11 +12,16 @@ from django_ag_ui.persistence.types.conversation_meta import ConversationMetaLis
 class ConversationStore(Protocol):
     """Pluggable server-side persistence for AG-UI conversations.
 
-    Resolved from ``DJANGO_AG_UI["CONVERSATION_STORE"]``. The package ships a
-    no-op default (``NullConversationStore`` — the server stays stateless) and a
+    Passed to ``AGUIServer(conversation_store=...)``. The package ships a no-op
+    default (``NullConversationStore`` — the server stays stateless) and a
     session-backed implementation; projects supply their own (a DB model, Redis,
-    …) by pointing the setting at a dotted path. All methods are async so an
-    implementation can use the async ORM or a network backend.
+    …). All methods are async so an implementation can use the async ORM or a
+    network backend.
+
+    Threads key by ``(owner_id, thread_id)``, so two endpoints sharing a store
+    share one user's thread list. Wrap with
+    :class:`~django_ag_ui.persistence.scoped_conversation_store.ScopedConversationStore`
+    to partition them.
 
     ``list`` returns owner-scoped *metadata only* (no message bodies) for the
     thread drawer, capped at ``limit`` rows (``None`` = the store's own default);

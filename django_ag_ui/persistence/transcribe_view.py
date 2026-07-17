@@ -11,7 +11,8 @@ from django.http import (
 )
 from django.http.response import HttpResponseBase
 
-from django_ag_ui.conf import get_settings
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
 from django_ag_ui.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
@@ -45,8 +46,12 @@ class TranscribeView:
         require_authenticated: bool = False,
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
+        config: AGUIConfig | None = None,
     ) -> None:
         self._backend = backend
+        # Resolved once by AGUIServer; read per request these could only
+        # ever be global, so two endpoints could not differ.
+        self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
@@ -77,7 +82,7 @@ class TranscribeView:
             return JsonResponse(
                 {"error": "a single file under the 'audio' field is required"}, status=400
             )
-        settings = get_settings()
+        settings = self._config
         rejection = _validate(
             audio, settings.transcription_max_bytes, settings.transcription_allowed_types
         )

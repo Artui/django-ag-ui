@@ -13,7 +13,8 @@ from django.http import (
 )
 from django.http.response import HttpResponseBase
 
-from django_ag_ui.conf import get_settings
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
 from django_ag_ui.persistence.capped_upload_handler import CappedUploadHandler
 from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
@@ -56,8 +57,12 @@ class AttachmentsView:
         require_authenticated: bool = False,
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
+        config: AGUIConfig | None = None,
     ) -> None:
         self._store = store
+        # Resolved once by AGUIServer; read per request these could only
+        # ever be global, so two endpoints could not differ.
+        self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
@@ -93,7 +98,7 @@ class AttachmentsView:
             return HttpResponseNotAllowed(["POST"])
         if isinstance(self._store, NullAttachmentStore):
             return JsonResponse({"error": "attachments are disabled"}, status=410)
-        settings = get_settings()
+        settings = self._config
         # Insert the size guard *before* parsing so an oversized upload is aborted
         # mid-stream — Django doesn't spool the whole body to a temp file first.
         guard = CappedUploadHandler(settings.attachment_max_bytes)

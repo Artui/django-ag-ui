@@ -10,6 +10,10 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.persistence.null_conversation_store import NullConversationStore
+from django_ag_ui.persistence.types.conversation_store import ConversationStore
 from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
 from django_ag_ui.policy.guard.types.tool_guard_config import ToolGuardConfig
 
@@ -27,12 +31,27 @@ def _run_input(messages: list[dict[str, str]] | None = None) -> Any:
     return AGUIAdapter.build_run_input(json.dumps(payload).encode())
 
 
-def _session(agent: Agent[None, Any] | None = None, run_input: Any = None) -> AgentSession:
+def _session(
+    agent: Agent[None, Any] | None = None,
+    run_input: Any = None,
+    *,
+    config: AGUIConfig | None = None,
+    conversation_store: ConversationStore | None = None,
+) -> AgentSession:
+    """Build a session with its collaborators passed in.
+
+    The session no longer reaches for global settings or resolves a store from a
+    dotted path — the endpoint that owns it hands both over.
+    """
     return AgentSession(
         agent if agent is not None else Agent(TestModel()),
         run_input if run_input is not None else _run_input(),
         RequestFactory().post("/agent/"),
         audit_logger=NullAuditLogger(),
+        config=config if config is not None else build_ag_ui_config(),
+        conversation_store=(
+            conversation_store if conversation_store is not None else NullConversationStore()
+        ),
     )
 
 

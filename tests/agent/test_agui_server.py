@@ -123,18 +123,21 @@ def test_transcribe_endpoint_omitted_by_default() -> None:
     assert "transcribe" not in _names(_server())
 
 
-@override_settings(
-    DJANGO_AG_UI={
-        "CONVERSATION_STORE": (
-            "django_ag_ui.persistence.django_session_conversation_store."
-            "DjangoSessionConversationStore"
-        ),
-    }
-)
-def test_stores_default_to_the_settings_resolved_backend() -> None:
-    # No conversation_store passed → resolved from DJANGO_AG_UI, so the thread
-    # endpoints mount without an explicit argument.
-    assert "threads" in _names(AGUIServer(ToolRegistry(), model=TestModel()))
+def test_passing_a_store_mounts_the_thread_endpoints() -> None:
+    from django_ag_ui.persistence.django_session_conversation_store import (
+        DjangoSessionConversationStore,
+    )
+
+    server = AGUIServer(
+        ToolRegistry(), model=TestModel(), conversation_store=DjangoSessionConversationStore()
+    )
+    assert "threads" in _names(server)
+
+
+def test_no_store_means_no_thread_endpoints() -> None:
+    """Stores are passed, never resolved from a dotted path — so a server with
+    none gets the Null store and doesn't mount the sub-views."""
+    assert "threads" not in _names(AGUIServer(ToolRegistry(), model=TestModel()))
 
 
 def test_auth_policy_forwards_to_every_view() -> None:

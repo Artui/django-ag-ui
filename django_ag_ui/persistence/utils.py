@@ -6,7 +6,6 @@ from ag_ui.core import Message
 from django.http import HttpRequest
 from pydantic import TypeAdapter
 
-from django_ag_ui.conf import get_settings
 from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
 
 # A reusable, immutable adapter for (de)serialising the AG-UI message union.
@@ -35,11 +34,12 @@ def owner_id_for(request: HttpRequest) -> str | None:
     return None
 
 
-def resolve_owner_id(request: HttpRequest) -> str:
+def resolve_owner_id(request: HttpRequest, *, allow_anonymous: bool) -> str:
     """The owner-scoping id a model-backed store persists under (never ``None``).
 
-    Authenticated → the user's pk. Anonymous → governed by
-    ``DJANGO_AG_UI["ALLOW_ANONYMOUS"]``:
+    Authenticated → the user's pk. Anonymous → governed by ``allow_anonymous``,
+    which the calling store holds (it is a store policy, not endpoint config —
+    two endpoints sharing a store must agree on it):
 
     - **off** (default) → raise :class:`AnonymousOperationError`. Refusing beats
       the old behaviour of collapsing every anonymous visitor into one ``""``
@@ -53,12 +53,13 @@ def resolve_owner_id(request: HttpRequest) -> str:
     user = getattr(request, "user", None)
     if user is not None and getattr(user, "is_authenticated", False):
         return str(user.pk)
-    if not get_settings().allow_anonymous:
+    if not allow_anonymous:
         raise AnonymousOperationError(
             "Anonymous requests are refused by this store. Authenticate the "
             "request (require_authenticated / get_user) or set "
-            'DJANGO_AG_UI["ALLOW_ANONYMOUS"] = True to bucket anonymous users '
-            "by browser session."
+            'DJANGO_AG_UI["ALLOW_ANONYMOUS"] = True (or pass '
+            "config=build_ag_ui_config(allow_anonymous=True) to AGUIServer) to "
+            "bucket anonymous users by browser session."
         )
     session = request.session
     if session.session_key is None:

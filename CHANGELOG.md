@@ -7,6 +7,129 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-07-17
+
+Configuration is now **per-endpoint**: collaborators are constructor arguments
+taking real objects, and `DJANGO_AG_UI` is no longer read on the request path at
+all. This makes running more than one AG-UI endpoint in one project actually
+work — previously two mounts served, but only their tool registries could
+differ. Everything else — toolsets, capabilities, the tool-guard policy, the
+drf-mcp bridge, retry budgets, upload caps — was global.
+
+**Breaking**, with a migration. Ten settings that named a class by dotted path
+are removed (they raise if left in place, naming the replacement), `AppSettings`
+/ `get_settings` and the `resolve_*` helpers are gone from the public API, and
+settings now resolve when a server is built rather than per request. Every
+remaining setting survives as a **default**, so a single-endpoint project that
+configures settings and passes nothing keeps working.
+
+The dotted paths only ever existed because `settings.py` cannot hold a live
+object. `urls.py` can — which is also why `drf_mcp_server=internal_mcp` is
+expressible at all: with one global path there was no way to say *which* agent
+bridges to *which* MCP server. There is now no `import_string` anywhere in the
+package.
+
+See [Multiple endpoints](https://artui.github.io/django-ag-ui/configuration/#multiple-endpoints).
+
+### Added
+
+- **`AGUIConfig` + `build_ag_ui_config()`** — an endpoint's scalars, resolved
+  **once** in `AGUIServer.__init__` and threaded to the agent view and every
+  sub-view. Thirteen `get_settings()` calls across eight files re-read the
+  settings on every request; read there they could only ever be global.
+
+  ```python
+  AGUIServer(registry, config=build_ag_ui_config(retries=5))
+  ```
+
+  Use `build_ag_ui_config(**overrides)` rather than constructing `AGUIConfig`
+  directly — it layers your overrides over the project's settings instead of
+  discarding them.
+
+- **Collaborators as constructor arguments** on `AGUIServer` / `DjangoAGUIView`:
+  `toolsets=`, `capabilities=`, `agent_factory=`, `drf_mcp_server=`,
+  `service_specs=`, `provider=` (the stores already were). Passing objects lifts
+  a constraint the dotted paths imposed — a collaborator needing constructor
+  arguments could not be named by path, so `audit_logger=LoggingAuditLogger(...)`
+  and `SimpleJWT`-style configured instances now just work.
+
+- **`ScopedConversationStore`** — partitions a store between endpoints:
+
+  ```python
+  AGUIServer(registry, conversation_store=ScopedConversationStore(store, scope="internal"))
+  ```
+
+  Stores key threads by `(owner_id, thread_id)`, so two endpoints sharing one
+  shared a user's thread list: a conversation started at `/internal/agent`
+  appeared in `/public/agent`'s drawer and resumed there under the *public*
+  agent's model, tools and guard policy. Prefixing the storage key avoids a
+  migration and a `ConversationStore` protocol break (which would hit every
+  custom store). Opt-in and explicit — wrapping automatically from the server's
+  `namespace` would silently orphan an existing project's history.
+
+  There is deliberately no `ScopedAttachmentStore`: attachments are
+  id-referenced with no enumeration and already owner-scoped, so two endpoints
+  sharing a store expose nothing across the user boundary. Thread *lists* are
+  the case that leaks.
+
+- `ModelConversationStore(allow_anonymous=)` / `ModelAttachmentStore(allow_anonymous=)`.
+  `ALLOW_ANONYMOUS` turned out to be a **store** policy — only the model stores
+  read it — so it lives there, with `DJANGO_AG_UI["ALLOW_ANONYMOUS"]` as the
+  default. A subclass that overrides `__init__` and forgets `super()` fails
+  **closed** (refusing anonymous requests) rather than defaulting open.
+
+### Changed
+
+- **`DJANGO_AG_UI` is no longer read on the request path.** Mutating settings no
+  longer reconfigures an already-built server. If your tests wrap a request in
+  `override_settings(DJANGO_AG_UI=...)` against a server built at URL-conf
+  import, the change is now ignored — build the server inside the test with
+  `config=build_ag_ui_config(...)` instead.
+
+- `AgentFactoryFn` receives `AGUIConfig` instead of `AppSettings`:
+  `(registry: ToolRegistry, config: AGUIConfig) -> Agent`.
+
+- `build_tool_catalog(registry, *, drf_mcp_server=, service_specs=)`,
+  `resolve_owner_id(request, *, allow_anonymous=)`, and the `ToolsView` /
+  `ThreadsView` / `AttachmentsView` / `TranscribeView` constructors take the
+  values they used to read from settings. Only affects code calling these
+  directly.
+
+- `provider=` no longer accepts a dotted-path string — pass the `Provider`.
+
+- The `[drf-mcp]` extra now requires `djangorestframework-mcp-server>=0.12,<0.13`
+  (was `>=0.9,<0.12`), picking up its per-server identity, session namespacing
+  and RFC 8707 audience binding.
+
+### Removed
+
+- **Ten dotted-path settings**: `AGENT_FACTORY`, `TOOLSETS`, `CAPABILITIES`,
+  `AUDIT_LOGGER`, `CONVERSATION_STORE`, `ATTACHMENT_STORE`,
+  `TRANSCRIPTION_BACKEND`, `DRF_MCP_SERVER`, `SERVICE_SPECS`, `PROVIDER`. Each
+  raises `ImproperlyConfigured` naming its replacement if left in settings —
+  a silently-ignored `TOOLSETS` would mean an agent quietly losing its tools.
+
+  ```python
+  # before — settings.py
+  DJANGO_AG_UI = {
+      "TOOLSETS": ("myproject.toolsets.weather",),
+      "CONVERSATION_STORE": "myproject.stores.MyStore",
+  }
+
+  # after — urls.py
+  AGUIServer(registry, toolsets=[weather], conversation_store=MyStore())
+  ```
+
+- **`AppSettings` and `get_settings`** — a process-global settings snapshot is
+  precisely what made two endpoints indistinguishable. `conf.py` keeps one
+  primitive, `get_setting(name, default)`. Use `AGUIConfig` /
+  `build_ag_ui_config` for an endpoint's resolved scalars.
+
+- **`resolve_audit_logger`, `resolve_conversation_store`,
+  `resolve_attachment_store`, `resolve_transcription_backend`,
+  `resolve_agent_factory`, `resolve_dotted_instances`** — the whole dotted-path
+  resolver layer, which existed only to turn strings back into objects.
+
 ## [0.18.1] — 2026-07-16
 
 ### Added
@@ -716,7 +839,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.18.1...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/Artui/django-ag-ui/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/Artui/django-ag-ui/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/Artui/django-ag-ui/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Artui/django-ag-ui/compare/v0.16.0...v0.17.0

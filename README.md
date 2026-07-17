@@ -133,8 +133,6 @@ DJANGO_AG_UI = {
     "MODEL": "anthropic:claude-sonnet-4.6",   # any Pydantic-AI model string
     # "API_KEY": os.environ["ANTHROPIC_API_KEY"],  # else inferred from env
     # "MODEL_SETTINGS": {"temperature": 0.2},
-    # "AUDIT_LOGGER": "django_ag_ui.LoggingAuditLogger",
-    # "CONVERSATION_STORE": "django_ag_ui.DjangoSessionConversationStore",
 }
 ```
 

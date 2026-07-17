@@ -14,7 +14,6 @@ from django.http import (
     StreamingHttpResponse,
 )
 from django.http.response import HttpResponseBase
-from django.utils.module_loading import import_string
 from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.ui.ag_ui import AGUIAdapter
@@ -23,14 +22,16 @@ from django_ag_ui.agent.agent_factory import build_agent
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.attachment_toolset import build_attachment_toolset
 from django_ag_ui.agent.build_model import build_model
-from django_ag_ui.agent.resolve_agent_factory import resolve_agent_factory
-from django_ag_ui.agent.resolve_dotted_instances import resolve_dotted_instances
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.agent_config import AgentConfig
-from django_ag_ui.conf import get_settings
+from django_ag_ui.agent.types.agent_factory_fn import AgentFactoryFn
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
-from django_ag_ui.persistence.resolve_attachment_store import resolve_attachment_store
-from django_ag_ui.policy.audit.resolve_audit_logger import resolve_audit_logger
+from django_ag_ui.persistence.null_conversation_store import NullConversationStore
+from django_ag_ui.persistence.types.attachment_store import AttachmentStore
+from django_ag_ui.persistence.types.conversation_store import ConversationStore
+from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
 from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
 from django_ag_ui.registry.tool_registry import ToolRegistry
 from django_ag_ui.utils import AuthorizePredicate, aauthorize, auth_error_response
@@ -83,11 +84,37 @@ class DjangoAGUIView:
         | Callable[[HttpRequest], Awaitable[Any]]
         | None = None,
         authorize: AuthorizePredicate | None = None,
+        toolsets: list[Any] | None = None,
+        capabilities: list[Any] | None = None,
+        agent_factory: AgentFactoryFn | None = None,
+        drf_mcp_server: Any = None,
+        service_specs: dict[str, Any] | None = None,
+        provider: Any = None,
+        attachment_store: AttachmentStore | None = None,
+        conversation_store: ConversationStore | None = None,
+        config: AGUIConfig | None = None,
     ) -> None:
         self._registry = registry
         self._model = model
         self._instructions = instructions
         self._audit_logger = audit_logger
+        # Collaborators arrive as objects. They used to be dotted paths in
+        # settings — an indirection that existed only because settings.py can't
+        # hold a live object, and which made it impossible to point two
+        # endpoints at different toolsets.
+        self._toolsets = toolsets
+        self._capabilities = capabilities
+        self._agent_factory = agent_factory
+        self._drf_mcp_server = drf_mcp_server
+        self._service_specs = service_specs
+        self._provider = provider
+        self._attachment_store = attachment_store
+        self._conversation_store: ConversationStore = (
+            conversation_store if conversation_store is not None else NullConversationStore()
+        )
+        # Scalars, resolved once. Read per request they could only ever be
+        # global, so no two endpoints could differ on any of them.
+        self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
@@ -126,6 +153,8 @@ class DjangoAGUIView:
             run_input,
             request,
             audit_logger=self._resolve_audit_logger(),
+            config=self._config,
+            conversation_store=self._conversation_store,
         )
         response = StreamingHttpResponse(session.stream(), content_type="text/event-stream")
         response["Cache-Control"] = "no-cache"
@@ -135,16 +164,15 @@ class DjangoAGUIView:
     def _build_agent(self, request: HttpRequest) -> Agent[None, Any]:
         """Construct the per-request agent.
 
-        When ``DJANGO_AG_UI['AGENT_FACTORY']`` is set, that callable takes full
-        control of construction (the escape hatch). Otherwise the built-in
-        :func:`build_agent` wires the registry tools, audited, plus any
-        configured ``MODEL_SETTINGS`` / ``RETRIES`` / ``TOOLSETS`` /
-        ``CAPABILITIES`` and the per-request ``DRF_MCP_SERVER`` toolset.
+        When an ``agent_factory`` is passed, that callable takes full control of
+        construction (the escape hatch). Otherwise the built-in
+        :func:`build_agent` wires the registry tools, audited, plus this
+        endpoint's ``toolsets`` / ``capabilities`` / model settings and the
+        per-request ``drf_mcp_server`` toolset.
         """
-        settings = get_settings()
-        factory = resolve_agent_factory(settings.agent_factory)
-        if factory is not None:
-            return factory(self._registry, settings)
+        config = self._config
+        if self._agent_factory is not None:
+            return self._agent_factory(self._registry, config)
         # One name set threaded through every toolset builder so runtime
         # exclusion matches ``build_tool_catalog``'s dedup precedence exactly:
         # registry → drf-mcp → spec → attachment. Each builder excludes names
@@ -153,15 +181,15 @@ class DjangoAGUIView:
         # either defining ``read_attachment``) can't reach pydantic-ai as a
         # duplicate and raise ``UserError`` mid-run while the catalog looks clean.
         seen: set[str] = {binding.spec.name for binding in self._registry}
-        toolsets = resolve_dotted_instances(settings.toolsets)
-        toolsets += self._drf_mcp_toolsets(settings.drf_mcp_server, request, seen)
-        capabilities = resolve_dotted_instances(settings.capabilities)
+        toolsets = list(self._toolsets or [])
+        toolsets += self._drf_mcp_toolsets(self._drf_mcp_server, request, seen)
+        capabilities = list(self._capabilities or [])
         # The spec path is a capability (not a bare toolset) so its conventions
         # reach the model via ``get_instructions`` — but it still reserves its
         # tool names in ``seen`` here, between drf-mcp and the attachment toolset,
         # keeping the ``build_tool_catalog`` dedup precedence unchanged.
-        capabilities += self._spec_capabilities(settings.service_specs, request, seen)
-        toolsets += self._attachment_toolsets(settings.attachment_store, request, seen)
+        capabilities += self._spec_capabilities(self._service_specs, request, seen)
+        toolsets += self._attachment_toolsets(self._attachment_store, request, seen)
         return build_agent(
             self._registry,
             AgentConfig(
@@ -169,17 +197,15 @@ class DjangoAGUIView:
                 instructions=self._resolve_instructions(),
                 audit_logger=self._resolve_audit_logger(),
                 audit_ip_address=request.META.get("REMOTE_ADDR"),
-                model_settings=settings.model_settings,
-                retries=settings.retries,
+                model_settings=config.model_settings,
+                retries=config.retries,
                 toolsets=toolsets,
                 capabilities=capabilities,
-                tool_guard=settings.tool_guard,
+                tool_guard=config.tool_guard,
             ),
         )
 
-    def _drf_mcp_toolsets(
-        self, dotted_path: str | None, request: HttpRequest, seen: set[str]
-    ) -> list[Any]:
+    def _drf_mcp_toolsets(self, server: Any, request: HttpRequest, seen: set[str]) -> list[Any]:
         """Build the per-request drf-mcp toolset, or ``[]`` when not configured.
 
         Imported lazily so ``rest_framework_mcp`` stays an optional extra; the
@@ -189,17 +215,16 @@ class DjangoAGUIView:
         registry, the same source ``build_tool_catalog`` dedups against — so a
         later spec / attachment toolset can't expose a duplicate.
         """
-        if dotted_path is None:
+        if server is None:
             return []
         from django_ag_ui.integrations.drf_mcp import DRFMCPToolset
 
-        server = import_string(dotted_path)
         toolset = DRFMCPToolset(server, request, exclude_names=frozenset(seen))
         seen.update(binding.name for binding in server.tools.all())
         return [toolset]
 
     def _spec_capabilities(
-        self, dotted_path: str | None, request: HttpRequest, seen: set[str]
+        self, specs: dict[str, Any] | None, request: HttpRequest, seen: set[str]
     ) -> list[Any]:
         """Build the per-request drf-services `SpecCapability`, or `[]` when unset.
 
@@ -210,17 +235,16 @@ class DjangoAGUIView:
         already in ``seen`` (registry + drf-mcp win the collision) and reserves
         the spec names so the attachment toolset that follows can't shadow one.
         """
-        if dotted_path is None:
+        if specs is None:
             return []
         from django_ag_ui.integrations.build_spec_capability import build_spec_capability
 
-        specs = import_string(dotted_path)
         capability = build_spec_capability(specs, request, exclude_names=frozenset(seen))
         seen.update(specs)
         return [capability]
 
     def _attachment_toolsets(
-        self, dotted_path: str | None, request: HttpRequest, seen: set[str]
+        self, store: AttachmentStore | None, request: HttpRequest, seen: set[str]
     ) -> list[Any]:
         """Build the per-request ``read_attachment`` toolset, or ``[]`` when off.
 
@@ -231,8 +255,7 @@ class DjangoAGUIView:
         ``UserError`` for the duplicate name at run time. The toolset carries
         ``request`` so the model reads only the acting user's files.
         """
-        store = resolve_attachment_store(dotted_path)
-        if isinstance(store, NullAttachmentStore) or "read_attachment" in seen:
+        if store is None or isinstance(store, NullAttachmentStore) or "read_attachment" in seen:
             return []
         seen.add("read_attachment")
         return [build_attachment_toolset(store, request)]
@@ -280,32 +303,30 @@ class DjangoAGUIView:
             )
 
     def _resolve_model(self) -> Any:
-        settings = get_settings()
-        model = self._model if self._model is not None else settings.model
+        model = self._model if self._model is not None else self._config.model
         if model is None:
             raise ImproperlyConfigured(
                 "django-ag-ui requires a model: set DJANGO_AG_UI['MODEL'] "
                 "(e.g. 'anthropic:claude-sonnet-4.6') or pass model= to "
-                "DjangoAGUIView.",
+                "AGUIServer / DjangoAGUIView.",
             )
         # A "provider:name" string + an explicit key/provider → build the model
         # with that provider, instead of letting Pydantic-AI infer the key from
         # the environment. A pre-built Model instance is used as-is.
         if isinstance(model, str) and (
-            settings.api_key is not None or settings.provider is not None
+            self._config.api_key is not None or self._provider is not None
         ):
-            return build_model(model, api_key=settings.api_key, provider=settings.provider)
+            return build_model(model, api_key=self._config.api_key, provider=self._provider)
         return model
 
     def _resolve_instructions(self) -> str:
         if self._instructions is not None:
             return self._instructions
-        return get_settings().system_prompt or DEFAULT_SYSTEM_PROMPT
+        return self._config.system_prompt or DEFAULT_SYSTEM_PROMPT
 
     def _resolve_audit_logger(self) -> AuditLogger:
-        if self._audit_logger is not None:
-            return self._audit_logger
-        return resolve_audit_logger(get_settings().audit_logger)
+        # No dotted path to resolve: the logger is passed, or there is none.
+        return self._audit_logger if self._audit_logger is not None else NullAuditLogger()
 
 
 __all__ = ["DjangoAGUIView"]

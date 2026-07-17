@@ -39,11 +39,15 @@ def code_mode():
 
 ```python
 # settings.py
-DJANGO_AG_UI = {
-    "MODEL": "anthropic:claude-sonnet-4.6",
-    "DRF_MCP_SERVER": "myproject.mcp.server",
-    "CAPABILITIES": ("myproject.agent.code_mode",),
-}
+DJANGO_AG_UI = {"MODEL": "anthropic:claude-sonnet-4.6"}
+```
+
+```python
+# urls.py
+from myproject.agent import code_mode
+from myproject.mcp import server as mcp_server
+
+agent = AGUIServer(registry, drf_mcp_server=mcp_server, capabilities=[code_mode])
 ```
 
 Now the agent exposes one `run_code` tool instead of the individual DRF tools;

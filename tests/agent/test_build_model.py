@@ -10,7 +10,7 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 from django_ag_ui.agent.build_model import build_model
 
 # A module-level provider instance referenced by dotted path in one test.
-DOTTED_PROVIDER = AnthropicProvider(api_key="from-dotted-path")
+DOTTED_PROVIDER = AnthropicProvider(api_key="from-a-passed-instance")
 
 
 def test_builds_anthropic_from_api_key() -> None:
@@ -49,11 +49,10 @@ def test_provider_instance_takes_precedence() -> None:
     assert isinstance(model, AnthropicModel)
 
 
-def test_provider_dotted_path_is_resolved() -> None:
-    model = build_model(
-        "anthropic:claude-sonnet-4-5",
-        provider="tests.agent.test_build_model.DOTTED_PROVIDER",
-    )
+def test_provider_instance_is_used_as_is() -> None:
+    """Providers arrive as objects. The dotted-path form is gone — it existed
+    only because settings.py couldn't hold one."""
+    model = build_model("anthropic:claude-sonnet-4-5", provider=DOTTED_PROVIDER)
     assert isinstance(model, AnthropicModel)
 
 
@@ -61,15 +60,15 @@ def test_bare_model_name_no_longer_infers_a_provider() -> None:
     # Pydantic-AI 2.x dropped bare-name provider inference: a recognisable name
     # like ``claude-…`` without a ``provider:`` prefix no longer resolves and now
     # points the user at the PROVIDER setting, same as any uninferable name.
-    with pytest.raises(ImproperlyConfigured, match="PROVIDER"):
+    with pytest.raises(ImproperlyConfigured, match="provider"):
         build_model("claude-sonnet-4-5", api_key="k")
 
 
 def test_uninferable_bare_model_points_at_provider_setting() -> None:
-    with pytest.raises(ImproperlyConfigured, match="PROVIDER"):
+    with pytest.raises(ImproperlyConfigured, match="provider"):
         build_model("no-such-model", api_key="k")
 
 
 def test_unknown_prefix_points_at_provider_setting() -> None:
-    with pytest.raises(ImproperlyConfigured, match="PROVIDER"):
+    with pytest.raises(ImproperlyConfigured, match="provider"):
         build_model("bogus:model", api_key="k")

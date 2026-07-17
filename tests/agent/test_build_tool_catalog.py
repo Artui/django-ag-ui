@@ -6,9 +6,8 @@ from django.test import override_settings
 
 from django_ag_ui import ToolRegistry, tool
 from django_ag_ui.agent.build_tool_catalog import build_tool_catalog
-
-_DRF = "tests.agent.catalog_server.server"
-_SPECS = "tests.integrations.drf_specs.SPECS"
+from tests.agent.catalog_server import server as _DRF
+from tests.integrations.drf_specs import SPECS as _SPECS
 
 
 def _registry() -> ToolRegistry:
@@ -37,9 +36,11 @@ def test_registry_tools_use_summary_or_prettified_name_with_description() -> Non
     assert by_name["list_open_orders"]["summary"] == "List open orders"
 
 
-@override_settings(DJANGO_AG_UI={"DRF_MCP_SERVER": _DRF})
 def test_drf_mcp_tools_resolve_display_name_then_title_then_prettified() -> None:
-    by_name = {e["name"]: e for e in build_tool_catalog(ToolRegistry())}
+    by_name = {
+        e["name"]: e
+        for e in build_tool_catalog(ToolRegistry(), drf_mcp_server=_DRF, service_specs=_SPECS)
+    }
     # display_name / display_description win.
     assert by_name["ping"]["summary"] == "Ping the service"
     assert by_name["ping"]["description"] == "Health check."
@@ -51,7 +52,6 @@ def test_drf_mcp_tools_resolve_display_name_then_title_then_prettified() -> None
     assert "description" not in by_name["raw_tool"]
 
 
-@override_settings(DJANGO_AG_UI={"DRF_MCP_SERVER": _DRF})
 def test_registry_wins_on_name_collision_with_a_drf_mcp_tool() -> None:
     reg = ToolRegistry()
 
@@ -60,19 +60,22 @@ def test_registry_wins_on_name_collision_with_a_drf_mcp_tool() -> None:
         """Local ping."""
         return {}
 
-    entries = [e for e in build_tool_catalog(reg) if e["name"] == "ping"]
+    entries = [
+        e
+        for e in build_tool_catalog(reg, drf_mcp_server=_DRF, service_specs=_SPECS)
+        if e["name"] == "ping"
+    ]
     assert entries == [{"name": "ping", "summary": "Local ping", "description": "Local ping."}]
 
 
-@override_settings(DJANGO_AG_UI={"SERVICE_SPECS": _SPECS})
 def test_service_specs_appear_in_catalog_with_prettified_summary() -> None:
-    by_name = {e["name"]: e for e in build_tool_catalog(ToolRegistry())}
+    # Specs only — no drf-mcp server, which also defines ``ping`` and would win.
+    by_name = {e["name"]: e for e in build_tool_catalog(ToolRegistry(), service_specs=_SPECS)}
     # No x-summary on a spec → prettified name; description ← the service docstring.
     assert by_name["ping"]["summary"] == "Ping"
     assert by_name["ping"]["description"] == "Ping the server."
 
 
-@override_settings(DJANGO_AG_UI={"SERVICE_SPECS": _SPECS})
 def test_registry_wins_on_name_collision_with_a_service_spec() -> None:
     reg = ToolRegistry()
 
@@ -81,5 +84,9 @@ def test_registry_wins_on_name_collision_with_a_service_spec() -> None:
         """Local ping."""
         return {}
 
-    entries = [e for e in build_tool_catalog(reg) if e["name"] == "ping"]
+    entries = [
+        e
+        for e in build_tool_catalog(reg, drf_mcp_server=_DRF, service_specs=_SPECS)
+        if e["name"] == "ping"
+    ]
     assert entries == [{"name": "ping", "summary": "Local ping", "description": "Local ping."}]

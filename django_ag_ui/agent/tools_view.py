@@ -37,8 +37,14 @@ class ToolsView:
         | Callable[[HttpRequest], Awaitable[Any]]
         | None = None,
         authorize: AuthorizePredicate | None = None,
+        drf_mcp_server: Any = None,
+        service_specs: dict[str, Any] | None = None,
     ) -> None:
         self._registry = registry
+        # The same collaborators the agent view holds, so the catalog lists the
+        # tools this endpoint's agent can actually wield — not another's.
+        self._drf_mcp_server = drf_mcp_server
+        self._service_specs = service_specs
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
@@ -54,7 +60,12 @@ class ToolsView:
         )
         if deny is not None:
             return auth_error_response(deny)
-        return JsonResponse(build_tool_catalog(self._registry), safe=False)
+        catalog = build_tool_catalog(
+            self._registry,
+            drf_mcp_server=self._drf_mcp_server,
+            service_specs=self._service_specs,
+        )
+        return JsonResponse(catalog, safe=False)
 
 
 __all__ = ["ToolsView"]
