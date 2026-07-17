@@ -12,7 +12,10 @@ A Django ↔ Pydantic-AI ↔ [AG-UI](https://docs.ag-ui.com) integration. Provid
 - An async Django view (`DjangoAGUIView`) that wraps Pydantic-AI's
   `pydantic_ai.ui.ag_ui.AGUIAdapter` and returns a `StreamingHttpResponse` of AG-UI events.
 - An `AuditLogger` Protocol with `NullAuditLogger` and `LoggingAuditLogger` implementations.
-- `conf.py` reading the `DJANGO_AG_UI` settings dict.
+- `conf.py` (one primitive, `get_setting`) + `config/` — `AGUIConfig` /
+  `build_ag_ui_config`, an endpoint's scalars resolved **once** at construction.
+  Collaborators are constructor arguments, never dotted paths: there is no
+  `import_string` in the package.
 
 Downstream packages (e.g. `django-admin-agent`) build on this. **No admin specifics live in
 this package.**
@@ -95,9 +98,9 @@ the JSON Schema as `x-destructive: true`. **What that flag gates depends on wher
   render an approval card and resume; the web component's card is the front-end half of this wave.
   The typed `ask_user` question primitive is a separate, still-pending piece.
 
-The `AuditLogger` Protocol is the audit boundary. `LoggingAuditLogger` is the default;
-projects supply their own (Sentry, Honeycomb, custom) by setting `DJANGO_AG_UI["AUDIT_LOGGER"]`
-to a dotted path.
+The `AuditLogger` Protocol is the audit boundary. `NullAuditLogger` is the default;
+projects supply their own (Sentry, Honeycomb, custom) by passing
+`AGUIServer(audit_logger=...)`.
 
 ## No module-level or class-level mutable state
 

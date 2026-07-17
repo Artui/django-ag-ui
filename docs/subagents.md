@@ -50,10 +50,14 @@ def subagents():
 
 ```python
 # settings.py
-DJANGO_AG_UI = {
-    "MODEL": "anthropic:claude-sonnet-4.6",
-    "CAPABILITIES": ("myproject.agent.subagents",),
-}
+DJANGO_AG_UI = {"MODEL": "anthropic:claude-sonnet-4.6"}
+```
+
+```python
+# urls.py
+from myproject.agent import subagents
+
+agent = AGUIServer(registry, capabilities=[subagents])
 ```
 
 Now the agent exposes a `delegate_task` tool. When it calls

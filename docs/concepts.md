@@ -104,9 +104,9 @@ Two implementations ship:
 - [`LoggingAuditLogger`][django_ag_ui.LoggingAuditLogger] — writes to the Python
   `logging` framework (`INFO` on success, `WARNING` on failure).
 
-Projects supply their own (Sentry, Honeycomb, custom) by pointing
-[`AUDIT_LOGGER`](configuration.md#audit_logger) at a dotted path, resolved by
-[`resolve_audit_logger`][django_ag_ui.resolve_audit_logger].
+Projects supply their own (Sentry, Honeycomb, custom) by passing
+[`audit_logger=`](configuration.md#audit_logger) an instance — so a logger that
+needs constructor arguments just works.
 
 ## Streaming: `DjangoAGUIView` and the AGUIAdapter
 

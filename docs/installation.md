@@ -76,7 +76,7 @@ pip install "django-ag-ui[drf-mcp]"
 This pulls in `djangorestframework-mcp-server>=0.6.1` (which in turn pulls
 `djangorestframework-services>=0.15.0`). The bridge
 ([`DRFMCPToolset`](concepts.md#the-drf-mcp-toolset-bridge)) is imported lazily,
-only when `DJANGO_AG_UI["DRF_MCP_SERVER"]` is set, so the dependency stays
+only when a `drf_mcp_server=` is passed, so the dependency stays
 optional for projects that do not use it. See
 [Configuration → `DRF_MCP_SERVER`](configuration.md#drf_mcp_server).
 </content>
