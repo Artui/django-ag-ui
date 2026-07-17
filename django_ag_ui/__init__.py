@@ -26,6 +26,7 @@ from django_ag_ui.persistence.model_conversation_store import ModelConversationS
 from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
 from django_ag_ui.persistence.null_conversation_store import NullConversationStore
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
+from django_ag_ui.persistence.scoped_conversation_store import ScopedConversationStore
 from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.persistence.transcribe_view import TranscribeView
 from django_ag_ui.persistence.types.attachment_ref import AttachmentRef
@@ -80,6 +81,7 @@ __all__ = [
     "ThreadsView",
     "ToolBinding",
     "ToolCategory",
+    "ScopedConversationStore",
     "ToolRegistry",
     "ToolSpec",
     "ToolsView",

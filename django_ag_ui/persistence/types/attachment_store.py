@@ -13,7 +13,7 @@ from django_ag_ui.persistence.types.opened_attachment import OpenedAttachment
 class AttachmentStore(Protocol):
     """Pluggable server-side storage for files a user attaches to a conversation.
 
-    Resolved from ``DJANGO_AG_UI["ATTACHMENT_STORE"]``. The package ships a
+    Passed to ``AGUIServer(attachment_store=...)``. The package ships a
     no-op default (:class:`~django_ag_ui.NullAttachmentStore` — uploads off) and
     an abstract model-backed base
     (:class:`~django_ag_ui.ModelAttachmentStore`); the opt-in
@@ -25,9 +25,14 @@ class AttachmentStore(Protocol):
     Every method is async and **owner-scoped**: a store filters by the acting
     user so one user can never read or delete another's files — the security
     boundary for the whole feature. ``save`` validates nothing about size/type
-    itself (the view does, from settings); it just persists the bytes and
+    itself (the view does, from its config); it just persists the bytes and
     returns a durable :class:`AttachmentRef`. ``open`` returns ``None`` for a
     missing or cross-owner id rather than raising, so callers map it to a 404.
+
+    Unlike conversations there is **no scoped wrapper** for attachments, and none
+    is needed: they are id-referenced with no enumeration, and already
+    owner-scoped, so two endpoints sharing a store expose nothing across the
+    user boundary. Thread *lists* are the case that leaks.
     """
 
     async def save(self, upload: UploadedFile, *, request: HttpRequest) -> AttachmentRef: ...
