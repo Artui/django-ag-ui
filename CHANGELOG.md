@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-07-17
+
 Configuration is now **per-endpoint**: collaborators are constructor arguments
 taking real objects, and `DJANGO_AG_UI` is no longer read on the request path at
 all. This makes running more than one AG-UI endpoint in one project actually
@@ -837,7 +839,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.18.1...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/Artui/django-ag-ui/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/Artui/django-ag-ui/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/Artui/django-ag-ui/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Artui/django-ag-ui/compare/v0.16.0...v0.17.0
