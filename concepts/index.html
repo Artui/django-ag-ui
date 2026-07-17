@@ -1125,9 +1125,9 @@ audit records, never a broken agent run.</p>
 <li><a class="autorefs autorefs-internal" title="LoggingAuditLogger" href="../api/#django_ag_ui.LoggingAuditLogger"><code>LoggingAuditLogger</code></a> — writes to the Python
   <code>logging</code> framework (<code>INFO</code> on success, <code>WARNING</code> on failure).</li>
 </ul>
-<p>Projects supply their own (Sentry, Honeycomb, custom) by pointing
-<a href="../configuration/#audit_logger"><code>AUDIT_LOGGER</code></a> at a dotted path, resolved by
-<a class="autorefs autorefs-internal" title="resolve_audit_logger" href="../api/#django_ag_ui.resolve_audit_logger"><code>resolve_audit_logger</code></a>.</p>
+<p>Projects supply their own (Sentry, Honeycomb, custom) by passing
+<a href="../configuration/#audit_logger"><code>audit_logger=</code></a> an instance — so a logger that
+needs constructor arguments just works.</p>
 <h2 id="streaming-djangoaguiview-and-the-aguiadapter">Streaming: <code>DjangoAGUIView</code> and the AGUIAdapter<a class="headerlink" href="#streaming-djangoaguiview-and-the-aguiadapter" title="Permanent link">&para;</a></h2>
 <p><a class="autorefs autorefs-internal" title="DjangoAGUIView" href="../api/#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a> is an async, callable view
 instance. On each POST it:</p>
