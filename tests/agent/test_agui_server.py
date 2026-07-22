@@ -74,6 +74,32 @@ def test_endpoint_view_is_the_built_agent_view() -> None:
     assert isinstance(endpoint.callback, DjangoAGUIView)
 
 
+def test_step_store_factory_forwards_to_the_agent_view() -> None:
+    from django_ag_ui.contrib.store.default_step_store import DefaultStepStore
+
+    server = _server(step_store=DefaultStepStore)
+    assert server._view._step_store is DefaultStepStore
+
+
+def test_step_store_defaults_to_none() -> None:
+    assert _server()._view._step_store is None
+
+
+def test_resume_and_fork_endpoints_mount_with_a_step_store() -> None:
+    from django_ag_ui.contrib.store.default_step_store import DefaultStepStore
+
+    patterns, _, _ = _server(step_store=DefaultStepStore).urls
+    names = {p.name for p in patterns}
+    assert {"resume", "fork"} <= names
+    resume = next(p for p in patterns if p.name == "resume")
+    # The path converter is named ``resume_from`` so Django hands it to the view.
+    assert "resume/<str:resume_from>/" in str(resume.pattern)
+
+
+def test_resume_and_fork_omitted_without_a_step_store() -> None:
+    assert {"resume", "fork"}.isdisjoint(_names(_server()))
+
+
 def test_skills_endpoint_mounts_when_registry_passed() -> None:
     patterns, _, _ = _server(skills=SkillRegistry()).urls
     skills = next(p for p in patterns if p.name == "skills")

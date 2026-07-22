@@ -10,6 +10,7 @@ from typing import Any, cast
 from ag_ui.core import Message
 from django.http import HttpRequest
 from pydantic_ai import Agent
+from pydantic_ai.messages import ModelMessage
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.guarded_stream import guarded_stream
@@ -49,6 +50,7 @@ class AgentSession:
         audit_logger: AuditLogger,
         config: AGUIConfig,
         conversation_store: ConversationStore,
+        message_history: list[ModelMessage] | None = None,
     ) -> None:
         self._agent = agent
         self._run_input = run_input
@@ -56,6 +58,10 @@ class AgentSession:
         self._audit_logger = audit_logger
         self._config = config
         self._conversation_store = conversation_store
+        # Server-authoritative history to seed the run with (a resumed / forked
+        # run loads it from the step store). ``None`` for a normal run, where the
+        # client owns the prior turns and sends them in ``run_input``.
+        self._message_history = message_history
         self._forward_reasoning = config.forward_reasoning
         self._adapter = AGUIAdapter(
             agent,
@@ -76,7 +82,10 @@ class AgentSession:
         persists the partial exchange and audits the cancellation.
         """
         transcript = RunTranscript()
-        native = self._adapter.run_stream_native()
+        # The adapter composes ``[*message_history, *client_messages]`` — so a
+        # resumed run's server-loaded snapshot is prepended to whatever new turn
+        # the client sent. ``None`` behaves exactly as before (client-only).
+        native = self._adapter.run_stream_native(message_history=self._message_history)
         events = self._adapter.transform_stream(native, on_complete=self._on_complete())
         # A reasoning model's chain-of-thought rides through as AG-UI reasoning
         # events (adapter pass-through). Forward it by default; strip it when

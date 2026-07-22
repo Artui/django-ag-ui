@@ -92,6 +92,7 @@ class DjangoAGUIView:
         provider: Any = None,
         attachment_store: AttachmentStore | None = None,
         conversation_store: ConversationStore | None = None,
+        step_store: Callable[[HttpRequest], Any] | None = None,
         config: AGUIConfig | None = None,
     ) -> None:
         self._registry = registry
@@ -112,6 +113,10 @@ class DjangoAGUIView:
         self._conversation_store: ConversationStore = (
             conversation_store if conversation_store is not None else NullConversationStore()
         )
+        # A per-request factory (not a shared store): the harness step-store
+        # protocol carries no request, so the store binds one at construction and
+        # is built fresh per run — see DjangoAGUIView._step_persistence_capabilities.
+        self._step_store = step_store
         # Scalars, resolved once. Read per request they could only ever be
         # global, so no two endpoints could differ on any of them.
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
@@ -129,7 +134,18 @@ class DjangoAGUIView:
         # (Cast: the helper is typed for functions but runtime-marks any object.)
         markcoroutinefunction(cast("Any", self))
 
-    async def __call__(self, request: HttpRequest) -> HttpResponseBase:
+    async def __call__(
+        self, request: HttpRequest, *, resume_from: str | None = None
+    ) -> HttpResponseBase:
+        """Serve a run, optionally resuming / forking from a prior run's snapshot.
+
+        Mounted at the endpoint root for a fresh run, and (when a ``step_store``
+        is configured) at ``resume/<run_id>/`` and ``fork/<run_id>/``, where
+        Django passes the source run id as ``resume_from``. In that case the
+        server loads that run's last continuable snapshot — owner-scoped, so a
+        run id belonging to another user is a clean 404 — and seeds this run with
+        it as ``message_history``; the client sends only the new turn.
+        """
         self._warn_if_not_asgi(request)
         if request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
@@ -145,30 +161,44 @@ class DjangoAGUIView:
                 {"error": "invalid RunAgentInput", "error_count": error.error_count()},
                 status=400,
             )
+        message_history: list[Any] | None = None
+        if resume_from is not None:
+            message_history = await self._load_resume_history(request, resume_from)
+            if message_history is None:
+                # No snapshot for this owner + run id (unknown, another user's, or
+                # crashed before any provider-valid boundary).
+                return JsonResponse(
+                    {"error": "no resumable run", "run_id": resume_from}, status=404
+                )
         # The transport ends here: the run's orchestration (adapter, stream
         # composition, persistence, cancel handling) lives on AgentSession, so
         # it is testable apart from SSE and swappable under another transport.
         session = AgentSession(
-            self._build_agent(request),
+            self._build_agent(request, run_input, resume_from=resume_from),
             run_input,
             request,
             audit_logger=self._resolve_audit_logger(),
             config=self._config,
             conversation_store=self._conversation_store,
+            message_history=message_history,
         )
         response = StreamingHttpResponse(session.stream(), content_type="text/event-stream")
         response["Cache-Control"] = "no-cache"
         response["X-Accel-Buffering"] = "no"
         return response
 
-    def _build_agent(self, request: HttpRequest) -> Agent[None, Any]:
+    def _build_agent(
+        self, request: HttpRequest, run_input: Any, *, resume_from: str | None = None
+    ) -> Agent[None, Any]:
         """Construct the per-request agent.
 
         When an ``agent_factory`` is passed, that callable takes full control of
         construction (the escape hatch). Otherwise the built-in
         :func:`build_agent` wires the registry tools, audited, plus this
-        endpoint's ``toolsets`` / ``capabilities`` / model settings and the
-        per-request ``drf_mcp_server`` toolset.
+        endpoint's ``toolsets`` / ``capabilities`` / model settings, the
+        per-request ``drf_mcp_server`` toolset, and — when a ``step_store`` is
+        configured — a ``StepPersistence`` capability keyed on this run (and, for
+        a resume / fork, linked back to ``resume_from`` as its parent run).
         """
         config = self._config
         if self._agent_factory is not None:
@@ -189,6 +219,7 @@ class DjangoAGUIView:
         # tool names in ``seen`` here, between drf-mcp and the attachment toolset,
         # keeping the ``build_tool_catalog`` dedup precedence unchanged.
         capabilities += self._spec_capabilities(self._service_specs, request, seen)
+        capabilities += self._step_persistence_capabilities(request, run_input, resume_from)
         toolsets += self._attachment_toolsets(self._attachment_store, request, seen)
         return build_agent(
             self._registry,
@@ -242,6 +273,52 @@ class DjangoAGUIView:
         capability = build_spec_capability(specs, request, exclude_names=frozenset(seen))
         seen.update(specs)
         return [capability]
+
+    def _step_persistence_capabilities(
+        self, request: HttpRequest, run_input: Any, resume_from: str | None = None
+    ) -> list[Any]:
+        """Build the per-request harness ``StepPersistence`` capability, or ``[]``.
+
+        Imported lazily so ``pydantic-ai-harness`` stays the optional ``[harness]``
+        extra; attached only when a ``step_store`` factory is configured. The
+        factory is called with the live ``request`` so the durable ledger scopes
+        to the acting user, and the capability is keyed on the AG-UI ``run_id`` so
+        the recorded run lines up with the client's run. For a resume / fork,
+        ``resume_from`` is recorded as the new run's ``parent_run_id`` so the
+        lineage points back at the source without mutating it. Unlike a toolset it
+        reserves no tool name, so it takes no part in the ``seen`` dedup.
+        """
+        if self._step_store is None:
+            return []
+        from pydantic_ai_harness.step_persistence import StepPersistence
+
+        return [
+            StepPersistence(
+                store=self._step_store(request),
+                run_id=run_input.run_id,
+                parent_run_id=resume_from,
+            )
+        ]
+
+    async def _load_resume_history(
+        self, request: HttpRequest, resume_from: str
+    ) -> list[Any] | None:
+        """Load a prior run's last continuable snapshot as a message history.
+
+        Returns ``None`` — surfaced by the caller as a 404 — when no step store is
+        configured, or the source run has no continuable snapshot for this owner
+        (unknown run id, another user's run, or a run that crashed before any
+        provider-valid boundary). The store is built per request via the factory,
+        so ``continue_run`` is owner-scoped: a guessed ``run_id`` reads nothing.
+        """
+        if self._step_store is None:
+            return None
+        from pydantic_ai_harness.step_persistence import continue_run
+
+        try:
+            return list(await continue_run(self._step_store(request), run_id=resume_from))
+        except LookupError:
+            return None
 
     def _attachment_toolsets(
         self, store: AttachmentStore | None, request: HttpRequest, seen: set[str]

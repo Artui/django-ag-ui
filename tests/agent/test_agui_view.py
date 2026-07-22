@@ -13,15 +13,16 @@ from django.test import RequestFactory, override_settings
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.contrib.store.default_step_store import DefaultStepStore
 from django_ag_ui.registry.decorator import tool
 from django_ag_ui.registry.tool_registry import ToolRegistry
 
 
-def _run_input(content: str) -> bytes:
+def _run_input(content: str, run_id: str = "r1") -> bytes:
     return json.dumps(
         {
             "threadId": "t1",
-            "runId": "r1",
+            "runId": run_id,
             "state": {},
             "messages": [{"id": "u1", "role": "user", "content": content}],
             "tools": [],
@@ -269,7 +270,7 @@ async def test_build_agent_applies_configured_toolsets_capabilities_and_settings
     from pydantic_ai import Agent
 
     view = DjangoAGUIView(_registry(), model=TestModel())
-    agent = view._build_agent(RequestFactory().post("/agent/"))
+    agent = view._build_agent(RequestFactory().post("/agent/"), SimpleNamespace(run_id="r1"))
     assert isinstance(agent, Agent)
 
 
@@ -586,3 +587,140 @@ async def test_lazy_request_user_is_materialized_off_the_loop() -> None:
     response = await view(request)
     assert isinstance(response, StreamingHttpResponse)
     assert request.user.username == "lazy"
+
+
+# --- Step persistence wiring --------------------------------------------------
+
+
+def test_step_persistence_capability_built_when_a_store_is_configured() -> None:
+    from pydantic_ai_harness.step_persistence import StepPersistence
+
+    view = DjangoAGUIView(_registry(), model=TestModel(), step_store=DefaultStepStore)
+    caps = view._step_persistence_capabilities(_post(b""), SimpleNamespace(run_id="run-9"))
+    assert len(caps) == 1
+    assert isinstance(caps[0], StepPersistence)
+    assert caps[0].run_id == "run-9"
+    assert isinstance(caps[0].store, DefaultStepStore)
+
+
+def test_no_step_persistence_capability_without_a_store() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    caps = view._step_persistence_capabilities(_post(b""), SimpleNamespace(run_id="x"))
+    assert caps == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_step_store_records_the_run_end_to_end() -> None:
+    from asgiref.sync import sync_to_async
+    from django.contrib.auth import get_user_model
+
+    from django_ag_ui.contrib.store.models import (
+        StoredRun,
+        StoredStepEvent,
+        StoredToolEffect,
+    )
+
+    user = await sync_to_async(get_user_model().objects.create)(username="stepper")
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        step_store=DefaultStepStore,
+        get_user=lambda request: user,
+    )
+    body = await _drain(await view(_post(_run_input("double 5"))))
+    assert "RUN_FINISHED" in body
+
+    owner = str(user.pk)
+    # The StepPersistence capability recorded this run, its lifecycle events, and
+    # the tool effect for the "double" call it exercised — all owner-scoped.
+    assert await StoredRun.objects.filter(owner_id=owner, run_id="r1").acount() == 1
+    assert await StoredStepEvent.objects.filter(owner_id=owner, run_id="r1").aexists()
+    assert await StoredToolEffect.objects.filter(owner_id=owner, run_id="r1").aexists()
+
+
+# --- Resume / fork ------------------------------------------------------------
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_resume_seeds_a_new_run_from_a_prior_snapshot() -> None:
+    from asgiref.sync import sync_to_async
+    from django.contrib.auth import get_user_model
+
+    from django_ag_ui.contrib.store.models import StoredRun, StoredSnapshot
+
+    user = await sync_to_async(get_user_model().objects.create)(username="resumer")
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        step_store=DefaultStepStore,
+        get_user=lambda _request: user,
+    )
+    owner = str(user.pk)
+
+    # A first run "r1" records a continuable snapshot for this owner.
+    await _drain(await view(_post(_run_input("double 5", run_id="r1"))))
+    assert await StoredSnapshot.objects.filter(owner_id=owner, run_id="r1").aexists()
+
+    # Resume from r1 into a fresh run r2 that sends only a new turn.
+    resumed = await _drain(await view(_post(_run_input("double 9", run_id="r2")), resume_from="r1"))
+    assert "RUN_FINISHED" in resumed
+
+    # r2 is a distinct run linked back to r1 (parent preserved, r1 untouched)...
+    r2 = await StoredRun.objects.aget(owner_id=owner, run_id="r2")
+    assert r2.parent_run_id == "r1"
+    r1 = await StoredRun.objects.aget(owner_id=owner, run_id="r1")
+    assert r1.parent_run_id is None
+    # ...and r2's snapshot carries the injected r1 history *and* the new turn.
+    snap = await StoredSnapshot.objects.filter(owner_id=owner, run_id="r2").order_by("-id").afirst()
+    dumped = json.dumps(snap.messages)
+    assert "double 5" in dumped
+    assert "double 9" in dumped
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_resume_of_an_unknown_run_is_404() -> None:
+    from asgiref.sync import sync_to_async
+    from django.contrib.auth import get_user_model
+
+    user = await sync_to_async(get_user_model().objects.create)(username="u")
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        step_store=DefaultStepStore,
+        get_user=lambda _request: user,
+    )
+    response = await view(_post(_run_input("hi", run_id="r2")), resume_from="ghost")
+    assert response.status_code == 404
+    payload = json.loads(response.content)
+    assert payload["error"] == "no resumable run"
+    assert payload["run_id"] == "ghost"
+
+
+async def test_resume_without_a_step_store_is_404() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel())  # no step_store
+    response = await view(_post(_run_input("hi")), resume_from="r1")
+    assert response.status_code == 404
+    assert json.loads(response.content)["error"] == "no resumable run"
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_resume_cannot_reach_another_owners_run() -> None:
+    from asgiref.sync import sync_to_async
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    owner_a = await sync_to_async(User.objects.create)(username="a")
+    owner_b = await sync_to_async(User.objects.create)(username="b")
+
+    # Owner A records run r1.
+    view_a = DjangoAGUIView(
+        _registry(), model=TestModel(), step_store=DefaultStepStore, get_user=lambda _r: owner_a
+    )
+    await _drain(await view_a(_post(_run_input("double 5", run_id="r1"))))
+
+    # Owner B trying to resume A's run id sees a clean 404, not A's history.
+    view_b = DjangoAGUIView(
+        _registry(), model=TestModel(), step_store=DefaultStepStore, get_user=lambda _r: owner_b
+    )
+    response = await view_b(_post(_run_input("double 9", run_id="r2")), resume_from="r1")
+    assert response.status_code == 404
