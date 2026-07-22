@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-07-22
+
+### Added
+
+- **Durable step persistence** — a model-backed, owner-scoped store for
+  `pydantic-ai-harness`'s `StepPersistence` capability. Pass
+  `AGUIServer(step_store=DefaultStepStore)` (the constructor *is* the
+  `request -> StepStore` factory — the harness protocol carries no request, so
+  the store binds one and is built per run) and every run records an append-only
+  event log, a `(run_id, tool_call_id)` tool-effect ledger, and a continuable
+  snapshot at each provider-valid boundary, keyed on the AG-UI `run_id`. Four new
+  models under `django_ag_ui.contrib.store` (`StoredRun` / `StoredStepEvent` /
+  `StoredSnapshot` / `StoredToolEffect`, migration `0003`) back
+  `DefaultStepStore`, which structurally satisfies the harness `StepStore`
+  protocol. Every row filters by the resolved owner, so a `run_id` from one user
+  can't read another's runs; an anonymous request without `ALLOW_ANONYMOUS`
+  degrades to no-op rather than aborting the run. Requires the `[harness]` extra.
+  A custom backend is any `request -> StepStore` callable. See
+  [Durable step persistence](https://artui.github.io/django-ag-ui/step-persistence/).
+- **Resume / fork endpoints** — configuring a `step_store` also mounts owner-scoped
+  `resume/<run_id>/` and `fork/<run_id>/` endpoints. Both seed a new run from a
+  prior run's last continuable snapshot: the server loads it (a `run_id` from
+  another owner is a clean `404`), injects it as the run's `message_history`
+  (`AgentSession` gained the seam; `run_stream_native` composes it ahead of the
+  client's new turn), and records the new run with `parent_run_id` pointing back
+  at the source — so the parent is never mutated. `resume` and `fork` are two
+  names for one mechanism (the harness's `continue_run` / `fork_run` are
+  data-identical). The web-component checkpoint UI rides a downstream release.
+
 ## [0.19.0] — 2026-07-17
 
 Configuration is now **per-endpoint**: collaborators are constructor arguments
@@ -839,7 +868,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/Artui/django-ag-ui/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/Artui/django-ag-ui/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/Artui/django-ag-ui/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/Artui/django-ag-ui/compare/v0.17.0...v0.18.0

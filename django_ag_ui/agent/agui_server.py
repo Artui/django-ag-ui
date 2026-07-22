@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
+from django.http import HttpRequest
 from django.urls import URLPattern, path
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
@@ -66,6 +68,9 @@ class AGUIServer:
     - ``transcribe`` — when the transcription backend is not a
       :class:`~django_ag_ui.persistence.null_transcription_backend.NullTranscriptionBackend`
       (``transcribe/`` for the mic's ``data-transcribe-url``).
+    - ``resume`` / ``fork`` — when a ``step_store`` is configured
+      (``resume/<run_id>/`` + ``fork/<run_id>/``): seed a new run from a prior
+      run's last continuable snapshot.
 
     ``conversation_store`` / ``attachment_store`` / ``transcription_backend``
     default to the ``DJANGO_AG_UI`` settings-resolved backend (the same one the
@@ -93,6 +98,19 @@ class AGUIServer:
     store persists, rather than relying on owner scoping to isolate anonymous
     visitors from one another.
 
+    **Durable step persistence.** ``step_store`` is a *factory* — a
+    ``request -> StepStore`` callable, not a shared store instance, because the
+    ``pydantic-ai-harness`` step-store protocol carries no request, so the store
+    binds one and is built per run. When set, every run attaches a
+    ``StepPersistence`` capability that records an owner-scoped run / event /
+    snapshot / tool-effect ledger through that store. Pass
+    :class:`~django_ag_ui.contrib.store.default_step_store.DefaultStepStore` (its
+    constructor *is* the ``request -> StepStore`` factory) for the reference
+    model-backed store, or any such callable. Requires the
+    ``django-ag-ui[harness]`` extra. Configuring it also mounts the owner-scoped
+    ``resume/<run_id>/`` and ``fork/<run_id>/`` endpoints, which seed a new run
+    with a prior run's last continuable snapshot.
+
     **Namespacing.** :attr:`urls` returns the ``(patterns, app_name, namespace)``
     triple ``path()`` mounts directly (like ``admin.site.urls`` — no
     ``include()``), so endpoint names are namespaced (``namespace``, default
@@ -112,6 +130,7 @@ class AGUIServer:
         authorize: AuthorizePredicate | None = None,
         skills: SkillRegistry | None = None,
         conversation_store: ConversationStore | None = None,
+        step_store: Callable[[HttpRequest], Any] | None = None,
         attachment_store: AttachmentStore | None = None,
         transcription_backend: TranscriptionBackend | None = None,
         toolsets: list[Any] | None = None,
@@ -156,6 +175,10 @@ class AGUIServer:
         )
         self._drf_mcp_server = drf_mcp_server
         self._service_specs = service_specs
+        # A per-request factory, not a shared store (the harness step-store
+        # protocol carries no request). Retained on the object because the
+        # resume/fork endpoints a later release mounts will need it too.
+        self._step_store = step_store
         self._view = DjangoAGUIView(
             registry,
             model=model,
@@ -170,6 +193,7 @@ class AGUIServer:
             provider=provider,
             attachment_store=self._attachment_store,
             conversation_store=self._conversation_store,
+            step_store=self._step_store,
             config=self._config,
             **self._auth,
         )
@@ -183,7 +207,8 @@ class AGUIServer:
         within the namespace: ``reverse("<namespace>:endpoint")``,
         ``"<namespace>:tools"``, ``"<namespace>:skills"``, ``"<namespace>:threads"``,
         ``"<namespace>:thread"``, ``"<namespace>:attachments"``,
-        ``"<namespace>:attachment"``, ``"<namespace>:transcribe"``.
+        ``"<namespace>:attachment"``, ``"<namespace>:transcribe"``,
+        ``"<namespace>:resume"``, ``"<namespace>:fork"``.
         """
         return self._build_patterns(), self._namespace, self._namespace
 
@@ -201,6 +226,18 @@ class AGUIServer:
                 name="tools",
             ),
         ]
+        if self._step_store is not None:
+            # Both verbs share the agent view, which loads the source run's last
+            # snapshot as message_history when Django hands it ``resume_from``.
+            # ``continue_run`` and ``fork_run`` are data-identical in the harness;
+            # the endpoints are two names for one mechanism — seed a new run from a
+            # prior run's checkpoint — so a client can speak the intent it means.
+            patterns.append(
+                path("resume/<str:resume_from>/", self._view, name="resume"),
+            )
+            patterns.append(
+                path("fork/<str:resume_from>/", self._view, name="fork"),
+            )
         if self._skills is not None:
             patterns.append(path("skills/", SkillsView(self._skills, **self._auth), name="skills"))
         if not isinstance(self._conversation_store, NullConversationStore):
