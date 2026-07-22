@@ -456,6 +456,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../step-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Durable step persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../concepts/" class="md-nav__link">
         
   
@@ -4469,6 +4496,9 @@ backend is <em>active</em>:</p>
 <li><code>transcribe</code> — when the transcription backend is not a
   :class:<code>~django_ag_ui.persistence.null_transcription_backend.NullTranscriptionBackend</code>
   (<code>transcribe/</code> for the mic's <code>data-transcribe-url</code>).</li>
+<li><code>resume</code> / <code>fork</code> — when a <code>step_store</code> is configured
+  (<code>resume/&lt;run_id&gt;/</code> + <code>fork/&lt;run_id&gt;/</code>): seed a new run from a prior
+  run's last continuable snapshot.</li>
 </ul>
 <p><code>conversation_store</code> / <code>attachment_store</code> / <code>transcription_backend</code>
 default to the <code>DJANGO_AG_UI</code> settings-resolved backend (the same one the
@@ -4493,6 +4523,18 @@ contrib stores refuse anonymous thread / attachment operations unless
 so pass <code>require_authenticated=True</code> (or a <code>get_user</code> hook) whenever the
 store persists, rather than relying on owner scoping to isolate anonymous
 visitors from one another.</p>
+<p><strong>Durable step persistence.</strong> <code>step_store</code> is a <em>factory</em> — a
+<code>request -&gt; StepStore</code> callable, not a shared store instance, because the
+<code>pydantic-ai-harness</code> step-store protocol carries no request, so the store
+binds one and is built per run. When set, every run attaches a
+<code>StepPersistence</code> capability that records an owner-scoped run / event /
+snapshot / tool-effect ledger through that store. Pass
+:class:<code>~django_ag_ui.contrib.store.default_step_store.DefaultStepStore</code> (its
+constructor <em>is</em> the <code>request -&gt; StepStore</code> factory) for the reference
+model-backed store, or any such callable. Requires the
+<code>django-ag-ui[harness]</code> extra. Configuring it also mounts the owner-scoped
+<code>resume/&lt;run_id&gt;/</code> and <code>fork/&lt;run_id&gt;/</code> endpoints, which seed a new run
+with a prior run's last continuable snapshot.</p>
 <p><strong>Namespacing.</strong> :attr:<code>urls</code> returns the <code>(patterns, app_name, namespace)</code>
 triple <code>path()</code> mounts directly (like <code>admin.site.urls</code> — no
 <code>include()</code>), so endpoint names are namespaced (<code>namespace</code>, default
@@ -4540,7 +4582,8 @@ triple <code>path()</code> mounts directly (like <code>admin.site.urls</code> �
 within the namespace: <code>reverse("&lt;namespace&gt;:endpoint")</code>,
 <code>"&lt;namespace&gt;:tools"</code>, <code>"&lt;namespace&gt;:skills"</code>, <code>"&lt;namespace&gt;:threads"</code>,
 <code>"&lt;namespace&gt;:thread"</code>, <code>"&lt;namespace&gt;:attachments"</code>,
-<code>"&lt;namespace&gt;:attachment"</code>, <code>"&lt;namespace&gt;:transcribe"</code>.</p>
+<code>"&lt;namespace&gt;:attachment"</code>, <code>"&lt;namespace&gt;:transcribe"</code>,
+<code>"&lt;namespace&gt;:resume"</code>, <code>"&lt;namespace&gt;:fork"</code>.</p>
 
     </div>
 

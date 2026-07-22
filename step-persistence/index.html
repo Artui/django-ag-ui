@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/django-ag-ui/code-mode/">
+        <link rel="canonical" href="https://artui.github.io/django-ag-ui/step-persistence/">
       
       
-        <link rel="prev" href="../tool-approval/">
+        <link rel="prev" href="../subagents/">
       
       
-        <link rel="next" href="../subagents/">
+        <link rel="next" href="../concepts/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Batching tool calls (CodeMode) - django-ag-ui</title>
+        <title>Durable step persistence - django-ag-ui</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#batching-tool-calls-with-codemode" class="md-skip">
+        <a href="#durable-step-persistence" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Batching tool calls (CodeMode)
+              Durable step persistence
             
           </span>
         </div>
@@ -401,6 +401,60 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../code-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Batching tool calls (CodeMode)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../subagents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Delegating to sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -420,7 +474,7 @@
   <span class="md-ellipsis">
     
   
-    Batching tool calls (CodeMode)
+    Durable step persistence
   
 
     
@@ -438,7 +492,7 @@
   <span class="md-ellipsis">
     
   
-    Batching tool calls (CodeMode)
+    Durable step persistence
   
 
     
@@ -483,30 +537,46 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Wire it in">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#wrapping-only-some-tools" class="md-nav__link">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#owner-scoping-and-anonymous-runs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Wrapping only some tools
+        Owner scoping and anonymous runs
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#classifying-a-crash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Classifying a crash
+      
+    </span>
+  </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#typed-stubs-keep-drf-mcps-output-schema-on" class="md-nav__link">
+  <a href="#bring-your-own-store" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Typed stubs — keep drf-mcp's output schema on
+        Bring your own store
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resume-and-fork" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resume and fork
       
     </span>
   </a>
@@ -517,60 +587,6 @@
   
 </nav>
       
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../subagents/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Delegating to sub-agents
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../step-persistence/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Durable step persistence
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -675,30 +691,46 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Wire it in">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#wrapping-only-some-tools" class="md-nav__link">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#owner-scoping-and-anonymous-runs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Wrapping only some tools
+        Owner scoping and anonymous runs
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#classifying-a-crash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Classifying a crash
+      
+    </span>
+  </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#typed-stubs-keep-drf-mcps-output-schema-on" class="md-nav__link">
+  <a href="#bring-your-own-store" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Typed stubs — keep drf-mcp's output schema on
+        Bring your own store
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resume-and-fork" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resume and fork
       
     </span>
   </a>
@@ -722,7 +754,7 @@
 
 
   
-    <a href="https://github.com/Artui/django-ag-ui/edit/main/docs/code-mode.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/django-ag-ui/edit/main/docs/step-persistence.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -730,70 +762,124 @@
   
 
 
-<h1 id="batching-tool-calls-with-codemode">Batching tool calls with CodeMode<a class="headerlink" href="#batching-tool-calls-with-codemode" title="Permanent link">&para;</a></h1>
-<p>When the agent has many tools — especially a large drf-mcp bridge — each call is
-its own model round-trip, and every tool's schema bloats the prompt.
-<a href="https://github.com/pydantic/pydantic-ai-harness"><code>pydantic-ai-harness</code></a>'s
-<strong><code>CodeMode</code></strong> capability collapses them into a single sandboxed <code>run_code</code> tool:
-the model writes Python that calls the tools as functions (with loops,
-<code>asyncio.gather</code>, intermediate variables) and gets the result in <strong>one</strong>
-round-trip.</p>
-<p>This is a composition of two things django-ag-ui already gives you — the
-in-process <a href="../configuration/#drf_mcp_server">drf-mcp bridge</a> and the
-<a href="../configuration/#capabilities"><code>CAPABILITIES</code></a> seam — plus the optional
-<code>[harness]</code> extra.</p>
+<h1 id="durable-step-persistence">Durable step persistence<a class="headerlink" href="#durable-step-persistence" title="Permanent link">&para;</a></h1>
+<p>A normal run persists its <strong>message history</strong> when it finishes (see the
+<a href="../configuration/#conversation_store">conversation store</a>). That says nothing
+about a run that died <em>mid-tool</em>: did the side effect land? And it offers no
+safe point to resume or fork from.</p>
+<p><a href="https://github.com/pydantic/pydantic-ai-harness"><code>pydantic-ai-harness</code></a>'s
+<strong><code>StepPersistence</code></strong> capability records the finer grain — an append-only event
+log, a <strong>tool-effect ledger</strong> keyed on <code>(run_id, tool_call_id)</code>, and a
+<strong>continuable snapshot</strong> at every provider-valid boundary. django-ag-ui backs it
+with a durable, <strong>owner-scoped</strong> Django store so a run's lineage survives a
+process restart and one user can never read another's runs.</p>
 <h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[harness]&quot;</span>
 </span></code></pre></div>
-<p>The <code>[harness]</code> extra pulls <code>pydantic-ai-harness</code> and its sandbox
-(<code>pydantic-monty</code>). The core install stays <code>django</code> + <code>pydantic-ai-slim</code> — the
-harness is lazy, only imported by the capability you wire in.</p>
+<p>The <code>[harness]</code> extra pulls <code>pydantic-ai-harness</code>. The core install stays
+<code>django</code> + <code>pydantic-ai-slim</code> — the harness is lazy, only imported when a
+<code>step_store</code> is configured.</p>
+<p>Add the reference store app and migrate its tables (the same app the reference
+conversation store uses):</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># settings.py</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="c1"># ...</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="s2">&quot;django_ag_ui.contrib.store&quot;</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">]</span>
+</span></code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>migrate
+</span></code></pre></div>
 <h2 id="wire-it-in">Wire it in<a class="headerlink" href="#wire-it-in" title="Permanent link">&para;</a></h2>
-<p><code>CAPABILITIES</code> takes dotted paths to zero-argument callables that return a
-capability. Add one that returns a <code>CodeMode</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># myproject/agent.py</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness</span><span class="w"> </span><span class="kn">import</span> <span class="n">CodeMode</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">code_mode</span><span class="p">():</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="k">return</span> <span class="n">CodeMode</span><span class="p">()</span>  <span class="c1"># wraps every tool the agent has into `run_code`</span>
-</span></code></pre></div>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># settings.py</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">}</span>
-</span></code></pre></div>
+<p><code>step_store</code> is a <strong>factory</strong> — a <code>request -&gt; StepStore</code> callable, <em>not</em> a shared
+store instance. The harness step-store protocol's methods carry no request, so
+the store binds one and is built fresh per run. <code>DefaultStepStore</code>'s constructor
+<em>is</em> that factory, so pass the class itself:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># urls.py</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">code_mode</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">server</span> <span class="k">as</span> <span class="n">mcp_server</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">drf_mcp_server</span><span class="o">=</span><span class="n">mcp_server</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">code_mode</span><span class="p">])</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.urls</span><span class="w"> </span><span class="kn">import</span> <span class="n">path</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGUIServer</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui.contrib.store.default_step_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultStepStore</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">registry</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">step_store</span><span class="o">=</span><span class="n">DefaultStepStore</span><span class="p">,</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">require_authenticated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># the ledger needs an owner — see below</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="p">)</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span><span class="p">(</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">agent</span><span class="o">.</span><span class="n">urls</span><span class="p">)]</span>
 </span></code></pre></div>
-<p>Now the agent exposes one <code>run_code</code> tool instead of the individual DRF tools;
-the model batches its DRF work into a single sandboxed script.</p>
-<h3 id="wrapping-only-some-tools">Wrapping only some tools<a class="headerlink" href="#wrapping-only-some-tools" title="Permanent link">&para;</a></h3>
-<p>Pass a name list or a predicate to <code>tools=</code> to split the toolset — matching
-tools go behind <code>run_code</code>, the rest stay as direct tool calls. This is useful
-to keep, say, a destructive tool a <a href="../tool-approval/"><code>ToolGuard</code></a> gates as a
-<em>direct</em> call (so its approval interrupt still fires) while batching the
-read-only ones:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">code_mode</span><span class="p">():</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="c1"># Batch everything except the approval-gated delete.</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="k">return</span> <span class="n">CodeMode</span><span class="p">(</span><span class="n">tools</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">td</span><span class="p">:</span> <span class="n">td</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;projects.delete&quot;</span><span class="p">)</span>
+<p>Every run now attaches a <code>StepPersistence</code> capability keyed on the AG-UI
+<code>run_id</code>, recording a run / event / snapshot / tool-effect ledger through the
+store. This is a dedicated argument rather than one of the
+<a href="../configuration/#capabilities"><code>capabilities</code></a> — unlike <code>CodeMode</code>, step
+persistence needs the request (to scope the owner) and the run id, so it can't
+ride a zero-argument capability callable.</p>
+<h2 id="owner-scoping-and-anonymous-runs">Owner scoping and anonymous runs<a class="headerlink" href="#owner-scoping-and-anonymous-runs" title="Permanent link">&para;</a></h2>
+<p>Every row is filtered by the resolved <strong>owner</strong> — the authenticated user's pk, or
+an <code>anon:&lt;session_key&gt;</code> bucket under
+<a href="../configuration/#allow_anonymous"><code>ALLOW_ANONYMOUS</code></a>. The harness records carry
+no owner; this store adds it, so <code>latest_snapshot(run_id=…)</code> for one user never
+returns another user's snapshot even if the <code>run_id</code> is guessed — the <code>run_id</code>
+is not a secret, the owner is the boundary.</p>
+<p>An anonymous request with <code>ALLOW_ANONYMOUS</code> off has no durable identity, so the
+store <strong>degrades instead of crashing</strong>: writes no-op and reads return empty (the
+run still streams, it just isn't recorded — the capability's hooks fire mid-run,
+so a hard refusal would abort it). Pair the store with <code>require_authenticated=True</code>
+(or a <code>get_user</code> hook, or <code>ALLOW_ANONYMOUS</code>) whenever you want it to persist.</p>
+<h2 id="classifying-a-crash">Classifying a crash<a class="headerlink" href="#classifying-a-crash" title="Permanent link">&para;</a></h2>
+<p>The capability records each tool call's status automatically — <code>started</code> before
+it runs, then <code>completed</code> or <code>failed</code> — so no tool changes are needed to answer
+"did it finish?". A call still <code>started</code> (no terminal record) after a restart is
+the <code>unknown_after_crash</code> signal: its external side effect may or may not have
+landed. The harness helper <code>list_unresolved_tool_effects(run_id=…)</code> surfaces
+exactly those rows.</p>
+<p>To make replay decisions sharper, a tool that writes external state can enrich
+its ledger row with an <code>idempotency_key</code> / <code>effect_summary</code> via the harness
+<code>annotate_tool_effect(store, ctx, …)</code> helper (given a handle to the store), so an
+orchestrator inspecting the unresolved rows can tell whether re-running is safe.</p>
+<h2 id="bring-your-own-store">Bring your own store<a class="headerlink" href="#bring-your-own-store" title="Permanent link">&para;</a></h2>
+<p><code>DefaultStepStore</code> is the batteries-included Django backend. Any
+<code>request -&gt; StepStore</code> callable works — implement the harness <code>StepStore</code>
+protocol (ten async methods) over whatever backend you like and pass a factory:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">step_store</span><span class="o">=</span><span class="k">lambda</span> <span class="n">request</span><span class="p">:</span> <span class="n">MyStepStore</span><span class="p">(</span><span class="n">request</span><span class="p">))</span>
 </span></code></pre></div>
-<h2 id="typed-stubs-keep-drf-mcps-output-schema-on">Typed stubs — keep drf-mcp's output schema on<a class="headerlink" href="#typed-stubs-keep-drf-mcps-output-schema-on" title="Permanent link">&para;</a></h2>
-<p>CodeMode renders each wrapped tool as a <strong>typed</strong> Python stub so the model knows
-what each call returns. A tool with <strong>no return schema</strong> renders <code>-&gt; Any</code> and
-CodeMode emits a warning — the model loses that type information.</p>
-<p>django-ag-ui's drf-mcp bridge carries drf-mcp's <code>outputSchema</code> onto the tool's
-<code>return_schema</code>, so bridged tools render typed <strong>as long as drf-mcp advertises
-the output schema</strong> — which it does by default
-(<code>REST_FRAMEWORK_MCP["INCLUDE_OUTPUT_SCHEMA"] = True</code>). Keep it on (and give your
-services an output serializer) for the best CodeMode experience; a service with
-no output serializer advertises no schema and its stub falls back to <code>-&gt; Any</code>.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p><code>CodeMode</code> is one of several <code>pydantic-ai-harness</code> capabilities that drop
-into the same <code>CAPABILITIES</code> seam (compaction, step-persistence, subagents,
-…). They all ride the <code>[harness]</code> extra.</p>
+<h2 id="resume-and-fork">Resume and fork<a class="headerlink" href="#resume-and-fork" title="Permanent link">&para;</a></h2>
+<p>Configuring a <code>step_store</code> also mounts two owner-scoped endpoints:</p>
+<ul>
+<li><code>POST resume/&lt;run_id&gt;/</code></li>
+<li><code>POST fork/&lt;run_id&gt;/</code></li>
+</ul>
+<p>Both <strong>seed a new run from a prior run's last continuable snapshot</strong>. The server
+loads that run's snapshot — owner-scoped, so a <code>run_id</code> belonging to another user
+is a clean <code>404</code>, never a leak — injects it as the new run's message history, and
+streams the continuation. The client posts a normal <code>RunAgentInput</code> carrying
+<strong>only the new turn</strong> and a <strong>fresh <code>run_id</code></strong>; the prior turns come from the
+snapshot:</p>
+<div class="language-js highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">// Continue run &quot;abc&quot; with a new message, as a new run &quot;def&quot;.</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">await</span><span class="w"> </span><span class="nx">fetch</span><span class="p">(</span><span class="s2">&quot;/agent/resume/abc/&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;POST&quot;</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;Content-Type&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;application/json&quot;</span><span class="w"> </span><span class="p">},</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nx">body</span><span class="o">:</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="nx">threadId</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;t1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">runId</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;def&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">state</span><span class="o">:</span><span class="w"> </span><span class="p">{},</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nx">messages</span><span class="o">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;u9&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">role</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;user&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">content</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;and now sort them&quot;</span><span class="w"> </span><span class="p">}],</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="nx">tools</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"> </span><span class="nx">context</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"> </span><span class="nx">forwardedProps</span><span class="o">:</span><span class="w"> </span><span class="p">{},</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="p">}),</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="p">});</span>
+</span></code></pre></div>
+<p>The new run records its own events and snapshots under its <code>run_id</code>, with
+<code>parent_run_id</code> set to the source — so the parent's ledger is <strong>never mutated</strong> (a
+fork branches; a resume continues). <code>resume</code> and <code>fork</code> are two names for the one
+mechanism — the harness's <code>continue_run</code> and <code>fork_run</code> are data-identical — so
+pick the verb that matches your intent, and target a new <code>threadId</code> when you want
+the branch to live in its own conversation.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Send a <strong>fresh <code>run_id</code></strong> in the resumed request: reusing the source run's id
+collides with the tool-effect ledger's <code>(run_id, tool_call_id)</code> key. And send
+only the <strong>new</strong> turn — the server supplies the prior history from the
+snapshot, so re-sending it duplicates it.</p>
 </div>
 
 
