@@ -52,12 +52,6 @@ dependencies = [
     "ag-ui-protocol>=0.1.19,<0.2",
 ]
 
-# TEMPORARY: resolve the substrate from the sibling checkout until it is
-# published to PyPI. Remove before releasing (uv-only metadata; wheels are
-# unaffected, but CI cannot resolve a local path).
-[tool.uv.sources]
-django-pydantic-agent = { path = "../django-pydantic-agent", editable = true }
-
 [project.optional-dependencies]
 # Model-provider extras (slim ships none). Install one to use a "provider:model"
 # MODEL string, e.g. `pip install django-ag-ui[anthropic]`.
