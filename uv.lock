@@ -546,6 +546,7 @@ source = { editable = "." }
 dependencies = [
     { name = "ag-ui-protocol" },
     { name = "django" },
+    { name = "django-pydantic-agent" },
     { name = "pydantic-ai-slim", extra = ["ag-ui"] },
 ]
 
@@ -596,6 +597,7 @@ docs = [
 requires-dist = [
     { name = "ag-ui-protocol", specifier = ">=0.1.19,<0.2" },
     { name = "django", specifier = ">=4.2" },
+    { name = "django-pydantic-agent", specifier = ">=0.1,<0.2" },
     { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.12,<0.13" },
     { name = "djangorestframework-pydantic-ai", marker = "extra == 'spec-tools'", specifier = ">=0.5,<0.6" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.7,<0.8" },
@@ -627,6 +629,19 @@ docs = [
     { name = "mkdocs", specifier = ">=1.6" },
     { name = "mkdocs-material", specifier = ">=9.5" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.25" },
+]
+
+[[package]]
+name = "django-pydantic-agent"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+    { name = "pydantic-ai-slim" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/90/b0/1a05596ec2435219261e1f7a48ca8467ff5a77f186d4c967c5fc4f38321a/django_pydantic_agent-0.1.0.tar.gz", hash = "sha256:8551ed881bd41cc430cb743db522e922ae75e9a601f854ed3c1dceb7880e25a5", size = 214639, upload-time = "2026-07-23T09:56:15.953Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c0/d0/2acea2ca52c54693ce612ebbdf089bbadb63a013eec1d1fed4566d952014/django_pydantic_agent-0.1.0-py3-none-any.whl", hash = "sha256:242d16b70581ac67b42595e3bc44494fa6e763a6b868a937283352023e068704", size = 66593, upload-time = "2026-07-23T09:56:14.496Z" },
 ]
 
 [[package]]

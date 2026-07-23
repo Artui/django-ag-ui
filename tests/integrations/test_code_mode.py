@@ -19,13 +19,13 @@ import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.http import HttpRequest
 from django.test import RequestFactory
+from django_pydantic_agent.agent.agent_factory import build_agent
+from django_pydantic_agent.agent.types.agent_config import AgentConfig
+from django_pydantic_agent.integrations.drf_mcp import DRFMCPToolset
+from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from django_ag_ui.agent.agent_factory import build_agent
-from django_ag_ui.agent.types.agent_config import AgentConfig
-from django_ag_ui.integrations.drf_mcp import DRFMCPToolset
-from django_ag_ui.registry.tool_registry import ToolRegistry
 from tests.integrations.drf_server import server as untyped_server
 from tests.integrations.drf_server_typed import server as typed_server
 

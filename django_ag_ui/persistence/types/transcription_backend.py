@@ -18,7 +18,7 @@ class TranscriptionBackend(Protocol):
 
     The single method is async and receives the acting ``request`` so a backend
     can scope by user / rate-limit / bill per principal. Unlike
-    :class:`~django_ag_ui.persistence.types.attachment_store.AttachmentStore`,
+    :class:`~django_pydantic_agent.persistence.types.attachment_store.AttachmentStore`,
     transcription keeps no durable artifact: the recorded audio is transcribed
     and the text returned in one shot (the composer drops it into the textarea),
     so there is nothing to ``open`` or ``delete``. ``transcribe`` validates

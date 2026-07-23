@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
+
 from django_ag_ui.conf import get_setting
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
-from django_ag_ui.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 
 def build_ag_ui_config(

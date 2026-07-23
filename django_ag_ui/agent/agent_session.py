@@ -9,6 +9,13 @@ from typing import Any, cast
 
 from ag_ui.core import Message
 from django.http import HttpRequest
+from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
+from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
+from django_pydantic_agent.persistence.types.conversation import Conversation
+from django_pydantic_agent.persistence.types.conversation_store import ConversationStore
+from django_pydantic_agent.persistence.utils import owner_id_for
+from django_pydantic_agent.policy.audit.types.audit_event import AuditEvent
+from django_pydantic_agent.policy.audit.types.audit_logger import AuditLogger
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.ui.ag_ui import AGUIAdapter
@@ -17,13 +24,7 @@ from django_ag_ui.agent.guarded_stream import guarded_stream
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
-from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
-from django_ag_ui.persistence.null_conversation_store import NullConversationStore
-from django_ag_ui.persistence.types.conversation import Conversation
-from django_ag_ui.persistence.types.conversation_store import ConversationStore
-from django_ag_ui.persistence.utils import owner_id_for
-from django_ag_ui.policy.audit.types.audit_event import AuditEvent
-from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
+from django_ag_ui.persistence.utils import messages_to_jsonable
 
 
 class AgentSession:
@@ -131,8 +132,10 @@ class AgentSession:
 
         async def _save(messages: list[Message]) -> None:
             conversation = Conversation(
+                # The store keeps transport-owned records, so the AG-UI wire
+                # shape is serialised here rather than inside the substrate.
                 thread_id=thread_id,
-                messages=messages,
+                messages=messages_to_jsonable(messages),
                 owner_id=owner_id,
             )
             try:

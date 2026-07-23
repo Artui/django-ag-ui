@@ -4,6 +4,10 @@ import json
 from typing import Any
 
 from django.test import RequestFactory, override_settings
+from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
+from django_pydantic_agent.persistence.types.conversation_store import ConversationStore
+from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
+from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 from pydantic_ai import Agent
 from pydantic_ai.models.function import DeltaThinkingPart, FunctionModel
 from pydantic_ai.models.test import TestModel
@@ -12,10 +16,6 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
-from django_ag_ui.persistence.null_conversation_store import NullConversationStore
-from django_ag_ui.persistence.types.conversation_store import ConversationStore
-from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
-from django_ag_ui.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 
 def _run_input(messages: list[dict[str, str]] | None = None) -> Any:
@@ -169,13 +169,12 @@ def _approval_agent(calls: list[str]) -> Agent[None, Any]:
     ``output_type`` wiring, not a hand-assembled agent. The streamed model calls
     the tool on the first turn and answers with text once the tool has returned.
     """
+    from django_pydantic_agent.agent.agent_factory import build_agent
+    from django_pydantic_agent.agent.types.agent_config import AgentConfig
+    from django_pydantic_agent.registry.tool_registry import ToolRegistry
     from pydantic_ai import Tool
     from pydantic_ai.models.function import DeltaToolCall
     from pydantic_ai.toolsets import FunctionToolset
-
-    from django_ag_ui.agent.agent_factory import build_agent
-    from django_ag_ui.agent.types.agent_config import AgentConfig
-    from django_ag_ui.registry.tool_registry import ToolRegistry
 
     def delete_thing(target: str) -> str:
         """Delete a thing (destructive; gated for approval)."""
@@ -286,12 +285,11 @@ def _guarded_agent(calls: list[str], *, tool_guard: ToolGuardConfig | None) -> A
     here the tool is a plain ``@tool(destructive=True)`` and the ToolGuard is what
     turns that into an approval requirement — exactly the piece-B policy path.
     """
+    from django_pydantic_agent.agent.agent_factory import build_agent
+    from django_pydantic_agent.agent.types.agent_config import AgentConfig
+    from django_pydantic_agent.registry.decorator import tool
+    from django_pydantic_agent.registry.tool_registry import ToolRegistry
     from pydantic_ai.models.function import DeltaToolCall
-
-    from django_ag_ui.agent.agent_factory import build_agent
-    from django_ag_ui.agent.types.agent_config import AgentConfig
-    from django_ag_ui.registry.decorator import tool
-    from django_ag_ui.registry.tool_registry import ToolRegistry
 
     registry = ToolRegistry()
 

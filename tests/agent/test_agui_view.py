@@ -10,12 +10,12 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured
 from django.http import StreamingHttpResponse
 from django.test import RequestFactory, override_settings
+from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+from django_pydantic_agent.registry.decorator import tool
+from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
-from django_ag_ui.contrib.store.default_step_store import DefaultStepStore
-from django_ag_ui.registry.decorator import tool
-from django_ag_ui.registry.tool_registry import ToolRegistry
 
 
 def _run_input(content: str, run_id: str = "r1") -> bytes:
@@ -225,21 +225,21 @@ async def test_explicit_instructions_win() -> None:
 
 async def test_audit_logger_defaults_to_the_null_logger() -> None:
     """No dotted path to resolve: the logger is passed, or there is none."""
-    from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
+    from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
 
     view = DjangoAGUIView(_registry(), model=TestModel())
     assert isinstance(view._resolve_audit_logger(), NullAuditLogger)
 
 
 async def test_audit_logger_is_passed_not_named() -> None:
-    from django_ag_ui.policy.audit.logging_audit_logger import LoggingAuditLogger
+    from django_pydantic_agent.policy.audit.logging_audit_logger import LoggingAuditLogger
 
     view = DjangoAGUIView(_registry(), model=TestModel(), audit_logger=LoggingAuditLogger())
     assert isinstance(view._resolve_audit_logger(), LoggingAuditLogger)
 
 
 async def test_explicit_audit_logger_wins() -> None:
-    from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
+    from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
 
     sentinel = NullAuditLogger()
     view = DjangoAGUIView(_registry(), model=TestModel(), audit_logger=sentinel)
@@ -276,8 +276,7 @@ async def test_build_agent_applies_configured_toolsets_capabilities_and_settings
 
 async def test_conversation_is_persisted_when_a_store_is_configured() -> None:
     from django.contrib.sessions.backends.signed_cookies import SessionStore
-
-    from django_ag_ui.persistence.django_session_conversation_store import (
+    from django_pydantic_agent.persistence.django_session_conversation_store import (
         DjangoSessionConversationStore,
     )
 
@@ -301,10 +300,10 @@ async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
     # An open agent endpoint + a model store that refuses anonymous writes (the
     # default, no ALLOW_ANONYMOUS): the run streams to completion and the save is
     # skipped rather than crashing the stream — no row is written.
-    from django_ag_ui.contrib.store.default_conversation_store import (
+    from django_pydantic_agent.contrib.store.default_conversation_store import (
         DefaultConversationStore,
     )
-    from django_ag_ui.contrib.store.models import StoredConversation
+    from django_pydantic_agent.contrib.store.models import StoredConversation
 
     view = DjangoAGUIView(
         _registry(), model=TestModel(), conversation_store=DefaultConversationStore()
@@ -316,7 +315,7 @@ async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
 
 
 async def test_drf_mcp_toolset_built_per_request_when_configured() -> None:
-    from django_ag_ui.integrations.drf_mcp import DRFMCPToolset
+    from django_pydantic_agent.integrations.drf_mcp import DRFMCPToolset
 
     view = DjangoAGUIView(_registry(), model=TestModel())
     request = RequestFactory().post("/agent/")
@@ -333,7 +332,7 @@ async def test_no_drf_mcp_toolset_without_the_setting() -> None:
 
 
 _DEFAULT_ATTACHMENT_STORE = (
-    "django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore"
+    "django_pydantic_agent.contrib.store.default_attachment_store.DefaultAttachmentStore"
 )
 
 
@@ -343,7 +342,7 @@ async def test_attachment_toolset_built_per_request_when_configured() -> None:
         _DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/"), set()
     )
     assert len(toolsets) == 1
-    assert toolsets[0].id == "django-ag-ui-attachments"
+    assert toolsets[0].id == "django-pydantic-agent-attachments"
 
 
 async def test_no_attachment_toolset_without_the_setting() -> None:
@@ -512,8 +511,7 @@ async def _cancel_mid_stream(response: StreamingHttpResponse, marker: str) -> No
 
 async def test_disconnect_persists_partial_audits_and_closes_the_model_stream() -> None:
     from django.contrib.sessions.backends.signed_cookies import SessionStore
-
-    from django_ag_ui.persistence.django_session_conversation_store import (
+    from django_pydantic_agent.persistence.django_session_conversation_store import (
         DjangoSessionConversationStore,
     )
 
@@ -538,7 +536,7 @@ async def test_disconnect_persists_partial_audits_and_closes_the_model_stream() 
     # partially streamed assistant text — landed in the configured store.
     loaded = await DjangoSessionConversationStore().load("t1", request=request)
     assert loaded is not None
-    contents = [message.content for message in loaded.messages]
+    contents = [message["content"] for message in loaded.messages]
     assert "hi" in contents
     assert "partial answer" in contents
 
@@ -613,8 +611,7 @@ def test_no_step_persistence_capability_without_a_store() -> None:
 async def test_step_store_records_the_run_end_to_end() -> None:
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
-
-    from django_ag_ui.contrib.store.models import (
+    from django_pydantic_agent.contrib.store.models import (
         StoredRun,
         StoredStepEvent,
         StoredToolEffect,
@@ -645,8 +642,7 @@ async def test_step_store_records_the_run_end_to_end() -> None:
 async def test_resume_seeds_a_new_run_from_a_prior_snapshot() -> None:
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
-
-    from django_ag_ui.contrib.store.models import StoredRun, StoredSnapshot
+    from django_pydantic_agent.contrib.store.models import StoredRun, StoredSnapshot
 
     user = await sync_to_async(get_user_model().objects.create)(username="resumer")
     view = DjangoAGUIView(

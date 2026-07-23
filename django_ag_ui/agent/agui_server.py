@@ -5,27 +5,27 @@ from typing import Any
 
 from django.http import HttpRequest
 from django.urls import URLPattern, path
+from django_pydantic_agent.agent.types.agent_factory_fn import AgentFactoryFn
+from django_pydantic_agent.persistence.null_attachment_store import NullAttachmentStore
+from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
+from django_pydantic_agent.persistence.types.attachment_store import AttachmentStore
+from django_pydantic_agent.persistence.types.conversation_store import ConversationStore
+from django_pydantic_agent.policy.audit.types.audit_logger import AuditLogger
+from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_pydantic_agent.utils import AuthorizePredicate, GetUser
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.tools_view import ToolsView
-from django_ag_ui.agent.types.agent_factory_fn import AgentFactoryFn
 from django_ag_ui.check_removed_settings import check_removed_settings
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.attachments_view import AttachmentsView
-from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
-from django_ag_ui.persistence.null_conversation_store import NullConversationStore
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.persistence.transcribe_view import TranscribeView
-from django_ag_ui.persistence.types.attachment_store import AttachmentStore
-from django_ag_ui.persistence.types.conversation_store import ConversationStore
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
-from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
-from django_ag_ui.registry.tool_registry import ToolRegistry
 from django_ag_ui.skills.skill_registry import SkillRegistry
 from django_ag_ui.skills.skills_view import SkillsView
-from django_ag_ui.utils import AuthorizePredicate, GetUser
 
 DEFAULT_NAMESPACE = "ag_ui"
 
@@ -60,10 +60,10 @@ class AGUIServer:
     - ``skills`` — when a :class:`~django_ag_ui.skills.skill_registry.SkillRegistry`
       is passed (``skills/``, GET JSON for ``data-skills-url``).
     - ``threads`` / ``thread`` — when the conversation store is not a
-      :class:`~django_ag_ui.persistence.null_conversation_store.NullConversationStore`
+      :class:`~django_pydantic_agent.persistence.null_conversation_store.NullConversationStore`
       (``threads/`` + ``threads/<id>/`` for the history drawer's ``data-threads-url``).
     - ``attachments`` / ``attachment`` — when the attachment store is not a
-      :class:`~django_ag_ui.persistence.null_attachment_store.NullAttachmentStore`
+      :class:`~django_pydantic_agent.persistence.null_attachment_store.NullAttachmentStore`
       (``attachments/`` + ``attachments/<id>/`` for the composer's ``data-attachments-url``).
     - ``transcribe`` — when the transcription backend is not a
       :class:`~django_ag_ui.persistence.null_transcription_backend.NullTranscriptionBackend`
@@ -104,7 +104,7 @@ class AGUIServer:
     binds one and is built per run. When set, every run attaches a
     ``StepPersistence`` capability that records an owner-scoped run / event /
     snapshot / tool-effect ledger through that store. Pass
-    :class:`~django_ag_ui.contrib.store.default_step_store.DefaultStepStore` (its
+    :class:`~django_pydantic_agent.contrib.store.default_step_store.DefaultStepStore` (its
     constructor *is* the ``request -> StepStore`` factory) for the reference
     model-backed store, or any such callable. Requires the
     ``django-ag-ui[harness]`` extra. Configuring it also mounts the owner-scoped

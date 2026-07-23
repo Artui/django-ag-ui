@@ -97,9 +97,9 @@ to `INSTALLED_APPS`, run `migrate`, then set
 `django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore`.
 Projects that don't opt in get no model and no migration.
 
-::: django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore
+::: django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore
 
-::: django_ag_ui.contrib.store.models.StoredConversation
+::: django_pydantic_agent.contrib.store.models.StoredConversation
 
 ## File uploads
 
@@ -125,9 +125,9 @@ store. With the app installed and migrated, set
 bytes go to Django `Storage` (S3/GCS via `STORAGES` / `DEFAULT_FILE_STORAGE`);
 projects that don't opt in get no model and no migration.
 
-::: django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore
+::: django_pydantic_agent.contrib.store.default_attachment_store.DefaultAttachmentStore
 
-::: django_ag_ui.contrib.store.models.StoredAttachment
+::: django_pydantic_agent.contrib.store.models.StoredAttachment
 
 ## Voice input
 
@@ -154,11 +154,11 @@ These are not part of the public re-export surface but are referenced from the
 guides.
 
 
-::: django_ag_ui.agent.build_model.build_model
+::: django_pydantic_agent.agent.build_model.build_model
 
-::: django_ag_ui.agent.build_tool_catalog.build_tool_catalog
+::: django_pydantic_agent.agent.build_tool_catalog.build_tool_catalog
 
-::: django_ag_ui.integrations.drf_mcp.DRFMCPToolset
+::: django_pydantic_agent.integrations.drf_mcp.DRFMCPToolset
 
-::: django_ag_ui.agent.attachment_toolset.build_attachment_toolset
+::: django_pydantic_agent.agent.attachment_toolset.build_attachment_toolset
 </content>

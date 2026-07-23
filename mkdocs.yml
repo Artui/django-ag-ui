@@ -43,6 +43,11 @@ plugins:
       handlers:
         python:
           options:
+            # The agent-host substrate. Its symbols are re-exported from
+            # ``django_ag_ui`` (permanently), so griffe has to load it to
+            # resolve those aliases — otherwise the API reference dies on
+            # ``Could not resolve alias django_ag_ui.ToolRegistry``.
+            preload_modules: [django_pydantic_agent]
             docstring_style: google
             show_root_heading: true
             show_root_full_path: false

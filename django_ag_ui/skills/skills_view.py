@@ -5,9 +5,9 @@ from typing import Any
 
 from django.http import HttpRequest, HttpResponseNotAllowed, JsonResponse
 from django.http.response import HttpResponseBase
+from django_pydantic_agent.utils import AuthorizePredicate, auth_error_response, authorize
 
 from django_ag_ui.skills.skill_registry import SkillRegistry
-from django_ag_ui.utils import AuthorizePredicate, auth_error_response, authorize
 
 
 class SkillsView:

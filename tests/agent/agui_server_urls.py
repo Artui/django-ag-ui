@@ -8,13 +8,13 @@ exercise the real ``path("agent/", server.urls)`` mount + namespaced
 from __future__ import annotations
 
 from django.urls import path
+from django_pydantic_agent.persistence.django_session_conversation_store import (
+    DjangoSessionConversationStore,
+)
+from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_server import AGUIServer
-from django_ag_ui.persistence.django_session_conversation_store import (
-    DjangoSessionConversationStore,
-)
-from django_ag_ui.registry.tool_registry import ToolRegistry
 from django_ag_ui.skills.skill_registry import SkillRegistry
 
 _server = AGUIServer(

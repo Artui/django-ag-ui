@@ -37,6 +37,10 @@ classifiers = [
 ]
 dependencies = [
     "django>=4.2",
+    # The settings-agnostic agent-host substrate this transport builds on:
+    # agent construction, the tool registry, toolset/capability composition,
+    # audit, user resolution, and the storage contracts.
+    "django-pydantic-agent>=0.1,<0.2",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).

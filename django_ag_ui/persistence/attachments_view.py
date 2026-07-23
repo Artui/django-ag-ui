@@ -12,23 +12,23 @@ from django.http import (
     JsonResponse,
 )
 from django.http.response import HttpResponseBase
+from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
+from django_pydantic_agent.persistence.null_attachment_store import NullAttachmentStore
+from django_pydantic_agent.persistence.types.attachment_ref import AttachmentRef
+from django_pydantic_agent.persistence.types.attachment_store import AttachmentStore
+from django_pydantic_agent.persistence.types.opened_attachment import OpenedAttachment
+from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
-from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
 from django_ag_ui.persistence.capped_upload_handler import CappedUploadHandler
-from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
-from django_ag_ui.persistence.types.attachment_ref import AttachmentRef
-from django_ag_ui.persistence.types.attachment_store import AttachmentStore
-from django_ag_ui.persistence.types.opened_attachment import OpenedAttachment
-from django_ag_ui.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 
 class AttachmentsView:
     """Owner-scoped file-upload + download endpoint (async, multipart/JSON).
 
     Mounted by :func:`~django_ag_ui.get_urls` with ``attachments=<store>`` over
-    an :class:`~django_ag_ui.persistence.types.attachment_store.AttachmentStore`:
+    an :class:`~django_pydantic_agent.persistence.types.attachment_store.AttachmentStore`:
 
     - ``POST   <prefix>attachments/``      → multipart upload under the ``file``
       field; validates size/type from ``DJANGO_AG_UI`` settings, persists the

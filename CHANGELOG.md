@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The agent-host substrate now lives in
+  [`django-pydantic-agent`](https://github.com/Artui/django-pydantic-agent)**, a new
+  settings-agnostic package this release depends on. Agent construction, the tool
+  registry, toolset/capability composition, audit, the tool guard, user resolution,
+  the storage contracts and the reference store models moved there; this package
+  keeps the AG-UI transport — the view, the SSE stream, `AGUIServer.urls`, the
+  browser-facing sub-views, skills and transcription. It is the lift-down that lets
+  a second transport share one substrate.
+
+  **The public surface is unchanged**: every moved symbol is **permanently
+  re-exported**, so `from django_ag_ui import ToolRegistry` (and friends) keeps
+  working and downstream projects need only a version bump.
+
+### Breaking
+
+- **`INSTALLED_APPS`**: the reference store app moved — replace
+  `"django_ag_ui.contrib.store"` with `"django_pydantic_agent.contrib.store"`.
+- **The model stores no longer read `DJANGO_AG_UI["ALLOW_ANONYMOUS"]`.** A
+  settings-agnostic substrate cannot read a transport's settings key, so pass
+  `allow_anonymous=True` to the store constructor instead.
+- **`Conversation.messages` holds JSON-serialisable records, not `ag_ui` `Message`
+  objects.** The substrate persists transport-owned records verbatim (client
+  message ids survive untouched) and the AG-UI wire shape is converted at this
+  package's boundary. Code that read `message.content` off a loaded conversation
+  now reads `message["content"]`; `messages_to_jsonable` / `messages_from_jsonable`
+  live in `django_ag_ui.persistence.utils`.
+- The attachment toolset's internal id is now `django-pydantic-agent-attachments`.
+  Tool names (`read_attachment`) and the wire are unaffected.
+
 ## [0.20.0] — 2026-07-22
 
 ### Added

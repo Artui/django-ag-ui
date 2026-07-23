@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from django_ag_ui.policy.guard.types.tool_guard_config import ToolGuardConfig
+from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 
 @dataclass(frozen=True)

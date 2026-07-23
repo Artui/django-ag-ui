@@ -4,18 +4,17 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from ag_ui.core import UserMessage
 from django.contrib.sessions.backends.signed_cookies import SessionStore
 from django.http import HttpRequest
 from django.test import RequestFactory
-
-from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
-from django_ag_ui.persistence.django_session_conversation_store import (
+from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
+from django_pydantic_agent.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
 )
+from django_pydantic_agent.persistence.types.conversation import Conversation
+from django_pydantic_agent.persistence.types.conversation_meta import ConversationMeta
+
 from django_ag_ui.persistence.threads_view import ThreadsView
-from django_ag_ui.persistence.types.conversation import Conversation
-from django_ag_ui.persistence.types.conversation_meta import ConversationMeta
 
 
 class _FakeStore:
@@ -88,7 +87,7 @@ async def test_detail_get_returns_messages() -> None:
     store = _FakeStore(
         conversations={
             "t1": Conversation(
-                thread_id="t1", messages=[UserMessage(id="u1", role="user", content="hi")]
+                thread_id="t1", messages=[{"id": "u1", "role": "user", "content": "hi"}]
             )
         }
     )
@@ -214,7 +213,7 @@ async def test_round_trips_against_the_session_store() -> None:
     request = RequestFactory().get("/agent/threads/")
     request.session = SessionStore()  # type: ignore[attr-defined]
     await store.save(
-        Conversation(thread_id="t1", messages=[UserMessage(id="u1", role="user", content="hello")]),
+        Conversation(thread_id="t1", messages=[{"id": "u1", "role": "user", "content": "hello"}]),
         request=request,
     )
     view = ThreadsView(store)
