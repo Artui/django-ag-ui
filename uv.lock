@@ -546,6 +546,7 @@ source = { editable = "." }
 dependencies = [
     { name = "ag-ui-protocol" },
     { name = "django" },
+    { name = "django-pydantic-agent" },
     { name = "pydantic-ai-slim", extra = ["ag-ui"] },
 ]
 
@@ -596,6 +597,7 @@ docs = [
 requires-dist = [
     { name = "ag-ui-protocol", specifier = ">=0.1.19,<0.2" },
     { name = "django", specifier = ">=4.2" },
+    { name = "django-pydantic-agent", editable = "../django-pydantic-agent" },
     { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.12,<0.13" },
     { name = "djangorestframework-pydantic-ai", marker = "extra == 'spec-tools'", specifier = ">=0.5,<0.6" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.7,<0.8" },
@@ -613,6 +615,49 @@ dev = [
     { name = "djangorestframework-pydantic-ai", specifier = ">=0.5,<0.6" },
     { name = "flake8-tidy-imports", specifier = ">=4.12.0" },
     { name = "httpx", specifier = ">=0.27" },
+    { name = "pre-commit", specifier = ">=3.8.0" },
+    { name = "pydantic-ai-harness", extras = ["code-mode"], specifier = ">=0.7,<0.8" },
+    { name = "pydantic-ai-slim", extras = ["anthropic", "openai", "google"], specifier = ">=2" },
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-asyncio", specifier = ">=0.24" },
+    { name = "pytest-cov", specifier = ">=5.0" },
+    { name = "pytest-django", specifier = ">=4.11.1" },
+    { name = "ruff", specifier = ">=0.9.0" },
+    { name = "ty", specifier = ">=0.0.32" },
+]
+docs = [
+    { name = "mkdocs", specifier = ">=1.6" },
+    { name = "mkdocs-material", specifier = ">=9.5" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.25" },
+]
+
+[[package]]
+name = "django-pydantic-agent"
+source = { editable = "../django-pydantic-agent" }
+dependencies = [
+    { name = "django" },
+    { name = "pydantic-ai-slim" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "django", specifier = ">=4.2" },
+    { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.12,<0.13" },
+    { name = "djangorestframework-pydantic-ai", marker = "extra == 'spec-tools'", specifier = ">=0.5,<0.6" },
+    { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.7,<0.8" },
+    { name = "pydantic-ai-slim", specifier = ">=2,<3" },
+    { name = "pydantic-ai-slim", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=2,<3" },
+    { name = "pydantic-ai-slim", extras = ["google"], marker = "extra == 'google'", specifier = ">=2,<3" },
+    { name = "pydantic-ai-slim", extras = ["openai"], marker = "extra == 'openai'", specifier = ">=2,<3" },
+]
+provides-extras = ["anthropic", "drf-mcp", "google", "harness", "openai", "spec-tools"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "django-stubs", specifier = ">=5.0" },
+    { name = "djangorestframework-mcp-server", specifier = ">=0.12,<0.13" },
+    { name = "djangorestframework-pydantic-ai", specifier = ">=0.5,<0.6" },
+    { name = "flake8-tidy-imports", specifier = ">=4.12.0" },
     { name = "pre-commit", specifier = ">=3.8.0" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], specifier = ">=0.7,<0.8" },
     { name = "pydantic-ai-slim", extras = ["anthropic", "openai", "google"], specifier = ">=2" },

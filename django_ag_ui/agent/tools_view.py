@@ -5,17 +5,16 @@ from typing import Any
 
 from django.http import HttpRequest, HttpResponseNotAllowed, JsonResponse
 from django.http.response import HttpResponseBase
-
-from django_ag_ui.agent.build_tool_catalog import build_tool_catalog
-from django_ag_ui.registry.tool_registry import ToolRegistry
-from django_ag_ui.utils import AuthorizePredicate, auth_error_response, authorize
+from django_pydantic_agent.agent.build_tool_catalog import build_tool_catalog
+from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_pydantic_agent.utils import AuthorizePredicate, auth_error_response, authorize
 
 
 class ToolsView:
     """A read-only endpoint returning the agent's server-tool catalog (GET, JSON).
 
     A callable instance (like :class:`~django_ag_ui.agent.agui_view.DjangoAGUIView`)
-    holding the same :class:`~django_ag_ui.registry.tool_registry.ToolRegistry`
+    holding the same :class:`~django_pydantic_agent.registry.tool_registry.ToolRegistry`
     the view uses. ``GET`` returns the :func:`build_tool_catalog` list the web
     component fetches via ``data-tools-url`` to label tool-call cards for
     server-side tools (whose schema never reaches the browser).

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from django.test import override_settings
+from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
-from django_ag_ui.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 
 def test_defaults_when_unconfigured() -> None:

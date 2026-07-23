@@ -10,12 +10,12 @@ from django.http import (
     JsonResponse,
 )
 from django.http.response import HttpResponseBase
+from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
-from django_ag_ui.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 
 class TranscribeView:

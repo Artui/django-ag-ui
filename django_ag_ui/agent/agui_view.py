@@ -14,27 +14,27 @@ from django.http import (
     StreamingHttpResponse,
 )
 from django.http.response import HttpResponseBase
+from django_pydantic_agent.agent.agent_factory import build_agent
+from django_pydantic_agent.agent.attachment_toolset import build_attachment_toolset
+from django_pydantic_agent.agent.build_model import build_model
+from django_pydantic_agent.agent.types.agent_config import AgentConfig
+from django_pydantic_agent.agent.types.agent_factory_fn import AgentFactoryFn
+from django_pydantic_agent.persistence.null_attachment_store import NullAttachmentStore
+from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
+from django_pydantic_agent.persistence.types.attachment_store import AttachmentStore
+from django_pydantic_agent.persistence.types.conversation_store import ConversationStore
+from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
+from django_pydantic_agent.policy.audit.types.audit_logger import AuditLogger
+from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_pydantic_agent.utils import AuthorizePredicate, aauthorize, auth_error_response
 from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
-from django_ag_ui.agent.agent_factory import build_agent
 from django_ag_ui.agent.agent_session import AgentSession
-from django_ag_ui.agent.attachment_toolset import build_attachment_toolset
-from django_ag_ui.agent.build_model import build_model
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
-from django_ag_ui.agent.types.agent_config import AgentConfig
-from django_ag_ui.agent.types.agent_factory_fn import AgentFactoryFn
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
-from django_ag_ui.persistence.null_attachment_store import NullAttachmentStore
-from django_ag_ui.persistence.null_conversation_store import NullConversationStore
-from django_ag_ui.persistence.types.attachment_store import AttachmentStore
-from django_ag_ui.persistence.types.conversation_store import ConversationStore
-from django_ag_ui.policy.audit.null_audit_logger import NullAuditLogger
-from django_ag_ui.policy.audit.types.audit_logger import AuditLogger
-from django_ag_ui.registry.tool_registry import ToolRegistry
-from django_ag_ui.utils import AuthorizePredicate, aauthorize, auth_error_response
 
 
 class DjangoAGUIView:
@@ -248,7 +248,7 @@ class DjangoAGUIView:
         """
         if server is None:
             return []
-        from django_ag_ui.integrations.drf_mcp import DRFMCPToolset
+        from django_pydantic_agent.integrations.drf_mcp import DRFMCPToolset
 
         toolset = DRFMCPToolset(server, request, exclude_names=frozenset(seen))
         seen.update(binding.name for binding in server.tools.all())
@@ -268,7 +268,7 @@ class DjangoAGUIView:
         """
         if specs is None:
             return []
-        from django_ag_ui.integrations.build_spec_capability import build_spec_capability
+        from django_pydantic_agent.integrations.build_spec_capability import build_spec_capability
 
         capability = build_spec_capability(specs, request, exclude_names=frozenset(seen))
         seen.update(specs)

@@ -37,6 +37,10 @@ classifiers = [
 ]
 dependencies = [
     "django>=4.2",
+    # The settings-agnostic agent-host substrate this transport builds on:
+    # agent construction, the tool registry, toolset/capability composition,
+    # audit, user resolution, and the storage contracts.
+    "django-pydantic-agent>=0.1,<0.2",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
@@ -47,6 +51,12 @@ dependencies = [
     # pin the interrupt floor ourselves; see the HITL approval loop.
     "ag-ui-protocol>=0.1.19,<0.2",
 ]
+
+# TEMPORARY: resolve the substrate from the sibling checkout until it is
+# published to PyPI. Remove before releasing (uv-only metadata; wheels are
+# unaffected, but CI cannot resolve a local path).
+[tool.uv.sources]
+django-pydantic-agent = { path = "../django-pydantic-agent", editable = true }
 
 [project.optional-dependencies]
 # Model-provider extras (slim ships none). Install one to use a "provider:model"

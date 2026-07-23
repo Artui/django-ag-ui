@@ -11,14 +11,13 @@ from django.http import (
     JsonResponse,
 )
 from django.http.response import HttpResponseBase
+from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
+from django_pydantic_agent.persistence.types.conversation_meta import ConversationMeta
+from django_pydantic_agent.persistence.types.conversation_store import ConversationStore
+from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
-from django_ag_ui.persistence.anonymous_operation_error import AnonymousOperationError
-from django_ag_ui.persistence.types.conversation_meta import ConversationMeta
-from django_ag_ui.persistence.types.conversation_store import ConversationStore
-from django_ag_ui.persistence.utils import messages_to_jsonable
-from django_ag_ui.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 # The model stores back ``title`` with ``CharField(max_length=255)``; cap the
 # rename here (truncate — a title is cosmetic) so an over-long PATCH is a clean
@@ -105,7 +104,9 @@ class ThreadsView:
             return JsonResponse(
                 {
                     "thread_id": conversation.thread_id,
-                    "messages": messages_to_jsonable(conversation.messages),
+                    # Already storage records (the transport serialised them on
+                    # the way in), so they go out to the client as-is.
+                    "messages": list(conversation.messages),
                 }
             )
         if request.method == "PATCH":

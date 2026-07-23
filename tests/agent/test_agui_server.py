@@ -4,14 +4,14 @@ from typing import Any
 
 from django.test import override_settings
 from django.urls import resolve, reverse
+from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
+from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_server import DEFAULT_NAMESPACE, AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.tools_view import ToolsView
-from django_ag_ui.persistence.null_conversation_store import NullConversationStore
 from django_ag_ui.persistence.threads_view import ThreadsView
-from django_ag_ui.registry.tool_registry import ToolRegistry
 from django_ag_ui.skills.skill_registry import SkillRegistry
 
 
@@ -75,7 +75,7 @@ def test_endpoint_view_is_the_built_agent_view() -> None:
 
 
 def test_step_store_factory_forwards_to_the_agent_view() -> None:
-    from django_ag_ui.contrib.store.default_step_store import DefaultStepStore
+    from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
 
     server = _server(step_store=DefaultStepStore)
     assert server._view._step_store is DefaultStepStore
@@ -86,7 +86,7 @@ def test_step_store_defaults_to_none() -> None:
 
 
 def test_resume_and_fork_endpoints_mount_with_a_step_store() -> None:
-    from django_ag_ui.contrib.store.default_step_store import DefaultStepStore
+    from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
 
     patterns, _, _ = _server(step_store=DefaultStepStore).urls
     names = {p.name for p in patterns}
@@ -150,7 +150,7 @@ def test_transcribe_endpoint_omitted_by_default() -> None:
 
 
 def test_passing_a_store_mounts_the_thread_endpoints() -> None:
-    from django_ag_ui.persistence.django_session_conversation_store import (
+    from django_pydantic_agent.persistence.django_session_conversation_store import (
         DjangoSessionConversationStore,
     )
 

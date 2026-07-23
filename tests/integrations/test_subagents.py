@@ -10,13 +10,12 @@ django-ag-ui package code, just the ``[harness]`` extra + this composition.
 from __future__ import annotations
 
 import pytest
+from django_pydantic_agent.agent.agent_factory import build_agent
+from django_pydantic_agent.agent.types.agent_config import AgentConfig
+from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
-
-from django_ag_ui.agent.agent_factory import build_agent
-from django_ag_ui.agent.types.agent_config import AgentConfig
-from django_ag_ui.registry.tool_registry import ToolRegistry
 
 
 async def _parent_tool_names_with_subagents(tool_name: str = "delegate_task") -> list[str]:

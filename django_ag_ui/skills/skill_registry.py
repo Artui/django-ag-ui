@@ -9,7 +9,7 @@ from django_ag_ui.skills.types.skill_spec import SkillSpec
 class SkillRegistry:
     """An ordered, named collection of :class:`SkillSpec`s.
 
-    State lives on the instance (like :class:`~django_ag_ui.registry.tool_registry.ToolRegistry`).
+    State lives on the instance (like :class:`~django_pydantic_agent.registry.tool_registry.ToolRegistry`).
     :meth:`payload` produces the JSON-serialisable catalog the frontend consumes
     (camelCase keys, optional fields omitted when default).
     """
