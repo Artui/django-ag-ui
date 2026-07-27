@@ -217,7 +217,7 @@ from pydantic_ai import Agent
 
 
 def build_my_agent(registry, config):
-    return Agent(model="anthropic:claude-sonnet-4.6", ...)
+    return Agent(model="anthropic:claude-sonnet-4.6")  # …plus your own wiring
 
 
 # urls.py
@@ -279,19 +279,19 @@ AGUIServer(registry, conversation_store=DjangoSessionConversationStore())
 ```
 
 For a ready-made **durable, cross-device** store, opt into the
-`django_ag_ui.contrib.store` app instead of writing your own model — add it to
+`django_pydantic_agent.contrib.store` app instead of writing your own model — add it to
 `INSTALLED_APPS`, run `migrate`, and point the setting at its store:
 
 ```python
 INSTALLED_APPS = [
     # ...
-    "django_ag_ui.contrib.store",
+    "django_pydantic_agent.contrib.store",
 ]
 
 ```
 
 ```python title="urls.py"
-from django_ag_ui.contrib.store.default_conversation_store import (
+from django_pydantic_agent.contrib.store.default_conversation_store import (
     DefaultConversationStore,
 )
 
@@ -320,20 +320,20 @@ out-of-band and travel as lightweight refs). A consumer that registers its own
 The package ships an abstract
 [`ModelAttachmentStore`][django_ag_ui.ModelAttachmentStore] base you can subclass
 with your own model + storage. For a ready-made store, opt into the
-`django_ag_ui.contrib.store` app — add it to `INSTALLED_APPS`, run `migrate`, and
+`django_pydantic_agent.contrib.store` app — add it to `INSTALLED_APPS`, run `migrate`, and
 point the setting at its store (bytes go to Django `Storage`, so S3/GCS come free
 via `STORAGES` / `DEFAULT_FILE_STORAGE`):
 
 ```python
 INSTALLED_APPS = [
     # ...
-    "django_ag_ui.contrib.store",
+    "django_pydantic_agent.contrib.store",
 ]
 
 ```
 
 ```python title="urls.py"
-from django_ag_ui.contrib.store.default_attachment_store import (
+from django_pydantic_agent.contrib.store.default_attachment_store import (
     DefaultAttachmentStore,
 )
 
@@ -448,30 +448,36 @@ AGUIServer(registry, drf_mcp_server=mcp_server)
 
 ## `service_specs=`
 
-A dotted path to a `name -> spec` mapping (drf-services `ServiceSpec` /
-`SelectorSpec` objects) exposed to the agent as tools **without an MCP server**,
-via `djangorestframework-pydantic-ai`'s `SpecCapability`. `None` (the default)
+A `name -> spec` mapping (drf-services `ServiceSpec` / `SelectorSpec` objects),
+or a `SpecRegistry`, exposed to the agent as tools **without an MCP server** via
+`djangorestframework-pydantic-ai`'s `SpecCapability`. `None` (the default)
 disables it. Requires the `[spec-tools]` extra
 (`pip install "django-ag-ui[spec-tools]"`), imported lazily.
 
-This is the no-MCP-hop sibling of [`DRF_MCP_SERVER`](#drf_mcp_server): the specs
+This is the no-MCP-hop sibling of [`drf_mcp_server=`](#drf_mcp_server): the specs
 are dispatched in-process through drf-services' transport-neutral surface
 (`dispatch_spec` + its off-HTTP helpers), enforcing each spec's
 `permission_classes`. The agent acts as the **logged-in AG-UI user** (bound from
-`request`), and a registry `@tool` wins a name collision. Beyond exposing the
-tools, `SpecCapability` teaches the model the spec conventions — that list tools
-accept `page` / `limit` / `order`, and how errors come back (an `{"error": …}`
-result is a final answer, a retry message means fix the argument, a permission
-error is final) — via instructions appended to the system prompt, so the model
-doesn't rediscover them by failing a call. Use it when you have drf-services
-specs but no reason to stand up an MCP server; use `DRF_MCP_SERVER` when you
-already run one (or want MCP clients to share the tools).
+`request`), and a registry `@tool` wins a name collision. The model is also
+taught the spec conventions — that list tools accept `page` / `limit` / `order`,
+and how errors come back (an `{"error": …}` result is a final answer, a retry
+message means fix the argument, a permission error is final) — so it doesn't
+rediscover them by failing a call. Those instructions come from the underlying
+`SpecToolset`, which the capability delegates to, so they reach the system prompt
+exactly once. Use this when you have drf-services specs but no reason to stand up
+an MCP server; use `drf_mcp_server=` when you already run one (or want MCP
+clients to share the tools).
 
 ```python
 # myproject/specs.py
-from rest_framework_services import SelectorSpec, ServiceSpec
+from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec
+
 SPECS = {
-    "list_orders": SelectorSpec(serializer=OrderSerializer, queryset=Order.objects.all()),
+    "list_orders": SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=list_orders,
+        output_serializer=OrderSerializer,
+    ),
     "create_order": ServiceSpec(service=create_order, input_serializer=CreateOrderInput),
 }
 ```
@@ -481,6 +487,29 @@ from myproject.specs import SPECS
 
 AGUIServer(registry, service_specs=SPECS)
 ```
+
+### Declaring specs once, across transports
+
+If the same specs are also exposed over MCP or as HTTP views, keep them in a
+[`SpecRegistry`](https://artui.github.io/djangorestframework-services/recipes/spec-registry/)
+(drf-services 0.27+) and pass that instead — each transport then reads one
+source rather than repeating the list:
+
+```python title="urls.py"
+from myproject.registry import registry
+
+AGUIServer(registry_of_tools, service_specs=registry)
+```
+
+A filtered view is itself a registry, so two endpoints can be given different
+projections with no shared state:
+
+```python
+internal = AGUIServer(tools, service_specs=spec_registry)
+public = AGUIServer(tools, service_specs=spec_registry.by_tag("public"))
+```
+
+Either shape is normalised into a plain mapping once, at construction.
 
 The spec tools' card labels are surfaced to the web component through the same
 `AGUIServer`-mounted tool catalog (`data-tools-url`).

@@ -91,10 +91,10 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ### Reference store (opt-in)
 
-The `django_ag_ui.contrib.store` app ships a ready-to-use durable store. Add it
+The `django_pydantic_agent.contrib.store` app ships a ready-to-use durable store. Add it
 to `INSTALLED_APPS`, run `migrate`, then set
 `conversation_store=` to
-`django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore`.
+`django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore`.
 Projects that don't opt in get no model and no migration.
 
 ::: django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore
@@ -118,10 +118,10 @@ Projects that don't opt in get no model and no migration.
 
 ### Reference attachment store (opt-in)
 
-The same `django_ag_ui.contrib.store` app ships a ready-to-use durable file
+The same `django_pydantic_agent.contrib.store` app ships a ready-to-use durable file
 store. With the app installed and migrated, set
 `attachment_store=` to
-`django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore`. The
+`django_pydantic_agent.contrib.store.default_attachment_store.DefaultAttachmentStore`. The
 bytes go to Django `Storage` (S3/GCS via `STORAGES` / `DEFAULT_FILE_STORAGE`);
 projects that don't opt in get no model and no migration.
 

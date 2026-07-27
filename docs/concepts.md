@@ -348,10 +348,10 @@ reads as `404`, never another user's history — and the view carries the same
 ### A ready-made durable store
 
 For cross-device, per-user history without writing your own model, opt into the
-`django_ag_ui.contrib.store` app: add `"django_ag_ui.contrib.store"` to
+`django_pydantic_agent.contrib.store` app: add `"django_pydantic_agent.contrib.store"` to
 `INSTALLED_APPS`, run `migrate`, and set
 [`CONVERSATION_STORE`](configuration.md#conversation_store) to
-`django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore`.
+`django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore`.
 It ships a `StoredConversation` model and a `ModelConversationStore` subclass with
 denormalised `title` / `preview` / `updated_at` columns so the thread list is a
 single cheap query. Projects that don't opt in get no model and no migration.
