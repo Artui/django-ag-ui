@@ -7,7 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-07-27
+
 ### Added
+
+- **Every run is given typed dependencies.** The endpoint now builds an
+  `AgentDeps(user=request.user)` per run and passes it to the agent, so tools,
+  toolsets and capabilities read request-scoped values off `RunContext.deps` —
+  pydantic-ai's own seam — instead of the agent closing over the request:
+
+  ```python
+  @tool(registry)
+  def whoami(ctx: RunContext[AgentDeps]) -> str:
+      """Report the acting user."""
+      return str(ctx.deps.user)
+  ```
+
+  - **Spec tools bind the user natively.** `SpecToolset`'s default extractor
+    reads `ctx.deps.user`; this package used to override it with a closure,
+    purely because deps were `None`.
+  - **AG-UI `state` now lands somewhere.** `AgentDeps` satisfies pydantic-ai's
+    `StateHandler` protocol, so a run's `RunAgentInput.state` is validated into
+    `deps.state` rather than dropped with a `UserWarning`. Emitting state back
+    is a tool's job — see the new [Shared state](https://artui.github.io/django-ag-ui/shared-state/)
+    guide.
+  - **It is the precondition for reusing a built agent.** A capability that
+    closes over a request can only serve that request, which is why the agent
+    (and every tool's JSON schema) is rebuilt on each call today. Nothing about
+    that caching changes here; this removes the blocker.
+  - A request served without Django's auth middleware has no `user` attribute
+    at all — that is an anonymous run (`deps.user is None`), matching what
+    `materialize_request_user` already does, not an `AttributeError`.
 
 - **`deps_factory` — supply the run's `AgentDeps` yourself.** A
   `request -> AgentDeps` callable on `AGUIServer` / `DjangoAGUIView` replacing
@@ -23,7 +53,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     feature-flag snapshot); whatever the factory returns reaches every tool,
     toolset and capability as `ctx.deps`.
 
+### Changed
+
+- **`django-pydantic-agent` floor raised to `>=0.3,<0.4`** — `AgentDeps` and the
+  request-free `build_spec_capability` come from there.
+- **`AgentSession(...)` now requires a keyword-only `deps`.** Deliberately
+  required rather than defaulted: a forgotten `deps` would mean spec tools
+  silently acting as nobody. Only affects code constructing `AgentSession`
+  directly; going through `DjangoAGUIView` / `AGUIServer` needs no change.
+
 ### Documentation
+
+- **New [Shared state](https://artui.github.io/django-ag-ui/shared-state/) guide.**
+  AG-UI's state channel works end to end and needed **no package code** — a tool
+  reads `ctx.deps.state` and writes back by returning a `StateSnapshotEvent` as
+  `ToolReturn` metadata, which pydantic-ai's adapter streams verbatim. The guide
+  is the recipe joining the two ends, plus when to prefer a *tool* instead: a
+  tool call is visible in the transcript and can be gated by a confirmation
+  card, which state events cannot.
+  - Writing it surfaced the missing `deps_factory` seam (above) — without which
+    inbound state could not be validated into a model at all. The guide shows
+    the validated shape rather than a workaround.
 
 - **CI now checks doc snippets against the *installed* packages** —
   `make docs-check` / `scripts/check_docs_snippets.py`, wired into the docs job.
@@ -45,55 +95,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Limits, stated so nobody over-trusts it: it does not execute snippets or
     check semantics, and **it cannot see non-Python fences** — a JavaScript
     example remains a matter for review.
-
-- **New [Shared state](https://artui.github.io/django-ag-ui/shared-state/) guide.**
-  AG-UI's state channel works end to end and needed **no package code** — a tool
-  reads `ctx.deps.state` and writes back by returning a `StateSnapshotEvent` as
-  `ToolReturn` metadata, which pydantic-ai's adapter streams verbatim. The guide
-  is the recipe joining the two ends, plus when to prefer a *tool* instead: a
-  tool call is visible in the transcript and can be gated by a confirmation
-  card, which state events cannot.
-  - Writing it surfaced the missing `deps_factory` seam (above) — without which
-    inbound state could not be validated into a model at all. The guide shows
-    the validated shape rather than a workaround.
-
-### Added
-
-- **Every run is given typed dependencies.** The endpoint now builds an
-  `AgentDeps(user=request.user)` per run and passes it to the agent, so tools,
-  toolsets and capabilities read request-scoped values off `RunContext.deps` —
-  pydantic-ai's own seam — instead of the agent closing over the request:
-
-  ```python
-  @tool(registry)
-  def whoami(ctx: RunContext[AgentDeps]) -> str:
-      """Report the acting user."""
-      return str(ctx.deps.user)
-  ```
-
-  - **Spec tools bind the user natively.** `SpecToolset`'s default extractor
-    reads `ctx.deps.user`; this package used to override it with a closure,
-    purely because deps were `None`.
-  - **AG-UI `state` now lands somewhere.** `AgentDeps` satisfies pydantic-ai's
-    `StateHandler` protocol, so a run's `RunAgentInput.state` is validated into
-    `deps.state` rather than dropped with a `UserWarning`. **Inbound only** —
-    nothing emits `STATE_SNAPSHOT` / `STATE_DELTA` back yet.
-  - **It is the precondition for reusing a built agent.** A capability that
-    closes over a request can only serve that request, which is why the agent
-    (and every tool's JSON schema) is rebuilt on each call today. Nothing about
-    that caching changes here; this removes the blocker.
-  - A request served without Django's auth middleware has no `user` attribute
-    at all — that is an anonymous run (`deps.user is None`), matching what
-    `materialize_request_user` already does, not an `AttributeError`.
-
-### Changed
-
-- **`django-pydantic-agent` floor raised to `>=0.3,<0.4`** — `AgentDeps` and the
-  request-free `build_spec_capability` come from there.
-- **`AgentSession(...)` now requires a keyword-only `deps`.** Deliberately
-  required rather than defaulted: a forgotten `deps` would mean spec tools
-  silently acting as nobody. Only affects code constructing `AgentSession`
-  directly; going through `DjangoAGUIView` / `AGUIServer` needs no change.
 
 ## [0.23.0] — 2026-07-27
 
@@ -1076,7 +1077,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/Artui/django-ag-ui/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/Artui/django-ag-ui/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/Artui/django-ag-ui/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/Artui/django-ag-ui/compare/v0.20.0...v0.21.0
