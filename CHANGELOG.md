@@ -25,6 +25,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **CI now checks doc snippets against the *installed* packages** —
+  `make docs-check` / `scripts/check_docs_snippets.py`, wired into the docs job.
+  Every Python fence in `docs/` and `README.md` must parse, every
+  `from X import Y` must resolve, and every keyword argument at a resolvable
+  call must exist in the real signature.
+  - **It closes the one gap the other gates share**: ruff, `ty` and
+    `mkdocs --strict` all stop at this package's boundary, so nothing checked a
+    claim about a *dependency's* API — where drift is likeliest, since the
+    dependency moves on its own schedule and no test imports the snippet.
+  - **A module the reader is meant to own is told apart from one that moved** by
+    whether its *root package* is installed, not by a name list and not by
+    "the import failed". `myproject.agent` is a placeholder; a dependency
+    submodule that has been relocated is a failure — which is the shape of a
+    real, boot-breaking defect found in these docs before.
+  - Verified against known-bad snippets, not just a clean run: a moved
+    dependency module, a bad keyword on one of our types, and a bad keyword on a
+    dependency's type are each caught.
+  - Limits, stated so nobody over-trusts it: it does not execute snippets or
+    check semantics, and **it cannot see non-Python fences** — a JavaScript
+    example remains a matter for review.
+
 - **New [Shared state](https://artui.github.io/django-ag-ui/shared-state/) guide.**
   AG-UI's state channel works end to end and needed **no package code** — a tool
   reads `ctx.deps.state` and writes back by returning a `StateSnapshotEvent` as
