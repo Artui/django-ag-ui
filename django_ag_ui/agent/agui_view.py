@@ -94,6 +94,7 @@ class DjangoAGUIView:
         attachment_store: AttachmentStore | None = None,
         conversation_store: ConversationStore | None = None,
         step_store: Callable[[HttpRequest], Any] | None = None,
+        deps_factory: Callable[[HttpRequest], AgentDeps] | None = None,
         config: AGUIConfig | None = None,
     ) -> None:
         self._registry = registry
@@ -118,6 +119,7 @@ class DjangoAGUIView:
         # protocol carries no request, so the store binds one at construction and
         # is built fresh per run — see DjangoAGUIView._step_persistence_capabilities.
         self._step_store = step_store
+        self._deps_factory = deps_factory
         # Scalars, resolved once. Read per request they could only ever be
         # global, so no two endpoints could differ on any of them.
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
@@ -178,13 +180,7 @@ class DjangoAGUIView:
             self._build_agent(request, run_input, resume_from=resume_from),
             run_input,
             request,
-            # Built here, per run — the transport is what knows who is acting.
-            # ``request.user`` was already materialized off the event loop by the
-            # auth step above, so reading it on the loop is safe. ``getattr``
-            # because an unauthenticated endpoint served without Django's auth
-            # middleware has no ``user`` at all — the same accessor (and the same
-            # "no user is None") that ``materialize_request_user`` uses.
-            deps=AgentDeps(user=getattr(request, "user", None)),
+            deps=self._build_deps(request),
             audit_logger=self._resolve_audit_logger(),
             config=self._config,
             conversation_store=self._conversation_store,
@@ -194,6 +190,26 @@ class DjangoAGUIView:
         response["Cache-Control"] = "no-cache"
         response["X-Accel-Buffering"] = "no"
         return response
+
+    def _build_deps(self, request: HttpRequest) -> AgentDeps:
+        """The per-run dependencies handed to the agent as ``ctx.deps``.
+
+        A ``deps_factory`` takes over entirely, so a project can carry its own
+        per-run context (a tenant, a feature-flag snapshot) or seed
+        ``AgentDeps.state`` with a Pydantic model — which is the only way to get
+        AG-UI's inbound shared state *validated*, since pydantic-ai validates it
+        against ``type(deps.state)``.
+
+        The default binds the acting user and nothing else.
+        ``request.user`` was already materialized off the event loop by the auth
+        step, so reading it on the loop is safe; ``getattr`` because an endpoint
+        served without Django's auth middleware has no ``user`` attribute at all
+        — the same accessor, and the same "no user is ``None``" rule, that
+        ``materialize_request_user`` applies.
+        """
+        if self._deps_factory is not None:
+            return self._deps_factory(request)
+        return AgentDeps(user=getattr(request, "user", None))
 
     def _build_agent(
         self, request: HttpRequest, run_input: Any, *, resume_from: str | None = None

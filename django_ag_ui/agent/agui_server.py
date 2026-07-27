@@ -5,6 +5,7 @@ from typing import Any
 
 from django.http import HttpRequest
 from django.urls import URLPattern, path
+from django_pydantic_agent.agent.types.agent_deps import AgentDeps
 from django_pydantic_agent.agent.types.agent_factory_fn import AgentFactoryFn
 from django_pydantic_agent.integrations.resolve_spec_mapping import resolve_spec_mapping
 from django_pydantic_agent.integrations.types.spec_source import SpecSource
@@ -113,6 +114,14 @@ class AGUIServer:
     different projections with no shared state. Requires the
     ``django-ag-ui[spec-tools]`` extra.
 
+    **Per-run dependencies.** ``deps_factory`` is a ``request -> AgentDeps``
+    callable replacing the default, which binds only the acting user. Use it to
+    carry project-specific per-run context (a tenant, a feature-flag snapshot)
+    on an ``AgentDeps`` subclass, or to seed ``AgentDeps.state`` with a Pydantic
+    model — the only way to have AG-UI's inbound shared state *validated*, since
+    pydantic-ai validates it against ``type(deps.state)``. Whatever it returns
+    reaches every tool, toolset and capability as ``ctx.deps``.
+
     **Durable step persistence.** ``step_store`` is a *factory* — a
     ``request -> StepStore`` callable, not a shared store instance, because the
     ``pydantic-ai-harness`` step-store protocol carries no request, so the store
@@ -150,6 +159,7 @@ class AGUIServer:
         skills: SkillRegistry | None = None,
         conversation_store: ConversationStore | None = None,
         step_store: Callable[[HttpRequest], Any] | None = None,
+        deps_factory: Callable[[HttpRequest], AgentDeps] | None = None,
         attachment_store: AttachmentStore | None = None,
         transcription_backend: TranscriptionBackend | None = None,
         toolsets: list[Any] | None = None,
@@ -207,6 +217,7 @@ class AGUIServer:
         # protocol carries no request). Retained on the object because the
         # resume/fork endpoints a later release mounts will need it too.
         self._step_store = step_store
+        self._deps_factory = deps_factory
         self._view = DjangoAGUIView(
             registry,
             model=model,
@@ -222,6 +233,7 @@ class AGUIServer:
             attachment_store=self._attachment_store,
             conversation_store=self._conversation_store,
             step_store=self._step_store,
+            deps_factory=self._deps_factory,
             config=self._config,
             **self._auth,
         )

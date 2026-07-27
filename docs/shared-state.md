@@ -30,21 +30,45 @@ def summarize_document(ctx: RunContext[AgentDeps]) -> str:
     return f"The document is {len(str(state.get('document', '')))} characters long."
 ```
 
-`deps.state` is whatever the client sent — **a plain mapping, unvalidated.**
+By default `deps.state` is whatever the client sent — **a plain mapping,
+unvalidated**, exactly like raw tool arguments.
 
-pydantic-ai *can* validate it against a Pydantic model, but only when
-`deps.state` is already seeded with an instance of that model (it validates
-against `type(deps.state)`). This endpoint builds `AgentDeps(user=request.user)`
-itself and exposes no hook for supplying a different one, so **there is
-currently no way to opt into that validation.** Validate in the tool for now:
+## Validating it into a model
+
+pydantic-ai validates inbound state against `type(deps.state)`, so it validates
+only when the deps arrive already seeded with a model instance. Supply them with
+`deps_factory`:
+
+```python
+from pydantic import BaseModel
+
+
+class DocumentState(BaseModel):
+    document: str = ""
+
+
+server = AGUIServer(
+    registry,
+    deps_factory=lambda request: AgentDeps(
+        user=request.user,
+        state=DocumentState(),
+    ),
+)
+```
+
+Now `ctx.deps.state` is a `DocumentState`, validated on the way in — a client
+sending the wrong shape is rejected before any tool runs:
 
 ```python
 @tool(registry)
 def summarize_document(ctx: RunContext[AgentDeps]) -> str:
     """Summarize the document the user is editing."""
-    state = DocumentState.model_validate(ctx.deps.state or {})
-    return f"The document is {len(state.document)} characters long."
+    return f"The document is {len(ctx.deps.state.document)} characters long."
 ```
+
+`deps_factory` replaces the default deps entirely, so it is also where a project
+carries its own per-run context — subclass `AgentDeps` and add fields. Whatever
+it returns reaches every tool, toolset and capability as `ctx.deps`.
 
 ## Writing state back
 
@@ -115,8 +139,8 @@ that the agent touched something.
   each request; nothing persists it server-side. A page reload starts from
   whatever the host seeds. Durable state is the conversation store's job.
 - **It is client-supplied input.** A tool reading `ctx.deps.state` is reading
-  something the browser sent, exactly like tool arguments — validate it before
-  acting on it, and never treat it as authorization.
+  something the browser sent, exactly like tool arguments. Validate it — with a
+  model via `deps_factory`, or by hand — and never treat it as authorization.
 - **Emit after mutating, not before.** The snapshot is a copy taken when you
   build the event; mutating `deps.state` afterwards won't reach the client until
   something emits again.

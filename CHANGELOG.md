@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`deps_factory` — supply the run's `AgentDeps` yourself.** A
+  `request -> AgentDeps` callable on `AGUIServer` / `DjangoAGUIView` replacing
+  the default, which binds only the acting user.
+  - **This closes a gap the previous release opened.** Typed deps shipped, but
+    the endpoint constructed `AgentDeps(user=request.user)` itself with no hook,
+    so a project could not carry its own per-run context — and, specifically,
+    **could not have AG-UI's inbound shared state validated**, since pydantic-ai
+    validates it against `type(deps.state)` and that requires the deps to arrive
+    pre-seeded with a model instance. Now:
+    `deps_factory=lambda request: AgentDeps(user=request.user, state=DocumentState())`.
+  - Subclass `AgentDeps` to carry anything else per run (a tenant, a
+    feature-flag snapshot); whatever the factory returns reaches every tool,
+    toolset and capability as `ctx.deps`.
+
 ### Documentation
 
 - **New [Shared state](https://artui.github.io/django-ag-ui/shared-state/) guide.**
@@ -16,10 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is the recipe joining the two ends, plus when to prefer a *tool* instead: a
   tool call is visible in the transcript and can be gated by a confirmation
   card, which state events cannot.
-  - Records a real gap rather than papering over it: **there is currently no way
-    to have inbound state validated into a Pydantic model**, because the
-    endpoint constructs `AgentDeps(user=request.user)` itself and offers no hook
-    for supplying a different deps object. Validate in the tool for now.
+  - Writing it surfaced the missing `deps_factory` seam (above) — without which
+    inbound state could not be validated into a model at all. The guide shows
+    the validated shape rather than a workaround.
 
 ### Added
 
