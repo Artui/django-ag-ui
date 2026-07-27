@@ -17,6 +17,7 @@ from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from django_pydantic_agent.utils import AuthorizePredicate, GetUser
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.agent.runs_view import RunsView
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.check_removed_settings import check_removed_settings
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
@@ -70,9 +71,9 @@ class AGUIServer:
     - ``transcribe`` — when the transcription backend is not a
       :class:`~django_ag_ui.persistence.null_transcription_backend.NullTranscriptionBackend`
       (``transcribe/`` for the mic's ``data-transcribe-url``).
-    - ``resume`` / ``fork`` — when a ``step_store`` is configured
-      (``resume/<run_id>/`` + ``fork/<run_id>/``): seed a new run from a prior
-      run's last continuable snapshot.
+    - ``resume`` / ``fork`` / ``runs`` — when a ``step_store`` is configured
+      (``resume/<run_id>/`` + ``fork/<run_id>/`` seed a new run from a prior run's
+      last continuable snapshot; ``runs/`` indexes what may be resumed).
 
     ``conversation_store`` / ``attachment_store`` / ``transcription_backend``
     default to the ``DJANGO_AG_UI`` settings-resolved backend (the same one the
@@ -121,9 +122,13 @@ class AGUIServer:
     :class:`~django_pydantic_agent.contrib.store.default_step_store.DefaultStepStore` (its
     constructor *is* the ``request -> StepStore`` factory) for the reference
     model-backed store, or any such callable. Requires the
-    ``django-ag-ui[harness]`` extra. Configuring it also mounts the owner-scoped
-    ``resume/<run_id>/`` and ``fork/<run_id>/`` endpoints, which seed a new run
-    with a prior run's last continuable snapshot.
+    ``django-ag-ui[harness]`` extra. Configuring it also mounts three owner-scoped
+    endpoints: ``resume/<run_id>/`` and ``fork/<run_id>/``, which seed a new run
+    with a prior run's last continuable snapshot, and ``runs/``, which indexes the
+    user's runs so a client can *discover* what it may resume. Without that index
+    a client can only continue a run whose id it still holds — ruling out
+    resuming after a page reload or from another device, which is most of what
+    durable persistence is for.
 
     **Namespacing.** :attr:`urls` returns the ``(patterns, app_name, namespace)``
     triple ``path()`` mounts directly (like ``admin.site.urls`` — no
@@ -260,6 +265,12 @@ class AGUIServer:
             )
             patterns.append(
                 path("fork/<str:resume_from>/", self._view, name="fork"),
+            )
+            # The discovery half: both verbs address a run *by id*, so without
+            # an index a client can only continue a run whose id it still holds
+            # — ruling out resuming after a reload or from another device.
+            patterns.append(
+                path("runs/", RunsView(self._step_store, **self._auth), name="runs"),
             )
         if self._skills is not None:
             patterns.append(path("skills/", SkillsView(self._skills, **self._auth), name="skills"))

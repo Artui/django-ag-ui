@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`GET runs/` — the discovery half of resume/fork.** Mounted alongside
+  `resume/<run_id>/` and `fork/<run_id>/` whenever a `step_store` is configured,
+  the same way `threads/` mounts with a conversation store.
+
+  Both existing endpoints address a run **by id**, so on their own a client can
+  only continue a run whose id it still holds — which rules out resuming after a
+  page reload or from another device, most of what durable step persistence is
+  for. `list_runs()` was already implemented on the store; nothing exposed it.
+
+  Each row carries `run_id`, `thread_id`, `parent_run_id`, `started_at` and
+  **`continuable`** — whether the run has a snapshot to seed from, answered by
+  making the same `latest_snapshot` call `resume` itself makes rather than
+  inferring it from event counts. A run that never reached a provider-valid
+  boundary has no snapshot, so resuming it would start from nothing: a client
+  should offer the action only where `continuable` is true and treat the rest as
+  informational. `parent_run_id` exposes fork lineage so a UI can show a branch
+  rather than listing near-identical transcripts.
+
+  Owner-scoped by the store, and nothing on the wire names an owner — another
+  user's runs are simply absent, never a `403` that would confirm the id exists.
+  Carries the same authentication seam as every other mounted view, and
+  authorization runs **before** the store is built, so a denied request never
+  reaches the database.
+
 ## [0.22.0] — 2026-07-27
 
 ### Added
