@@ -187,3 +187,25 @@ class _DummyAttachmentStore:
 
 class _DummyTranscriptionBackend:
     """A minimal non-``Null`` transcription backend — only its type matters here."""
+
+
+def test_runs_endpoint_mounts_with_a_step_store() -> None:
+    from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+
+    assert "runs" in _names(_server(step_store=DefaultStepStore))
+
+
+def test_runs_endpoint_absent_without_a_step_store() -> None:
+    # No store means no ledger to index — the endpoint would answer about
+    # nothing, so it isn't mounted (same rule as resume/fork).
+    assert "runs" not in _names(_server())
+
+
+def test_runs_endpoint_carries_the_shared_auth_seam() -> None:
+    from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+
+    server = _server(step_store=DefaultStepStore, require_authenticated=True)
+    patterns, _, _ = server.urls
+    runs = next(p for p in patterns if p.name == "runs")
+
+    assert runs.callback._require_authenticated is True

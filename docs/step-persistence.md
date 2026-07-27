@@ -110,8 +110,9 @@ agent = AGUIServer(registry, step_store=lambda request: MyStepStore(request))
 
 ## Resume and fork
 
-Configuring a `step_store` also mounts two owner-scoped endpoints:
+Configuring a `step_store` also mounts three owner-scoped endpoints:
 
+- `GET runs/` — what may be resumed
 - `POST resume/<run_id>/`
 - `POST fork/<run_id>/`
 
@@ -147,3 +148,38 @@ the branch to live in its own conversation.
     collides with the tool-effect ledger's `(run_id, tool_call_id)` key. And send
     only the **new** turn — the server supplies the prior history from the
     snapshot, so re-sending it duplicates it.
+
+## Discovering what can be resumed
+
+`resume` and `fork` address a run **by id**, so on their own a client can only
+continue a run whose id it still holds — which rules out resuming after a page
+reload or from another device, most of what durable persistence buys you.
+`GET runs/` is the index:
+
+```json
+{
+  "runs": [
+    {
+      "run_id": "abc",
+      "thread_id": "t1",
+      "parent_run_id": null,
+      "started_at": "2026-07-27T12:00:00+00:00",
+      "continuable": true
+    }
+  ]
+}
+```
+
+**`continuable` is the field that matters.** It reports whether the run has a
+saved snapshot to seed from, answered by making the same `latest_snapshot` call
+`resume` itself makes — not inferred from event counts. A run that never reached
+a provider-valid boundary has no snapshot, so resuming it would start from
+nothing: offer the action only where this is `true`, and treat the other rows as
+informational (a crashed run worth showing, not worth resuming).
+
+`parent_run_id` exposes fork lineage, so a UI can show that a run branched from
+another rather than listing near-identical transcripts side by side.
+
+Rows are owner-scoped by the store, and nothing on the wire names an owner —
+another user's runs are simply absent rather than a `403` that would confirm the
+id exists.
