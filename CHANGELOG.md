@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **New [Shared state](https://artui.github.io/django-ag-ui/shared-state/) guide.**
+  AG-UI's state channel works end to end and needed **no package code** — a tool
+  reads `ctx.deps.state` and writes back by returning a `StateSnapshotEvent` as
+  `ToolReturn` metadata, which pydantic-ai's adapter streams verbatim. The guide
+  is the recipe joining the two ends, plus when to prefer a *tool* instead: a
+  tool call is visible in the transcript and can be gated by a confirmation
+  card, which state events cannot.
+  - Records a real gap rather than papering over it: **there is currently no way
+    to have inbound state validated into a Pydantic model**, because the
+    endpoint constructs `AgentDeps(user=request.user)` itself and offers no hook
+    for supplying a different deps object. Validate in the tool for now.
+
 ### Added
 
 - **Every run is given typed dependencies.** The endpoint now builds an
