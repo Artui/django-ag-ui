@@ -4523,6 +4523,16 @@ contrib stores refuse anonymous thread / attachment operations unless
 so pass <code>require_authenticated=True</code> (or a <code>get_user</code> hook) whenever the
 store persists, rather than relying on owner scoping to isolate anonymous
 visitors from one another.</p>
+<p><strong>Spec tools.</strong> <code>service_specs</code> takes a <code>name -&gt; spec</code> mapping <em>or</em> a
+spec registry — drf-services 0.27's <code>SpecRegistry</code>, the single declaration
+site for a project exposing the same specs over more than one transport, so
+this endpoint reads the same source an MCP server and the HTTP views do::</p>
+<div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, service_specs=spec_registry.by_tag(&quot;public&quot;))
+</code></pre></div>
+<p>Either shape is normalised <strong>once, here</strong>, into a plain dict; a filtered view
+(<code>by_tag</code> / <code>subset</code>) is itself a registry, so two endpoints can be given
+different projections with no shared state. Requires the
+<code>django-ag-ui[spec-tools]</code> extra.</p>
 <p><strong>Durable step persistence.</strong> <code>step_store</code> is a <em>factory</em> — a
 <code>request -&gt; StepStore</code> callable, not a shared store instance, because the
 <code>pydantic-ai-harness</code> step-store protocol carries no request, so the store
@@ -6576,10 +6586,10 @@ views, so lock it down whenever the agent endpoint is locked down.</p>
     </div>
 
 </div><h3 id="reference-store-opt-in">Reference store (opt-in)<a class="headerlink" href="#reference-store-opt-in" title="Permanent link">&para;</a></h3>
-<p>The <code>django_ag_ui.contrib.store</code> app ships a ready-to-use durable store. Add it
+<p>The <code>django_pydantic_agent.contrib.store</code> app ships a ready-to-use durable store. Add it
 to <code>INSTALLED_APPS</code>, run <code>migrate</code>, then set
 <code>conversation_store=</code> to
-<code>django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore</code>.
+<code>django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore</code>.
 Projects that don't opt in get no model and no migration.</p>
 
 
@@ -7073,10 +7083,10 @@ mount the view with a real store to enable it.</p>
     </div>
 
 </div><h3 id="reference-attachment-store-opt-in">Reference attachment store (opt-in)<a class="headerlink" href="#reference-attachment-store-opt-in" title="Permanent link">&para;</a></h3>
-<p>The same <code>django_ag_ui.contrib.store</code> app ships a ready-to-use durable file
+<p>The same <code>django_pydantic_agent.contrib.store</code> app ships a ready-to-use durable file
 store. With the app installed and migrated, set
 <code>attachment_store=</code> to
-<code>django_ag_ui.contrib.store.default_attachment_store.DefaultAttachmentStore</code>. The
+<code>django_pydantic_agent.contrib.store.default_attachment_store.DefaultAttachmentStore</code>. The
 bytes go to Django <code>Storage</code> (S3/GCS via <code>STORAGES</code> / <code>DEFAULT_FILE_STORAGE</code>);
 projects that don't opt in get no model and no migration.</p>
 

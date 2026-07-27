@@ -671,6 +671,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="service_specs=">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#declaring-specs-once-across-transports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declaring specs once, across transports
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1170,6 +1187,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="service_specs=">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#declaring-specs-once-across-transports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declaring specs once, across transports
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1535,7 +1569,7 @@ to your factory and does <strong>not</strong> apply <code>MODEL_SETTINGS</code>,
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
 </span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
 </span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">build_my_agent</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="k">return</span> <span class="n">Agent</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="k">return</span> <span class="n">Agent</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">)</span>  <span class="c1"># …plus your own wiring</span>
 </span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
 </span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>
 </span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="c1"># urls.py</span>
@@ -1580,14 +1614,14 @@ subclass with your own model. See
 <div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">conversation_store</span><span class="o">=</span><span class="n">DjangoSessionConversationStore</span><span class="p">())</span>
 </span></code></pre></div>
 <p>For a ready-made <strong>durable, cross-device</strong> store, opt into the
-<code>django_ag_ui.contrib.store</code> app instead of writing your own model — add it to
+<code>django_pydantic_agent.contrib.store</code> app instead of writing your own model — add it to
 <code>INSTALLED_APPS</code>, run <code>migrate</code>, and point the setting at its store:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
 </span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="c1"># ...</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="s2">&quot;django_ag_ui.contrib.store&quot;</span><span class="p">,</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="s2">&quot;django_pydantic_agent.contrib.store&quot;</span><span class="p">,</span>
 </span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="p">]</span>
 </span></code></pre></div>
-<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui.contrib.store.default_conversation_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_pydantic_agent.contrib.store.default_conversation_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 </span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    <span class="n">DefaultConversationStore</span><span class="p">,</span>
 </span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="p">)</span>
 </span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
@@ -1611,15 +1645,15 @@ out-of-band and travel as lightweight refs). A consumer that registers its own
 <p>The package ships an abstract
 <a class="autorefs autorefs-internal" title="ModelAttachmentStore" href="../api/#django_ag_ui.ModelAttachmentStore"><code>ModelAttachmentStore</code></a> base you can subclass
 with your own model + storage. For a ready-made store, opt into the
-<code>django_ag_ui.contrib.store</code> app — add it to <code>INSTALLED_APPS</code>, run <code>migrate</code>, and
+<code>django_pydantic_agent.contrib.store</code> app — add it to <code>INSTALLED_APPS</code>, run <code>migrate</code>, and
 point the setting at its store (bytes go to Django <code>Storage</code>, so S3/GCS come free
 via <code>STORAGES</code> / <code>DEFAULT_FILE_STORAGE</code>):</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
 </span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    <span class="c1"># ...</span>
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="s2">&quot;django_ag_ui.contrib.store&quot;</span><span class="p">,</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="s2">&quot;django_pydantic_agent.contrib.store&quot;</span><span class="p">,</span>
 </span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="p">]</span>
 </span></code></pre></div>
-<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui.contrib.store.default_attachment_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_pydantic_agent.contrib.store.default_attachment_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 </span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    <span class="n">DefaultAttachmentStore</span><span class="p">,</span>
 </span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="p">)</span>
 </span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
@@ -1706,34 +1740,55 @@ as the web component's card label.</p>
 </span></code></pre></div>
 </content></p>
 <h2 id="service_specs"><code>service_specs=</code><a class="headerlink" href="#service_specs" title="Permanent link">&para;</a></h2>
-<p>A dotted path to a <code>name -&gt; spec</code> mapping (drf-services <code>ServiceSpec</code> /
-<code>SelectorSpec</code> objects) exposed to the agent as tools <strong>without an MCP server</strong>,
-via <code>djangorestframework-pydantic-ai</code>'s <code>SpecCapability</code>. <code>None</code> (the default)
+<p>A <code>name -&gt; spec</code> mapping (drf-services <code>ServiceSpec</code> / <code>SelectorSpec</code> objects),
+or a <code>SpecRegistry</code>, exposed to the agent as tools <strong>without an MCP server</strong> via
+<code>djangorestframework-pydantic-ai</code>'s <code>SpecCapability</code>. <code>None</code> (the default)
 disables it. Requires the <code>[spec-tools]</code> extra
 (<code>pip install "django-ag-ui[spec-tools]"</code>), imported lazily.</p>
-<p>This is the no-MCP-hop sibling of <a href="#drf_mcp_server"><code>DRF_MCP_SERVER</code></a>: the specs
+<p>This is the no-MCP-hop sibling of <a href="#drf_mcp_server"><code>drf_mcp_server=</code></a>: the specs
 are dispatched in-process through drf-services' transport-neutral surface
 (<code>dispatch_spec</code> + its off-HTTP helpers), enforcing each spec's
 <code>permission_classes</code>. The agent acts as the <strong>logged-in AG-UI user</strong> (bound from
-<code>request</code>), and a registry <code>@tool</code> wins a name collision. Beyond exposing the
-tools, <code>SpecCapability</code> teaches the model the spec conventions — that list tools
-accept <code>page</code> / <code>limit</code> / <code>order</code>, and how errors come back (an <code>{"error": …}</code>
-result is a final answer, a retry message means fix the argument, a permission
-error is final) — via instructions appended to the system prompt, so the model
-doesn't rediscover them by failing a call. Use it when you have drf-services
-specs but no reason to stand up an MCP server; use <code>DRF_MCP_SERVER</code> when you
-already run one (or want MCP clients to share the tools).</p>
+<code>request</code>), and a registry <code>@tool</code> wins a name collision. The model is also
+taught the spec conventions — that list tools accept <code>page</code> / <code>limit</code> / <code>order</code>,
+and how errors come back (an <code>{"error": …}</code> result is a final answer, a retry
+message means fix the argument, a permission error is final) — so it doesn't
+rediscover them by failing a call. Those instructions come from the underlying
+<code>SpecToolset</code>, which the capability delegates to, so they reach the system prompt
+exactly once. Use this when you have drf-services specs but no reason to stand up
+an MCP server; use <code>drf_mcp_server=</code> when you already run one (or want MCP
+clients to share the tools).</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># myproject/specs.py</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectorSpec</span><span class="p">,</span> <span class="n">ServiceSpec</span>
-</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="n">SPECS</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>    <span class="s2">&quot;list_orders&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span><span class="n">serializer</span><span class="o">=</span><span class="n">OrderSerializer</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()),</span>
-</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>    <span class="s2">&quot;create_order&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span><span class="n">service</span><span class="o">=</span><span class="n">create_order</span><span class="p">,</span> <span class="n">input_serializer</span><span class="o">=</span><span class="n">CreateOrderInput</span><span class="p">),</span>
-</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="p">}</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectorKind</span><span class="p">,</span> <span class="n">SelectorSpec</span><span class="p">,</span> <span class="n">ServiceSpec</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="n">SPECS</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>    <span class="s2">&quot;list_orders&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>        <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>        <span class="n">selector</span><span class="o">=</span><span class="n">list_orders</span><span class="p">,</span>
+</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>        <span class="n">output_serializer</span><span class="o">=</span><span class="n">OrderSerializer</span><span class="p">,</span>
+</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>    <span class="p">),</span>
+</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>    <span class="s2">&quot;create_order&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span><span class="n">service</span><span class="o">=</span><span class="n">create_order</span><span class="p">,</span> <span class="n">input_serializer</span><span class="o">=</span><span class="n">CreateOrderInput</span><span class="p">),</span>
+</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="p">}</span>
 </span></code></pre></div>
 <div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SPECS</span>
 </span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>
 </span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">SPECS</span><span class="p">)</span>
 </span></code></pre></div>
+<h3 id="declaring-specs-once-across-transports">Declaring specs once, across transports<a class="headerlink" href="#declaring-specs-once-across-transports" title="Permanent link">&para;</a></h3>
+<p>If the same specs are also exposed over MCP or as HTTP views, keep them in a
+<a href="https://artui.github.io/djangorestframework-services/recipes/spec-registry/"><code>SpecRegistry</code></a>
+(drf-services 0.27+) and pass that instead — each transport then reads one
+source rather than repeating the list:</p>
+<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">registry</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry_of_tools</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">registry</span><span class="p">)</span>
+</span></code></pre></div>
+<p>A filtered view is itself a registry, so two endpoints can be given different
+projections with no shared state:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="n">internal</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">tools</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">spec_registry</span><span class="p">)</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="n">public</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">tools</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">spec_registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">))</span>
+</span></code></pre></div>
+<p>Either shape is normalised into a plain mapping once, at construction.</p>
 <p>The spec tools' card labels are surfaced to the web component through the same
 <code>AGUIServer</code>-mounted tool catalog (<code>data-tools-url</code>).</p>
 <h2 id="authentication-anonymous-scoping">Authentication &amp; anonymous scoping<a class="headerlink" href="#authentication-anonymous-scoping" title="Permanent link">&para;</a></h2>
@@ -1742,19 +1797,19 @@ attachments, transcribe) share <strong>one authentication seam</strong>, and it 
 <strong>open</strong> — an unauthenticated visitor can drive the agent and reach the stores.
 Lock a mount down by passing the seam to <code>AGUIServer</code>; it forwards to every view
 it builds, including the agent endpoint:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.urls</span><span class="w"> </span><span class="kn">import</span> <span class="n">path</span>
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
-</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGUIServer</span>
-</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>
-</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
-</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>    <span class="n">registry</span><span class="p">,</span>
-</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>    <span class="n">require_authenticated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>   <span class="c1"># 401 for anonymous requests</span>
-</span><span id="__span-21-8"><a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>    <span class="c1"># authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user</span>
-</span><span id="__span-21-9"><a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>    <span class="c1"># get_user=lambda r: token_user(r),     # establish the acting user</span>
-</span><span id="__span-21-10"><a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="p">)</span>
-</span><span id="__span-21-11"><a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-21-12"><a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">agent</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
-</span><span id="__span-21-13"><a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.urls</span><span class="w"> </span><span class="kn">import</span> <span class="n">path</span>
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGUIServer</span>
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>
+</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-23-6"><a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-23-7"><a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>    <span class="n">require_authenticated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>   <span class="c1"># 401 for anonymous requests</span>
+</span><span id="__span-23-8"><a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>    <span class="c1"># authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user</span>
+</span><span id="__span-23-9"><a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>    <span class="c1"># get_user=lambda r: token_user(r),     # establish the acting user</span>
+</span><span id="__span-23-10"><a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a><span class="p">)</span>
+</span><span id="__span-23-11"><a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-23-12"><a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">agent</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+</span><span id="__span-23-13"><a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a><span class="p">]</span>
 </span></code></pre></div>
 <ul>
 <li><strong><code>require_authenticated=True</code></strong> → an anonymous request gets <strong>401</strong> (JSON).</li>
@@ -1791,14 +1846,14 @@ mechanism the web component already applies to client-registered destructive
 tools, now for server-side ones. The wire stays vanilla AG-UI. For the full
 end-to-end flow (what the user sees, custom clients, <code>ask_user</code>), see
 <a href="../tool-approval/">Tool approval</a>.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>    <span class="c1"># …</span>
-</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>        <span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>        <span class="s2">&quot;EXEMPT&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;refresh_cache&quot;</span><span class="p">],</span>       <span class="c1"># never gate these, even if destructive</span>
-</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>        <span class="s2">&quot;REQUIRE_APPROVAL&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;export_pii&quot;</span><span class="p">],</span> <span class="c1"># always gate these, even if not destructive</span>
-</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>    <span class="p">},</span>
-</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="p">}</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>    <span class="c1"># …</span>
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>        <span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>        <span class="s2">&quot;EXEMPT&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;refresh_cache&quot;</span><span class="p">],</span>       <span class="c1"># never gate these, even if destructive</span>
+</span><span id="__span-24-6"><a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>        <span class="s2">&quot;REQUIRE_APPROVAL&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;export_pii&quot;</span><span class="p">],</span> <span class="c1"># always gate these, even if not destructive</span>
+</span><span id="__span-24-7"><a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>    <span class="p">},</span>
+</span><span id="__span-24-8"><a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>

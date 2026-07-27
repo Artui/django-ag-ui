@@ -1418,10 +1418,10 @@ reads as <code>404</code>, never another user's history — and the view carries
 <code>require_authenticated</code> / <code>get_user</code> auth seam as <code>DjangoAGUIView</code>.</p>
 <h3 id="a-ready-made-durable-store">A ready-made durable store<a class="headerlink" href="#a-ready-made-durable-store" title="Permanent link">&para;</a></h3>
 <p>For cross-device, per-user history without writing your own model, opt into the
-<code>django_ag_ui.contrib.store</code> app: add <code>"django_ag_ui.contrib.store"</code> to
+<code>django_pydantic_agent.contrib.store</code> app: add <code>"django_pydantic_agent.contrib.store"</code> to
 <code>INSTALLED_APPS</code>, run <code>migrate</code>, and set
 <a href="../configuration/#conversation_store"><code>CONVERSATION_STORE</code></a> to
-<code>django_ag_ui.contrib.store.default_conversation_store.DefaultConversationStore</code>.
+<code>django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore</code>.
 It ships a <code>StoredConversation</code> model and a <code>ModelConversationStore</code> subclass with
 denormalised <code>title</code> / <code>preview</code> / <code>updated_at</code> columns so the thread list is a
 single cheap query. Projects that don't opt in get no model and no migration.</p>
