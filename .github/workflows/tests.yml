@@ -39,6 +39,11 @@ jobs:
         run: uv sync --all-groups
       - name: mkdocs build --strict
         run: DJANGO_SETTINGS_MODULE=tests.conftest_settings uv run mkdocs build --strict
+      # Checks doc snippets against the *installed* packages, ours and our
+      # dependencies' — the one thing ruff / ty / mkdocs cannot see, since they
+      # all stop at this package's boundary.
+      - name: doc snippets match the installed packages
+        run: uv run python scripts/check_docs_snippets.py
 
   test:
     name: ${{ matrix.python-version }} / Django ${{ matrix.django-version }}

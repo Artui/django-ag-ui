@@ -1,4 +1,4 @@
-.PHONY: help init test lint lint-fix format format-check type-check deps-bump docs-serve docs-build release-bump release-publish release-publish-prepare release-publish-finalize
+.PHONY: help init test lint lint-fix format format-check type-check deps-bump docs-serve docs-build release-bump release-publish release-publish-prepare release-publish-finalize docs-check
 
 help:
 	@echo "Available targets:"
@@ -12,6 +12,7 @@ help:
 	@echo "  deps-bump        Upgrade pinned dependencies"
 	@echo "  docs-serve       Live-reload docs at http://localhost:8000 (needs mkdocs.yml)"
 	@echo "  docs-build       Build docs into ./site (strict — fails on broken links)"
+	@echo "  docs-check       Check doc snippets against the installed packages"
 	@echo "  release-bump     Bump version files + CHANGELOG. Usage: make release-bump VERSION=X.Y.Z"
 	@echo "  release-publish  prepare → uv publish → finalize (workstation release)"
 	@echo "  release-publish-prepare   Run by release.yml on push to main (no-op unless bumped)"
@@ -27,6 +28,9 @@ test:
 lint:
 	uv run ruff check .
 	uv run ty check django_ag_ui
+
+docs-check:
+	uv run python scripts/check_docs_snippets.py
 
 lint-fix:
 	uv run ruff check --fix .
