@@ -4496,9 +4496,9 @@ backend is <em>active</em>:</p>
 <li><code>transcribe</code> — when the transcription backend is not a
   :class:<code>~django_ag_ui.persistence.null_transcription_backend.NullTranscriptionBackend</code>
   (<code>transcribe/</code> for the mic's <code>data-transcribe-url</code>).</li>
-<li><code>resume</code> / <code>fork</code> — when a <code>step_store</code> is configured
-  (<code>resume/&lt;run_id&gt;/</code> + <code>fork/&lt;run_id&gt;/</code>): seed a new run from a prior
-  run's last continuable snapshot.</li>
+<li><code>resume</code> / <code>fork</code> / <code>runs</code> — when a <code>step_store</code> is configured
+  (<code>resume/&lt;run_id&gt;/</code> + <code>fork/&lt;run_id&gt;/</code> seed a new run from a prior run's
+  last continuable snapshot; <code>runs/</code> indexes what may be resumed).</li>
 </ul>
 <p><code>conversation_store</code> / <code>attachment_store</code> / <code>transcription_backend</code>
 default to the <code>DJANGO_AG_UI</code> settings-resolved backend (the same one the
@@ -4542,9 +4542,13 @@ snapshot / tool-effect ledger through that store. Pass
 :class:<code>~django_pydantic_agent.contrib.store.default_step_store.DefaultStepStore</code> (its
 constructor <em>is</em> the <code>request -&gt; StepStore</code> factory) for the reference
 model-backed store, or any such callable. Requires the
-<code>django-ag-ui[harness]</code> extra. Configuring it also mounts the owner-scoped
-<code>resume/&lt;run_id&gt;/</code> and <code>fork/&lt;run_id&gt;/</code> endpoints, which seed a new run
-with a prior run's last continuable snapshot.</p>
+<code>django-ag-ui[harness]</code> extra. Configuring it also mounts three owner-scoped
+endpoints: <code>resume/&lt;run_id&gt;/</code> and <code>fork/&lt;run_id&gt;/</code>, which seed a new run
+with a prior run's last continuable snapshot, and <code>runs/</code>, which indexes the
+user's runs so a client can <em>discover</em> what it may resume. Without that index
+a client can only continue a run whose id it still holds — ruling out
+resuming after a page reload or from another device, which is most of what
+durable persistence is for.</p>
 <p><strong>Namespacing.</strong> :attr:<code>urls</code> returns the <code>(patterns, app_name, namespace)</code>
 triple <code>path()</code> mounts directly (like <code>admin.site.urls</code> — no
 <code>include()</code>), so endpoint names are namespaced (<code>namespace</code>, default
