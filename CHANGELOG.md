@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-07-27
+
 ### Added
 
 - **`GET runs/` — the discovery half of resume/fork.** Mounted alongside
@@ -986,7 +988,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/Artui/django-ag-ui/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/Artui/django-ag-ui/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/Artui/django-ag-ui/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/Artui/django-ag-ui/compare/v0.19.0...v0.20.0
