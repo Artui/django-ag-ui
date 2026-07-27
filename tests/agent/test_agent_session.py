@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 from django.test import RequestFactory, override_settings
+from django_pydantic_agent.agent.types.agent_deps import AgentDeps
 from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
 from django_pydantic_agent.persistence.types.conversation_store import ConversationStore
 from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
@@ -32,9 +33,10 @@ def _run_input(messages: list[dict[str, str]] | None = None) -> Any:
 
 
 def _session(
-    agent: Agent[None, Any] | None = None,
+    agent: Agent[Any, Any] | None = None,
     run_input: Any = None,
     *,
+    deps: AgentDeps | None = None,
     config: AGUIConfig | None = None,
     conversation_store: ConversationStore | None = None,
 ) -> AgentSession:
@@ -47,6 +49,7 @@ def _session(
         agent if agent is not None else Agent(TestModel()),
         run_input if run_input is not None else _run_input(),
         RequestFactory().post("/agent/"),
+        deps=deps if deps is not None else AgentDeps(),
         audit_logger=NullAuditLogger(),
         config=config if config is not None else build_ag_ui_config(),
         conversation_store=(

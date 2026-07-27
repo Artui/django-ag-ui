@@ -9,6 +9,7 @@ from typing import Any, cast
 
 from ag_ui.core import Message
 from django.http import HttpRequest
+from django_pydantic_agent.agent.types.agent_deps import AgentDeps
 from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
 from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
 from django_pydantic_agent.persistence.types.conversation import Conversation
@@ -44,10 +45,11 @@ class AgentSession:
 
     def __init__(
         self,
-        agent: Agent[None, Any],
+        agent: Agent[AgentDeps, Any],
         run_input: Any,
         request: HttpRequest,
         *,
+        deps: AgentDeps,
         audit_logger: AuditLogger,
         config: AGUIConfig,
         conversation_store: ConversationStore,
@@ -56,6 +58,11 @@ class AgentSession:
         self._agent = agent
         self._run_input = run_input
         self._request = request
+        # Per-run dependencies. Everything request-scoped the agent needs reaches
+        # tools / toolsets / capabilities through ``ctx.deps`` — so nothing in the
+        # agent closes over this request, and the run's acting user is bound by
+        # pydantic-ai's own mechanism rather than ours.
+        self._deps = deps
         self._audit_logger = audit_logger
         self._config = config
         self._conversation_store = conversation_store
@@ -86,7 +93,9 @@ class AgentSession:
         # The adapter composes ``[*message_history, *client_messages]`` — so a
         # resumed run's server-loaded snapshot is prepended to whatever new turn
         # the client sent. ``None`` behaves exactly as before (client-only).
-        native = self._adapter.run_stream_native(message_history=self._message_history)
+        native = self._adapter.run_stream_native(
+            message_history=self._message_history, deps=self._deps
+        )
         events = self._adapter.transform_stream(native, on_complete=self._on_complete())
         # A reasoning model's chain-of-thought rides through as AG-UI reasoning
         # events (adapter pass-through). Forward it by default; strip it when

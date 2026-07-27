@@ -377,7 +377,7 @@ async def test_seen_set_guards_three_way_name_collisions() -> None:
 
     # spec: ``add`` collides with drf-mcp (dropped, drf-mcp wins); ``unique_spec``
     # survives; ``read_attachment`` is now reserved by the spec capability.
-    (spec_capability,) = view._spec_capabilities(colliding_specs, request, seen)
+    (spec_capability,) = view._spec_capabilities(colliding_specs, seen)
     spec_names = set(spec_capability.get_toolset()._specs)
     assert "add" not in spec_names
     assert "unique_spec" in spec_names
