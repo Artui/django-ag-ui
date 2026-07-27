@@ -85,5 +85,6 @@ nav:
   - Batching tool calls (CodeMode): code-mode.md
   - Delegating to sub-agents: subagents.md
   - Durable step persistence: step-persistence.md
+  - Shared state: shared-state.md
   - Key concepts: concepts.md
   - API reference: api.md
