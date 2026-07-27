@@ -29,7 +29,7 @@ conversation store uses):
 # settings.py
 INSTALLED_APPS = [
     # ...
-    "django_ag_ui.contrib.store",
+    "django_pydantic_agent.contrib.store",
 ]
 ```
 
@@ -49,7 +49,7 @@ the store binds one and is built fresh per run. `DefaultStepStore`'s constructor
 from django.urls import path
 
 from django_ag_ui import AGUIServer
-from django_ag_ui.contrib.store.default_step_store import DefaultStepStore
+from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
 
 from myproject.agent import registry
 

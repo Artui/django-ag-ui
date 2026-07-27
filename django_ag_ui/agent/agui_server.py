@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from django.http import HttpRequest
 from django.urls import URLPattern, path
 from django_pydantic_agent.agent.types.agent_factory_fn import AgentFactoryFn
+from django_pydantic_agent.integrations.resolve_spec_mapping import resolve_spec_mapping
+from django_pydantic_agent.integrations.types.spec_source import SpecSource
 from django_pydantic_agent.persistence.null_attachment_store import NullAttachmentStore
 from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
 from django_pydantic_agent.persistence.types.attachment_store import AttachmentStore
@@ -98,6 +100,18 @@ class AGUIServer:
     store persists, rather than relying on owner scoping to isolate anonymous
     visitors from one another.
 
+    **Spec tools.** ``service_specs`` takes a ``name -> spec`` mapping *or* a
+    spec registry — drf-services 0.27's ``SpecRegistry``, the single declaration
+    site for a project exposing the same specs over more than one transport, so
+    this endpoint reads the same source an MCP server and the HTTP views do::
+
+        AGUIServer(registry, service_specs=spec_registry.by_tag("public"))
+
+    Either shape is normalised **once, here**, into a plain dict; a filtered view
+    (``by_tag`` / ``subset``) is itself a registry, so two endpoints can be given
+    different projections with no shared state. Requires the
+    ``django-ag-ui[spec-tools]`` extra.
+
     **Durable step persistence.** ``step_store`` is a *factory* — a
     ``request -> StepStore`` callable, not a shared store instance, because the
     ``pydantic-ai-harness`` step-store protocol carries no request, so the store
@@ -137,7 +151,7 @@ class AGUIServer:
         capabilities: list[Any] | None = None,
         agent_factory: AgentFactoryFn | None = None,
         drf_mcp_server: Any = None,
-        service_specs: dict[str, Any] | None = None,
+        service_specs: Mapping[str, Any] | SpecSource | None = None,
         provider: Any = None,
         config: AGUIConfig | None = None,
         namespace: str = DEFAULT_NAMESPACE,
@@ -174,7 +188,16 @@ class AGUIServer:
             else NullTranscriptionBackend()
         )
         self._drf_mcp_server = drf_mcp_server
-        self._service_specs = service_specs
+        # Normalised **once, here**, so everything downstream sees a plain
+        # mapping: the spec capability, the tool catalog, and the view's
+        # tool-name reservation. A registry reaching those unresolved fails
+        # three different ways — ``build_tool_catalog`` calls ``.items()``
+        # (AttributeError), and the view's ``seen.update(...)`` iterates, which
+        # yields ``RegisteredSpec`` records rather than names and would quietly
+        # stop detecting tool-name collisions.
+        self._service_specs: dict[str, Any] | None = (
+            dict(resolve_spec_mapping(service_specs)) if service_specs is not None else None
+        )
         # A per-request factory, not a shared store (the harness step-store
         # protocol carries no request). Retained on the object because the
         # resume/fork endpoints a later release mounts will need it too.
@@ -189,7 +212,7 @@ class AGUIServer:
             capabilities=capabilities,
             agent_factory=agent_factory,
             drf_mcp_server=drf_mcp_server,
-            service_specs=service_specs,
+            service_specs=self._service_specs,
             provider=provider,
             attachment_store=self._attachment_store,
             conversation_store=self._conversation_store,

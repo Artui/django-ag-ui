@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-07-27
+
+### Added
+
+- **`AGUIServer(service_specs=…)` accepts a `SpecRegistry`** as well as a
+  `name -> spec` mapping (`djangorestframework-services` 0.27+). A project
+  exposing the same specs over this endpoint *and* an MCP server *and* HTTP views
+  declares them once in the registry; each transport reads that one source
+  instead of repeating the list. A filtered view (`by_tag` / `subset`) is itself
+  a registry, so two endpoints can be given different projections with no shared
+  state.
+  - **Normalised once, at construction**, into a plain dict — which is the whole
+    design. Three things downstream consume this value, and a registry reaching
+    any of them unresolved fails differently: `build_tool_catalog` calls
+    `.items()` (`AttributeError`), and the view's tool-name reservation
+    *iterates* it — a registry yields `RegisteredSpec` records rather than name
+    strings, which would fill the collision set with dataclasses and **silently**
+    stop detecting duplicate tool names between the `@tool` registry, the drf-mcp
+    bridge and the spec tools. Resolving at the entry point means nothing
+    downstream changes.
+  - The mapping is **copied**, so a caller mutating theirs afterwards no longer
+    leaks into a configured server.
+
+### Changed
+
+- **Dependency pins advance together**: `django-pydantic-agent` `>=0.2,<0.3`
+  (for `resolve_spec_mapping` / `SpecSource`), `[spec-tools]`
+  `djangorestframework-pydantic-ai>=0.8,<0.9`, `[drf-mcp]`
+  `djangorestframework-mcp-server>=0.15,<0.16`. The last two are not optional
+  housekeeping: drf-mcp 0.12 capped drf-services at `<0.26` while PAI 0.8
+  requires `>=0.27`, so raising one without the other leaves the two extras
+  mutually uninstallable.
+
+### Fixed
+
+- **The persistence docs pointed at a module that no longer exists.** Four pages
+  told readers to add `"django_ag_ui.contrib.store"` to `INSTALLED_APPS` and to
+  import `DefaultConversationStore` / `DefaultAttachmentStore` /
+  `DefaultStepStore` from it. That app moved to
+  `django_pydantic_agent.contrib.store` in 0.21.0's extraction and the docs were
+  not updated, so following them raised `ModuleNotFoundError` at startup. All
+  references repointed.
+
+### Documentation
+
+- **The `service_specs=` reference was three ways stale.** It described the
+  argument as "a dotted path" — `import_string` was removed package-wide in
+  0.19.0, and the value has been the mapping itself since. Its example built
+  `SelectorSpec(serializer=…, queryset=…)`, and neither is a field (nor was the
+  required `kind` present), so the snippet raised `TypeError` as written. And it
+  credited `SpecCapability` with emitting the spec conventions, which moved onto
+  `SpecToolset.get_instructions()` in PAI 0.6.0 — the capability delegates so the
+  block reaches the prompt exactly once. All three corrected, plus a section on
+  declaring specs once across transports.
+- A snippet in the `agent_factory=` section put a bare `...` after a keyword
+  argument, which is a `SyntaxError` — so it could not be copied, *and* it made
+  the whole fence invisible to doc-checking tooling. That is how the broken
+  `SelectorSpec` example above survived in the same file.
+
 ## [0.21.0] — 2026-07-23
 
 ### Changed
@@ -901,7 +960,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/Artui/django-ag-ui/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/Artui/django-ag-ui/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/Artui/django-ag-ui/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/Artui/django-ag-ui/compare/v0.18.1...v0.19.0
