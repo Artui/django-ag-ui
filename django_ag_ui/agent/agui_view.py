@@ -18,6 +18,7 @@ from django_pydantic_agent.agent.agent_factory import build_agent
 from django_pydantic_agent.agent.attachment_toolset import build_attachment_toolset
 from django_pydantic_agent.agent.build_model import build_model
 from django_pydantic_agent.agent.types.agent_config import AgentConfig
+from django_pydantic_agent.agent.types.agent_deps import AgentDeps
 from django_pydantic_agent.agent.types.agent_factory_fn import AgentFactoryFn
 from django_pydantic_agent.persistence.null_attachment_store import NullAttachmentStore
 from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
@@ -177,6 +178,13 @@ class DjangoAGUIView:
             self._build_agent(request, run_input, resume_from=resume_from),
             run_input,
             request,
+            # Built here, per run — the transport is what knows who is acting.
+            # ``request.user`` was already materialized off the event loop by the
+            # auth step above, so reading it on the loop is safe. ``getattr``
+            # because an unauthenticated endpoint served without Django's auth
+            # middleware has no ``user`` at all — the same accessor (and the same
+            # "no user is None") that ``materialize_request_user`` uses.
+            deps=AgentDeps(user=getattr(request, "user", None)),
             audit_logger=self._resolve_audit_logger(),
             config=self._config,
             conversation_store=self._conversation_store,
@@ -189,7 +197,7 @@ class DjangoAGUIView:
 
     def _build_agent(
         self, request: HttpRequest, run_input: Any, *, resume_from: str | None = None
-    ) -> Agent[None, Any]:
+    ) -> Agent[AgentDeps, Any]:
         """Construct the per-request agent.
 
         When an ``agent_factory`` is passed, that callable takes full control of
@@ -218,7 +226,7 @@ class DjangoAGUIView:
         # reach the model via ``get_instructions`` — but it still reserves its
         # tool names in ``seen`` here, between drf-mcp and the attachment toolset,
         # keeping the ``build_tool_catalog`` dedup precedence unchanged.
-        capabilities += self._spec_capabilities(self._service_specs, request, seen)
+        capabilities += self._spec_capabilities(self._service_specs, seen)
         capabilities += self._step_persistence_capabilities(request, run_input, resume_from)
         toolsets += self._attachment_toolsets(self._attachment_store, request, seen)
         return build_agent(
@@ -254,23 +262,23 @@ class DjangoAGUIView:
         seen.update(binding.name for binding in server.tools.all())
         return [toolset]
 
-    def _spec_capabilities(
-        self, specs: dict[str, Any] | None, request: HttpRequest, seen: set[str]
-    ) -> list[Any]:
-        """Build the per-request drf-services `SpecCapability`, or `[]` when unset.
+    def _spec_capabilities(self, specs: dict[str, Any] | None, seen: set[str]) -> list[Any]:
+        """Build the drf-services `SpecCapability`, or `[]` when unset.
 
         Imported lazily so `djangorestframework-pydantic-ai` (and drf-services)
-        stay an optional `[spec-tools]` extra; the capability's toolset carries
-        `request` so the agent acts as the logged-in user, and its
-        `get_instructions` teaches the model the spec conventions. Excludes names
-        already in ``seen`` (registry + drf-mcp win the collision) and reserves
-        the spec names so the attachment toolset that follows can't shadow one.
+        stay an optional `[spec-tools]` extra. The acting user reaches the
+        toolset through the run's ``deps``, not a closure over ``request`` —
+        ``SpecToolset``'s default extractor reads ``ctx.deps.user`` — and the
+        toolset's ``get_instructions`` teaches the model the spec conventions.
+        Excludes names already in ``seen`` (registry + drf-mcp win the collision)
+        and reserves the spec names so the attachment toolset that follows can't
+        shadow one.
         """
         if specs is None:
             return []
         from django_pydantic_agent.integrations.build_spec_capability import build_spec_capability
 
-        capability = build_spec_capability(specs, request, exclude_names=frozenset(seen))
+        capability = build_spec_capability(specs, exclude_names=frozenset(seen))
         seen.update(specs)
         return [capability]
 

@@ -138,7 +138,25 @@ instance. On each POST it:
    `AGUIAdapter.build_run_input` (returning HTTP 400 with an error count, not
    the raw payload, on a `ValidationError`).
 3. Builds the per-request `Agent` (via the factory or `build_agent`).
-4. Wraps the agent in a `pydantic_ai.ui.ag_ui.AGUIAdapter` and streams its
+4. Builds the run's **dependencies** — `AgentDeps(user=request.user)` — and
+   passes them to the run. This is pydantic-ai's own seam for request-scoped
+   values: tools, toolsets and capabilities read them off `RunContext.deps`
+   rather than closing over the request.
+
+    ```python
+    @tool(registry)
+    def whoami(ctx: RunContext[AgentDeps]) -> str:
+        """Report the acting user."""
+        return str(ctx.deps.user)
+    ```
+
+    It is what makes spec tools act as the right user with nothing passed at
+    the call site — `SpecToolset`'s default extractor reads `ctx.deps.user` —
+    and it is where a run's AG-UI `state` lands (`deps.state`), since `AgentDeps`
+    satisfies pydantic-ai's `StateHandler` protocol. A request served without
+    Django's auth middleware has no `user` attribute at all; that is an
+    anonymous run (`deps.user is None`), not an error.
+5. Wraps the agent in a `pydantic_ai.ui.ag_ui.AGUIAdapter` and streams its
    encoded events as a `StreamingHttpResponse` with `Content-Type:
    text/event-stream`, `Cache-Control: no-cache`, and `X-Accel-Buffering: no`.
 
