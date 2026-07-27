@@ -483,6 +483,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../shared-state/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shared state
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../concepts/" class="md-nav__link">
         
   
@@ -4533,6 +4560,13 @@ this endpoint reads the same source an MCP server and the HTTP views do::</p>
 (<code>by_tag</code> / <code>subset</code>) is itself a registry, so two endpoints can be given
 different projections with no shared state. Requires the
 <code>django-ag-ui[spec-tools]</code> extra.</p>
+<p><strong>Per-run dependencies.</strong> <code>deps_factory</code> is a <code>request -&gt; AgentDeps</code>
+callable replacing the default, which binds only the acting user. Use it to
+carry project-specific per-run context (a tenant, a feature-flag snapshot)
+on an <code>AgentDeps</code> subclass, or to seed <code>AgentDeps.state</code> with a Pydantic
+model — the only way to have AG-UI's inbound shared state <em>validated</em>, since
+pydantic-ai validates it against <code>type(deps.state)</code>. Whatever it returns
+reaches every tool, toolset and capability as <code>ctx.deps</code>.</p>
 <p><strong>Durable step persistence.</strong> <code>step_store</code> is a <em>factory</em> — a
 <code>request -&gt; StepStore</code> callable, not a shared store instance, because the
 <code>pydantic-ai-harness</code> step-store protocol carries no request, so the store
@@ -4831,7 +4865,7 @@ catalog down whenever the agent endpoint is locked down.</p>
 
 
 <a href="#django_ag_ui.build_agent" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_agent</span><span class="p">(</span><span class="n">registry</span><span class="p">:</span> <span class="n">ToolRegistry</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">AgentConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Agent</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_agent</span><span class="p">(</span><span class="n">registry</span><span class="p">:</span> <span class="n">ToolRegistry</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">AgentConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Agent</span><span class="p">[</span><span class="n">AgentDeps</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -4849,6 +4883,8 @@ registered here.</p>
 MCP-client toolset) alongside the registry tools, so the agent can reach
 beyond the registered set. <code>tool_guard</code>, when enabled, adds a
 :class:<code>ToolGuard</code> that flips destructive tools to require approval.</p>
+<p>The agent is typed <code>Agent[AgentDeps, ...]</code>, so a run must be given
+:class:<code>AgentDeps</code> (the transport builds one per run and passes <code>deps=</code>).</p>
 <p>Capabilities are composed <strong>order-independently</strong>: each declares its
 position via <code>get_ordering</code> (audit is outermost, the guard is orthogonal),
 and pydantic-ai's <code>CombinedCapability</code> topologically sorts them — so the
@@ -5172,6 +5208,12 @@ owns no settings namespace, so the second argument is whatever configuration
 record the calling transport resolved — <code>AGUIConfig</code> for the AG-UI
 transport, its own equivalent for another. Each transport documents the
 concrete type its users receive.</p>
+<p><strong>The returned agent must be typed</strong> <code>Agent[AgentDeps, ...]</code> — build it
+with <code>deps_type=AgentDeps</code>. Transports hand every run an
+:class:<code>~django_pydantic_agent.agent.types.agent_deps.AgentDeps</code>, and that
+is how the acting user reaches spec tools (<code>ctx.deps.user</code>) and how AG-UI
+state reaches <code>deps.state</code>. A factory that omits <code>deps_type</code> produces an
+agent whose tools see no user.</p>
 
 
 
