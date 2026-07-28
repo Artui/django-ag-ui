@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-07-28
+
+### Added
+
+- **`CompactionObserver` — tell the client when history was compacted.**
+  Compaction is deliberately invisible upstream: it runs inside
+  `before_model_request`, mutates the message list, and **emits nothing**. Right
+  for the model, wrong for a person watching a long run, who sees earlier turns
+  quietly stop informing the answers with no explanation. Wrapping the capability
+  is the seam for saying so:
+
+  ```python
+  capabilities=[CompactionObserver(SlidingWindow(max_messages=80, keep_messages=40))]
+  ```
+
+  Opt-in by construction — pass the strategy unwrapped and nothing is emitted.
+  - **The compaction itself is untouched.** `CompactionObserver` subclasses
+    pydantic-ai's `WrapperCapability` and overrides one hook, so ordering,
+    deferral and hook introspection all delegate to the wrapped capability.
+    A hand-rolled proxy would have silently dropped those.
+  - **The wire stays vanilla AG-UI.** Each firing emits a standard
+    `ACTIVITY_SNAPSHOT` with `activityType: "compaction"` (exported as
+    `COMPACTION_ACTIVITY_TYPE`) and `content` carrying `removed` / `before` /
+    `after` — not a `CUSTOM` event, so any AG-UI client can render it and ours
+    is not privileged. Handle it with `@ag-ui/client`'s
+    `onActivitySnapshotEvent`.
+  - **Placed where a reader wants it**: interleaved immediately *before* the
+    events of the turn that ran with the shortened history, with a fresh
+    `messageId` per firing — a compaction is a distinct occurrence, not a
+    mutation of a previous one.
+  - **What it does not detect**, stated plainly: detection is a message-count
+    comparison across the wrapped call, because that is all the upstream
+    contract exposes. A strategy that rewrites history *without* shortening it
+    does not register — matching what the indicator claims (turns were dropped)
+    rather than over-promising a general "history changed" signal.
+  - **Per-run, not per-instance.** The observer records into a `ContextVar`. A
+    consumer builds the capability once at configuration time and the same
+    instance serves every request, so instance state would interleave concurrent
+    runs into each other's transcripts.
+
+### Documentation
+
+- **New page: [Compaction & skills](compaction.md)** — adopting the harness
+  `compaction` and `Skills` capabilities through the `CAPABILITIES` seam (pure
+  composition, no code here), then the indicator above. Strategy-by-strategy
+  guidance lives in django-pydantic-agent's integrations guide, where the seam
+  itself is documented.
+
 ## [0.25.0] — 2026-07-28
 
 ### Changed
@@ -1128,7 +1176,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.25.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.26.0...HEAD
+[0.26.0]: https://github.com/Artui/django-ag-ui/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/Artui/django-ag-ui/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/Artui/django-ag-ui/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/Artui/django-ag-ui/compare/v0.22.0...v0.23.0
