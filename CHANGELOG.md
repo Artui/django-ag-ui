@@ -33,9 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lying about interrupted-only runs rather than failing loudly.
 - `StepPersistence`'s constructor is unchanged at 0.12, so the capability wiring
   needed no adaptation.
-
-### Changed
-
 - **Raise the drf-chain ceilings: `[drf-mcp]` → `djangorestframework-mcp-server>=0.17,<0.18`
   (was `>=0.15,<0.16`) and `[spec-tools]` → `djangorestframework-pydantic-ai>=0.9,<0.10`
   (was `>=0.8,<0.9`).** The MCP ceiling had gone stale a wave earlier — drf-mcp
