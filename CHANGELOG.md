@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Raise the drf-chain ceilings: `[drf-mcp]` → `djangorestframework-mcp-server>=0.17,<0.18`
+  (was `>=0.15,<0.16`) and `[spec-tools]` → `djangorestframework-pydantic-ai>=0.9,<0.10`
+  (was `>=0.8,<0.9`).** The MCP ceiling had gone stale a wave earlier — drf-mcp
+  0.16.0 (MCP Apps) was already excluded — so two upstream releases were
+  unreachable from here rather than one. **No adaptation was needed**, which the
+  three relevant upstream changes explain:
+  - **MCP Apps (drf-mcp 0.16.0)** adds `ui://` resources and `_meta.ui` links on
+    tool definitions. The bridge reads `name` / `description` / `inputSchema` /
+    `outputSchema` / `annotations` off `tools/list` and ignores `_meta`, so the
+    addition is inert here. The resource-encoding fix in the same release (non-JSON
+    resource bodies no longer come back as quoted JSON string literals) touches
+    the resource surface, which this bridge does not use — it calls tools only.
+  - **The shared `UrlKwarg` / `QueryParam` (drf-mcp 0.17.0, PAI 0.9.0)** are
+    re-exported from `djangorestframework-services` rather than defined locally,
+    behind permanently preserved import paths. Neither is imported here. PAI's
+    switch from `ValueError` to `ImproperlyConfigured` for a bad channel
+    declaration is likewise unreachable: `SpecCapability` is constructed with a
+    spec mapping and no channel registrations.
+  - **`InputRequired` enforcement (drf-services 0.28)** makes a missing
+    marked-required input raise `ServiceValidationError` at dispatch. Over the
+    MCP bridge that already arrives as an `isError` result with
+    `type == "validation_error"`, which `call_tool` maps to `ModelRetry` — so a
+    spec adopting the marker gets a model-correctable failure through this path
+    with no change here.
+
 ## [0.24.0] — 2026-07-27
 
 ### Added
