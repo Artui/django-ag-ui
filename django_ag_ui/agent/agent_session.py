@@ -22,6 +22,7 @@ from pydantic_ai.messages import ModelMessage
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.guarded_stream import guarded_stream
+from django_ag_ui.agent.inject_compaction_events import inject_compaction_events
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
@@ -102,6 +103,11 @@ class AgentSession:
         # the consumer opts out, so the model can reason privately.
         if not self._forward_reasoning:
             events = drop_reasoning_events(events)
+        # Establishes the per-run compaction sink and interleaves an activity
+        # event for each firing. Unconditional: it is a no-op unless a
+        # ``CompactionObserver`` is in the capability list, and wrapping it in a
+        # flag would mean a second way to express the same opt-in.
+        events = inject_compaction_events(events)
         return guarded_stream(
             self._adapter.encode_stream(transcript.observe(events)),
             native_events=native,

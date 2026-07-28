@@ -84,6 +84,7 @@ nav:
   - Tool approval (human-in-the-loop): tool-approval.md
   - Batching tool calls (CodeMode): code-mode.md
   - Delegating to sub-agents: subagents.md
+  - Compaction & skills: compaction.md
   - Durable step persistence: step-persistence.md
   - Shared state: shared-state.md
   - Key concepts: concepts.md
