@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`[harness]` now requires `pydantic-ai-harness>=0.12,<0.13`** (was `>=0.7,<0.8`)
+  and **`django-pydantic-agent>=0.4,<0.5`** (was `>=0.3,<0.4`). The harness ceiling
+  had gone five minors stale, which also gated
+  [`pydantic_ai_harness.skills`](https://github.com/pydantic/pydantic-ai-harness/pull/396) —
+  it does not exist below 0.11.
+- **The resume / fork path needed the substrate fix that came with it.** Harness's
+  `StepStore` protocol gained `latest_snapshot(*, run_id, include_interrupted=False)`
+  and its `continue_run()` passes the new argument, so `resume/<run_id>/` raised
+  `TypeError: latest_snapshot() got an unexpected keyword argument` under 0.12
+  until `DefaultStepStore` was adapted (django-pydantic-agent 0.4.0, which adds a
+  `state` column and **migration `0002`** — run `migrate` when upgrading).
+  **This package's resume tests are what surfaced the break**; the substrate's own
+  suite could not see it, because it calls `latest_snapshot()` directly rather
+  than through the harness helper that drives the protocol.
+- **`GET runs/`'s `continuable` flag still means what it says.** It is computed
+  from `latest_snapshot(run_id=…)` precisely because that is the call `resume`
+  makes, and both now default to `include_interrupted=False` — so a run reported
+  continuable is still exactly a run `resume` would find a snapshot for. Had the
+  new argument defaulted the other way upstream, the flag would have started
+  lying about interrupted-only runs rather than failing loudly.
+- `StepPersistence`'s constructor is unchanged at 0.12, so the capability wiring
+  needed no adaptation.
+
+### Changed
+
 - **Raise the drf-chain ceilings: `[drf-mcp]` → `djangorestframework-mcp-server>=0.17,<0.18`
   (was `>=0.15,<0.16`) and `[spec-tools]` → `djangorestframework-pydantic-ai>=0.9,<0.10`
   (was `>=0.8,<0.9`).** The MCP ceiling had gone stale a wave earlier — drf-mcp
