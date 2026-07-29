@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`[drf-mcp]` → `djangorestframework-mcp-server>=0.17,<0.20`**, so 0.19.0 is
+  installable. That release fixes dynamic client registration, which issued
+  credentials that could never authenticate: `token_endpoint_auth_method` was
+  not modelled, so every registration silently became a confidential client, and
+  the `client_secret` handed back was the stored PBKDF2 digest rather than the
+  secret. Both are confined to drf-mcp's `contrib.oauth` — the bridge this
+  extra backs consumes `MCPServer`, which did not change, so the widening is
+  purely a ceiling lift and this transport's own behaviour is unaffected.
+
+  Verified rather than assumed: the suite runs green against 0.19.0 with the
+  lock updated.
+
 ## [0.26.1] — 2026-07-29
 
 ### Changed
