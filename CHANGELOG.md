@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Widened the two agent-tool integration pins**, matching
+  `django-pydantic-agent` 0.4.2, so the current majors of both backing packages
+  are installable:
+  - `[spec-tools]` → `djangorestframework-pydantic-ai>=0.9,<0.11`. 0.10.0 adds
+    `SpecToolset(host=…)`, the origin that makes DRF's `FileField` /
+    `Hyperlinked*` fields render absolute URLs off the HTTP path. Nothing here
+    uses it — the widening is what lets a *consumer* pass it.
+  - `[drf-mcp]` → `djangorestframework-mcp-server>=0.17,<0.19`. 0.18.0 fixes two
+    reported crashes: serializer-context providers called positionally
+    (`TypeError` for any provider not leading with `view, request`) and the
+    missing DRF baseline context (`KeyError: 'request'`). Its one deliberate
+    break — a provider whose first two parameters are named something other than
+    `view` / `request` now raises — applies to *user* provider signatures, not to
+    anything this package calls.
+
+  The floors stay at `0.9` / `0.17`: neither integration uses new API, so both
+  ranges are honestly satisfiable, and a project already pinned to an older
+  release isn't forced forward.
+
 ## [0.26.0] — 2026-07-28
 
 ### Added
