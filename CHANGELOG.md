@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- ⚠ **Ceilings raised across the drf chain:** drf-mcp-server to `<0.25` (was
+  `<0.22`), djangorestframework-pydantic-ai to `<0.12` (was `<0.11`), and
+  **django-pydantic-agent to `>=0.5,<0.6`** (was `>=0.4,<0.5`).
+
+  ⛔ **This closes a live install conflict rather than refreshing stale pins.**
+  drf-mcp 0.24.0 requires drf-services `>=0.32` while PAI `<0.11` required
+  `<0.30`, so the `[drf-mcp]` and `[spec-tools]` extras had become **mutually
+  unsatisfiable at their new versions** — masked only by ceilings old enough to
+  hold both at earlier releases. The chain moved upstream-first: PAI 0.11.0 →
+  django-pydantic-agent 0.5.0 → here.
+
+  ⚠ **The dpa floor is `>=0.5`, not `>=0.4`, on purpose.** 0.5.0 changes how an
+  unknown drf-mcp tool is reported: drf-mcp moved that condition from `-32004`
+  to `-32602` in 0.24.0 (matching the MCP spec's worked example), which made it
+  indistinguishable from malformed arguments, so the bridge now answers both
+  with `ModelRetry` instead of ending the run. Admitting dpa 0.4.x alongside
+  drf-mcp 0.24 would pair the new error code with a bridge that still treats it
+  as fatal — a combination that resolves cleanly and behaves wrongly.
+
+  Nothing in this package needed adaptation: its drf-mcp surface is passing the
+  server object through to that bridge, which is where the change lives. Doc
+  snippets were re-checked against the upgraded packages (`make docs-check`).
+
 ## [0.26.3] — 2026-07-30
 
 ### Changed
