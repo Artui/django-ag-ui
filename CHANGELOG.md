@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.1] — 2026-08-02
+
+### Changed
+
+- **Extra floors raised to `djangorestframework-mcp-server>=0.24.1` and
+  `djangorestframework-pydantic-ai>=0.11.1`.**
+
+  These are **floor** moves, not ceiling widenings — the previous ranges already
+  admitted the patched releases, so nothing was unresolvable. What they did not
+  do is *guarantee* them, and the versions below the new floor carry an
+  authorization bypass in their transitive `djangorestframework-services`
+  dependency: nested target resolution built its kwarg pool without stripping the
+  reserved dispatcher seeds, so a caller-supplied `user` key outranked the
+  authenticated one in the pool that decides which row gets mutated and which set
+  gets bulk-deleted. Fixed in drf-services 0.33.0.
+
+  ⚠ A version pair that resolves cleanly and leaves the bypass live is exactly
+  what a resolver cannot see, which is why the floor moves rather than the
+  ceiling. Installing this extra now gets the fix, rather than merely permitting
+  it.
+
+  No source changes; the full suite passes against the updated chain untouched.
+
 ## [0.27.0] — 2026-07-31
 
 ### Changed
@@ -1264,7 +1287,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.27.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.27.1...HEAD
+[0.27.1]: https://github.com/Artui/django-ag-ui/compare/v0.27.0...v0.27.1
 [0.27.0]: https://github.com/Artui/django-ag-ui/compare/v0.26.3...v0.27.0
 [0.26.3]: https://github.com/Artui/django-ag-ui/compare/v0.26.2...v0.26.3
 [0.26.2]: https://github.com/Artui/django-ag-ui/compare/v0.26.1...v0.26.2
