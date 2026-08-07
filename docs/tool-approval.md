@@ -48,11 +48,13 @@ from django_ag_ui import ToolRegistry, tool
 
 registry = ToolRegistry()
 
+
 @tool(registry, destructive=True, confirm="Delete this project?")
 def delete_project(project_id: int) -> dict:
     """Permanently delete a project."""
     ...
     return {"deleted": project_id}
+
 
 @tool(registry)  # read-only → never gated
 def list_projects() -> list[dict]:

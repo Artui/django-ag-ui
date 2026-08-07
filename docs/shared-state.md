@@ -86,9 +86,7 @@ def write_document(ctx: RunContext[AgentDeps], body: str) -> ToolReturn:
     ctx.deps.state = {**(ctx.deps.state or {}), "document": body}
     return ToolReturn(
         return_value="Document updated.",
-        metadata=[
-            StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state)
-        ],
+        metadata=[StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=ctx.deps.state)],
     )
 ```
 

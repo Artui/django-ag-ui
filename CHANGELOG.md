@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Floors raised across the drf chain**: `django-pydantic-agent>=0.6`,
+  `[drf-mcp]` → `djangorestframework-mcp-server>=0.25`, `[spec-tools]` →
+  `djangorestframework-pydantic-ai>=0.12`. Dev-group pins move in lockstep with
+  the extras they back.
+
+  ⚠ **Floors rather than widened ceilings**, because drf-mcp 0.25 changes
+  behaviour rather than adding surface: an unguarded tool now *raises* at
+  registration instead of warning, and a request with no `Mcp-Session-Id`
+  returns `400` rather than `404`. Admitting 0.24 alongside 0.25 is a pairing
+  that resolves cleanly and behaves differently — which no resolver can see.
+
+  ⭐ **It arrived as an import failure, not a test failure.** Three bridge
+  fixture servers here registered tools with no permissions and stopped
+  collecting outright. They now declare `AllowAny` explicitly — the honest form
+  for a fixture. Consumers upgrading should expect the same shape;
+  `REST_FRAMEWORK_MCP['REQUIRE_TOOL_PERMISSIONS'] = False` is the migration
+  hatch.
+
+### Security
+
+- **`cryptography` 48.0.1 → 50.0.0** (HIGH — PKCS#7 `EnvelopedData` decryption
+  exposing a Bleichenbacher oracle), **`pyasn1` 0.6.3 → 0.6.4** (HIGH), and
+  **`pymdown-extensions` → 11.0.1** (MEDIUM — path traversal in the `b64`
+  extension). All three open advisories on this repo are closed.
+
+- **Tested against Django 6.1**, with the lock moved to `djangorestframework>=3.18`.
+  ⚠ Django 6.1 removed `django.utils.cache.cc_delim_re`, which DRF 3.17.x
+  imports at module level, so that pairing fails at `import rest_framework`.
+
 ## [0.27.1] — 2026-08-02
 
 ### Changed
@@ -130,7 +161,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is the seam for saying so:
 
   ```python
-  capabilities=[CompactionObserver(SlidingWindow(max_messages=80, keep_messages=40))]
+  capabilities = [CompactionObserver(SlidingWindow(max_messages=80, keep_messages=40))]
   ```
 
   Opt-in by construction — pass the strategy unwrapped and nothing is emitted.
@@ -841,12 +872,14 @@ changes for projects that install `pydantic-ai-slim>=2`:
   ```python
   # before
   from django_ag_ui import DjangoAGUIView, get_urls
+
   urlpatterns = [
       *get_urls(DjangoAGUIView(registry), prefix="agent/", tools=registry, threads=store),
   ]
 
   # after
   from django_ag_ui import AGUIServer
+
   urlpatterns = [
       path("agent/", AGUIServer(registry, conversation_store=store).urls),
   ]

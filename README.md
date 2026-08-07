@@ -130,7 +130,7 @@ urlpatterns = [
 ```python
 # settings.py
 DJANGO_AG_UI = {
-    "MODEL": "anthropic:claude-sonnet-4.6",   # any Pydantic-AI model string
+    "MODEL": "anthropic:claude-sonnet-4.6",  # any Pydantic-AI model string
     # "API_KEY": os.environ["ANTHROPIC_API_KEY"],  # else inferred from env
     # "MODEL_SETTINGS": {"temperature": 0.2},
 }
