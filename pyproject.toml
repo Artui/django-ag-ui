@@ -68,7 +68,7 @@ spec-tools = ["djangorestframework-pydantic-ai>=0.12,<0.13"]
 # CodeMode — wrap many tools (e.g. the drf-mcp bridge) into one sandboxed
 # `run_code` — and the other graduated harness capabilities. The `[code-mode]`
 # extra pulls the sandbox (`pydantic-monty`). Attach via DJANGO_AG_UI["CAPABILITIES"].
-harness = ["pydantic-ai-harness[code-mode]>=0.12,<0.13"]
+harness = ["pydantic-ai-harness[code-mode]>=0.12,<0.17"]
 
 [project.urls]
 Homepage = "https://github.com/Artui/django-ag-ui"
@@ -99,7 +99,7 @@ dev = [
     # The [spec-tools] extra's backing package, so its capability + tests run in dev.
     "djangorestframework-pydantic-ai>=0.12,<0.13",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
-    "pydantic-ai-harness[code-mode]>=0.12,<0.13",
+    "pydantic-ai-harness[code-mode]>=0.12,<0.17",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
     # in dev/CI (the extras above ship to consumers, not the dev env).
     "pydantic-ai-slim[anthropic,openai,google]>=2",
