@@ -32,10 +32,16 @@ capability. Add one that returns a `SubAgents` with your child agents:
 from pydantic_ai import Agent
 from pydantic_ai_harness.subagents import SubAgent, SubAgents
 
-researcher = Agent("anthropic:claude-sonnet-4.6", name="researcher",
-                   instructions="Research the topic and return concise findings.")
-writer = Agent("anthropic:claude-sonnet-4.6", name="writer",
-              instructions="Draft prose from the findings you are given.")
+researcher = Agent(
+    "anthropic:claude-sonnet-4.6",
+    name="researcher",
+    instructions="Research the topic and return concise findings.",
+)
+writer = Agent(
+    "anthropic:claude-sonnet-4.6",
+    name="writer",
+    instructions="Draft prose from the findings you are given.",
+)
 
 
 def subagents():
@@ -84,8 +90,8 @@ SubAgent(
     researcher,
     description="Gathers facts on a topic.",
     usage_limits=UsageLimits(request_limit=4),  # isolated child accounting
-    timeout_seconds=30,                          # cancels a runaway child
-    max_calls=2,                                 # budget per parent run
+    timeout_seconds=30,  # cancels a runaway child
+    max_calls=2,  # budget per parent run
     on_failure="Research is unavailable; answer from what you know.",
 )
 ```

@@ -287,7 +287,6 @@ INSTALLED_APPS = [
     # ...
     "django_pydantic_agent.contrib.store",
 ]
-
 ```
 
 ```python title="urls.py"
@@ -329,7 +328,6 @@ INSTALLED_APPS = [
     # ...
     "django_pydantic_agent.contrib.store",
 ]
-
 ```
 
 ```python title="urls.py"
@@ -529,7 +527,7 @@ from django_ag_ui import AGUIServer
 
 agent = AGUIServer(
     registry,
-    require_authenticated=True,   # 401 for anonymous requests
+    require_authenticated=True,  # 401 for anonymous requests
     # authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user
     # get_user=lambda r: token_user(r),     # establish the acting user
 )
@@ -581,8 +579,8 @@ DJANGO_AG_UI = {
     # …
     "TOOL_GUARD": {
         "ENABLED": True,
-        "EXEMPT": ["refresh_cache"],       # never gate these, even if destructive
-        "REQUIRE_APPROVAL": ["export_pii"], # always gate these, even if not destructive
+        "EXEMPT": ["refresh_cache"],  # never gate these, even if destructive
+        "REQUIRE_APPROVAL": ["export_pii"],  # always gate these, even if not destructive
     },
 }
 ```

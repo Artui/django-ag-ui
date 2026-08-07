@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from rest_framework.permissions import AllowAny
 from rest_framework_mcp.server.mcp_server import MCPServer
 from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
@@ -29,16 +30,27 @@ def deny_by_policy(*, data: AddInput) -> dict[str, Any]:
     raise ServiceError("denied by policy")
 
 
+# drf-mcp 0.25 refuses to register a tool with no permissions: DRF
+# viewset-level and REST_FRAMEWORK defaults do not reach MCP, so an
+# omission is an open tool rather than an inherited policy. These are
+# bridge fixtures, so AllowAny states "deliberately open" explicitly.
 server = MCPServer(name="test")
 server.register_service_tool(
     name="add",
-    spec=ServiceSpec(service=add_numbers, input_serializer=AddInput),
+    spec=ServiceSpec(permission_classes=[AllowAny], service=add_numbers, input_serializer=AddInput),
 )
 server.register_service_tool(
     name="invalid",
-    spec=ServiceSpec(service=reject_input, input_serializer=AddInput, atomic=False),
+    spec=ServiceSpec(
+        permission_classes=[AllowAny], service=reject_input, input_serializer=AddInput, atomic=False
+    ),
 )
 server.register_service_tool(
     name="denied",
-    spec=ServiceSpec(service=deny_by_policy, input_serializer=AddInput, atomic=False),
+    spec=ServiceSpec(
+        permission_classes=[AllowAny],
+        service=deny_by_policy,
+        input_serializer=AddInput,
+        atomic=False,
+    ),
 )
