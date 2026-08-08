@@ -810,6 +810,15 @@ where the seam lives: see
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">server</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">SlidingWindow</span><span class="p">(</span><span class="n">max_messages</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">keep_messages</span><span class="o">=</span><span class="mi">40</span><span class="p">)])</span>
 </span></code></pre></div>
+<div class="admonition note">
+<p class="admonition-title"><code>SlidingWindow</code> vs <code>SlidingWindowCompaction</code></p>
+<p>harness 0.13 renamed this strategy to <code>SlidingWindowCompaction</code> and kept
+<code>SlidingWindow</code> as a deprecated alias. The examples here use the old name
+because it is the only one that imports across the whole range the
+<code>[harness]</code> extra allows (<code>&gt;=0.12,&lt;0.17</code>); on 0.13+ it emits a deprecation
+warning. Pin harness to <code>&gt;=0.13</code> yourself and use the new name if you would
+rather not see it.</p>
+</div>
 <p>That is the whole adoption. The rest of this page is about the one thing that
 composition alone cannot give you: <strong>telling the user it happened.</strong></p>
 <h2 id="why-an-indicator-needs-code-at-all">Why an indicator needs code at all<a class="headerlink" href="#why-an-indicator-needs-code-at-all" title="Permanent link">&para;</a></h2>
