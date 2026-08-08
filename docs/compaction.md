@@ -21,6 +21,15 @@ from pydantic_ai_harness.compaction import SlidingWindow
 server = AGUIServer(capabilities=[SlidingWindow(max_messages=80, keep_messages=40)])
 ```
 
+!!! note "`SlidingWindow` vs `SlidingWindowCompaction`"
+
+    harness 0.13 renamed this strategy to `SlidingWindowCompaction` and kept
+    `SlidingWindow` as a deprecated alias. The examples here use the old name
+    because it is the only one that imports across the whole range the
+    `[harness]` extra allows (`>=0.12,<0.17`); on 0.13+ it emits a deprecation
+    warning. Pin harness to `>=0.13` yourself and use the new name if you would
+    rather not see it.
+
 That is the whole adoption. The rest of this page is about the one thing that
 composition alone cannot give you: **telling the user it happened.**
 
