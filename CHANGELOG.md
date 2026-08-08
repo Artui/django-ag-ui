@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.1] — 2026-08-08
+
+### Changed
+
+- **`[harness]` now accepts `pydantic-ai-harness[code-mode]>=0.12,<0.17`** (was
+  `<0.13`). A widened ceiling rather than a raised floor, because nothing in this
+  package constructs a harness capability — the consumer does, and
+  `CompactionObserver` reads only `.messages` off the request context either
+  side of the delegated call. That surface is unchanged across 0.12–0.16, so
+  every pairing in the range genuinely works.
+
+  ⚠ **harness 0.13 renamed `SlidingWindow` to `SlidingWindowCompaction`**,
+  keeping the old name as a deprecated alias. The docs keep using
+  `SlidingWindow` because it is the only spelling that imports across the whole
+  accepted range — `SlidingWindowCompaction` does not exist on 0.12. Pin harness
+  to `>=0.13` in your own project to use the new name warning-free.
+
+  ⭐ **The upgrade broke only the tests, and for a reason worth recording.** Two
+  hand-rolled `_RequestContext` doubles here carried nothing but `messages`;
+  harness 0.13 started reading `model` off the context to notice a capability
+  swapping the model mid-run, and the doubles fell over. They were replaced with
+  the genuine `pydantic_ai.models.ModelRequestContext`, which costs four
+  keywords to build and cannot drift from the contract it stands for.
+
 ## [0.28.0] — 2026-08-07
 
 ### Changed
@@ -1322,7 +1346,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.28.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.28.1...HEAD
+[0.28.1]: https://github.com/Artui/django-ag-ui/compare/v0.28.0...v0.28.1
 [0.28.0]: https://github.com/Artui/django-ag-ui/compare/v0.27.1...v0.28.0
 [0.27.1]: https://github.com/Artui/django-ag-ui/compare/v0.27.0...v0.27.1
 [0.27.0]: https://github.com/Artui/django-ag-ui/compare/v0.26.3...v0.27.0
