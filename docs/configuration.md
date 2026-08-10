@@ -495,18 +495,38 @@ SPECS = {
 }
 ```
 
-Migrating a registry too large to guard in one pass? Attach the capability
-yourself instead of using `service_specs=`, which is the only place PAI's
-`require_permissions=False` is reachable today:
+Need a `SpecToolset` option — `max_page_size`, an `exception_map`, a
+`build_context` override, or `require_permissions=False` while migrating a
+registry too large to guard in one commit? **Build the toolset yourself and pass
+it to `service_specs=`.**
 
 ```python
-from rest_framework_pydantic_ai import SpecCapability
+from rest_framework_pydantic_ai import SpecToolset
 
-AGUIServer(registry, capabilities=[SpecCapability(SPECS, require_permissions=False)])
+AGUIServer(
+    registry,
+    service_specs=SpecToolset(SPECS, max_page_size=50, require_permissions=False),
+)
 ```
 
-⚠ That path skips the tool-catalog registration `service_specs=` performs, so
-tool-call cards render unlabelled. A migration step, not a destination.
+A `SpecCapability` is accepted the same way, so `defer_loading` composes too.
+
+⭐ **This does not cost you the tool-call card labels.** The endpoint attaches
+the object as-is *and* reads its `specs` for the tool catalog and the tool-name
+dedup — so the powerful form and the labelled form are the same form. (Before,
+the only route to a toolset option was `capabilities=`, which the catalog never
+saw, so every card from it rendered unlabelled.)
+
+⚠ **A pre-built toolset is not filtered.** For a mapping, a tool name the
+`@tool` registry already defines is dropped in the registry's favour. That
+cannot apply to an object you built, so a collision is **refused at
+construction** instead — rename on one side, or pass a mapping to get the old
+precedence.
+
+⚠ **Nor is it re-checked.** Its constructor already ran the
+`permission_classes` check, and it may have been built with
+`require_permissions=False` deliberately — validating again on arrival would
+take that decision back and leave no route to it at all.
 
 ```python title="urls.py"
 from myproject.specs import SPECS

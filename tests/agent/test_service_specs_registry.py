@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from django_pydantic_agent.registry.decorator import tool
 from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
 from rest_framework.permissions import AllowAny
+from rest_framework_pydantic_ai import SpecCapability, SpecToolset
 from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec, SpecRegistry
 
 from django_ag_ui.agent.agui_server import AGUIServer
@@ -196,3 +199,122 @@ class TestUnguardedSpecs:
     def test_an_empty_mapping_is_not_an_offender(self) -> None:
         """``{}`` says "no spec tools", which is a configuration, not a mistake."""
         AGUIServer(ToolRegistry(), model=TestModel(), service_specs={})
+
+
+class TestPreBuiltToolset:
+    """``service_specs=`` accepts an already-built ``SpecToolset`` / capability.
+
+    ⚠ **The two escape hatches used to cost each other.** ``service_specs=``
+    could pass only the mapping, so a project needing any ``SpecToolset`` knob —
+    ``max_page_size``, an ``exception_map``, a ``build_context`` override — had
+    to abandon it for ``capabilities=``, which is not wired into the tool
+    catalog, so its tool-call cards render unlabelled. Taking the powerful form
+    meant losing the labels.
+    """
+
+    def _server(self, source: Any) -> AGUIServer:
+        return AGUIServer(ToolRegistry(), model=TestModel(), service_specs=source)
+
+    def test_a_pre_built_toolset_is_attached_as_itself(self) -> None:
+        toolset = SpecToolset({"list_widgets": _selector()}, id="mine")
+        server = self._server(toolset)
+
+        assert server._spec_capability.get_toolset() is toolset
+
+    def test_a_pre_built_capability_is_attached_as_itself(self) -> None:
+        capability = SpecCapability({"list_widgets": _selector()})
+        server = self._server(capability)
+
+        assert server._spec_capability is capability
+
+    def test_its_specs_still_reach_the_catalog(self) -> None:
+        """⭐ The point of extracting the mapping as well as holding the object.
+
+        Choosing the powerful form must not cost the tool-call card labels —
+        that trade is the whole defect.
+        """
+        server = self._server(SpecToolset({"list_widgets": _selector()}))
+
+        assert set(server._service_specs) == {"list_widgets"}
+
+    def test_a_toolset_built_to_skip_the_permission_check_is_not_re_checked(self) -> None:
+        """⛔ Re-checking would take back a decision the consumer already made.
+
+        ``require_permissions=False`` is the documented migration path for a
+        registry too large to guard in one commit, and passing a pre-built
+        toolset is the *only* way to reach it from here. Validating again on
+        arrival would make that impossible and leave no route at all.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            toolset = SpecToolset(
+                {"list_widgets": SelectorSpec(kind=SelectorKind.LIST, selector=_list_widgets)},
+                require_permissions=False,
+            )
+
+        server = self._server(toolset)  # must not raise
+        assert server._spec_capability is not None
+
+    def test_a_name_the_registry_already_owns_is_refused_at_construction(self) -> None:
+        """⚠ A pre-built toolset cannot be filtered, so this has to fail loudly.
+
+        For a mapping the endpoint drops the colliding name and the registry
+        wins. That option does not exist here — the object is the consumer's —
+        and left alone pydantic-ai raises ``UserError`` for the duplicate
+        *mid-run*, long after the catalog looked clean.
+        """
+        registry = ToolRegistry()
+
+        @tool(registry)
+        def list_widgets() -> str:
+            """Collides with the spec tool."""
+            return "hi"
+
+        with pytest.raises(ImproperlyConfigured) as excinfo:
+            AGUIServer(
+                registry,
+                model=TestModel(),
+                service_specs=SpecToolset({"list_widgets": _selector()}),
+            )
+
+        message = str(excinfo.value)
+        assert "'list_widgets'" in message
+        # Says what to do, since neither side can be silently narrowed.
+        assert "Rename" in message
+
+    def test_a_mapping_still_gets_the_old_precedence(self) -> None:
+        """The filtering path is unchanged — only the pre-built form is strict."""
+        registry = ToolRegistry()
+
+        @tool(registry)
+        def list_widgets() -> str:
+            """Collides with the spec tool."""
+            return "hi"
+
+        # No raise: a mapping is filtered, and the registry wins the name.
+        AGUIServer(registry, model=TestModel(), service_specs={"list_widgets": _selector()})
+
+    async def test_a_knob_only_reachable_on_a_pre_built_toolset_takes_effect(self) -> None:
+        """The reason to accept one at all, asserted on what the model is shown."""
+        toolset = SpecToolset({"list_widgets": _selector()}, max_page_size=25)
+        server = self._server(toolset)
+
+        tools = await server._spec_capability.get_toolset().get_tools(None)
+        schema = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
+        assert schema["limit"]["maximum"] == 25
+
+    def test_the_view_attaches_it_and_reserves_its_names(self) -> None:
+        """The server holds it; this proves the view actually composes it.
+
+        ⚠ The names are still added to ``seen`` even though nothing filters the
+        capability itself — the attachment toolset built *after* it must not be
+        able to shadow one of its tools.
+        """
+        toolset = SpecToolset({"list_widgets": _selector()})
+        server = AGUIServer(ToolRegistry(), model=TestModel(), service_specs=toolset)
+        seen: set[str] = set()
+
+        capabilities = server._view._spec_capabilities(server._service_specs, seen)
+
+        assert capabilities == [server._spec_capability]
+        assert seen == {"list_widgets"}

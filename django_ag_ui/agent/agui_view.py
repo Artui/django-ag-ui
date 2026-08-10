@@ -90,6 +90,7 @@ class DjangoAGUIView:
         agent_factory: AgentFactoryFn | None = None,
         drf_mcp_server: Any = None,
         service_specs: dict[str, Any] | None = None,
+        spec_capability: Any = None,
         provider: Any = None,
         attachment_store: AttachmentStore | None = None,
         conversation_store: ConversationStore | None = None,
@@ -110,6 +111,7 @@ class DjangoAGUIView:
         self._agent_factory = agent_factory
         self._drf_mcp_server = drf_mcp_server
         self._service_specs = service_specs
+        self._spec_capability = spec_capability
         self._provider = provider
         self._attachment_store = attachment_store
         self._conversation_store: ConversationStore = (
@@ -290,6 +292,15 @@ class DjangoAGUIView:
         and reserves the spec names so the attachment toolset that follows can't
         shadow one.
         """
+        if self._spec_capability is not None:
+            # Pre-built: attached as given. ⚠ No ``exclude_names`` filtering —
+            # the consumer built this object and its tool set is theirs, so a
+            # collision is refused at construction (see
+            # ``_reject_spec_name_collisions``) rather than silently narrowed
+            # here. The names are still reserved, so the attachment toolset
+            # after this one cannot shadow one.
+            seen.update(specs or {})
+            return [self._spec_capability]
         if specs is None:
             return []
         from django_pydantic_agent.integrations.build_spec_capability import build_spec_capability

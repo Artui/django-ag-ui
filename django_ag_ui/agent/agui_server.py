@@ -211,11 +211,15 @@ class AGUIServer:
         # (AttributeError), and the view's ``seen.update(...)`` iterates, which
         # yields ``RegisteredSpec`` records rather than names and would quietly
         # stop detecting tool-name collisions.
-        self._service_specs: dict[str, Any] | None = (
-            dict(resolve_spec_mapping(service_specs)) if service_specs is not None else None
-        )
-        if self._service_specs:
+        self._service_specs, self._spec_capability = _resolve_spec_source(service_specs)
+        # ⚠ Only a mapping is checked here. A pre-built toolset ran the same
+        # check in its own constructor — and may have been built with
+        # ``require_permissions=False`` on purpose, which is the entire reason
+        # for accepting one. Re-checking would take that decision back.
+        if self._spec_capability is None and self._service_specs:
             _reject_unguarded_specs(self._service_specs)
+        if self._spec_capability is not None:
+            _reject_spec_name_collisions(self._service_specs or {}, registry)
         # A per-request factory, not a shared store (the harness step-store
         # protocol carries no request). Retained on the object because the
         # resume/fork endpoints a later release mounts will need it too.
@@ -232,6 +236,7 @@ class AGUIServer:
             agent_factory=agent_factory,
             drf_mcp_server=drf_mcp_server,
             service_specs=self._service_specs,
+            spec_capability=self._spec_capability,
             provider=provider,
             attachment_store=self._attachment_store,
             conversation_store=self._conversation_store,
@@ -264,6 +269,7 @@ class AGUIServer:
                     self._registry,
                     drf_mcp_server=self._drf_mcp_server,
                     service_specs=self._service_specs,
+                    spec_capability=self._spec_capability,
                     **self._auth,
                 ),
                 name="tools",
@@ -307,6 +313,70 @@ class AGUIServer:
             )
             patterns.append(path("transcribe/", transcribe_view, name="transcribe"))
         return patterns
+
+
+def _resolve_spec_source(
+    service_specs: Any,
+) -> tuple[dict[str, Any] | None, Any]:
+    """Split ``service_specs=`` into a mapping and, if given, a pre-built capability.
+
+    Three shapes go in — a ``name -> spec`` mapping, a ``SpecRegistry``, or an
+    already-built ``SpecToolset`` / ``SpecCapability`` — and the same two things
+    come out, so everything downstream sees one normalised pair.
+
+    ⚠ **Accepting a pre-built object is what makes every ``SpecToolset`` knob
+    reachable from here.** ``service_specs=`` could only ever pass the mapping,
+    so a project needing ``max_page_size``, an ``exception_map`` or a
+    ``build_context`` override had to abandon it for ``capabilities=`` — and
+    that path is not wired into the tool catalog, so its tool-call cards render
+    unlabelled. One escape hatch cost the other.
+
+    ⭐ **The mapping is still extracted, and that is the point.** A pre-built
+    toolset is attached *as itself*, but its ``specs`` also feed the tool
+    catalog and the tool-name dedup, so choosing the powerful form no longer
+    costs the labels.
+    """
+    if service_specs is None:
+        return None, None
+    toolset = getattr(service_specs, "get_toolset", None)
+    if toolset is not None:
+        # A ``SpecCapability``: attach it as given, read its names off the
+        # toolset it owns.
+        return dict(toolset().specs), service_specs
+    specs = getattr(service_specs, "specs", None)
+    if callable(specs) or specs is None:
+        # A plain mapping or a ``SpecRegistry`` — ``SpecRegistry.specs`` is a
+        # *method*, which is what tells the two apart from a built toolset
+        # whose ``specs`` is a property.
+        return dict(resolve_spec_mapping(service_specs)), None
+    # A bare ``SpecToolset``. Wrapped so the endpoint composes capabilities
+    # uniformly, and so ``defer_loading`` stays available; ``from_toolset``
+    # adopts the toolset's own id and instructions, changing nothing about it.
+    from rest_framework_pydantic_ai import SpecCapability
+
+    return dict(specs), SpecCapability.from_toolset(service_specs)
+
+
+def _reject_spec_name_collisions(specs: Mapping[str, Any], registry: ToolRegistry) -> None:
+    """Refuse a pre-built toolset whose tool names the registry already owns.
+
+    ⚠ **A pre-built toolset cannot be filtered, which is exactly why this has to
+    fail loudly.** For a mapping the endpoint drops colliding names and lets the
+    registry win; that option does not exist here — the consumer built the
+    object and its tool set is theirs. Left alone, pydantic-ai raises
+    ``UserError`` for the duplicate **mid-run**, long after the catalog looked
+    clean.
+    """
+    clashing = sorted(set(specs) & {binding.spec.name for binding in registry})
+    if not clashing:
+        return
+    raise ImproperlyConfigured(
+        f"AGUIServer(service_specs=...) was given a pre-built spec toolset whose "
+        f"tool name(s) the @tool registry already defines: {', '.join(repr(n) for n in clashing)}. "
+        "A mapping would have had the colliding names dropped in the registry's "
+        "favour, but a pre-built toolset is yours and is attached as-is. Rename "
+        "on one side, or pass the specs as a mapping to get the old precedence."
+    )
 
 
 def _reject_unguarded_specs(specs: dict[str, Any]) -> None:
