@@ -786,7 +786,7 @@ with per-tool risk metadata.</p>
 <li>An <strong>async Django view</strong>
   (<a class="autorefs autorefs-internal" title="DjangoAGUIView" href="api/#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a>) that wraps Pydantic-AI's
   <code>pydantic_ai.ui.ag_ui.AGUIAdapter</code>, parses the posted <code>RunAgentInput</code>, builds
-  a per-request <code>Agent</code>, and returns a <code>StreamingHttpResponse</code> of AG-UI events
+  the endpoint's <code>Agent</code>, and returns a <code>StreamingHttpResponse</code> of AG-UI events
   (Server-Sent Events).</li>
 <li>An <strong>audit boundary</strong>: the <a class="autorefs autorefs-internal" title="AuditLogger" href="api/#django_ag_ui.AuditLogger"><code>AuditLogger</code></a> Protocol
   with <a class="autorefs autorefs-internal" title="NullAuditLogger" href="api/#django_ag_ui.NullAuditLogger"><code>NullAuditLogger</code></a> (default) and
@@ -840,7 +840,7 @@ AG-UI wire types; they come from <code>pydantic-ai-slim[ag-ui]</code>.</p>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>   │  POST RunAgentInput { messages, tools, context, state }
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>   ▼
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>DjangoAGUIView.__call__               (async)
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>   │  build per-request Pydantic-AI Agent from the ToolRegistry
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>   │  the endpoint&#39;s Pydantic-AI Agent, built once from the ToolRegistry
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>   ▼
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>AGUIAdapter (pydantic-ai)
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>   │  merges FE-declared tools, runs the agent, encodes events

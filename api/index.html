@@ -4588,6 +4588,16 @@ this endpoint reads the same source an MCP server and the HTTP views do::</p>
 (<code>by_tag</code> / <code>subset</code>) is itself a registry, so two endpoints can be given
 different projections with no shared state. Requires the
 <code>django-ag-ui[spec-tools]</code> extra.</p>
+<p><strong>One agent, many runs.</strong> The endpoint builds its agent once and reuses it,
+rather than re-deriving every tool's JSON Schema per request. Two narrow
+hooks vary it: <code>model_for_request(request)</code> and
+<code>instructions_for_request(request)</code> — enough for the per-tenant model and
+the per-tenant system prompt, and narrow on purpose. A hook handed the whole
+request could vary the agent on anything it read off one, which is not a set
+the reuse can be reasoned about; these two ride the <em>run</em> instead, through
+pydantic-ai's own per-run <code>model</code> / <code>instructions</code>::</p>
+<div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, model_for_request=lambda r: r.tenant.model)
+</code></pre></div>
 <p><strong>Per-run dependencies.</strong> <code>deps_factory</code> is a <code>request -&gt; AgentDeps</code>
 callable replacing the default, which binds only the acting user. Use it to
 carry project-specific per-run context (a tenant, a feature-flag snapshot)
@@ -4701,6 +4711,15 @@ tools declared in the request are merged by the adapter automatically.</p>
 project can mount several with independent registries. <code>model</code>,
 <code>instructions</code>, and <code>audit_logger</code> fall back to the <code>DJANGO_AG_UI</code>
 settings when not passed explicitly (tests inject a <code>TestModel</code>).</p>
+<p><strong>The agent is built once and reused by every run</strong> — see :meth:<code>_agent</code>.
+Two narrow hooks vary it per request: <code>model_for_request(request)</code> and
+<code>instructions_for_request(request)</code>, each returning this request's value.
+They are deliberately narrow rather than a request-aware <code>agent_factory</code>:
+everything either can change rides the <em>run</em>, so the reuse stays provable,
+and neither costs the <code>agent_factory=</code> cliff (supplying one turns off the
+drf-mcp bridge, the spec capability, step persistence, the attachment
+toolset, <code>MODEL_SETTINGS</code>, <code>RETRIES</code>, <code>toolsets</code> and <code>capabilities</code>
+in one go).</p>
 <p><strong>Authentication is the host's responsibility, and the view fails closed.</strong>
 Tools (and the <code>drf-mcp</code> bridge) act as <code>request.user</code>; if your
 middleware hasn't authenticated the request, that is <code>AnonymousUser</code> — a
@@ -5852,8 +5871,17 @@ per-tool wrapper saw only the registry.</p>
 <code>django_pydantic_agent.audit</code> Python logger, so a broken audit backend degrades to
 lost audit records, never a broken agent run.</p>
 <p><code>ip_address</code> / <code>organization_id</code> pre-fill the matching
-:class:<code>AuditEvent</code> fields for every event this capability records — the
-view passes the client IP; a multi-tenant host can pass its org scope.</p>
+:class:<code>AuditEvent</code> fields for every event this capability records — a
+multi-tenant host can pass its org scope.</p>
+<p>⭐ <strong>The IP is read from the run's <code>deps</code> first, and only then from the
+constructor.</strong> <code>AgentDeps.ip_address</code> is per-run; a constructor argument
+is per-agent. Taking the IP only from the constructor is what forced a
+transport to build a fresh agent for every request — the exact closure
+<code>AgentDeps</code> exists to replace — and the failure it produces if you build
+once anyway is silent: every audit record carries the IP of whoever
+happened to arrive first. Deps that carry no <code>ip_address</code> (a project's own
+deps type, or a run that leaves it unset) fall back to the constructor
+value, so nothing that already worked changes.</p>
 
 
 
@@ -7641,6 +7669,26 @@ present, resolved from the single source of truth with a fallback chain:</p>
 <p><code>description</code> (a longer blurb for tooltips) is included when available
 (<code>ToolSpec.description</code> / drf-mcp <code>display_description</code> → <code>description</code>).
 Registry tools win on name collisions.</p>
+<p>⚠ <strong>The catalog covers the sources named here, and no others.</strong> Tools
+reaching the agent through a transport's <code>capabilities=</code> / <code>toolsets=</code>
+— an arbitrary <code>AbstractToolset</code> a project attaches directly — are <strong>not</strong>
+listed, and their cards fall back to a prettified name in the frontend.</p>
+<p>⛔ <strong>That boundary is deliberate, and enumerating them is not a missing
+feature.</strong> Pydantic-AI's enumeration is <code>AbstractToolset.get_tools</code>, which
+is <code>async</code> and takes a <code>RunContext</code>; this function runs at configuration
+time, from a view, with no run in sight. No common surface exposes tool
+names before a run, so any attempt here would work for the toolsets we
+happen to recognise and silently skip the rest — a catalog that <em>looks</em>
+complete and is not, which is the exact failure mode this stack keeps
+fixing everywhere else.</p>
+<p>⭐ <strong>Prefer routing spec tools through the source that is covered.</strong> A
+<code>SpecToolset</code> / <code>SpecCapability</code> handed to django-ag-ui's
+<code>service_specs=</code> (0.30+) is attached as itself <em>and</em> enumerated here, so
+the powerful form keeps its labels; only a toolset with no such route stays
+unlabelled.</p>
+<p>⚠ Unlabelled is a <strong>degraded label, not a broken call</strong> — the frontend
+prettifies the tool name and the tool works normally. That is why the
+boundary is documented rather than closed with a partial guess.</p>
 
 
     </div>

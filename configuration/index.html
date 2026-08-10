@@ -1501,6 +1501,14 @@ agent bridges to <em>which</em> MCP server. See
 <td>Pydantic-AI capabilities.</td>
 </tr>
 <tr>
+<td><code>model_for_request=fn</code></td>
+<td><code>(request) -&gt; model</code> for this run (per-tenant models).</td>
+</tr>
+<tr>
+<td><code>instructions_for_request=fn</code></td>
+<td><code>(request) -&gt; str</code> for this run (per-tenant prompts).</td>
+</tr>
+<tr>
 <td><code>agent_factory=fn</code></td>
 <td>Escape hatch replacing <code>build_agent</code>.</td>
 </tr>
@@ -1640,6 +1648,14 @@ custom model providers, output types, instrumentation, or toolset wiring the
 sugar arguments do not cover. When passed, the view hands construction entirely
 to your factory and does <strong>not</strong> apply <code>MODEL_SETTINGS</code>, <code>RETRIES</code>, <code>toolsets</code>,
 <code>capabilities</code>, or the drf-mcp bridge itself — your factory owns all of it.</p>
+<div class="admonition tip">
+<p class="admonition-title">To vary the model or prompt per request, don't reach for this</p>
+<p><code>model_for_request</code> / <code>instructions_for_request</code> cover that without the
+all-or-nothing cost above — see
+<a href="../concepts/#varying-the-agent-per-request">Varying the agent per request</a>.
+Like the built-in path, a factory is called <strong>once</strong> and its agent reused; it
+takes no request and never did.</p>
+</div>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># myproject/agent.py</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span>
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
