@@ -52,24 +52,34 @@ class DjangoAGUIView:
     ``instructions``, and ``audit_logger`` fall back to the ``DJANGO_AG_UI``
     settings when not passed explicitly (tests inject a ``TestModel``).
 
-    **Authentication is the host's responsibility.** Tools (and the ``drf-mcp``
-    bridge) act as ``request.user``; if your middleware hasn't authenticated the
-    request, that is ``AnonymousUser`` — a data-exposure footgun. Pass
-    ``require_authenticated=True`` to fail closed (401 for unauthenticated
-    requests), and/or a ``get_user(request)`` hook to establish the user (e.g.
-    from a token) before tools run. ``get_user`` may be **sync or async**; a
-    sync hook runs off the event loop, so a plain ORM token → ``User`` lookup
+    **Authentication is the host's responsibility, and the view fails closed.**
+    Tools (and the ``drf-mcp`` bridge) act as ``request.user``; if your
+    middleware hasn't authenticated the request, that is ``AnonymousUser`` — a
+    data-exposure footgun. ``require_authenticated`` therefore defaults to
+    **True**: an anonymous request gets a 401 before any agent runs. Pass
+    ``require_authenticated=False`` to serve anonymous runs deliberately, and/or
+    a ``get_user(request)`` hook to establish the user (e.g. from a token)
+    before tools run. ``get_user`` may be **sync or async**; a sync hook runs
+    off the event loop, so a plain ORM token → ``User`` lookup
     (``Token.objects.select_related("user").get(key=...).user``) is fully
     supported. A hook that raises propagates as an unhandled error (500) —
     return ``AnonymousUser`` (or ``None``) for a clean 401 instead.
 
-    **CSRF:** the view defaults to ``csrf_exempt=True`` because AG-UI clients
-    typically authenticate via headers (Bearer / API key), where CSRF does not
-    apply. If your deployment authenticates with **session cookies**, pass
-    ``csrf_exempt=False`` and send the CSRF token from the client — tools act
-    as ``request.user``, so a cookie-auth endpoint without CSRF protection
-    lets any third-party page drive the agent as the logged-in user
-    (mitigated, not eliminated, by Django's default ``SameSite=Lax`` cookie).
+    **CSRF:** the view is CSRF-exempt unless told otherwise, because AG-UI
+    clients typically authenticate via headers (Bearer / API key), where CSRF
+    does not apply. If your deployment authenticates with **session cookies**,
+    pass ``csrf_exempt=False`` and send the CSRF token from the client — tools
+    act as ``request.user``, so a cookie-auth endpoint without CSRF protection
+    lets any third-party page drive the agent as the logged-in user (mitigated,
+    not eliminated, by Django's default ``SameSite=Lax`` cookie).
+
+    ⚠ **Leaving ``csrf_exempt`` unset while supplying no ``get_user`` warns at
+    construction.** That combination says nothing about how requests
+    authenticate, and the likeliest reading is the dangerous one: the acting
+    user arrives from Django's session cookie, with CSRF turned off. Stating
+    either half — ``csrf_exempt=False``, ``csrf_exempt=True``, or a ``get_user``
+    hook — settles it and silences the warning. See
+    :func:`_warn_if_csrf_unstated`.
     """
 
     def __init__(
@@ -79,8 +89,8 @@ class DjangoAGUIView:
         model: Any = None,
         instructions: str | None = None,
         audit_logger: AuditLogger | None = None,
-        csrf_exempt: bool = True,
-        require_authenticated: bool = False,
+        csrf_exempt: bool | None = None,
+        require_authenticated: bool = True,
         get_user: Callable[[HttpRequest], Any]
         | Callable[[HttpRequest], Awaitable[Any]]
         | None = None,
@@ -130,8 +140,12 @@ class DjangoAGUIView:
         self._authorize_predicate = authorize
         # Django's CsrfViewMiddleware reads this attribute off the view
         # callable. AG-UI clients authenticate via headers/session and post
-        # JSON; CSRF is the consumer's call. Default exempt, overridable.
-        self.csrf_exempt = csrf_exempt
+        # JSON; CSRF is the consumer's call. Exempt unless stated, overridable —
+        # ``None`` means *unstated*, which behaves as exempt but is what lets the
+        # guard below tell "header auth, CSRF does not apply" (an explicit True)
+        # apart from "nobody decided" (the default).
+        _warn_if_csrf_unstated(csrf_exempt, get_user)
+        self.csrf_exempt = True if csrf_exempt is None else csrf_exempt
         # Mark this callable instance as a coroutine function so Django's
         # request handler awaits ``__call__`` when the view is mounted. Without
         # it, ``asgiref.iscoroutinefunction(instance)`` is False and the handler
@@ -439,6 +453,53 @@ class DjangoAGUIView:
     def _resolve_audit_logger(self) -> AuditLogger:
         # No dotted path to resolve: the logger is passed, or there is none.
         return self._audit_logger if self._audit_logger is not None else NullAuditLogger()
+
+
+def _warn_if_csrf_unstated(csrf_exempt: bool | None, get_user: Any) -> None:
+    """Warn when nothing in the configuration says how requests authenticate.
+
+    ⚠ **This catches the deployment the ``require_authenticated`` default
+    cannot see.** That default refuses *anonymous* callers, which is the whole
+    of the protection when nobody is logged in. It says nothing about the case
+    where callers *are* authenticated — by session cookie, through Django's
+    auth middleware — and the endpoint is CSRF-exempt. There, any third-party
+    page can drive the agent as the logged-in user, and every request looks
+    perfectly authenticated from the inside.
+
+    ⭐ **Unstated is the signal, not ``True``.** ``csrf_exempt=True`` is a
+    defensible choice — it is right for Bearer / API-key clients, where CSRF
+    does not apply — so warning on the *value* would fire on a correct
+    configuration with no way to say so, which is how a project learns to
+    filter the warning. ``None`` (the default) means the question was never
+    asked, and that is the only state worth a warning. Any of the three
+    answers silences it:
+
+    - ``csrf_exempt=False`` — CSRF enforced; cookie auth is safe.
+    - ``csrf_exempt=True`` — deliberately exempt; header-authenticated clients.
+    - ``get_user=...`` — the request carries its own credential, so the session
+      cookie is not what authenticates it.
+
+    Construction-time rather than per-request, for the same reason
+    ``AGUIServer`` refuses unguarded specs at construction: an operator reading
+    this in ``urls.py`` is in a different situation from one reading it in
+    Sentry a week later. It lives here rather than on ``AGUIServer`` because
+    both are import-time paths — nothing about the check needs a request — so
+    the view is where it covers ``AGUIServer`` *and* a directly-constructed
+    view, with one implementation and one warning.
+    """
+    if csrf_exempt is not None or get_user is not None:
+        return
+    warnings.warn(
+        "django-ag-ui: this AG-UI endpoint is CSRF-exempt (the default) and has "
+        "no get_user hook, so the acting user can only be coming from Django's "
+        "session cookie — and tools act as that user, which lets any "
+        "third-party page drive the agent as whoever is logged in. Pass "
+        "csrf_exempt=False (and send the CSRF token from the client) for "
+        "cookie authentication, or csrf_exempt=True to confirm your clients "
+        "authenticate by header (Bearer / API key), where CSRF does not apply.",
+        RuntimeWarning,
+        stacklevel=3,
+    )
 
 
 __all__ = ["DjangoAGUIView"]

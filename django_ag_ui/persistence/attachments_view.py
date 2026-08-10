@@ -43,8 +43,10 @@ class AttachmentsView:
     ``attachment`` with ``X-Content-Type-Options: nosniff`` so an uploaded
     ``text/html`` can't execute as a same-origin page. The view carries the same
     authentication seam as :class:`~django_ag_ui.DjangoAGUIView`
-    (``require_authenticated`` / ``get_user``); defaults stay open for parity
-    with the catalog views, so lock it down whenever the agent endpoint is.
+    (``require_authenticated`` / ``get_user``), closed by default like the
+    catalog views — and here the default is load-bearing rather than a parity
+    choice: every route is owner-scoped, so an anonymous caller has no files to
+    reach.
 
     With the default :class:`NullAttachmentStore` an upload returns ``410`` (off):
     mount the view with a real store to enable it.
@@ -54,7 +56,7 @@ class AttachmentsView:
         self,
         store: AttachmentStore,
         *,
-        require_authenticated: bool = False,
+        require_authenticated: bool = True,
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
         config: AGUIConfig | None = None,

@@ -20,6 +20,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from tests.authed_request_factory import authenticated_user
 
 
 def _body() -> bytes:
@@ -100,7 +101,9 @@ class TestTheSessionPassesDeps:
 class TestTheViewBuildsThem:
     async def test_the_acting_user_reaches_a_tool_end_to_end(self) -> None:
         seen: list[Any] = []
-        user = object()
+        # Authenticated, because the endpoint refuses anonymous callers before
+        # any of this runs — the identity assertion is unchanged.
+        user = authenticated_user()
         view = DjangoAGUIView(_recording_registry(seen), model=TestModel())
 
         await _drain(await view(_post(user)))
@@ -110,9 +113,14 @@ class TestTheViewBuildsThem:
     async def test_a_request_with_no_user_is_an_anonymous_run(self) -> None:
         """An endpoint served without Django's auth middleware has no ``user``
         attribute at all. The package's own ``materialize_request_user`` treats
-        that as ``None``; the run must not raise ``AttributeError`` instead."""
+        that as ``None``; the run must not raise ``AttributeError`` instead.
+
+        Such a deployment is exactly the one that has to waive the
+        authentication requirement — there is no middleware to satisfy it."""
         seen: list[Any] = []
-        view = DjangoAGUIView(_recording_registry(seen), model=TestModel())
+        view = DjangoAGUIView(
+            _recording_registry(seen), model=TestModel(), require_authenticated=False
+        )
 
         await _drain(await view(_post()))
 

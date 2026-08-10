@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
+import pytest
 from django.test import override_settings
 from django.urls import resolve, reverse
 from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
@@ -175,6 +177,56 @@ def test_auth_policy_forwards_to_every_view() -> None:
     patterns, _, _ = server.urls
     for pattern in patterns:
         assert pattern.callback._require_authenticated is True
+
+
+def test_every_view_requires_authentication_by_default() -> None:
+    """A bare mount serves nobody who is not logged in.
+
+    Asserted across *every* pattern rather than on the agent endpoint alone:
+    the thread drawer, the attachment routes and the catalogs are the sub-views
+    where an open default leaks the most, and they are reachable without the
+    agent endpoint ever being called.
+    """
+    server = _server(
+        skills=SkillRegistry(),
+        conversation_store=_DummyStore(),
+        attachment_store=_DummyAttachmentStore(),
+        transcription_backend=_DummyTranscriptionBackend(),
+    )
+    patterns, _, _ = server.urls
+    assert patterns  # a mount with no patterns would pass vacuously
+    for pattern in patterns:
+        assert pattern.callback._require_authenticated is True, pattern.name
+
+
+def test_the_csrf_guard_reaches_the_server_path() -> None:
+    """The check lives on the view, so building a server inherits it.
+
+    ⭐ That placement is deliberate: both constructors run at import time, so
+    putting it on the view covers ``AGUIServer`` *and* a directly-constructed
+    ``DjangoAGUIView`` with one implementation and one warning, rather than
+    reproducing the gap the unguarded-spec refusal has to document.
+    """
+    with pytest.warns(RuntimeWarning, match="CSRF-exempt"):
+        _server()
+
+
+def test_stating_csrf_on_the_server_silences_the_guard() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _server(csrf_exempt=False)
+        _server(csrf_exempt=True)
+
+
+def test_authentication_can_be_waived_across_the_whole_mount() -> None:
+    server = _server(
+        skills=SkillRegistry(),
+        conversation_store=_DummyStore(),
+        require_authenticated=False,
+    )
+    patterns, _, _ = server.urls
+    for pattern in patterns:
+        assert pattern.callback._require_authenticated is False, pattern.name
 
 
 class _DummyStore:

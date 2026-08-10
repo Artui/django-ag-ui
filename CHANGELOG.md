@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] — 2026-08-10
+
+### Changed — BREAKING
+
+- **`require_authenticated` now defaults to `True`.** Every endpoint this
+  package mounts — the agent endpoint, the tool and skill catalogs, the thread
+  drawer, the attachment routes, transcription, and the run index — refuses an
+  anonymous request with `401` unless told otherwise.
+
+  ⚠ **Deployments currently serving anonymous runs will get 401s until they opt
+  in.** The one-line migration:
+
+  ```python
+  AGUIServer(registry, require_authenticated=False)  # was the old default
+  ```
+
+  Passing it to `AGUIServer` waives the requirement across the whole mount, the
+  same way passing `True` used to lock it down. The individual view classes take
+  the same argument.
+
+  ⭐ **Why break it.** Server-side tools act as `request.user`. With the old
+  default, a project that mounted the endpoint and configured nothing had an
+  agent any visitor could drive — and an endpoint that *looks* configured is the
+  failure mode worth breaking a release over, because nothing about it is
+  visible from the outside. Refusing the request is the only state an operator
+  cannot miss.
+
+### Added
+
+- **A construction-time warning for the CSRF configuration nothing else can
+  see.** Building an endpoint that leaves `csrf_exempt` unstated *and* supplies
+  no `get_user` hook now emits a `RuntimeWarning`.
+
+  ⚠ **This is the deployment the `require_authenticated` default cannot
+  reach.** That default refuses anonymous callers, which is the whole of the
+  protection when nobody is logged in. It says nothing about the case where
+  callers *are* authenticated — by session cookie, through Django's auth
+  middleware — and the endpoint is CSRF-exempt. There, any third-party page can
+  drive the agent as the logged-in user, and every request looks perfectly
+  authenticated from the inside.
+
+  ⭐ **The unstated state is the signal, not the value.** `csrf_exempt=True` is
+  a defensible choice — it is right for Bearer / API-key clients, where CSRF
+  does not apply — so warning on the value would fire on a correct
+  configuration with no way to say so, which is how a project learns to filter
+  the warning. Any of three answers silences it: `csrf_exempt=False` (cookie
+  auth, CSRF enforced), `csrf_exempt=True` (deliberately exempt), or a
+  `get_user` hook (the request carries its own credential).
+
+  `csrf_exempt` accordingly accepts `None` (the new default, meaning *unstated*)
+  as well as `True` / `False`. Unstated still resolves to exempt, so the
+  attribute Django's `CsrfViewMiddleware` reads is unchanged.
+
+- **A `Security defaults` section in the README** covering all three: the
+  anonymous refusal, establishing the acting user with `get_user`, and the
+  CSRF/cookie trade-off. The material existed only as a `DjangoAGUIView`
+  docstring, which is not where anyone evaluating the package looks.
+
 ## [0.30.0] — 2026-08-10
 
 ### Added
@@ -1474,7 +1532,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.30.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.31.0...HEAD
+[0.31.0]: https://github.com/Artui/django-ag-ui/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/Artui/django-ag-ui/compare/v0.29.0...v0.30.0
 [0.29.0]: https://github.com/Artui/django-ag-ui/compare/v0.28.2...v0.29.0
 [0.28.2]: https://github.com/Artui/django-ag-ui/compare/v0.28.1...v0.28.2

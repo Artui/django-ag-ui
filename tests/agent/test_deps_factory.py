@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from django.http import HttpRequest, StreamingHttpResponse
-from django.test import RequestFactory
 from django_pydantic_agent.agent.types.agent_deps import AgentDeps
 from django_pydantic_agent.registry.decorator import tool
 from django_pydantic_agent.registry.tool_registry import ToolRegistry
@@ -17,6 +16,7 @@ from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from tests.authed_request_factory import AuthedRequestFactory, authenticated_user
 
 
 class _Doc(BaseModel):
@@ -45,7 +45,11 @@ def _body(state: Any = None) -> bytes:
 
 
 def _post(state: Any = None) -> Any:
-    return RequestFactory().post("/agent/", data=_body(state), content_type="application/json")
+    # Authenticated: the endpoint refuses anonymous callers by default, and
+    # nothing here is about that refusal.
+    return AuthedRequestFactory().post(
+        "/agent/", data=_body(state), content_type="application/json"
+    )
 
 
 async def _drain(response: StreamingHttpResponse) -> str:
@@ -72,7 +76,9 @@ class TestTheDefault:
         seen: list[Any] = []
         view = DjangoAGUIView(_recording_registry(seen), model=TestModel())
         request = _post()
-        user = object()
+        # An opaque stand-in that also clears the authentication gate, so the
+        # identity assertion below is about deps binding and nothing else.
+        user = authenticated_user()
         request.user = user
 
         await _drain(await view(request))

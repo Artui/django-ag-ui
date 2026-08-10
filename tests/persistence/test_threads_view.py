@@ -15,6 +15,7 @@ from django_pydantic_agent.persistence.types.conversation import Conversation
 from django_pydantic_agent.persistence.types.conversation_meta import ConversationMeta
 
 from django_ag_ui.persistence.threads_view import ThreadsView
+from tests.authed_request_factory import AuthedRequestFactory
 
 
 class _FakeStore:
@@ -68,7 +69,7 @@ async def test_list_returns_metadata_only() -> None:
             ConversationMeta(thread_id="t2", title="New conversation"),
         ]
     )
-    response = await ThreadsView(store)(RequestFactory().get("/agent/threads/"))
+    response = await ThreadsView(store)(AuthedRequestFactory().get("/agent/threads/"))
     assert response.status_code == 200
     assert _body(response) == {
         "threads": [
@@ -91,7 +92,9 @@ async def test_detail_get_returns_messages() -> None:
             )
         }
     )
-    response = await ThreadsView(store)(RequestFactory().get("/agent/threads/t1/"), thread_id="t1")
+    response = await ThreadsView(store)(
+        AuthedRequestFactory().get("/agent/threads/t1/"), thread_id="t1"
+    )
     assert response.status_code == 200
     payload = _body(response)
     assert payload["thread_id"] == "t1"
@@ -99,20 +102,23 @@ async def test_detail_get_returns_messages() -> None:
 
 
 async def test_anonymous_operation_refused_is_403() -> None:
+    # Only reachable with authentication deliberately waived: otherwise the
+    # anonymous request never gets past the view to the store that refuses it.
     class _RefusingStore(_FakeStore):
         async def list(
             self, *, request: HttpRequest, limit: int | None = None
         ) -> list[ConversationMeta]:
             raise AnonymousOperationError("anonymous refused")
 
-    response = await ThreadsView(_RefusingStore())(RequestFactory().get("/agent/threads/"))
+    view = ThreadsView(_RefusingStore(), require_authenticated=False)
+    response = await view(RequestFactory().get("/agent/threads/"))
     assert response.status_code == 403
     assert _body(response) == {"error": "forbidden"}
 
 
 async def test_detail_get_missing_is_404() -> None:
     response = await ThreadsView(_FakeStore())(
-        RequestFactory().get("/agent/threads/absent/"), thread_id="absent"
+        AuthedRequestFactory().get("/agent/threads/absent/"), thread_id="absent"
     )
     assert response.status_code == 404
     assert _body(response) == {"error": "not found"}
@@ -121,27 +127,27 @@ async def test_detail_get_missing_is_404() -> None:
 async def test_detail_delete_removes_thread() -> None:
     store = _FakeStore()
     response = await ThreadsView(store)(
-        RequestFactory().delete("/agent/threads/t1/"), thread_id="t1"
+        AuthedRequestFactory().delete("/agent/threads/t1/"), thread_id="t1"
     )
     assert response.status_code == 204
     assert store.deleted == ["t1"]
 
 
 async def test_collection_rejects_non_get() -> None:
-    response = await ThreadsView(_FakeStore())(RequestFactory().post("/agent/threads/"))
+    response = await ThreadsView(_FakeStore())(AuthedRequestFactory().post("/agent/threads/"))
     assert response.status_code == 405
 
 
 async def test_detail_rejects_unsupported_method() -> None:
     response = await ThreadsView(_FakeStore())(
-        RequestFactory().put("/agent/threads/t1/"), thread_id="t1"
+        AuthedRequestFactory().put("/agent/threads/t1/"), thread_id="t1"
     )
     assert response.status_code == 405
 
 
 async def test_detail_patch_renames() -> None:
     store = _FakeStore(conversations={"t1": Conversation(thread_id="t1")})
-    request = RequestFactory().patch(
+    request = AuthedRequestFactory().patch(
         "/agent/threads/t1/", data={"title": "  Trip planning  "}, content_type="application/json"
     )
     response = await ThreadsView(store)(request, thread_id="t1")
@@ -152,7 +158,7 @@ async def test_detail_patch_renames() -> None:
 
 async def test_detail_patch_missing_title_is_400() -> None:
     store = _FakeStore(conversations={"t1": Conversation(thread_id="t1")})
-    request = RequestFactory().patch(
+    request = AuthedRequestFactory().patch(
         "/agent/threads/t1/", data={"title": "   "}, content_type="application/json"
     )
     response = await ThreadsView(store)(request, thread_id="t1")
@@ -162,7 +168,7 @@ async def test_detail_patch_missing_title_is_400() -> None:
 
 async def test_detail_patch_unknown_thread_is_404() -> None:
     store = _FakeStore()  # no conversations → load returns None
-    request = RequestFactory().patch(
+    request = AuthedRequestFactory().patch(
         "/agent/threads/absent/", data={"title": "x"}, content_type="application/json"
     )
     response = await ThreadsView(store)(request, thread_id="absent")
@@ -172,7 +178,7 @@ async def test_detail_patch_unknown_thread_is_404() -> None:
 
 async def test_detail_patch_invalid_json_is_400() -> None:
     store = _FakeStore(conversations={"t1": Conversation(thread_id="t1")})
-    request = RequestFactory().patch(
+    request = AuthedRequestFactory().patch(
         "/agent/threads/t1/", data="not json", content_type="application/json"
     )
     response = await ThreadsView(store)(request, thread_id="t1")
@@ -182,7 +188,7 @@ async def test_detail_patch_invalid_json_is_400() -> None:
 
 async def test_detail_patch_non_object_body_is_400() -> None:
     store = _FakeStore(conversations={"t1": Conversation(thread_id="t1")})
-    request = RequestFactory().patch(
+    request = AuthedRequestFactory().patch(
         "/agent/threads/t1/", data="[1, 2]", content_type="application/json"
     )
     response = await ThreadsView(store)(request, thread_id="t1")
@@ -190,10 +196,15 @@ async def test_detail_patch_non_object_body_is_400() -> None:
     assert store.renamed == []
 
 
-async def test_anonymous_rejected_when_require_authenticated() -> None:
-    view = ThreadsView(_FakeStore(), require_authenticated=True)
-    response = await view(RequestFactory().get("/agent/threads/"))
+async def test_anonymous_rejected_by_default() -> None:
+    response = await ThreadsView(_FakeStore())(RequestFactory().get("/agent/threads/"))
     assert response.status_code == 401
+
+
+async def test_anonymous_served_when_authentication_is_waived() -> None:
+    view = ThreadsView(_FakeStore(), require_authenticated=False)
+    response = await view(RequestFactory().get("/agent/threads/"))
+    assert response.status_code == 200
 
 
 async def test_get_user_hook_opens_the_endpoint() -> None:
@@ -201,7 +212,6 @@ async def test_get_user_hook_opens_the_endpoint() -> None:
 
     view = ThreadsView(
         _FakeStore(),
-        require_authenticated=True,
         get_user=lambda _request: SimpleNamespace(is_authenticated=True),
     )
     response = await view(RequestFactory().get("/agent/threads/"))
@@ -210,7 +220,7 @@ async def test_get_user_hook_opens_the_endpoint() -> None:
 
 async def test_round_trips_against_the_session_store() -> None:
     store = DjangoSessionConversationStore()
-    request = RequestFactory().get("/agent/threads/")
+    request = AuthedRequestFactory().get("/agent/threads/")
     request.session = SessionStore()  # type: ignore[attr-defined]
     await store.save(
         Conversation(thread_id="t1", messages=[{"id": "u1", "role": "user", "content": "hello"}]),
@@ -231,7 +241,7 @@ async def test_round_trips_against_the_session_store() -> None:
 
 async def test_rename_truncates_an_over_long_title() -> None:
     store = _FakeStore(conversations={"t1": Conversation(thread_id="t1")})
-    request = RequestFactory().patch(
+    request = AuthedRequestFactory().patch(
         "/agent/threads/t1/", data={"title": "x" * 300}, content_type="application/json"
     )
     response = await ThreadsView(store)(request, thread_id="t1")
@@ -243,7 +253,7 @@ async def test_rename_truncates_an_over_long_title() -> None:
 async def test_list_defaults_to_the_configured_limit(settings) -> None:
     settings.DJANGO_AG_UI = {"THREAD_LIST_LIMIT": 2}
     store = _FakeStore(metas=[ConversationMeta(thread_id=f"t{i}", title=f"t{i}") for i in range(5)])
-    response = await ThreadsView(store)(RequestFactory().get("/agent/threads/"))
+    response = await ThreadsView(store)(AuthedRequestFactory().get("/agent/threads/"))
     assert store.received_limit == 2
     assert len(_body(response)["threads"]) == 2
 
@@ -252,9 +262,9 @@ async def test_list_query_limit_is_clamped_to_the_ceiling(settings) -> None:
     settings.DJANGO_AG_UI = {"THREAD_LIST_LIMIT": 2}
     store = _FakeStore(metas=[ConversationMeta(thread_id=f"t{i}", title=f"t{i}") for i in range(5)])
     # A smaller ``?limit`` is honored; a larger one is clamped down to the cap.
-    await ThreadsView(store)(RequestFactory().get("/agent/threads/?limit=1"))
+    await ThreadsView(store)(AuthedRequestFactory().get("/agent/threads/?limit=1"))
     assert store.received_limit == 1
-    await ThreadsView(store)(RequestFactory().get("/agent/threads/?limit=99"))
+    await ThreadsView(store)(AuthedRequestFactory().get("/agent/threads/?limit=99"))
     assert store.received_limit == 2
 
 
@@ -262,7 +272,7 @@ async def test_list_ignores_a_non_positive_or_garbage_limit(settings) -> None:
     settings.DJANGO_AG_UI = {"THREAD_LIST_LIMIT": 3}
     store = _FakeStore()
     for bad in ("0", "-4", "abc"):
-        await ThreadsView(store)(RequestFactory().get(f"/agent/threads/?limit={bad}"))
+        await ThreadsView(store)(AuthedRequestFactory().get(f"/agent/threads/?limit={bad}"))
         assert store.received_limit == 3
 
 
@@ -274,7 +284,7 @@ async def test_rename_probes_exists_without_loading_the_body() -> None:
             raise AssertionError("rename must not load the full conversation body")
 
     store = _NoLoadStore(conversations={"t1": Conversation(thread_id="t1")})
-    request = RequestFactory().patch(
+    request = AuthedRequestFactory().patch(
         "/agent/threads/t1/", data={"title": "Renamed"}, content_type="application/json"
     )
     response = await ThreadsView(store)(request, thread_id="t1")

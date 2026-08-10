@@ -56,7 +56,7 @@ from myproject.agent import registry
 agent = AGUIServer(
     registry,
     step_store=DefaultStepStore,
-    require_authenticated=True,  # the ledger needs an owner — see below
+    csrf_exempt=False,  # cookie-authenticated deployment
 )
 
 urlpatterns = [path("agent/", agent.urls)]
@@ -81,8 +81,9 @@ is not a secret, the owner is the boundary.
 An anonymous request with `ALLOW_ANONYMOUS` off has no durable identity, so the
 store **degrades instead of crashing**: writes no-op and reads return empty (the
 run still streams, it just isn't recorded — the capability's hooks fire mid-run,
-so a hard refusal would abort it). Pair the store with `require_authenticated=True`
-(or a `get_user` hook, or `ALLOW_ANONYMOUS`) whenever you want it to persist.
+so a hard refusal would abort it). The endpoint's `require_authenticated` default
+already keeps that case off the table; if you waive it, supply a `get_user` hook
+or `ALLOW_ANONYMOUS` whenever you want the store to persist.
 
 ## Classifying a crash
 

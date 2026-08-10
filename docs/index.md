@@ -22,9 +22,9 @@ with per-tool risk metadata.
 - An **audit boundary**: the [`AuditLogger`][django_ag_ui.AuditLogger] Protocol
   with [`NullAuditLogger`][django_ag_ui.NullAuditLogger] (default) and
   [`LoggingAuditLogger`][django_ag_ui.LoggingAuditLogger] implementations.
-- **Authentication hooks** on the view: `require_authenticated=True` fails
-  closed (`401`) for anonymous requests, and a `get_user(request)` callable
-  establishes the user tools act as.
+- **Authentication, closed by default**: `require_authenticated` is `True`,
+  so anonymous requests get `401`; a `get_user(request)` callable establishes
+  the user tools act as.
 - A **skill catalog** ([`SkillRegistry`][django_ag_ui.SkillRegistry]) of
   pre-defined prompts, served at `<prefix>skills/` for the web component.
 - A **tool metadata catalog** ([`ToolsView`][django_ag_ui.ToolsView]), served at

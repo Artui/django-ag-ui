@@ -15,6 +15,7 @@ from django_pydantic_agent.persistence.types.attachment_ref import AttachmentRef
 from django_pydantic_agent.persistence.types.opened_attachment import OpenedAttachment
 
 from django_ag_ui.persistence.attachments_view import AttachmentsView
+from tests.authed_request_factory import AuthedRequestFactory
 
 
 class _FakeStore:
@@ -40,14 +41,19 @@ class _FakeStore:
 
 
 def _upload_request(
-    *, files: dict[str, Any] | None = None, content: bytes = b"hi", content_type: str = "text/plain"
+    *,
+    files: dict[str, Any] | None = None,
+    content: bytes = b"hi",
+    content_type: str = "text/plain",
+    anonymous: bool = False,
 ) -> HttpRequest:
     data = (
         files
         if files is not None
         else {"file": SimpleUploadedFile("notes.txt", content, content_type=content_type)}
     )
-    return RequestFactory().post("/agent/attachments/", data=data)
+    factory = RequestFactory() if anonymous else AuthedRequestFactory()
+    return factory.post("/agent/attachments/", data=data)
 
 
 def _body(response: Any) -> Any:
@@ -55,11 +61,14 @@ def _body(response: Any) -> Any:
 
 
 async def test_anonymous_operation_refused_is_403() -> None:
+    # Only reachable with authentication deliberately waived: otherwise the
+    # anonymous request never gets past the view to the store that refuses it.
     class _RefusingStore(_FakeStore):
         async def save(self, upload: Any, *, request: HttpRequest) -> AttachmentRef:
             raise AnonymousOperationError("anonymous refused")
 
-    response = await AttachmentsView(_RefusingStore())(_upload_request())
+    view = AttachmentsView(_RefusingStore(), require_authenticated=False)
+    response = await view(_upload_request(anonymous=True))
     assert response.status_code == 403
     assert _body(response) == {"error": "forbidden"}
 
@@ -134,7 +143,9 @@ async def test_upload_allowed_type_passes() -> None:
 
 
 async def test_upload_rejects_non_post() -> None:
-    response = await AttachmentsView(_FakeStore())(RequestFactory().get("/agent/attachments/"))
+    response = await AttachmentsView(_FakeStore())(
+        AuthedRequestFactory().get("/agent/attachments/")
+    )
     assert response.status_code == 405
 
 
@@ -146,7 +157,7 @@ async def test_download_streams_bytes_as_attachment() -> None:
         )
     )
     response = await AttachmentsView(store)(
-        RequestFactory().get("/agent/attachments/a1/"), attachment_id="a1"
+        AuthedRequestFactory().get("/agent/attachments/a1/"), attachment_id="a1"
     )
     assert response.status_code == 200
     # ``FileResponse`` streams the handle in chunks.
@@ -163,7 +174,7 @@ async def test_download_empty_mime_falls_back_to_octet_stream() -> None:
         )
     )
     response = await AttachmentsView(store)(
-        RequestFactory().get("/agent/attachments/a1/"), attachment_id="a1"
+        AuthedRequestFactory().get("/agent/attachments/a1/"), attachment_id="a1"
     )
     assert response["Content-Type"] == "application/octet-stream"
     # The quote-only name is sanitised to a safe fallback.
@@ -172,7 +183,7 @@ async def test_download_empty_mime_falls_back_to_octet_stream() -> None:
 
 async def test_download_missing_is_404() -> None:
     response = await AttachmentsView(_FakeStore())(
-        RequestFactory().get("/agent/attachments/absent/"), attachment_id="absent"
+        AuthedRequestFactory().get("/agent/attachments/absent/"), attachment_id="absent"
     )
     assert response.status_code == 404
 
@@ -180,7 +191,7 @@ async def test_download_missing_is_404() -> None:
 async def test_delete_removes_attachment() -> None:
     store = _FakeStore()
     response = await AttachmentsView(store)(
-        RequestFactory().delete("/agent/attachments/a1/"), attachment_id="a1"
+        AuthedRequestFactory().delete("/agent/attachments/a1/"), attachment_id="a1"
     )
     assert response.status_code == 204
     assert store.deleted == ["a1"]
@@ -188,24 +199,28 @@ async def test_delete_removes_attachment() -> None:
 
 async def test_detail_rejects_unsupported_method() -> None:
     response = await AttachmentsView(_FakeStore())(
-        RequestFactory().put("/agent/attachments/a1/"), attachment_id="a1"
+        AuthedRequestFactory().put("/agent/attachments/a1/"), attachment_id="a1"
     )
     assert response.status_code == 405
 
 
-async def test_anonymous_rejected_when_require_authenticated() -> None:
-    view = AttachmentsView(_FakeStore(), require_authenticated=True)
-    response = await view(_upload_request())
+async def test_anonymous_rejected_by_default() -> None:
+    response = await AttachmentsView(_FakeStore())(_upload_request(anonymous=True))
     assert response.status_code == 401
+
+
+async def test_anonymous_accepted_when_authentication_is_waived() -> None:
+    view = AttachmentsView(_FakeStore(), require_authenticated=False)
+    response = await view(_upload_request(anonymous=True))
+    assert response.status_code == 201
 
 
 async def test_get_user_hook_opens_the_endpoint() -> None:
     view = AttachmentsView(
         _FakeStore(),
-        require_authenticated=True,
         get_user=lambda _request: SimpleNamespace(is_authenticated=True),
     )
-    response = await view(_upload_request())
+    response = await view(_upload_request(anonymous=True))
     assert response.status_code == 201
 
 
@@ -224,7 +239,9 @@ async def test_download_and_delete_are_cross_owner_scoped() -> None:
     view = AttachmentsView(store)
 
     def _req(method: str, pk: str) -> HttpRequest:
-        request: HttpRequest = getattr(RequestFactory(), method)(f"/agent/attachments/{ref.id}/")
+        request: HttpRequest = getattr(AuthedRequestFactory(), method)(
+            f"/agent/attachments/{ref.id}/"
+        )
         request.user = SimpleNamespace(is_authenticated=True, pk=pk)  # type: ignore[attr-defined]
         return request
 

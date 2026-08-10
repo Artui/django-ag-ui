@@ -43,15 +43,17 @@ class RunsView:
     Every operation is scoped to the acting user: the store filters by owner, so
     another user's runs are simply absent — never a 403 that would confirm the
     id exists. Carries the same authentication seam as
-    :class:`~django_ag_ui.DjangoAGUIView`; defaults stay open for parity with the
-    other catalog views, so lock it down whenever the agent endpoint is.
+    :class:`~django_ag_ui.DjangoAGUIView`, closed by default like the other
+    catalog views — and here the default is load-bearing rather than a parity
+    choice: the index is *per owner*, so an anonymous caller has no runs to
+    list in the first place.
     """
 
     def __init__(
         self,
         step_store: StepStoreFactory,
         *,
-        require_authenticated: bool = False,
+        require_authenticated: bool = True,
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
     ) -> None:
