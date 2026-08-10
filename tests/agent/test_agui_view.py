@@ -4,6 +4,7 @@ import asyncio
 import json
 import warnings
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -307,8 +308,117 @@ async def test_build_agent_applies_configured_toolsets_capabilities_and_settings
     from pydantic_ai import Agent
 
     view = DjangoAGUIView(_registry(), model=TestModel())
-    agent = view._build_agent(RequestFactory().post("/agent/"), SimpleNamespace(run_id="r1"))
-    assert isinstance(agent, Agent)
+    assert isinstance(view._agent(), Agent)
+
+
+class TestTheAgentIsBuiltOnce:
+    """Rebuilding per request re-derived every tool's JSON Schema per call."""
+
+    async def test_two_runs_share_one_agent(self) -> None:
+        view = DjangoAGUIView(_registry(), model=TestModel())
+
+        await _drain(await view(_post(_run_input("double 5"))))
+        first = view._agent()
+        await _drain(await view(_post(_run_input("double 6"))))
+
+        assert view._agent() is first
+
+    async def test_two_endpoints_hold_two_agents(self) -> None:
+        """Instance state, never module state — the package's standing rule."""
+        one = DjangoAGUIView(_registry(), model=TestModel())
+        other = DjangoAGUIView(_registry(), model=TestModel())
+
+        assert one._agent() is not other._agent()
+
+    async def test_the_agent_carries_no_instructions_of_its_own(self) -> None:
+        """What makes per-request instructions a replacement rather than an
+        append: pydantic-ai adds run instructions to the agent's, and adding to
+        nothing is exactly setting."""
+        view = DjangoAGUIView(_registry(), model=TestModel(), instructions="Be terse.")
+
+        assert not view._agent()._instructions
+        assert view._run_instructions(_post(_run_input("hi"))) == "Be terse."
+
+    @override_settings(DJANGO_AG_UI={})
+    async def test_a_missing_model_still_fails_on_the_request(self) -> None:
+        """Lazy, not eager: the error keeps the timing it always had."""
+        view = DjangoAGUIView(_registry())
+        with pytest.raises(ImproperlyConfigured, match="MODEL"):
+            await view(_post(_run_input("hi")))
+
+
+class TestPerRequestOverrides:
+    async def test_model_for_request_supplies_this_runs_model(self) -> None:
+        seen: list[Any] = []
+        view = DjangoAGUIView(
+            _registry(),
+            model=TestModel(),
+            model_for_request=lambda request: seen.append(request) or TestModel(),
+        )
+
+        request = _post(_run_input("double 5"))
+        await _drain(await view(request))
+
+        assert seen == [request]
+
+    async def test_instructions_for_request_replaces_the_default(self) -> None:
+        view = DjangoAGUIView(
+            _registry(),
+            model=TestModel(),
+            instructions="Endpoint default.",
+            instructions_for_request=lambda _request: "Tenant-specific.",
+        )
+
+        assert view._run_instructions(_post(_run_input("hi"))) == "Tenant-specific."
+
+    async def test_the_instructions_reach_the_model(self) -> None:
+        """The end of the chain the agent's empty ``instructions`` opens up.
+
+        Asserted against the messages the run actually sent, not against the
+        value being forwarded — forwarding it to a parameter pydantic-ai treats
+        as *additional* is the whole risk, and only the messages show whether
+        "additional to nothing" really came out as the instructions.
+        """
+        view = DjangoAGUIView(
+            _registry(),
+            model=TestModel(),
+            instructions="Endpoint default.",
+            instructions_for_request=lambda _request: "Tenant-specific.",
+        )
+        request = _post(_run_input("double 5"))
+        agent = view._agent()
+
+        result = await agent.run(
+            "double 5",
+            instructions=view._run_instructions(request),
+            deps=view._build_deps(request),
+        )
+
+        instructions = [
+            m.instructions for m in result.all_messages() if getattr(m, "instructions", None)
+        ]
+        # One per model request (the initial turn and the tool-return turn):
+        # what matters is that the endpoint default never appears.
+        assert set(instructions) == {"Tenant-specific."}
+
+    @override_settings(
+        DJANGO_AG_UI={"MODEL": "anthropic:claude-sonnet-4-5", "API_KEY": "sk-test"},
+    )
+    async def test_a_hooks_model_string_gets_the_configured_credentials(self) -> None:
+        """A hook returning "provider:name" is treated like the setting, rather
+        than quietly falling back to environment inference."""
+        from pydantic_ai.models.anthropic import AnthropicModel
+
+        view = DjangoAGUIView(
+            _registry(), model_for_request=lambda _request: "anthropic:claude-sonnet-4-5"
+        )
+
+        assert isinstance(view._run_model(_post(_run_input("hi"))), AnthropicModel)
+
+    async def test_no_hook_leaves_the_run_on_the_endpoints_model(self) -> None:
+        view = DjangoAGUIView(_registry(), model=TestModel())
+
+        assert view._run_model(_post(_run_input("hi"))) is None
 
 
 async def test_conversation_is_persisted_when_a_store_is_configured() -> None:
@@ -402,29 +512,37 @@ async def test_attachment_toolset_skipped_when_a_prior_tool_owns_the_name() -> N
 
 
 async def test_seen_set_guards_three_way_name_collisions() -> None:
-    # drf-mcp → spec → attachment precedence, threaded through one ``seen``
-    # set so a name exposed by two sources can't reach pydantic-ai as a duplicate.
+    # drf-mcp -> spec -> attachment precedence, so a name exposed by two sources
+    # can't reach pydantic-ai as a duplicate. Driven through the view's own
+    # composition rather than the builders by hand: the name set is now computed
+    # once at build time while the toolsets are still built per run, and the
+    # thing worth guarding is that splitting them left the precedence intact.
     from tests.integrations.drf_server import server as drf_server
     from tests.integrations.drf_specs_colliding import SPECS as colliding_specs
 
-    view = DjangoAGUIView(_registry(), model=TestModel())
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        drf_mcp_server=drf_server,
+        service_specs=colliding_specs,
+        attachment_store=_DEFAULT_ATTACHMENT_STORE,
+    )
     request = RequestFactory().post("/agent/")
-    seen: set[str] = set()
 
-    # drf-mcp reserves its server's tool names.
-    view._drf_mcp_toolsets(drf_server, request, seen)
-    assert {"add", "invalid", "denied"} <= seen
+    # The registry's names and drf-mcp's are claimed before anything is built.
+    claimed = view._claimed_names()
+    assert {"double", "add", "invalid", "denied"} <= claimed
 
     # spec: ``add`` collides with drf-mcp (dropped, drf-mcp wins); ``unique_spec``
-    # survives; ``read_attachment`` is now reserved by the spec capability.
-    (spec_capability,) = view._spec_capabilities(colliding_specs, seen)
+    # survives; ``read_attachment`` is claimed by the spec capability.
+    (spec_capability,) = view._spec_capabilities(colliding_specs, claimed)
     spec_names = set(spec_capability.get_toolset()._specs)
     assert "add" not in spec_names
     assert "unique_spec" in spec_names
-    assert "read_attachment" in seen
 
-    # attachment: yields because a spec already claimed ``read_attachment``.
-    assert view._attachment_toolsets(_DEFAULT_ATTACHMENT_STORE, request, seen) == []
+    # So the run gets the drf-mcp toolset and no attachment toolset — the spec
+    # already owns ``read_attachment``.
+    assert [type(t).__name__ for t in view._run_toolsets(request)] == ["DRFMCPToolset"]
 
 
 @pytest.mark.django_db(transaction=True)
@@ -502,6 +620,25 @@ class _SpyAuditLogger:
 
     def record(self, event) -> None:  # noqa: ANN001
         self.events.append(event)
+
+
+async def test_each_request_audits_under_its_own_ip() -> None:
+    """The failure a reused agent would otherwise introduce, and silently.
+
+    The client IP used to be closed over when the agent was constructed. With
+    one agent serving every run, that would stamp every audit record with the
+    IP of whoever arrived first — well-formed records, wrong provenance, and
+    nothing to notice it by. It rides the run's deps instead.
+    """
+    spy = _SpyAuditLogger()
+    view = DjangoAGUIView(_registry(), model=TestModel(), audit_logger=spy)
+
+    for ip in ("203.0.113.9", "198.51.100.4"):
+        request = _post(_run_input("double 5"))
+        request.META["REMOTE_ADDR"] = ip
+        await _drain(await view(request))
+
+    assert [e.ip_address for e in spy.events] == ["203.0.113.9", "198.51.100.4"]
 
 
 def _blocking_model(closed: asyncio.Event):  # noqa: ANN202

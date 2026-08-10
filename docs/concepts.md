@@ -138,7 +138,9 @@ instance. On each POST it:
 2. Parses the request body into a `RunAgentInput` via
    `AGUIAdapter.build_run_input` (returning HTTP 400 with an error count, not
    the raw payload, on a `ValidationError`).
-3. Builds the per-request `Agent` (via the factory or `build_agent`).
+3. Takes **this endpoint's** `Agent` — built once, on the first request, and
+   reused by every run thereafter (via the factory or `build_agent`). See
+   [One agent, many runs](#one-agent-many-runs).
 4. Builds the run's **dependencies** — `AgentDeps(user=request.user)` — and
    passes them to the run. This is pydantic-ai's own seam for request-scoped
    values: tools, toolsets and capabilities read them off `RunContext.deps`
@@ -169,6 +171,70 @@ the request are merged into the catalog by the adapter automatically.
 [`AGUIServer`][django_ag_ui.AGUIServer] builds this view (plus its sub-views)
 from the registry and exposes a namespaced [`.urls`][django_ag_ui.AGUIServer.urls]
 tuple you mount at any prefix — see [Mounting](#mounting) below.
+
+## One agent, many runs
+
+The endpoint builds its `Agent` **once** and reuses it for every run. Building
+per request meant re-deriving a JSON Schema for each registered tool on every
+call — the most expensive thing the endpoint did, repeated to produce a
+byte-identical result.
+
+What made the rebuild look unavoidable was that the agent used to carry
+request-shaped things. It no longer does; they ride the **run** instead, through
+pydantic-ai's own per-run parameters:
+
+| Rides the run | Why it can't sit on the agent |
+| --- | --- |
+| The drf-mcp toolset | Closes over the request so the agent acts as the logged-in user |
+| The `read_attachment` toolset | Closes over the request so the model reads only that user's files |
+| The `StepPersistence` capability | Keyed on *this* run's id |
+| `AgentDeps` (acting user, client IP) | Per-run by definition |
+| `model` / `instructions` | The two hooks below |
+
+So what stays on the agent is exactly what the constructor fixed: the registry
+tools, this endpoint's `toolsets` / `capabilities`, the spec capability, model
+settings, retries, the tool guard, and the audit logger. None of it can differ
+between two requests to the same endpoint, which is what makes the reuse
+provable rather than merely plausible. Two endpoints are two `AGUIServer`s, two
+views and two agents — the agent is instance state, never module state.
+
+### Varying the agent per request
+
+Two narrow hooks, each `(request) -> value`:
+
+```python
+AGUIServer(
+    registry,
+    model_for_request=lambda request: request.tenant.model,
+    instructions_for_request=lambda request: request.tenant.system_prompt,
+)
+```
+
+`model_for_request` replaces this run's model — a string goes through the same
+[`API_KEY`](configuration.md#api_key) / [`provider=`](configuration.md#provider)
+resolution the configured model does. `instructions_for_request` replaces this
+run's instructions.
+
+**They are narrow on purpose, and the reason is the reuse rather than
+ergonomics.** A hook handed the whole request could vary the agent on anything
+it read off one, and that is not a set anyone can enumerate — so an agent
+reused behind it is either impossible to justify or wrong for the second tenant,
+and the second failure is silent. Two named axes can be reasoned about, and both
+ride the run rather than the agent.
+
+They also sidestep the [`agent_factory=`](configuration.md#agent_factory) cliff:
+supplying a factory turns off the drf-mcp bridge, the spec capability, step
+persistence, the attachment toolset, `MODEL_SETTINGS`, `RETRIES`, `toolsets` and
+`capabilities` in one go. Varying the model per tenant should not cost all of
+that.
+
+!!! note "Instructions are deliberately absent from the agent"
+    Even though the endpoint has a resolved default, the agent is built with
+    none and the instructions are supplied per run. Pydantic-AI treats per-run
+    instructions as *additional* to the agent's — which is exactly a replacement
+    when the agent carries none. Baking them in would have made
+    `instructions_for_request` either impossible or a cache key, and a key a
+    project can vary per user is a key that never hits.
 
 ## Mounting
 

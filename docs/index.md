@@ -17,7 +17,7 @@ with per-tool risk metadata.
 - An **async Django view**
   ([`DjangoAGUIView`][django_ag_ui.DjangoAGUIView]) that wraps Pydantic-AI's
   `pydantic_ai.ui.ag_ui.AGUIAdapter`, parses the posted `RunAgentInput`, builds
-  a per-request `Agent`, and returns a `StreamingHttpResponse` of AG-UI events
+  the endpoint's `Agent`, and returns a `StreamingHttpResponse` of AG-UI events
   (Server-Sent Events).
 - An **audit boundary**: the [`AuditLogger`][django_ag_ui.AuditLogger] Protocol
   with [`NullAuditLogger`][django_ag_ui.NullAuditLogger] (default) and
@@ -60,7 +60,7 @@ Browser (AG-UI client)
    │  POST RunAgentInput { messages, tools, context, state }
    ▼
 DjangoAGUIView.__call__               (async)
-   │  build per-request Pydantic-AI Agent from the ToolRegistry
+   │  the endpoint's Pydantic-AI Agent, built once from the ToolRegistry
    ▼
 AGUIAdapter (pydantic-ai)
    │  merges FE-declared tools, runs the agent, encodes events
