@@ -77,7 +77,7 @@ attachment / skill tools) alike. Frontend tools declared in the request are
 merged by the adapter and are not registered here.
 
 For total control over construction, set
-[`AGENT_FACTORY`](configuration.md#agent_factory) to a callable matching
+[`agent_factory=`](configuration.md#agent_factory) to a callable matching
 [`AgentFactoryFn`][django_ag_ui.AgentFactoryFn]; it replaces `build_agent`
 entirely.
 
@@ -326,14 +326,14 @@ The web component fetches this endpoint via its `data-skills-url` attribute.
 ## Tool metadata catalog
 
 Server-side tools — the `@tool` registry and (when
-[`DRF_MCP_SERVER`](configuration.md#drf_mcp_server) is set) the drf-mcp tools —
+[`drf_mcp_server=`](configuration.md#drf_mcp_server) is set) the drf-mcp tools —
 execute **server-side**, so their JSON Schema never reaches the browser. A client
 therefore can't read an `x-summary` off the schema to label a tool-call card.
 The **tool catalog** is the channel for those labels: a small read-only JSON
 endpoint the web component fetches via its `data-tools-url` attribute and uses to
 map a tool name → a friendly card label.
 
-[`build_tool_catalog(registry)`](api.md#django_ag_ui.agent.build_tool_catalog.build_tool_catalog)
+[`build_tool_catalog(registry)`](api.md#django_pydantic_agent.agent.build_tool_catalog.build_tool_catalog)
 builds the catalog as a list of entries, each
 `{"name", "summary", "description"?}`:
 
@@ -366,7 +366,7 @@ urlpatterns = [
 
 By default the server is **stateless**: the conversation lives in the message
 history the client posts on every turn. Persistence is opt-in via
-[`CONVERSATION_STORE`](configuration.md#conversation_store) and modelled as a
+[`conversation_store=`](configuration.md#conversation_store) and modelled as a
 pluggable Protocol, exactly like the audit logger.
 
 [`ConversationStore`][django_ag_ui.ConversationStore] is a runtime-checkable
@@ -417,7 +417,7 @@ owner-scoped:
 
 [`AGUIServer`][django_ag_ui.AGUIServer] mounts [`ThreadsView`][django_ag_ui.ThreadsView]
 automatically whenever the conversation store is active (a non-`Null` store,
-resolved from [`CONVERSATION_STORE`](configuration.md#conversation_store) by
+resolved from [`conversation_store=`](configuration.md#conversation_store) by
 default or passed as `conversation_store=`), exposing them over HTTP for the web
 component's `data-threads-url`:
 
@@ -437,7 +437,7 @@ reads as `404`, never another user's history — and the view carries the same
 For cross-device, per-user history without writing your own model, opt into the
 `django_pydantic_agent.contrib.store` app: add `"django_pydantic_agent.contrib.store"` to
 `INSTALLED_APPS`, run `migrate`, and set
-[`CONVERSATION_STORE`](configuration.md#conversation_store) to
+[`conversation_store=`](configuration.md#conversation_store) to
 `django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore`.
 It ships a `StoredConversation` model and a `ModelConversationStore` subclass with
 denormalised `title` / `preview` / `updated_at` columns so the thread list is a
@@ -473,7 +473,7 @@ The lifecycle:
 ### The store
 
 [`AttachmentStore`][django_ag_ui.AttachmentStore] is the persistence seam, set
-via [`ATTACHMENT_STORE`](configuration.md#attachment_store). Every method is
+via [`attachment_store=`](configuration.md#attachment_store). Every method is
 async and owner-scoped — one user's id can never resolve another's file, the
 security boundary for the feature. The default
 [`NullAttachmentStore`][django_ag_ui.NullAttachmentStore] keeps uploads off
@@ -487,7 +487,7 @@ keeps bytes in Django `Storage` (filesystem by default, S3/GCS via `STORAGES`).
 [`AGUIServer`][django_ag_ui.AGUIServer] mounts
 [`AttachmentsView`][django_ag_ui.AttachmentsView] automatically whenever the
 attachment store is active (a non-`Null` store, resolved from
-[`ATTACHMENT_STORE`](configuration.md#attachment_store) by default or passed as
+[`attachment_store=`](configuration.md#attachment_store) by default or passed as
 `attachment_store=`):
 
 - `POST   <prefix>attachments/`      — multipart upload under the `file` field;
@@ -517,7 +517,7 @@ teardown to garbage collection:
   no orphaned upstream generation keeps running (or billing) after the client
   stopped listening.
 - **The partial exchange is persisted.** With a non-null
-  [`CONVERSATION_STORE`](configuration.md#conversation_store) configured, the
+  [`conversation_store=`](configuration.md#conversation_store) configured, the
   truncated conversation — the client-posted history plus whatever assistant
   text and completed tool calls streamed before the disconnect — is saved with
   the same thread/owner scoping as a completed run, so a durable thread
@@ -541,7 +541,7 @@ configured (matching the client, which keeps the partial assistant bubble).
 ## The drf-mcp toolset bridge
 
 With the [`[drf-mcp]` extra](installation.md#the-drf-mcp-extra) installed and
-[`DRF_MCP_SERVER`](configuration.md#drf_mcp_server) set, the view builds a
+[`drf_mcp_server=`](configuration.md#drf_mcp_server) set, the view builds a
 per-request `DRFMCPToolset` — a Pydantic-AI toolset (an `AbstractToolset`
 subclass) that exposes a
 `djangorestframework-mcp-server` registry's tools to the agent **in-process**,
@@ -557,6 +557,6 @@ with no network MCP hop.
 - The toolset hands the Django `request` and `request.user` to those methods, so
   the agent acts as the **logged-in AG-UI user**.
 
-The bridge is imported lazily, only when `DRF_MCP_SERVER` is set, keeping
+The bridge is imported lazily, only when `drf_mcp_server=` is set, keeping
 `rest_framework_mcp` an optional dependency.
 </content>

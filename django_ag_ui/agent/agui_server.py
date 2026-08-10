@@ -99,8 +99,8 @@ class AGUIServer:
 
     **Anonymous scoping caveat.** With ``require_authenticated=False`` and a
     model-backed store, an anonymous request has no owner id. The reference
-    contrib stores refuse anonymous thread / attachment operations unless
-    ``ALLOW_ANONYMOUS`` is set (in which case they bucket per browser session) —
+    contrib stores refuse anonymous thread / attachment operations unless built
+    with ``allow_anonymous=True`` (in which case they bucket per browser session) —
     so leave the default in place (or pass a ``get_user`` hook) whenever the
     store persists, rather than relying on owner scoping to isolate anonymous
     visitors from one another.

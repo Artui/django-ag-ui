@@ -5,7 +5,7 @@ context window. [`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-
 **`compaction`** capabilities trim it; its **`Skills`** capability loads folders of
 `SKILL.md` instructions on demand.
 
-Both are pure composition over the [`CAPABILITIES`](configuration.md#capabilities)
+Both are pure composition over the [`capabilities=`](configuration.md#capabilities)
 seam plus the optional `[harness]` extra — **no django-ag-ui code involved**. The
 capabilities themselves, and which compaction strategy to pick, are documented
 where the seam lives: see

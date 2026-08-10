@@ -10,7 +10,7 @@ round-trip.
 
 This is a composition of two things django-ag-ui already gives you — the
 in-process [drf-mcp bridge](configuration.md#drf_mcp_server) and the
-[`CAPABILITIES`](configuration.md#capabilities) seam — plus the optional
+[`capabilities=`](configuration.md#capabilities) seam — plus the optional
 `[harness]` extra.
 
 ## Install
@@ -25,8 +25,8 @@ harness is lazy, only imported by the capability you wire in.
 
 ## Wire it in
 
-`CAPABILITIES` takes dotted paths to zero-argument callables that return a
-capability. Add one that returns a `CodeMode`:
+`capabilities=` takes capability instances, or zero-argument callables that
+return one. Add one that returns a `CodeMode`:
 
 ```python
 # myproject/agent.py
@@ -82,5 +82,5 @@ no output serializer advertises no schema and its stub falls back to `-> Any`.
 
 !!! note
     `CodeMode` is one of several `pydantic-ai-harness` capabilities that drop
-    into the same `CAPABILITIES` seam (compaction, step-persistence, subagents,
+    into the same `capabilities=` seam (compaction, step-persistence, subagents,
     …). They all ride the `[harness]` extra.

@@ -25,10 +25,11 @@ browser half is
   is derived from their signatures. `destructive=` / `category=` / `confirm=` /
   `summary=` metadata surface as `x-destructive` / `x-category` / `x-confirm` /
   `x-summary` extensions for client-side gating.
-- **Configurable agent** — `AgentConfig` + the `DJANGO_AG_UI` settings cover the
-  model, `MODEL_SETTINGS`, `RETRIES`, external `TOOLSETS` / `CAPABILITIES`, an
-  explicit `API_KEY` / `PROVIDER` credential path, and an `AGENT_FACTORY` escape
-  hatch for full control of construction.
+- **Configurable agent** — the `DJANGO_AG_UI` settings cover the scalars (the
+  model, `MODEL_SETTINGS`, `RETRIES`, an explicit `API_KEY`), and collaborators
+  are constructor arguments on `AGUIServer`: `toolsets=` / `capabilities=`,
+  `provider=`, and an `agent_factory=` escape hatch for full control of
+  construction.
 - **Authentication, closed by default** — every route refuses anonymous
   requests (`401`) until you say otherwise, and a `get_user(request)` hook
   establishes the user tools, the drf-mcp bridge, and conversation ownership
@@ -75,7 +76,7 @@ browser half is
 - **Reach external tools** — compose any Pydantic-AI toolset, including an
   in-process [`drf-mcp`](https://github.com/Artui/djangorestframework-mcp-server)
   bridge (the `[drf-mcp]` extra) so the agent can query DRF-exposed data.
-- **drf-services specs as tools, no MCP hop** — point `SERVICE_SPECS` at a
+- **drf-services specs as tools, no MCP hop** — pass `service_specs=` a
   `name → spec` mapping and the agent calls them in-process via
   [`djangorestframework-pydantic-ai`](https://github.com/Artui/djangorestframework-pydantic-ai)'s
   `SpecCapability` (the `[spec-tools]` extra) — permission-checked, acting as the
@@ -214,10 +215,10 @@ hook.
 ### Anonymous requests and the stores
 
 The model-backed stores refuse anonymous thread / attachment operations unless
-`ALLOW_ANONYMOUS` is set (which buckets per browser session). Owner scoping
-alone cannot isolate anonymous visitors from one another — they have no user id
-— so prefer an authenticated endpoint over `ALLOW_ANONYMOUS` whenever a store
-persists.
+built with `allow_anonymous=True` (which buckets per browser session). Owner
+scoping alone cannot isolate anonymous visitors from one another — they have no
+user id — so prefer an authenticated endpoint over `allow_anonymous=True`
+whenever a store persists.
 
 ## License
 

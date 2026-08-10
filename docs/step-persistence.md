@@ -73,17 +73,17 @@ ride a zero-argument capability callable.
 
 Every row is filtered by the resolved **owner** — the authenticated user's pk, or
 an `anon:<session_key>` bucket under
-[`ALLOW_ANONYMOUS`](configuration.md#allow_anonymous). The harness records carry
+[`allow_anonymous=`](configuration.md#allow_anonymous). The harness records carry
 no owner; this store adds it, so `latest_snapshot(run_id=…)` for one user never
 returns another user's snapshot even if the `run_id` is guessed — the `run_id`
 is not a secret, the owner is the boundary.
 
-An anonymous request with `ALLOW_ANONYMOUS` off has no durable identity, so the
+An anonymous request with `allow_anonymous=False` has no durable identity, so the
 store **degrades instead of crashing**: writes no-op and reads return empty (the
 run still streams, it just isn't recorded — the capability's hooks fire mid-run,
 so a hard refusal would abort it). The endpoint's `require_authenticated` default
 already keeps that case off the table; if you waive it, supply a `get_user` hook
-or `ALLOW_ANONYMOUS` whenever you want the store to persist.
+or build the store with `allow_anonymous=True` whenever you want it to persist.
 
 ## Classifying a crash
 
@@ -116,6 +116,23 @@ Configuring a `step_store` also mounts three owner-scoped endpoints:
 - `GET runs/` — what may be resumed
 - `POST resume/<run_id>/`
 - `POST fork/<run_id>/`
+
+!!! warning "Run-level resume, not stream resumability"
+    These seed a **new run** from a saved snapshot. They do **not** reattach to
+    an interrupted SSE stream — AG-UI has no such primitive, and neither does
+    this package. If a client's connection drops mid-run, the events emitted
+    while it was disconnected are gone; there is no `Last-Event-ID` replay and
+    no way to rejoin the run that was in flight.
+
+    What you get instead is a new run seeded from the last **provider-valid
+    boundary**, with a fresh `run_id`. Anything the interrupted run did after
+    that boundary is not replayed — which is why the tool-effect ledger exists:
+    `list_unresolved_tool_effects(run_id=…)` is how you find out whether a side
+    effect landed before deciding to continue.
+
+    The practical consequence for a client: treat a dropped stream as a **lost
+    run**, then offer resume as a deliberate action, rather than reconnecting
+    and expecting the stream to carry on.
 
 Both **seed a new run from a prior run's last continuable snapshot**. The server
 loads that run's snapshot — owner-scoped, so a `run_id` belonging to another user
