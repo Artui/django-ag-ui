@@ -60,7 +60,7 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
-drf-mcp = ["djangorestframework-mcp-server>=0.25,<0.26"]
+drf-mcp = ["djangorestframework-mcp-server>=0.26,<0.27"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
 # pydantic-ai's SpecCapability — no MCP server in the path (DJANGO_AG_UI["SERVICE_SPECS"]).
 spec-tools = ["djangorestframework-pydantic-ai>=0.12,<0.13"]
@@ -95,7 +95,7 @@ dev = [
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
-    "djangorestframework-mcp-server>=0.25,<0.26",
+    "djangorestframework-mcp-server>=0.26,<0.27",
     # The [spec-tools] extra's backing package, so its capability + tests run in dev.
     "djangorestframework-pydantic-ai>=0.12,<0.13",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
@@ -159,7 +159,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.28.1"
+current_version = "0.28.2"
 allow_dirty = false
 commit = false
 tag = false
