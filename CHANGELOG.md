@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] — 2026-08-10
+
 ### Added
 
 - **A `throttle` hook on the agent endpoint**, plus a cache-backed
@@ -1630,7 +1632,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.32.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.33.0...HEAD
+[0.33.0]: https://github.com/Artui/django-ag-ui/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/Artui/django-ag-ui/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/Artui/django-ag-ui/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/Artui/django-ag-ui/compare/v0.29.0...v0.30.0
