@@ -68,6 +68,7 @@ Every one of these is also a `build_ag_ui_config(...)` keyword.
 | --- | --- |
 | `toolsets=[...]` | Extra Pydantic-AI toolsets. |
 | `capabilities=[...]` | Pydantic-AI capabilities. |
+| `throttle=...` | Rate limiter for the agent endpoint (see [`throttle=`](#throttle)). |
 | `model_for_request=fn` | `(request) -> model` for this run (per-tenant models). |
 | `instructions_for_request=fn` | `(request) -> str` for this run (per-tenant prompts). |
 | `agent_factory=fn` | Escape hatch replacing `build_agent`. |
@@ -201,6 +202,54 @@ DJANGO_AG_UI = {
 
 The default tool/output retry budget passed to the `Agent`. `None` uses
 Pydantic-AI's own default.
+
+## `throttle=`
+
+A rate limiter for the **agent endpoint** — the one route that costs a model
+call per request. One method:
+
+```python
+def consume(self, request) -> int | None: ...
+```
+
+Return the suggested `Retry-After` in **seconds** to refuse the run, or `None`
+to allow it. A refusal is `429` with a `Retry-After` header and
+`{"error": "rate limited", "retry_after": N}`.
+
+```python
+from django_ag_ui import AGUIServer, FixedWindowThrottle
+
+AGUIServer(registry, throttle=FixedWindowThrottle(max_runs=20, per_seconds=60))
+```
+
+`FixedWindowThrottle` is the shipped reference implementation, backed by
+`django.core.cache`: `max_runs` per `per_seconds`, bucketed by absolute time.
+`namespace` separates counters so a burst limit and a steady-state limit on one
+endpoint do not share a bucket, and `key` chooses the bucket dimension —
+defaulting to per-user, falling back to per-IP for anonymous callers.
+
+!!! warning "The cache must be shared in a multi-process deployment"
+    Django's `locmem` cache is fine in tests but enforces a **per-worker** limit
+    while reading like a global one. Point the cache at Memcached or Redis.
+
+**Ordering.** The throttle runs *after* authentication — so a limiter can key on
+the acting user rather than only an IP — and *before* the body is parsed or the
+run starts, so a throttled request costs nothing beyond the auth it already did.
+A request that was going to be `401` never spends quota.
+
+**One method, not check-then-commit.** `consume` is both the gate and the
+bookkeeping update, because "check, then commit" races under exactly the
+concurrency a limiter exists for. Implementations decrement atomically in shared
+storage.
+
+⚠ **`consume` is synchronous.** django-ag-ui runs it off the event loop, so it
+may touch the cache or the ORM directly. An `async def consume` is refused at
+construction with `ImproperlyConfigured` — awaiting it silently would make every
+request a `429` whose `Retry-After` is a coroutine, so the endpoint would look
+rate-limited rather than misconfigured.
+
+The contract mirrors `djangorestframework-mcp-server`'s `MCPRateLimit`, so a
+project protecting both transports writes one kind of limiter.
 
 ## `agent_factory=`
 

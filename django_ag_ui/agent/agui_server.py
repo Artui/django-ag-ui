@@ -21,6 +21,7 @@ from django_pydantic_agent.utils import AuthorizePredicate, GetUser
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.runs_view import RunsView
 from django_ag_ui.agent.tools_view import ToolsView
+from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.check_removed_settings import check_removed_settings
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
@@ -127,6 +128,15 @@ class AGUIServer:
 
         AGUIServer(registry, model_for_request=lambda r: r.tenant.model)
 
+    **Rate limiting.** ``throttle`` takes a
+    :class:`~django_ag_ui.agent.types.throttle.Throttle` — one ``consume(request)``
+    returning the suggested ``Retry-After`` in seconds, or ``None`` to allow the
+    run — and applies to the **agent endpoint only**, which is the one that costs
+    a model call per request. It runs after authentication, so a limiter can key
+    on the acting user rather than only an IP::
+
+        AGUIServer(registry, throttle=FixedWindowThrottle(max_runs=20, per_seconds=60))
+
     **Per-run dependencies.** ``deps_factory`` is a ``request -> AgentDeps``
     callable replacing the default, which binds only the acting user. Use it to
     carry project-specific per-run context (a tenant, a feature-flag snapshot)
@@ -175,6 +185,7 @@ class AGUIServer:
         conversation_store: ConversationStore | None = None,
         step_store: Callable[[HttpRequest], Any] | None = None,
         deps_factory: Callable[[HttpRequest], AgentDeps] | None = None,
+        throttle: Throttle | None = None,
         attachment_store: AttachmentStore | None = None,
         transcription_backend: TranscriptionBackend | None = None,
         toolsets: list[Any] | None = None,
@@ -258,6 +269,7 @@ class AGUIServer:
             conversation_store=self._conversation_store,
             step_store=self._step_store,
             deps_factory=self._deps_factory,
+            throttle=throttle,
             config=self._config,
             **self._auth,
         )

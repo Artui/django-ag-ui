@@ -37,9 +37,11 @@ from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.compaction_observer import CompactionObserver
+from django_ag_ui.agent.fixed_window_throttle import FixedWindowThrottle
 from django_ag_ui.agent.inject_compaction_events import COMPACTION_ACTIVITY_TYPE
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.tools_view import ToolsView
+from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.attachments_view import AttachmentsView
@@ -76,6 +78,7 @@ __all__ = [
     "ConversationStore",
     "DjangoAGUIView",
     "DjangoSessionConversationStore",
+    "FixedWindowThrottle",
     "LoggingAuditLogger",
     "ModelAttachmentStore",
     "ModelConversationStore",
@@ -87,6 +90,7 @@ __all__ = [
     "SkillRegistry",
     "SkillSpec",
     "ThreadsView",
+    "Throttle",
     "ToolBinding",
     "ToolCategory",
     "ScopedConversationStore",

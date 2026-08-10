@@ -897,3 +897,97 @@ async def test_resume_cannot_reach_another_owners_run() -> None:
     )
     response = await view_b(_post(_run_input("double 9", run_id="r2")), resume_from="r1")
     assert response.status_code == 404
+
+
+class TestTheThrottleHook:
+    """The run endpoint's rate limiter — the one route that costs a model call."""
+
+    class _Counting:
+        def __init__(self, *, retry_after: int | None) -> None:
+            self.retry_after = retry_after
+            self.calls: list[Any] = []
+
+        def consume(self, request: Any) -> int | None:
+            self.calls.append(request)
+            return self.retry_after
+
+    async def test_a_throttled_run_is_429_with_retry_after(self) -> None:
+        view = DjangoAGUIView(
+            _registry(), model=TestModel(), throttle=self._Counting(retry_after=7)
+        )
+
+        response = await view(_post(_run_input("hi")))
+
+        assert response.status_code == 429
+        assert response["Retry-After"] == "7"
+        assert json.loads(response.content) == {"error": "rate limited", "retry_after": 7}
+
+    async def test_none_lets_the_run_proceed(self) -> None:
+        view = DjangoAGUIView(
+            _registry(), model=TestModel(), throttle=self._Counting(retry_after=None)
+        )
+
+        response = await view(_post(_run_input("double 5")))
+
+        assert isinstance(response, StreamingHttpResponse)
+
+    async def test_zero_is_a_refusal_not_an_allowance(self) -> None:
+        # ``0`` means "denied, but the window resets immediately" — distinct
+        # from ``None``, and a falsy check here would have inverted it.
+        view = DjangoAGUIView(
+            _registry(), model=TestModel(), throttle=self._Counting(retry_after=0)
+        )
+
+        response = await view(_post(_run_input("hi")))
+
+        assert response.status_code == 429
+
+    async def test_it_runs_after_authentication(self) -> None:
+        """So a limiter can key on the acting user rather than only an IP."""
+        throttle = self._Counting(retry_after=None)
+        user = SimpleNamespace(is_authenticated=True, pk=7, username="api")
+        view = DjangoAGUIView(
+            _registry(), model=TestModel(), get_user=lambda _request: user, throttle=throttle
+        )
+
+        await _drain(await view(_post(_run_input("double 5"), anonymous=True)))
+
+        assert throttle.calls[0].user is user
+
+    async def test_a_refused_request_is_never_throttled(self) -> None:
+        """No quota is spent on a request that was going to be 401 anyway."""
+        throttle = self._Counting(retry_after=None)
+        view = DjangoAGUIView(_registry(), model=TestModel(), throttle=throttle)
+
+        response = await view(_post(_run_input("hi"), anonymous=True))
+
+        assert response.status_code == 401
+        assert throttle.calls == []
+
+    async def test_the_body_is_not_parsed_for_a_throttled_run(self) -> None:
+        # A throttled request costs nothing past the auth it already did — an
+        # invalid body would otherwise be reported as 400 ahead of the 429.
+        view = DjangoAGUIView(
+            _registry(), model=TestModel(), throttle=self._Counting(retry_after=3)
+        )
+
+        response = await view(_post(b"{not valid json"))
+
+        assert response.status_code == 429
+
+    def test_an_async_consume_is_refused_at_construction(self) -> None:
+        """Awaiting it silently would make every request a 429 whose
+        ``Retry-After`` is a coroutine — rate-limited rather than
+        misconfigured."""
+
+        class _Async:
+            async def consume(self, request: Any) -> int | None:
+                return None
+
+        with pytest.raises(ImproperlyConfigured, match="async def"):
+            DjangoAGUIView(_registry(), model=TestModel(), throttle=_Async())
+
+    async def test_no_throttle_is_the_default(self) -> None:
+        view = DjangoAGUIView(_registry(), model=TestModel())
+
+        assert isinstance(await view(_post(_run_input("double 5"))), StreamingHttpResponse)

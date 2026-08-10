@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] — 2026-08-10
+
+### Added
+
+- **A `throttle` hook on the agent endpoint**, plus a cache-backed
+  `FixedWindowThrottle` reference implementation.
+
+  ```python
+  from django_ag_ui import AGUIServer, FixedWindowThrottle
+
+  AGUIServer(registry, throttle=FixedWindowThrottle(max_runs=20, per_seconds=60))
+  ```
+
+  One method — `consume(request) -> int | None` — returning the suggested
+  `Retry-After` in seconds, or `None` to allow the run. A refusal is `429` with
+  a `Retry-After` header.
+
+  ⭐ **Applied to the agent endpoint only.** It is the one route that costs a
+  model call per request; the catalogs and the thread drawer are cheap reads and
+  keep sharing the auth seam instead.
+
+  ⭐ **It runs after authentication**, so a limiter can key on the acting user
+  rather than only an IP — including a user established by a `get_user` hook —
+  and **before** the body is parsed, so a throttled request costs nothing beyond
+  the auth it already did. A request that was going to be `401` never spends
+  quota.
+
+  ⚠ **One method, not check-then-commit.** `consume` is the gate *and* the
+  bookkeeping update, because "check, then commit" races under exactly the
+  concurrency a limiter exists for.
+
+  ⚠ **`consume` is synchronous**, run off the event loop so it may touch the
+  cache or the ORM directly. An `async def consume` is **refused at
+  construction**: awaiting it silently would make every request a `429` whose
+  `Retry-After` is a coroutine, so the endpoint would look rate-limited rather
+  than misconfigured. Same call, same reasoning as the MCP permission and
+  rate-limit hooks.
+
+  The contract mirrors `djangorestframework-mcp-server`'s `MCPRateLimit`, so a
+  project protecting both transports writes one kind of limiter.
+
 ## [0.32.0] — 2026-08-10
 
 ### Added
@@ -1591,7 +1632,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.32.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.33.0...HEAD
+[0.33.0]: https://github.com/Artui/django-ag-ui/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/Artui/django-ag-ui/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/Artui/django-ag-ui/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/Artui/django-ag-ui/compare/v0.29.0...v0.30.0
