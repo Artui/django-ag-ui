@@ -4598,6 +4598,14 @@ the reuse can be reasoned about; these two ride the <em>run</em> instead, throug
 pydantic-ai's own per-run <code>model</code> / <code>instructions</code>::</p>
 <div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, model_for_request=lambda r: r.tenant.model)
 </code></pre></div>
+<p><strong>Rate limiting.</strong> <code>throttle</code> takes a
+:class:<code>~django_ag_ui.agent.types.throttle.Throttle</code> — one <code>consume(request)</code>
+returning the suggested <code>Retry-After</code> in seconds, or <code>None</code> to allow the
+run — and applies to the <strong>agent endpoint only</strong>, which is the one that costs
+a model call per request. It runs after authentication, so a limiter can key
+on the acting user rather than only an IP::</p>
+<div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, throttle=FixedWindowThrottle(max_runs=20, per_seconds=60))
+</code></pre></div>
 <p><strong>Per-run dependencies.</strong> <code>deps_factory</code> is a <code>request -&gt; AgentDeps</code>
 callable replacing the default, which binds only the acting user. Use it to
 carry project-specific per-run context (a tenant, a feature-flag snapshot)
