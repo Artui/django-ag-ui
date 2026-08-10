@@ -44,6 +44,9 @@ browser half is
   (mounted automatically by `AGUIServer`), giving the web component
   (`data-tools-url`) friendly card labels for server-side tools whose schema never
   reaches the browser.
+- **Rate limiting** — a `throttle` hook on the agent endpoint (`consume(request)`
+  → `Retry-After` seconds or `None`), with a cache-backed `FixedWindowThrottle`
+  shipped; runs after authentication, so a limiter keys on the acting user.
 - **Audit boundary** — an `AuditLogger` Protocol (`Null` / `Logging` shipped,
   pluggable by dotted path) records every server-side tool call.
 - **Opt-in conversation persistence** — a `ConversationStore` Protocol with a

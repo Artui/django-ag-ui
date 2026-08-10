@@ -4,7 +4,7 @@ import warnings
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
-from asgiref.sync import markcoroutinefunction
+from asgiref.sync import iscoroutinefunction, markcoroutinefunction, sync_to_async
 from django.core.exceptions import ImproperlyConfigured
 from django.core.handlers.asgi import ASGIRequest
 from django.http import (
@@ -34,6 +34,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
+from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 
@@ -118,6 +119,7 @@ class DjangoAGUIView:
         conversation_store: ConversationStore | None = None,
         step_store: Callable[[HttpRequest], Any] | None = None,
         deps_factory: Callable[[HttpRequest], AgentDeps] | None = None,
+        throttle: Throttle | None = None,
         config: AGUIConfig | None = None,
     ) -> None:
         self._registry = registry
@@ -151,6 +153,10 @@ class DjangoAGUIView:
         # is built fresh per run — see DjangoAGUIView._step_persistence_capabilities.
         self._step_store = step_store
         self._deps_factory = deps_factory
+        # Refused at construction rather than awaited per request: see
+        # _reject_async_throttle.
+        _reject_async_throttle(throttle)
+        self._throttle = throttle
         # Scalars, resolved once. Read per request they could only ever be
         # global, so no two endpoints could differ on any of them.
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
@@ -195,6 +201,9 @@ class DjangoAGUIView:
         deny = await self._authorize(request)
         if deny is not None:
             return auth_error_response(deny)
+        throttled = await self._throttled(request)
+        if throttled is not None:
+            return throttled
         try:
             run_input = AGUIAdapter.build_run_input(request.body)
         except ValidationError as error:
@@ -504,6 +513,26 @@ class DjangoAGUIView:
         seen.add("read_attachment")
         return [build_attachment_toolset(store, request)]
 
+    async def _throttled(self, request: HttpRequest) -> HttpResponseBase | None:
+        """Apply the ``throttle`` hook, or ``None`` when the run may proceed.
+
+        Runs **after** authentication so a limiter can key on the acting user
+        rather than only an IP, and **before** the body is parsed or the run
+        starts, so a throttled request costs nothing beyond the auth it already
+        did.
+
+        The hook is synchronous and runs off the event loop, so it may touch the
+        Django cache or the ORM the same way a ``get_user`` hook may.
+        """
+        if self._throttle is None:
+            return None
+        retry_after = await sync_to_async(self._throttle.consume, thread_sensitive=True)(request)
+        if retry_after is None:
+            return None
+        response = JsonResponse({"error": "rate limited", "retry_after": retry_after}, status=429)
+        response["Retry-After"] = str(retry_after)
+        return response
+
     async def _authorize(self, request: HttpRequest) -> int | None:
         """Establish the user (via ``get_user``) and apply the auth gates.
 
@@ -580,6 +609,31 @@ class DjangoAGUIView:
     def _resolve_audit_logger(self) -> AuditLogger:
         # No dotted path to resolve: the logger is passed, or there is none.
         return self._audit_logger if self._audit_logger is not None else NullAuditLogger()
+
+
+def _reject_async_throttle(throttle: Throttle | None) -> None:
+    """Refuse an ``async def consume`` at construction, not at request time.
+
+    The endpoint is async, so an awaitable would be easy to accept — but the
+    return value feeds an ``is not None`` check, and a coroutine is neither
+    ``None`` nor an integer. Awaiting it silently would make every request a
+    429 carrying a coroutine as its ``Retry-After``, and the endpoint would look
+    rate-limited rather than misconfigured.
+
+    Sync is the right contract regardless: the hook's work is a cache or ORM
+    round-trip, which this view already runs off the event loop. The same call
+    was settled the same way for the MCP permission and rate-limit hooks, so a
+    project protecting both transports writes one kind of limiter.
+    """
+    if throttle is None or not iscoroutinefunction(throttle.consume):
+        return
+    raise ImproperlyConfigured(
+        f"{type(throttle).__name__}.consume is declared 'async def', but the "
+        "throttle hook is synchronous. django-ag-ui runs it off the event "
+        "loop, so it may touch the cache or the ORM directly — declare it "
+        "'def consume(self, request)' and return the Retry-After seconds, or "
+        "None to allow the run."
+    )
 
 
 def _warn_if_csrf_unstated(csrf_exempt: bool | None, get_user: Any) -> None:

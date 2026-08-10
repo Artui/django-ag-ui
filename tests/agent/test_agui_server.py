@@ -261,3 +261,28 @@ def test_runs_endpoint_carries_the_shared_auth_seam() -> None:
     runs = next(p for p in patterns if p.name == "runs")
 
     assert runs.callback._require_authenticated is True
+
+
+def test_throttle_forwards_to_the_agent_endpoint_only() -> None:
+    """The run endpoint is the one that costs a model call per request; the
+    catalogs and the drawer are cheap reads and share the auth seam instead."""
+
+    class _Throttle:
+        def consume(self, request: Any) -> int | None:
+            return None
+
+    throttle = _Throttle()
+    server = _server(skills=SkillRegistry(), conversation_store=_DummyStore(), throttle=throttle)
+    patterns, _, _ = server.urls
+
+    endpoint = next(p for p in patterns if p.name == "endpoint")
+    assert endpoint.callback._throttle is throttle
+    for pattern in patterns:
+        if pattern.name != "endpoint":
+            assert getattr(pattern.callback, "_throttle", None) is None
+
+
+def test_no_throttle_by_default() -> None:
+    patterns, _, _ = _server().urls
+    endpoint = next(p for p in patterns if p.name == "endpoint")
+    assert endpoint.callback._throttle is None
