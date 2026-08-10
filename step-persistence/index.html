@@ -895,16 +895,16 @@ ride a zero-argument capability callable.</p>
 <h2 id="owner-scoping-and-anonymous-runs">Owner scoping and anonymous runs<a class="headerlink" href="#owner-scoping-and-anonymous-runs" title="Permanent link">&para;</a></h2>
 <p>Every row is filtered by the resolved <strong>owner</strong> — the authenticated user's pk, or
 an <code>anon:&lt;session_key&gt;</code> bucket under
-<a href="../configuration/#allow_anonymous"><code>ALLOW_ANONYMOUS</code></a>. The harness records carry
+<a href="../configuration/#allow_anonymous"><code>allow_anonymous=</code></a>. The harness records carry
 no owner; this store adds it, so <code>latest_snapshot(run_id=…)</code> for one user never
 returns another user's snapshot even if the <code>run_id</code> is guessed — the <code>run_id</code>
 is not a secret, the owner is the boundary.</p>
-<p>An anonymous request with <code>ALLOW_ANONYMOUS</code> off has no durable identity, so the
+<p>An anonymous request with <code>allow_anonymous=False</code> has no durable identity, so the
 store <strong>degrades instead of crashing</strong>: writes no-op and reads return empty (the
 run still streams, it just isn't recorded — the capability's hooks fire mid-run,
 so a hard refusal would abort it). The endpoint's <code>require_authenticated</code> default
 already keeps that case off the table; if you waive it, supply a <code>get_user</code> hook
-or <code>ALLOW_ANONYMOUS</code> whenever you want the store to persist.</p>
+or build the store with <code>allow_anonymous=True</code> whenever you want it to persist.</p>
 <h2 id="classifying-a-crash">Classifying a crash<a class="headerlink" href="#classifying-a-crash" title="Permanent link">&para;</a></h2>
 <p>The capability records each tool call's status automatically — <code>started</code> before
 it runs, then <code>completed</code> or <code>failed</code> — so no tool changes are needed to answer
@@ -929,6 +929,22 @@ protocol (ten async methods) over whatever backend you like and pass a factory:<
 <li><code>POST resume/&lt;run_id&gt;/</code></li>
 <li><code>POST fork/&lt;run_id&gt;/</code></li>
 </ul>
+<div class="admonition warning">
+<p class="admonition-title">Run-level resume, not stream resumability</p>
+<p>These seed a <strong>new run</strong> from a saved snapshot. They do <strong>not</strong> reattach to
+an interrupted SSE stream — AG-UI has no such primitive, and neither does
+this package. If a client's connection drops mid-run, the events emitted
+while it was disconnected are gone; there is no <code>Last-Event-ID</code> replay and
+no way to rejoin the run that was in flight.</p>
+<p>What you get instead is a new run seeded from the last <strong>provider-valid
+boundary</strong>, with a fresh <code>run_id</code>. Anything the interrupted run did after
+that boundary is not replayed — which is why the tool-effect ledger exists:
+<code>list_unresolved_tool_effects(run_id=…)</code> is how you find out whether a side
+effect landed before deciding to continue.</p>
+<p>The practical consequence for a client: treat a dropped stream as a <strong>lost
+run</strong>, then offer resume as a deliberate action, rather than reconnecting
+and expecting the stream to carry on.</p>
+</div>
 <p>Both <strong>seed a new run from a prior run's last continuable snapshot</strong>. The server
 loads that run's snapshot — owner-scoped, so a <code>run_id</code> belonging to another user
 is a clean <code>404</code>, never a leak — injects it as the new run's message history, and

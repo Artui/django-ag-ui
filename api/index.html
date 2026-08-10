@@ -4573,8 +4573,8 @@ agent view's <code>model</code> / <code>instructions</code> / <code>audit_logger
 <code>csrf_exempt</code> fall back to settings when not passed.</p>
 <p><strong>Anonymous scoping caveat.</strong> With <code>require_authenticated=False</code> and a
 model-backed store, an anonymous request has no owner id. The reference
-contrib stores refuse anonymous thread / attachment operations unless
-<code>ALLOW_ANONYMOUS</code> is set (in which case they bucket per browser session) —
+contrib stores refuse anonymous thread / attachment operations unless built
+with <code>allow_anonymous=True</code> (in which case they bucket per browser session) —
 so leave the default in place (or pass a <code>get_user</code> hook) whenever the
 store persists, rather than relying on owner scoping to isolate anonymous
 visitors from one another.</p>

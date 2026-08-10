@@ -858,7 +858,7 @@ model (see <a href="../installation/#model-provider-extras">Installation → Mod
 </span></code></pre></div>
 <p>By default Pydantic-AI infers the provider key from the environment. To pass it
 explicitly instead, set <a href="../configuration/#api_key"><code>API_KEY</code></a> (or
-<a href="../configuration/#provider"><code>PROVIDER</code></a> for a custom <code>base_url</code> / client):</p>
+<a href="../configuration/#provider"><code>provider=</code></a> for a custom <code>base_url</code> / client):</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">,</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;API_KEY&quot;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;ANTHROPIC_API_KEY&quot;</span><span class="p">],</span>
@@ -1002,7 +1002,7 @@ label tool-call cards for server-side tools, whose JSON Schema never reaches the
 browser.</p>
 <p>Each entry is <code>{"name", "summary", "description"?}</code>; <code>summary</code> falls back from
 <code>@tool(summary=…)</code> to a prettified tool name. With
-<a href="../configuration/#drf_mcp_server"><code>DRF_MCP_SERVER</code></a> set, the catalog also surfaces
+<a href="../configuration/#drf_mcp_server"><code>drf_mcp_server=</code></a> set, the catalog also surfaces
 the drf-mcp tools, using their <code>display_name</code> as the label. See
 <a href="../concepts/#tool-metadata-catalog">Tool metadata catalog</a>.</p>
 <h2 id="what-next">What next<a class="headerlink" href="#what-next" title="Permanent link">&para;</a></h2>

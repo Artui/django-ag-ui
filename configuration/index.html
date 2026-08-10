@@ -728,7 +728,7 @@
   <a href="#allow_anonymous" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ALLOW_ANONYMOUS
+        allow_anonymous=
       
     </span>
   </a>
@@ -1320,7 +1320,7 @@
   <a href="#allow_anonymous" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ALLOW_ANONYMOUS
+        allow_anonymous=
       
     </span>
   </a>
@@ -1491,12 +1491,6 @@ agent bridges to <em>which</em> MCP server. See
 <td>Allowed audio content types (empty = any).</td>
 </tr>
 <tr>
-<td><code>ALLOW_ANONYMOUS</code></td>
-<td><code>bool</code></td>
-<td><code>False</code></td>
-<td>Default for <code>ModelConversationStore(allow_anonymous=)</code> / <code>ModelAttachmentStore(allow_anonymous=)</code> — a <strong>store</strong> policy (see <a href="#authentication-anonymous-scoping">Authentication &amp; anonymous scoping</a>).</td>
-</tr>
-<tr>
 <td><code>TOOL_GUARD</code></td>
 <td><code>dict</code></td>
 <td><code>{}</code></td>
@@ -1605,21 +1599,21 @@ is unset and no <code>model=</code> is passed to
 always wins over this setting.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">}</span>
 </span></code></pre></div>
-<p>When <a href="#api_key"><code>API_KEY</code></a> or <a href="#provider"><code>PROVIDER</code></a> is set, the <code>MODEL</code> string
-is routed through <a href="../api/#django_ag_ui.agent.build_model.build_model"><code>build_model</code></a>,
+<p>When <a href="#api_key"><code>API_KEY</code></a> or <a href="#provider"><code>provider=</code></a> is set, the <code>MODEL</code> string
+is routed through <a href="../api/#django_pydantic_agent.agent.build_model.build_model"><code>build_model</code></a>,
 which delegates the <code>provider:</code> prefix → model resolution to Pydantic-AI itself —
 so any provider it knows works (<code>anthropic</code>, <code>openai</code>, <code>openai-responses</code>,
 <code>google</code>, <code>google-gla</code>, <code>groq</code>, <code>bedrock</code>, …), as does a bare model name it can
 map to a provider (e.g. <code>claude-…</code>). When the provider can't be resolved the view
-raises <code>ImproperlyConfigured</code> (set <code>PROVIDER</code> instead). A pre-built <code>Model</code>
-instance ignores <code>API_KEY</code> / <code>PROVIDER</code> and is used as-is.</p>
+raises <code>ImproperlyConfigured</code> (set <code>provider=</code> instead). A pre-built <code>Model</code>
+instance ignores <code>API_KEY</code> / <code>provider=</code> and is used as-is.</p>
 <h2 id="api_key"><code>API_KEY</code><a class="headerlink" href="#api_key" title="Permanent link">&para;</a></h2>
 <p>An explicit provider API key. When set (and <code>MODEL</code> is a <code>provider:name</code>
 string), the view builds the model via
-<a href="../api/#django_ag_ui.agent.build_model.build_model"><code>build_model</code></a> — passing the
+<a href="../api/#django_pydantic_agent.agent.build_model.build_model"><code>build_model</code></a> — passing the
 key to the prefix's default <code>Provider</code> — <strong>instead of</strong> letting Pydantic-AI
 infer the key from environment variables. Requires the matching provider extra
-installed (e.g. <code>django-ag-ui[anthropic]</code>). <a href="#provider"><code>PROVIDER</code></a>, if also
+installed (e.g. <code>django-ag-ui[anthropic]</code>). <a href="#provider"><code>provider=</code></a>, if also
 set, takes precedence over <code>API_KEY</code>.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">,</span>
@@ -1736,7 +1730,7 @@ MCP-client toolset. Empty by default. (Ignored when <code>agent_factory=</code> 
 <div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">toolsets</span><span class="o">=</span><span class="p">[</span><span class="n">weather_toolset</span><span class="p">])</span>
 </span></code></pre></div>
 <p>Two endpoints can now hold different toolsets — the point of the change. With a
-single global <code>TOOLSETS</code> setting, a public agent necessarily carried the internal
+single global toolset setting, a public agent necessarily carried the internal
 one's tools.</p>
 <h2 id="capabilities"><code>capabilities=</code><a class="headerlink" href="#capabilities" title="Permanent link">&para;</a></h2>
 <p>Pydantic-AI capabilities passed to the <code>Agent</code>. Empty by default. (Ignored when
@@ -2039,11 +2033,14 @@ authenticated.</p>
 (deliberately exempt — header-authenticated clients), or a <code>get_user</code> hook
 (the request carries its own credential).</p>
 </div>
-<h3 id="allow_anonymous"><code>ALLOW_ANONYMOUS</code><a class="headerlink" href="#allow_anonymous" title="Permanent link">&para;</a></h3>
-<p>Governs how the <strong>model-backed stores</strong> (<code>ModelConversationStore</code> /
-<code>ModelAttachmentStore</code> and the <code>contrib.store</code> reference implementations) treat
-anonymous requests. It exists because owner scoping alone can't isolate
-anonymous visitors from one another — they have no user id.</p>
+<h3 id="allow_anonymous"><code>allow_anonymous=</code><a class="headerlink" href="#allow_anonymous" title="Permanent link">&para;</a></h3>
+<p>A <strong>store constructor argument</strong>, not a setting. Governs how the model-backed
+stores (<code>ModelConversationStore</code> / <code>ModelAttachmentStore</code> and the
+<code>contrib.store</code> reference implementations) treat anonymous requests. It exists
+because owner scoping alone can't isolate anonymous visitors from one another —
+they have no user id.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">conversation_store</span><span class="o">=</span><span class="n">DefaultConversationStore</span><span class="p">(</span><span class="n">allow_anonymous</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+</span></code></pre></div>
 <ul>
 <li><strong><code>False</code> (default)</strong> — anonymous store operations are <strong>refused</strong>
   (<code>AnonymousOperationError</code>, surfaced as <strong>403</strong> by the persistence views; the
@@ -2053,8 +2050,16 @@ anonymous visitors from one another — they have no user id.</p>
 <li><strong><code>True</code></strong> — anonymous requests are bucketed per browser by
   <code>request.session.session_key</code> (<code>anon:&lt;key&gt;</code>; requires session middleware).</li>
 </ul>
+<div class="admonition warning">
+<p class="admonition-title">There is no <code>ALLOW_ANONYMOUS</code> setting</p>
+<p>Earlier docs described one, and it was never read — by this package or any
+other. It could not work: <strong>you</strong> construct the store and pass it in, so
+there is no point at which django-ag-ui could apply a settings value to it.
+A project that set the key got the <code>False</code> default and no indication
+otherwise. Pass the argument to the store instead.</p>
+</div>
 <p>Whenever a store persists, prefer authenticated endpoints (the default, or a
-<code>get_user</code> hook) over relying on <code>ALLOW_ANONYMOUS</code>.</p>
+<code>get_user</code> hook) over relying on <code>allow_anonymous=True</code>.</p>
 <h3 id="tool_guard"><code>TOOL_GUARD</code><a class="headerlink" href="#tool_guard" title="Permanent link">&para;</a></h3>
 <p>An <strong>opt-in server-side approval gate</strong> for destructive tools. By default a
 server-side tool (a <code>@tool</code> registry tool or a drf-mcp-bridged tool) runs
@@ -2067,14 +2072,14 @@ mechanism the web component already applies to client-registered destructive
 tools, now for server-side ones. The wire stays vanilla AG-UI. For the full
 end-to-end flow (what the user sees, custom clients, <code>ask_user</code>), see
 <a href="../tool-approval/">Tool approval</a>.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>    <span class="c1"># …</span>
-</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>        <span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>        <span class="s2">&quot;EXEMPT&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;refresh_cache&quot;</span><span class="p">],</span>  <span class="c1"># never gate these, even if destructive</span>
-</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>        <span class="s2">&quot;REQUIRE_APPROVAL&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;export_pii&quot;</span><span class="p">],</span>  <span class="c1"># always gate these, even if not destructive</span>
-</span><span id="__span-27-7"><a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>    <span class="p">},</span>
-</span><span id="__span-27-8"><a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="p">}</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>    <span class="c1"># …</span>
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>        <span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>        <span class="s2">&quot;EXEMPT&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;refresh_cache&quot;</span><span class="p">],</span>  <span class="c1"># never gate these, even if destructive</span>
+</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>        <span class="s2">&quot;REQUIRE_APPROVAL&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;export_pii&quot;</span><span class="p">],</span>  <span class="c1"># always gate these, even if not destructive</span>
+</span><span id="__span-28-7"><a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>    <span class="p">},</span>
+</span><span id="__span-28-8"><a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>

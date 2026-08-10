@@ -835,14 +835,14 @@ your model via a <code>django-ag-ui</code> provider extra:</p>
 </tr>
 </tbody>
 </table>
-<p>When you set <a href="../configuration/#api_key"><code>API_KEY</code> or <code>PROVIDER</code></a> so the model is
+<p>When you set <a href="../configuration/#api_key"><code>API_KEY</code> or <code>provider=</code></a> so the model is
 built with an explicit key, the <code>MODEL</code> string's <code>provider:</code> prefix may be <strong>any
 provider Pydantic-AI knows</strong> (<code>anthropic</code>, <code>openai</code>, <code>openai-responses</code>,
 <code>google</code>, <code>google-gla</code>, <code>groq</code>, <code>bedrock</code>, …) — resolution is delegated to
 Pydantic-AI, so the list tracks whatever your installed version supports. A bare
 model name it can map to a provider (e.g. <code>claude-…</code>) works too. When the
 provider can't be resolved, the view raises <code>ImproperlyConfigured</code> (set
-<code>PROVIDER</code> to a <code>Provider</code> instance instead). Install the matching provider
+<code>provider=</code> to a <code>Provider</code> instance instead). Install the matching provider
 extra for whichever you use.</p>
 <h2 id="asgi-is-required">ASGI is required<a class="headerlink" href="#asgi-is-required" title="Permanent link">&para;</a></h2>
 <p><a class="autorefs autorefs-internal" title="DjangoAGUIView" href="../api/#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a> is an <strong>async</strong> view that
@@ -868,7 +868,7 @@ tool registry to the agent in-process (no network MCP hop), install the extra:</
 (<a href="../concepts/#the-drf-mcp-toolset-bridge"><code>DRFMCPToolset</code></a>) is imported lazily,
 only when a <code>drf_mcp_server=</code> is passed, so the dependency stays
 optional for projects that do not use it. See
-<a href="../configuration/#drf_mcp_server">Configuration → <code>DRF_MCP_SERVER</code></a>.
+<a href="../configuration/#drf_mcp_server">Configuration → <code>drf_mcp_server=</code></a>.
 </content></p>
 
 

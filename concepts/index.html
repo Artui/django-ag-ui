@@ -1234,7 +1234,7 @@ the agent runs: registry tools and composed toolsets (drf-mcp / spec /
 attachment / skill tools) alike. Frontend tools declared in the request are
 merged by the adapter and are not registered here.</p>
 <p>For total control over construction, set
-<a href="../configuration/#agent_factory"><code>AGENT_FACTORY</code></a> to a callable matching
+<a href="../configuration/#agent_factory"><code>agent_factory=</code></a> to a callable matching
 <a class="autorefs autorefs-internal" title="AgentFactoryFn" href="../api/#django_ag_ui.AgentFactoryFn"><code>AgentFactoryFn</code></a>; it replaces <code>build_agent</code>
 entirely.</p>
 <h2 id="the-audit-boundary-the-auditlogger-protocol">The audit boundary: the <code>AuditLogger</code> protocol<a class="headerlink" href="#the-audit-boundary-the-auditlogger-protocol" title="Permanent link">&para;</a></h2>
@@ -1489,13 +1489,13 @@ default). It is served by <code>SkillsView</code>
 <p>The web component fetches this endpoint via its <code>data-skills-url</code> attribute.</p>
 <h2 id="tool-metadata-catalog">Tool metadata catalog<a class="headerlink" href="#tool-metadata-catalog" title="Permanent link">&para;</a></h2>
 <p>Server-side tools — the <code>@tool</code> registry and (when
-<a href="../configuration/#drf_mcp_server"><code>DRF_MCP_SERVER</code></a> is set) the drf-mcp tools —
+<a href="../configuration/#drf_mcp_server"><code>drf_mcp_server=</code></a> is set) the drf-mcp tools —
 execute <strong>server-side</strong>, so their JSON Schema never reaches the browser. A client
 therefore can't read an <code>x-summary</code> off the schema to label a tool-call card.
 The <strong>tool catalog</strong> is the channel for those labels: a small read-only JSON
 endpoint the web component fetches via its <code>data-tools-url</code> attribute and uses to
 map a tool name → a friendly card label.</p>
-<p><a href="../api/#django_ag_ui.agent.build_tool_catalog.build_tool_catalog"><code>build_tool_catalog(registry)</code></a>
+<p><a href="../api/#django_pydantic_agent.agent.build_tool_catalog.build_tool_catalog"><code>build_tool_catalog(registry)</code></a>
 builds the catalog as a list of entries, each
 <code>{"name", "summary", "description"?}</code>:</p>
 <ul>
@@ -1528,7 +1528,7 @@ argument:</p>
 <h2 id="conversation-persistence">Conversation persistence<a class="headerlink" href="#conversation-persistence" title="Permanent link">&para;</a></h2>
 <p>By default the server is <strong>stateless</strong>: the conversation lives in the message
 history the client posts on every turn. Persistence is opt-in via
-<a href="../configuration/#conversation_store"><code>CONVERSATION_STORE</code></a> and modelled as a
+<a href="../configuration/#conversation_store"><code>conversation_store=</code></a> and modelled as a
 pluggable Protocol, exactly like the audit logger.</p>
 <p><a class="autorefs autorefs-internal" title="ConversationStore" href="../api/#django_ag_ui.ConversationStore"><code>ConversationStore</code></a> is a runtime-checkable
 Protocol with async <code>load</code> / <code>save</code> / <code>delete</code>, plus <code>list</code> and <code>rename</code> for the
@@ -1585,7 +1585,7 @@ owner-scoped:</p>
 </ul>
 <p><a class="autorefs autorefs-internal" title="AGUIServer" href="../api/#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> mounts <a class="autorefs autorefs-internal" title="ThreadsView" href="../api/#django_ag_ui.ThreadsView"><code>ThreadsView</code></a>
 automatically whenever the conversation store is active (a non-<code>Null</code> store,
-resolved from <a href="../configuration/#conversation_store"><code>CONVERSATION_STORE</code></a> by
+resolved from <a href="../configuration/#conversation_store"><code>conversation_store=</code></a> by
 default or passed as <code>conversation_store=</code>), exposing them over HTTP for the web
 component's <code>data-threads-url</code>:</p>
 <table>
@@ -1626,7 +1626,7 @@ reads as <code>404</code>, never another user's history — and the view carries
 <p>For cross-device, per-user history without writing your own model, opt into the
 <code>django_pydantic_agent.contrib.store</code> app: add <code>"django_pydantic_agent.contrib.store"</code> to
 <code>INSTALLED_APPS</code>, run <code>migrate</code>, and set
-<a href="../configuration/#conversation_store"><code>CONVERSATION_STORE</code></a> to
+<a href="../configuration/#conversation_store"><code>conversation_store=</code></a> to
 <code>django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore</code>.
 It ships a <code>StoredConversation</code> model and a <code>ModelConversationStore</code> subclass with
 denormalised <code>title</code> / <code>preview</code> / <code>updated_at</code> columns so the thread list is a
@@ -1664,7 +1664,7 @@ catalog</a> uses to keep schemas off the wire.</p>
 </ol>
 <h3 id="the-store">The store<a class="headerlink" href="#the-store" title="Permanent link">&para;</a></h3>
 <p><a class="autorefs autorefs-internal" title="AttachmentStore" href="../api/#django_ag_ui.AttachmentStore"><code>AttachmentStore</code></a> is the persistence seam, set
-via <a href="../configuration/#attachment_store"><code>ATTACHMENT_STORE</code></a>. Every method is
+via <a href="../configuration/#attachment_store"><code>attachment_store=</code></a>. Every method is
 async and owner-scoped — one user's id can never resolve another's file, the
 security boundary for the feature. The default
 <a class="autorefs autorefs-internal" title="NullAttachmentStore" href="../api/#django_ag_ui.NullAttachmentStore"><code>NullAttachmentStore</code></a> keeps uploads off
@@ -1676,7 +1676,7 @@ keeps bytes in Django <code>Storage</code> (filesystem by default, S3/GCS via <c
 <p><a class="autorefs autorefs-internal" title="AGUIServer" href="../api/#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> mounts
 <a class="autorefs autorefs-internal" title="AttachmentsView" href="../api/#django_ag_ui.AttachmentsView"><code>AttachmentsView</code></a> automatically whenever the
 attachment store is active (a non-<code>Null</code> store, resolved from
-<a href="../configuration/#attachment_store"><code>ATTACHMENT_STORE</code></a> by default or passed as
+<a href="../configuration/#attachment_store"><code>attachment_store=</code></a> by default or passed as
 <code>attachment_store=</code>):</p>
 <ul>
 <li><code>POST   &lt;prefix&gt;attachments/</code>      — multipart upload under the <code>file</code> field;
@@ -1704,7 +1704,7 @@ teardown to garbage collection:</p>
   no orphaned upstream generation keeps running (or billing) after the client
   stopped listening.</li>
 <li><strong>The partial exchange is persisted.</strong> With a non-null
-  <a href="../configuration/#conversation_store"><code>CONVERSATION_STORE</code></a> configured, the
+  <a href="../configuration/#conversation_store"><code>conversation_store=</code></a> configured, the
   truncated conversation — the client-posted history plus whatever assistant
   text and completed tool calls streamed before the disconnect — is saved with
   the same thread/owner scoping as a completed run, so a durable thread
@@ -1731,7 +1731,7 @@ transport-level, and partial persistence simply follows the store you already
 configured (matching the client, which keeps the partial assistant bubble).</p>
 <h2 id="the-drf-mcp-toolset-bridge">The drf-mcp toolset bridge<a class="headerlink" href="#the-drf-mcp-toolset-bridge" title="Permanent link">&para;</a></h2>
 <p>With the <a href="../installation/#the-drf-mcp-extra"><code>[drf-mcp]</code> extra</a> installed and
-<a href="../configuration/#drf_mcp_server"><code>DRF_MCP_SERVER</code></a> set, the view builds a
+<a href="../configuration/#drf_mcp_server"><code>drf_mcp_server=</code></a> set, the view builds a
 per-request <code>DRFMCPToolset</code> — a Pydantic-AI toolset (an <code>AbstractToolset</code>
 subclass) that exposes a
 <code>djangorestframework-mcp-server</code> registry's tools to the agent <strong>in-process</strong>,
@@ -1747,7 +1747,7 @@ with no network MCP hop.</p>
 <li>The toolset hands the Django <code>request</code> and <code>request.user</code> to those methods, so
   the agent acts as the <strong>logged-in AG-UI user</strong>.</li>
 </ul>
-<p>The bridge is imported lazily, only when <code>DRF_MCP_SERVER</code> is set, keeping
+<p>The bridge is imported lazily, only when <code>drf_mcp_server=</code> is set, keeping
 <code>rest_framework_mcp</code> an optional dependency.
 </content></p>
 
