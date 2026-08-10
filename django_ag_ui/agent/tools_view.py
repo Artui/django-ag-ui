@@ -38,12 +38,17 @@ class ToolsView:
         authorize: AuthorizePredicate | None = None,
         drf_mcp_server: Any = None,
         service_specs: dict[str, Any] | None = None,
+        spec_capability: Any = None,
     ) -> None:
         self._registry = registry
         # The same collaborators the agent view holds, so the catalog lists the
         # tools this endpoint's agent can actually wield — not another's.
         self._drf_mcp_server = drf_mcp_server
+        # ⭐ Held only so a pre-built toolset's specs still reach the catalog:
+        # the mapping is extracted for exactly this, so choosing the powerful
+        # form does not cost the tool-call card labels.
         self._service_specs = service_specs
+        self._spec_capability = spec_capability
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize

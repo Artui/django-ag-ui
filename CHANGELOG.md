@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] — 2026-08-10
+
+### Added
+
+- **`service_specs=` accepts an already-built `SpecToolset` or
+  `SpecCapability`**, not just a mapping or a `SpecRegistry`.
+
+  ⚠ **The two escape hatches used to cost each other.** `service_specs=` could
+  pass only the mapping, so a project needing any `SpecToolset` knob —
+  `max_page_size`, an `exception_map`, a `build_context` override, or
+  `require_permissions=False` while migrating — had to abandon it for
+  `capabilities=`. That path is not wired into the tool catalog, so its
+  tool-call cards render unlabelled. Taking the powerful form meant losing the
+  labels.
+
+  ⭐ **Now it doesn't.** The endpoint attaches the object as-is *and* extracts
+  its `specs` for the tool catalog and the tool-name dedup, so the powerful form
+  and the labelled form are the same form.
+
+  ⚠ **A pre-built toolset is not filtered.** For a mapping, a tool name the
+  `@tool` registry already defines is dropped in the registry's favour; that
+  cannot apply to an object the consumer built, so a collision is **refused at
+  construction**. Left alone, pydantic-ai raises `UserError` for the duplicate
+  *mid-run*, long after the catalog looked clean.
+
+  ⚠ **Nor is it re-checked.** Its constructor already ran the
+  `permission_classes` check and may have been given `require_permissions=False`
+  on purpose — which is the entire reason for accepting one. Re-validating on
+  arrival would take that decision back and leave no route to it.
+
+### Changed
+
+- **`[spec-tools]` requires `djangorestframework-pydantic-ai>=0.15`**, for
+  `SpecToolset.specs` — the synchronous enumeration this needs to feed a
+  pre-built toolset's names into the catalog and the dedup pass.
+
 ## [0.29.0] — 2026-08-10
 
 ### Changed — BREAKING for `service_specs=`
@@ -1438,7 +1474,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.29.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.30.0...HEAD
+[0.30.0]: https://github.com/Artui/django-ag-ui/compare/v0.29.0...v0.30.0
 [0.29.0]: https://github.com/Artui/django-ag-ui/compare/v0.28.2...v0.29.0
 [0.28.2]: https://github.com/Artui/django-ag-ui/compare/v0.28.1...v0.28.2
 [0.28.1]: https://github.com/Artui/django-ag-ui/compare/v0.28.0...v0.28.1
