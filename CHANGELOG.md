@@ -7,7 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] — 2026-08-10
+
+### Changed — BREAKING for `service_specs=`
+
+- ⛔ **`AGUIServer(service_specs=…)` now refuses a spec with no
+  `permission_classes`**, raising `ImproperlyConfigured` at construction and
+  naming every offender at once.
+
+  `permission_classes=None` means *inherit* over HTTP — the viewset's own
+  classes, then DRF's `DEFAULT_PERMISSION_CLASSES`. A spec dispatched off HTTP
+  has neither, so one that is correctly guarded behind a viewset, with passing
+  HTTP tests, was **callable by whatever the model decided to call**. Set
+  `spec.permission_classes` on each.
+
+  ⚠ **The check is upstream (`djangorestframework-pydantic-ai` 0.13); what this
+  release adds is *when*.** This transport builds its spec capability **per
+  request** — it needs the request-scoped name set for tool dedup — so the
+  upstream refusal alone would surface as a 500 on the first agent call rather
+  than as a failure to start. An operator reading a traceback in `urls.py` is in
+  a different situation from one reading it in Sentry a week later.
+
+  ⚠ Constructing a `DjangoAGUIView` directly still fails per request. That is
+  the un-documented path; the general fix is for the view to stop rebuilding the
+  capability every request, which is a larger change to the construction seam.
+
+  **Migrating a registry too large to guard in one commit?** Attach the
+  capability yourself instead of using `service_specs=` — it is the only place
+  PAI's `require_permissions=False` is reachable:
+  `AGUIServer(registry, capabilities=[SpecCapability(SPECS,
+  require_permissions=False)])`. ⛔ That path skips `service_specs=`'s
+  tool-catalog registration, so tool-call cards render unlabelled. A migration
+  step, not a destination.
+
+- **List tools advertise `ordering`, not `order`** (PAI 0.13), and only where
+  the toolset declares `ordering_fields`. ⭐ **The `service_specs=` example in
+  `docs/configuration.md` would itself have raised** — its two specs carried no
+  `permission_classes`. Fixed, along with a stale claim in the same paragraph
+  that the acting user is bound from `request`; it comes from the run's `deps`,
+  which is what lets one built agent serve many runs.
+
 ### Changed
+
+- **Floors raised**: `django-pydantic-agent>=0.7`, `[spec-tools]` to
+  `djangorestframework-pydantic-ai>=0.13`, `[drf-mcp]` to
+  `djangorestframework-mcp-server>=0.27`.
+
+  ⛔ **The drf-mcp move is what makes the pair installable.** PAI 0.13 requires
+  `djangorestframework-services>=0.35,<0.36` while drf-mcp 0.26 required
+  `>=0.34.0,<0.35` — disjoint, so `django-ag-ui[drf-mcp,spec-tools]` **could not
+  resolve at all**. drf-mcp 0.27.0 moves its window to 0.35.
 
 - **`[harness]` now requires `pydantic-ai-harness[code-mode]>=0.13`** (was
   `>=0.12`), and every `SlidingWindow` reference here is now
@@ -1389,7 +1438,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.28.2...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.29.0...HEAD
+[0.29.0]: https://github.com/Artui/django-ag-ui/compare/v0.28.2...v0.29.0
 [0.28.2]: https://github.com/Artui/django-ag-ui/compare/v0.28.1...v0.28.2
 [0.28.1]: https://github.com/Artui/django-ag-ui/compare/v0.28.0...v0.28.1
 [0.28.0]: https://github.com/Artui/django-ag-ui/compare/v0.27.1...v0.28.0

@@ -455,10 +455,11 @@ disables it. Requires the `[spec-tools]` extra
 This is the no-MCP-hop sibling of [`drf_mcp_server=`](#drf_mcp_server): the specs
 are dispatched in-process through drf-services' transport-neutral surface
 (`dispatch_spec` + its off-HTTP helpers), enforcing each spec's
-`permission_classes`. The agent acts as the **logged-in AG-UI user** (bound from
-`request`), and a registry `@tool` wins a name collision. The model is also
-taught the spec conventions — that list tools accept `page` / `limit` / `order`,
-and how errors come back (an `{"error": …}` result is a final answer, a retry
+`permission_classes`. The agent acts as the **logged-in AG-UI user** — bound
+from the run's `deps`, not from a closure over `request`, which is what lets one
+built agent serve many runs — and a registry `@tool` wins a name collision. The
+model is also taught the spec conventions — that list tools accept `page` /
+`limit` / `ordering`, and how errors come back (an `{"error": …}` result is a final answer, a retry
 message means fix the argument, a permission error is final) — so it doesn't
 rediscover them by failing a call. Those instructions come from the underlying
 `SpecToolset`, which the capability delegates to, so they reach the system prompt
@@ -466,8 +467,17 @@ exactly once. Use this when you have drf-services specs but no reason to stand u
 an MCP server; use `drf_mcp_server=` when you already run one (or want MCP
 clients to share the tools).
 
+⛔ **Every spec needs its own `permission_classes`.** Since
+`djangorestframework-pydantic-ai` 0.13 a spec that omits them makes the endpoint
+raise `ImproperlyConfigured` at construction rather than exposing an ungated
+tool. `permission_classes=None` means *inherit* over HTTP — the viewset's
+classes, then `DEFAULT_PERMISSION_CLASSES` — and there is no viewset here to
+inherit from, so a spec that is correctly guarded behind one becomes callable by
+whatever the model decides to call.
+
 ```python
 # myproject/specs.py
+from rest_framework.permissions import IsAuthenticated
 from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec
 
 SPECS = {
@@ -475,10 +485,28 @@ SPECS = {
         kind=SelectorKind.LIST,
         selector=list_orders,
         output_serializer=OrderSerializer,
+        permission_classes=[IsAuthenticated],
     ),
-    "create_order": ServiceSpec(service=create_order, input_serializer=CreateOrderInput),
+    "create_order": ServiceSpec(
+        service=create_order,
+        input_serializer=CreateOrderInput,
+        permission_classes=[IsAuthenticated],
+    ),
 }
 ```
+
+Migrating a registry too large to guard in one pass? Attach the capability
+yourself instead of using `service_specs=`, which is the only place PAI's
+`require_permissions=False` is reachable today:
+
+```python
+from rest_framework_pydantic_ai import SpecCapability
+
+AGUIServer(registry, capabilities=[SpecCapability(SPECS, require_permissions=False)])
+```
+
+⚠ That path skips the tool-catalog registration `service_specs=` performs, so
+tool-call cards render unlabelled. A migration step, not a destination.
 
 ```python title="urls.py"
 from myproject.specs import SPECS
