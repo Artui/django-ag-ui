@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`[harness]` now requires `pydantic-ai-harness[code-mode]>=0.13`** (was
+  `>=0.12`), and every `SlidingWindow` reference here is now
+  `SlidingWindowCompaction`. harness 0.13 renamed the strategy and kept the old
+  spelling as a deprecated alias that warns on import and is slated for removal.
+
+  ⚠ **A raised floor rather than a compat shim**, because the two spellings
+  never overlap: `SlidingWindowCompaction` does not exist on 0.12, so no single
+  import works across the old `>=0.12,<0.17` range. Nothing in this package
+  constructs a harness capability — the consumer does — so the floor costs a
+  version that only the deprecated name could reach, and buys one honest
+  spelling in the docs and tests.
+
+  ⭐ **The package never imported the alias.** The only non-test occurrence was
+  a docstring example on `CompactionObserver`, which is why the
+  `HarnessDeprecationWarning` showed up in this repo's own test runs and never
+  in a consumer's — the floor raise is the tidy-up, not a fix for anything
+  consumers were hitting.
+
 ## [0.28.2] — 2026-08-10
 
 ### Security

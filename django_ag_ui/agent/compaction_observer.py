@@ -42,7 +42,7 @@ class CompactionObserver(WrapperCapability[Any]):
     sees earlier turns silently vanish from the model's view with no explanation.
     Wrapping the capability is the seam for saying so:
 
-        capabilities=[CompactionObserver(SlidingWindow(max_messages=80))]
+        capabilities=[CompactionObserver(SlidingWindowCompaction(max_messages=80))]
 
     Opt-in by construction. A consumer who passes the strategy unwrapped gets
     exactly today's behaviour, and nothing is emitted.

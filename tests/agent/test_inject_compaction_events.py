@@ -10,7 +10,7 @@ from ag_ui.core import BaseEvent, EventType, TextMessageStartEvent
 from opentelemetry.trace import NoOpTracer
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 from pydantic_ai.models.test import TestModel
-from pydantic_ai_harness.compaction import SlidingWindow
+from pydantic_ai_harness.compaction import SlidingWindowCompaction
 
 from django_ag_ui.agent.compaction_observer import COMPACTION_SINK, Compaction, CompactionObserver
 from django_ag_ui.agent.inject_compaction_events import (
@@ -137,7 +137,7 @@ async def test_the_sink_is_reset_when_the_stream_raises() -> None:
 
 
 async def test_end_to_end_with_a_real_compaction_capability() -> None:
-    observer = CompactionObserver(SlidingWindow(max_messages=4, keep_messages=2))
+    observer = CompactionObserver(SlidingWindowCompaction(max_messages=4, keep_messages=2))
 
     async def upstream() -> AsyncIterator[BaseEvent]:
         yield _text("a")
