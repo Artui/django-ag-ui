@@ -806,18 +806,16 @@ where the seam lives: see
 <a href="https://artui.github.io/django-pydantic-agent/integrations/#harness-upstream-capabilities">django-pydantic-agent's integrations guide</a>.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[harness]&quot;</span>
 </span></code></pre></div>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.compaction</span><span class="w"> </span><span class="kn">import</span> <span class="n">SlidingWindow</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.compaction</span><span class="w"> </span><span class="kn">import</span> <span class="n">SlidingWindowCompaction</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">server</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">SlidingWindow</span><span class="p">(</span><span class="n">max_messages</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">keep_messages</span><span class="o">=</span><span class="mi">40</span><span class="p">)])</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">server</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">SlidingWindowCompaction</span><span class="p">(</span><span class="n">max_messages</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">keep_messages</span><span class="o">=</span><span class="mi">40</span><span class="p">)])</span>
 </span></code></pre></div>
 <div class="admonition note">
-<p class="admonition-title"><code>SlidingWindow</code> vs <code>SlidingWindowCompaction</code></p>
-<p>harness 0.13 renamed this strategy to <code>SlidingWindowCompaction</code> and kept
-<code>SlidingWindow</code> as a deprecated alias. The examples here use the old name
-because it is the only one that imports across the whole range the
-<code>[harness]</code> extra allows (<code>&gt;=0.12,&lt;0.17</code>); on 0.13+ it emits a deprecation
-warning. Pin harness to <code>&gt;=0.13</code> yourself and use the new name if you would
-rather not see it.</p>
+<p class="admonition-title">Upgrading from harness 0.12</p>
+<p>This strategy was called <code>SlidingWindow</code> before harness 0.13 renamed it to
+<code>SlidingWindowCompaction</code>. The old name survives as a deprecated alias that
+warns on import and is slated for removal, so the examples here use the new
+one — which is why the <code>[harness]</code> extra floors at <code>&gt;=0.13</code>.</p>
 </div>
 <p>That is the whole adoption. The rest of this page is about the one thing that
 composition alone cannot give you: <strong>telling the user it happened.</strong></p>
@@ -832,10 +830,10 @@ puts it on the wire.</p>
 <h2 id="turning-it-on">Turning it on<a class="headerlink" href="#turning-it-on" title="Permanent link">&para;</a></h2>
 <p>Wrap the compaction capability in <code>CompactionObserver</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">CompactionObserver</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.compaction</span><span class="w"> </span><span class="kn">import</span> <span class="n">SlidingWindow</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.compaction</span><span class="w"> </span><span class="kn">import</span> <span class="n">SlidingWindowCompaction</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">server</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">CompactionObserver</span><span class="p">(</span><span class="n">SlidingWindow</span><span class="p">(</span><span class="n">max_messages</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">keep_messages</span><span class="o">=</span><span class="mi">40</span><span class="p">))],</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">CompactionObserver</span><span class="p">(</span><span class="n">SlidingWindowCompaction</span><span class="p">(</span><span class="n">max_messages</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">keep_messages</span><span class="o">=</span><span class="mi">40</span><span class="p">))],</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Opt-in by construction: pass the strategy unwrapped and you get today's behaviour
