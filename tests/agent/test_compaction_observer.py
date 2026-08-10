@@ -13,7 +13,7 @@ import pytest
 from opentelemetry.trace import NoOpTracer
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 from pydantic_ai.models.test import TestModel
-from pydantic_ai_harness.compaction import SlidingWindow
+from pydantic_ai_harness.compaction import SlidingWindowCompaction
 
 from django_ag_ui.agent.compaction_observer import (
     COMPACTION_SINK,
@@ -87,7 +87,7 @@ def sink() -> Any:
 
 
 async def test_records_a_real_compaction(sink: list[Compaction]) -> None:
-    observer = CompactionObserver(SlidingWindow(max_messages=4, keep_messages=2))
+    observer = CompactionObserver(SlidingWindowCompaction(max_messages=4, keep_messages=2))
     await observer.before_model_request(_Ctx(), _request_context(["m"] * 10))
     assert len(sink) == 1
     assert sink[0].before == 10
@@ -96,7 +96,7 @@ async def test_records_a_real_compaction(sink: list[Compaction]) -> None:
 
 
 async def test_below_the_threshold_records_nothing(sink: list[Compaction]) -> None:
-    observer = CompactionObserver(SlidingWindow(max_messages=100))
+    observer = CompactionObserver(SlidingWindowCompaction(max_messages=100))
     await observer.before_model_request(_Ctx(), _request_context(["m"] * 3))
     assert sink == []
 
@@ -119,15 +119,15 @@ async def test_without_a_sink_the_observer_is_inert() -> None:
     # A capability used outside this transport (a management command, a test)
     # has no stream to report to; recording must not blow up or leak.
     assert COMPACTION_SINK.get() is None
-    observer = CompactionObserver(SlidingWindow(max_messages=4, keep_messages=2))
+    observer = CompactionObserver(SlidingWindowCompaction(max_messages=4, keep_messages=2))
     request_context = _request_context(["m"] * 10)
     result = await observer.before_model_request(_Ctx(), request_context)
     assert len(result.messages) == 2
 
 
 async def test_wrapping_does_not_change_the_compaction_itself(sink: list[Compaction]) -> None:
-    bare = SlidingWindow(max_messages=4, keep_messages=2)
-    wrapped = CompactionObserver(SlidingWindow(max_messages=4, keep_messages=2))
+    bare = SlidingWindowCompaction(max_messages=4, keep_messages=2)
+    wrapped = CompactionObserver(SlidingWindowCompaction(max_messages=4, keep_messages=2))
     bare_result = await bare.before_model_request(_Ctx(), _request_context(["m"] * 10))
     wrapped_result = await wrapped.before_model_request(_Ctx(), _request_context(["m"] * 10))
     assert len(wrapped_result.messages) == len(bare_result.messages)
@@ -136,5 +136,5 @@ async def test_wrapping_does_not_change_the_compaction_itself(sink: list[Compact
 def test_the_wrapped_capability_stays_reachable() -> None:
     # ``WrapperCapability`` delegates the rest of the protocol; losing that would
     # silently drop ordering and hook-introspection.
-    inner = SlidingWindow(max_messages=4)
+    inner = SlidingWindowCompaction(max_messages=4)
     assert CompactionObserver(inner).wrapped is inner
