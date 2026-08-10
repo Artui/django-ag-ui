@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from rest_framework.permissions import AllowAny
 from rest_framework_services import ServiceSpec
 
 
@@ -12,4 +13,6 @@ def ping(user: Any) -> dict[str, Any]:
     return {"ok": True}
 
 
-SPECS: dict[str, Any] = {"ping": ServiceSpec(service=ping, atomic=False)}
+SPECS: dict[str, Any] = {
+    "ping": ServiceSpec(service=ping, atomic=False, permission_classes=[AllowAny])
+}

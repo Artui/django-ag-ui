@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+from django.core.exceptions import ImproperlyConfigured
 from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
+from rest_framework.permissions import AllowAny
 from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec, SpecRegistry
 
 from django_ag_ui.agent.agui_server import AGUIServer
@@ -22,10 +25,17 @@ def _create_widget(user: Any) -> dict[str, Any]:
 
 
 def _selector() -> SelectorSpec:
-    return SelectorSpec(kind=SelectorKind.LIST, selector=_list_widgets)
+    return SelectorSpec(
+        kind=SelectorKind.LIST, selector=_list_widgets, permission_classes=[AllowAny]
+    )
 
 
 def _service() -> ServiceSpec:
+    return ServiceSpec(service=_create_widget, atomic=False, permission_classes=[AllowAny])
+
+
+def _bare_service() -> ServiceSpec:
+    """Deliberately unguarded — the shape the construction check must catch."""
     return ServiceSpec(service=_create_widget, atomic=False)
 
 
@@ -132,3 +142,57 @@ class TestReachesTheViews:
 
         assert [entry["name"] for entry in catalog] == ["list_widgets", "create_widget"]
         assert catalog[0]["description"] == "List widgets."
+
+
+class TestUnguardedSpecs:
+    """The refusal happens at construction, which is the point of doing it here.
+
+    ``SpecCapability`` already refuses an unguarded spec — but this transport
+    builds its capability **per request** (it needs the request-scoped ``seen``
+    set for tool-name dedup), so relying on the upstream check alone would turn
+    a misconfiguration into a 500 on the first agent call instead of a failure
+    to start.
+    """
+
+    def test_a_spec_with_no_permission_classes_refuses_to_construct(self) -> None:
+        registry = SpecRegistry()
+        registry.register(
+            "list_widgets", SelectorSpec(kind=SelectorKind.LIST, selector=_list_widgets)
+        )
+
+        with pytest.raises(ImproperlyConfigured) as excinfo:
+            AGUIServer(ToolRegistry(), model=TestModel(), service_specs=registry)
+
+        message = str(excinfo.value)
+        # Naming the spec is what makes this actionable against a large registry.
+        assert "'list_widgets'" in message
+        assert "permission_classes" in message
+
+    def test_the_refusal_points_at_the_migration_path(self) -> None:
+        """A large registry cannot be guarded in one commit, so say what to do.
+
+        Upstream's own message offers ``require_permissions=False``; that flag is
+        not reachable through ``service_specs=``, so repeating it verbatim would
+        send an operator looking for a keyword this constructor does not take.
+        """
+        with pytest.raises(ImproperlyConfigured) as excinfo:
+            AGUIServer(ToolRegistry(), model=TestModel(), service_specs={"go": _bare_service()})
+
+        message = str(excinfo.value)
+        assert "SpecCapability" in message
+        assert "require_permissions=False" in message
+
+    def test_every_offender_is_named_at_once(self) -> None:
+        """Two passes over a registry is two deploys; name them all the first time."""
+        with pytest.raises(ImproperlyConfigured) as excinfo:
+            AGUIServer(
+                ToolRegistry(),
+                model=TestModel(),
+                service_specs={"a": _bare_service(), "b": _bare_service()},
+            )
+
+        assert "'a', 'b'" in str(excinfo.value)
+
+    def test_an_empty_mapping_is_not_an_offender(self) -> None:
+        """``{}`` says "no spec tools", which is a configuration, not a mistake."""
+        AGUIServer(ToolRegistry(), model=TestModel(), service_specs={})

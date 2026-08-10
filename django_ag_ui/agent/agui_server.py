@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpRequest
 from django.urls import URLPattern, path
 from django_pydantic_agent.agent.types.agent_deps import AgentDeps
@@ -213,6 +214,8 @@ class AGUIServer:
         self._service_specs: dict[str, Any] | None = (
             dict(resolve_spec_mapping(service_specs)) if service_specs is not None else None
         )
+        if self._service_specs:
+            _reject_unguarded_specs(self._service_specs)
         # A per-request factory, not a shared store (the harness step-store
         # protocol carries no request). Retained on the object because the
         # resume/fork endpoints a later release mounts will need it too.
@@ -304,6 +307,52 @@ class AGUIServer:
             )
             patterns.append(path("transcribe/", transcribe_view, name="transcribe"))
         return patterns
+
+
+def _reject_unguarded_specs(specs: dict[str, Any]) -> None:
+    """Refuse a spec with no ``permission_classes`` here, at construction.
+
+    ⚠ **The check exists upstream; what this adds is *when*.**
+    ``SpecCapability`` refuses the same thing, but this transport builds its
+    capability **per request** — it needs the request-scoped ``seen`` set for
+    tool-name dedup — so the upstream refusal would surface as a 500 on the
+    first agent call rather than as a failure to start. This wave's whole
+    pattern is *fail at registration, not at request time*: an operator reading
+    a traceback in ``urls.py`` is in a different situation from one reading it
+    in Sentry a week later.
+
+    ⛔ **Why the ambiguity is worth failing over.** ``permission_classes=None``
+    means *inherit* over HTTP — the viewset's own classes, then DRF's
+    ``DEFAULT_PERMISSION_CLASSES``. Off HTTP neither exists, so a spec that is
+    correctly guarded behind a viewset, with passing HTTP tests, becomes
+    callable by whatever the model decides to call.
+
+    Imported lazily: ``djangorestframework-services`` arrives with the
+    ``[spec-tools]`` extra, and ``service_specs`` being set is what proves it
+    is installed.
+
+    ⚠ Constructing a ``DjangoAGUIView`` directly still fails per request — this
+    is the documented path, not the only one. The general fix is for the view to
+    stop rebuilding the capability every request, which is a larger change to
+    the construction seam.
+    """
+    from rest_framework_services import unguarded_specs
+
+    unguarded = unguarded_specs(specs)
+    if not unguarded:
+        return
+    names = ", ".join(repr(name) for name in sorted(unguarded))
+    raise ImproperlyConfigured(
+        f"AGUIServer(service_specs=...) was given spec(s) with no "
+        f"permission_classes: {names}. A spec dispatched off HTTP has no "
+        "viewset and no DEFAULT_PERMISSION_CLASSES to inherit from, so nothing "
+        "gates these calls and the model can make any of them. Set "
+        "spec.permission_classes on each. To migrate a large registry "
+        "gradually, attach the capability yourself instead — "
+        "capabilities=[SpecCapability(specs, require_permissions=False)] — "
+        "which skips this server's tool-catalog registration, so tool-call "
+        "cards render unlabelled."
+    )
 
 
 __all__ = ["DEFAULT_NAMESPACE", "AGUIServer"]
