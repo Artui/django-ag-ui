@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **`[drf-mcp]` now requires `djangorestframework-mcp-server>=0.26`** (was
+  `>=0.25,<0.26`), which closes a fail-open authentication defect. The old
+  exclusive ceiling *excluded* the fix, so installing this extra resolved to the
+  vulnerable release.
+
+  ⚠ **The bridge is in the blast radius, not just the HTTP transport.** The
+  `[drf-mcp]` toolset calls `MCPServer.list_tools` / `acall_tool` in process, so
+  it runs the same permission and listing checks — and those were the sites that
+  failed open. A project whose `MCPPermission.has_permission` or `is_listable`
+  was written `async def` got back an un-awaited coroutine, which is truthy and
+  never `None`, so **every binding was listed and every call granted**, to the
+  agent as much as to an HTTP client. Upstream now raises `ImproperlyConfigured`
+  naming the offending class, and sweeps the same shape across the auth backend,
+  rate limiters, and the sync transport's session store.
+
+  No code changes here — this package supplies none of those hooks. A project
+  that does write one `async def` will see a loud refusal where there was a
+  silent yes.
+
 ## [0.28.1] — 2026-08-08
 
 ### Changed
