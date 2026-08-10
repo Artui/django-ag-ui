@@ -1838,15 +1838,32 @@ whatever the model decides to call.</p>
 </span><span id="__span-19-16"><a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>    <span class="p">),</span>
 </span><span id="__span-19-17"><a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>Migrating a registry too large to guard in one pass? Attach the capability
-yourself instead of using <code>service_specs=</code>, which is the only place PAI's
-<code>require_permissions=False</code> is reachable today:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecCapability</span>
+<p>Need a <code>SpecToolset</code> option — <code>max_page_size</code>, an <code>exception_map</code>, a
+<code>build_context</code> override, or <code>require_permissions=False</code> while migrating a
+registry too large to guard in one commit? <strong>Build the toolset yourself and pass
+it to <code>service_specs=</code>.</strong></p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
 </span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>
-</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">SpecCapability</span><span class="p">(</span><span class="n">SPECS</span><span class="p">,</span> <span class="n">require_permissions</span><span class="o">=</span><span class="kc">False</span><span class="p">)])</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>    <span class="n">service_specs</span><span class="o">=</span><span class="n">SpecToolset</span><span class="p">(</span><span class="n">SPECS</span><span class="p">,</span> <span class="n">max_page_size</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">require_permissions</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="p">)</span>
 </span></code></pre></div>
-<p>⚠ That path skips the tool-catalog registration <code>service_specs=</code> performs, so
-tool-call cards render unlabelled. A migration step, not a destination.</p>
+<p>A <code>SpecCapability</code> is accepted the same way, so <code>defer_loading</code> composes too.</p>
+<p>⭐ <strong>This does not cost you the tool-call card labels.</strong> The endpoint attaches
+the object as-is <em>and</em> reads its <code>specs</code> for the tool catalog and the tool-name
+dedup — so the powerful form and the labelled form are the same form. (Before,
+the only route to a toolset option was <code>capabilities=</code>, which the catalog never
+saw, so every card from it rendered unlabelled.)</p>
+<p>⚠ <strong>A pre-built toolset is not filtered.</strong> For a mapping, a tool name the
+<code>@tool</code> registry already defines is dropped in the registry's favour. That
+cannot apply to an object you built, so a collision is <strong>refused at
+construction</strong> instead — rename on one side, or pass a mapping to get the old
+precedence.</p>
+<p>⚠ <strong>Nor is it re-checked.</strong> Its constructor already ran the
+<code>permission_classes</code> check, and it may have been built with
+<code>require_permissions=False</code> deliberately — validating again on arrival would
+take that decision back and leave no route to it at all.</p>
 <div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SPECS</span>
 </span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
 </span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">SPECS</span><span class="p">)</span>
