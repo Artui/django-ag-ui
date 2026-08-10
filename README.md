@@ -29,9 +29,10 @@ browser half is
   model, `MODEL_SETTINGS`, `RETRIES`, external `TOOLSETS` / `CAPABILITIES`, an
   explicit `API_KEY` / `PROVIDER` credential path, and an `AGENT_FACTORY` escape
   hatch for full control of construction.
-- **Authentication hooks** — `require_authenticated=True` fails closed (`401`)
-  for anonymous requests, and a `get_user(request)` hook establishes the user
-  tools, the drf-mcp bridge, and conversation ownership act as.
+- **Authentication, closed by default** — every route refuses anonymous
+  requests (`401`) until you say otherwise, and a `get_user(request)` hook
+  establishes the user tools, the drf-mcp bridge, and conversation ownership
+  act as. See [Security defaults](#security-defaults).
 - **One-object mounting** — an `AGUIServer(registry, …)` config object exposing a
   namespaced `.urls`, mounted the `admin.site` way with
   `path("agent/", server.urls)`. It builds the agent view and every sub-view from
@@ -141,6 +142,79 @@ Frontend-declared tools in the request are merged into the agent's catalog
 automatically; server-side tools run in-process. See the
 [docs](https://artui.github.io/django-ag-ui/) for the full settings reference,
 the persistence stores, and the `drf-mcp` bridge.
+
+## Security defaults
+
+An agent endpoint is not an ordinary view: **server-side tools act as
+`request.user`**, so who reaches the endpoint decides what the model can read
+and change. Three defaults are worth knowing before you deploy.
+
+### 1. Anonymous requests are refused
+
+`require_authenticated` defaults to `True` on the agent endpoint **and on every
+sub-view `AGUIServer` mounts** — the tool and skill catalogs, the thread drawer,
+the attachment routes, transcription, the run index. An anonymous request gets
+`401` with JSON `{"error": "authentication required"}`.
+
+```python
+AGUIServer(registry, require_authenticated=False)  # serve anonymous runs
+```
+
+Waiving it is a real choice for a public demo assistant with no user-scoped
+tools. It is the wrong choice anywhere the tools read user data: without an
+authenticated user, `request.user` is `AnonymousUser` and every visitor shares
+one identity.
+
+### 2. Establish the acting user with `get_user`
+
+Refusing anonymous callers is not the same as knowing *who* is calling. Django's
+auth middleware answers that for cookie-authenticated sites; for token clients,
+pass a hook. It may be **sync or async** — a sync hook runs off the event loop,
+so a plain ORM lookup is fully supported:
+
+```python
+def get_user(request):
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    return Token.objects.select_related("user").get(key=token).user
+
+
+AGUIServer(registry, get_user=get_user)
+```
+
+Its return value is assigned onto `request.user`. A hook that raises propagates
+as a 500 — return `AnonymousUser` (or `None`) for a clean `401` instead. An
+`authorize=` predicate runs after the user is established and denies with `403`
+(JSON, never an HTML login redirect), which is the seam for a staff gate.
+
+### 3. CSRF is exempt unless you say otherwise
+
+AG-UI clients typically authenticate by header (Bearer / API key), where CSRF
+does not apply — so the view is CSRF-exempt by default.
+
+**If your deployment authenticates with session cookies, that default is
+wrong for you.** Tools act as `request.user`, so a cookie-authenticated endpoint
+with CSRF off lets any third-party page drive the agent as whoever is logged in
+— mitigated, but not eliminated, by Django's default `SameSite=Lax` cookie.
+
+```python
+AGUIServer(registry, csrf_exempt=False)  # and send X-CSRFToken from the client
+```
+
+Leaving `csrf_exempt` unset *and* passing no `get_user` hook emits a
+`RuntimeWarning` when the endpoint is built. That combination says nothing about
+how requests authenticate, and the likeliest reading is the dangerous one. It is
+the case the `require_authenticated` default cannot see — those requests *are*
+authenticated. Any of three answers settles it and silences the warning:
+`csrf_exempt=False`, `csrf_exempt=True` (deliberately exempt), or a `get_user`
+hook.
+
+### Anonymous requests and the stores
+
+The model-backed stores refuse anonymous thread / attachment operations unless
+`ALLOW_ANONYMOUS` is set (which buckets per browser session). Owner scoping
+alone cannot isolate anonymous visitors from one another — they have no user id
+— so prefer an authenticated endpoint over `ALLOW_ANONYMOUS` whenever a store
+persists.
 
 ## License
 

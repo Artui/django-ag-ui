@@ -121,6 +121,13 @@ testpaths = ["tests"]
 # at config time, before DJANGO_SETTINGS_MODULE is applied.
 filterwarnings = [
     "ignore:MCP tool .* is registered with no description",
+    # Most fixtures construct a view in its default state, which is exactly the
+    # state the CSRF guard warns about — so without this every one of them
+    # carries the same warning and the signal is lost. ``pytest.warns`` still
+    # sees it (it installs its own "always" filter), which is where the guard
+    # is asserted. (Matched without the "django-ag-ui:" prefix — a colon in the
+    # pattern is pytest's own field separator.)
+    "ignore:.*AG-UI endpoint is CSRF-exempt",
 ]
 
 [tool.coverage.run]

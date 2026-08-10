@@ -20,16 +20,16 @@ class SkillsView:
     Skill prompts can encode internal workflows — worth gating. The view
     carries the same authentication seam as ``DjangoAGUIView``
     (``require_authenticated`` / ``get_user``, sync or async hooks), so one
-    policy can cover the agent endpoint and its catalogs. Defaults stay open
-    for backwards compatibility — lock the catalog down whenever the agent
-    endpoint is locked down.
+    policy can cover the agent endpoint and its catalogs — and the same closed
+    default, so an anonymous ``GET`` is a ``401`` until you pass
+    ``require_authenticated=False``.
     """
 
     def __init__(
         self,
         registry: SkillRegistry,
         *,
-        require_authenticated: bool = False,
+        require_authenticated: bool = True,
         get_user: Callable[[HttpRequest], Any]
         | Callable[[HttpRequest], Awaitable[Any]]
         | None = None,

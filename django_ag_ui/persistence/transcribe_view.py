@@ -32,8 +32,9 @@ class TranscribeView:
     :class:`~django_ag_ui.persistence.attachments_view.AttachmentsView` there is
     no download/delete route. The view carries the same authentication seam as
     :class:`~django_ag_ui.DjangoAGUIView` (``require_authenticated`` /
-    ``get_user``); defaults stay open for parity with the other endpoints, so
-    lock it down whenever the agent endpoint is.
+    ``get_user``), closed by default like the other endpoints — which matters
+    here beyond consistency: the backend spends money per request, so an open
+    route is a bill as well as a leak.
 
     With the default :class:`NullTranscriptionBackend` a request returns ``410``
     (off): mount the view with a real backend to enable it.
@@ -43,7 +44,7 @@ class TranscribeView:
         self,
         backend: TranscriptionBackend,
         *,
-        require_authenticated: bool = False,
+        require_authenticated: bool = True,
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
         config: AGUIConfig | None = None,

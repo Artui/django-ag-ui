@@ -6,7 +6,6 @@ import warnings
 from types import SimpleNamespace
 
 import pytest
-from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured
 from django.http import StreamingHttpResponse
 from django.test import RequestFactory, override_settings
@@ -16,6 +15,7 @@ from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from tests.authed_request_factory import AuthedRequestFactory
 
 
 def _run_input(content: str, run_id: str = "r1") -> bytes:
@@ -32,8 +32,12 @@ def _run_input(content: str, run_id: str = "r1") -> bytes:
     ).encode()
 
 
-def _post(body: bytes):  # noqa: ANN202
-    return RequestFactory().post("/agent/", data=body, content_type="application/json")
+def _post(body: bytes, *, anonymous: bool = False):  # noqa: ANN202
+    # Authenticated by default: the endpoint refuses anonymous callers unless
+    # told otherwise, so a fixture that wants to reach the agent has to be a
+    # logged-in caller. ``anonymous=True`` is for the tests about that refusal.
+    factory = RequestFactory() if anonymous else AuthedRequestFactory()
+    return factory.post("/agent/", data=body, content_type="application/json")
 
 
 async def _drain(response: StreamingHttpResponse) -> str:
@@ -83,15 +87,14 @@ async def test_reasoning_opt_out_still_streams_the_answer() -> None:
 @pytest.mark.django_db
 async def test_service_specs_tool_runs_in_process() -> None:
     # The no-MCP-hop path: a drf-services spec passed as service_specs=
-    # is wired as a SpecToolset and executed in-process during the run. A
-    # get_user hook stands in for the auth middleware that sets request.user in
-    # a real deployment (the toolset binds it as the acting user).
+    # is wired as a SpecToolset and executed in-process during the run. The
+    # request arrives with a user the way the auth middleware sets one in a real
+    # deployment (the toolset binds it as the acting user).
     from tests.integrations.drf_specs import SPECS
 
     view = DjangoAGUIView(
         ToolRegistry(),
         model=TestModel(call_tools=["ping"]),
-        get_user=lambda _request: AnonymousUser(),
         service_specs=SPECS,
     )
     response = await view(_post(_run_input("ping the server")))
@@ -124,8 +127,36 @@ async def test_invalid_body_returns_400() -> None:
 
 
 async def test_csrf_exempt_attribute_default_and_override() -> None:
+    # Unstated resolves to exempt, so Django's middleware still reads a bool.
     assert DjangoAGUIView(_registry(), model=TestModel()).csrf_exempt is True
+    assert DjangoAGUIView(_registry(), model=TestModel(), csrf_exempt=True).csrf_exempt is True
     assert DjangoAGUIView(_registry(), model=TestModel(), csrf_exempt=False).csrf_exempt is False
+
+
+async def test_unstated_csrf_with_no_get_user_warns() -> None:
+    # The combination the require_authenticated default cannot see: callers
+    # authenticated by session cookie, on an endpoint with CSRF turned off.
+    with pytest.warns(RuntimeWarning, match="CSRF-exempt"):
+        DjangoAGUIView(_registry(), model=TestModel())
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"csrf_exempt": False},
+        {"csrf_exempt": True},
+        {"get_user": lambda _request: SimpleNamespace(is_authenticated=True)},
+    ],
+    ids=["csrf-enforced", "csrf-exempt-deliberately", "get-user-hook"],
+)
+async def test_stating_how_requests_authenticate_silences_the_warning(kwargs: dict) -> None:
+    # ⭐ An explicit csrf_exempt=True is a *decision* (header-authenticated
+    # clients, where CSRF does not apply), so it silences the warning just as
+    # csrf_exempt=False does. Warning on the value rather than on the silence
+    # would fire on a correct configuration with no way to say so.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        DjangoAGUIView(_registry(), model=TestModel(), **kwargs)
 
 
 @override_settings(DJANGO_AG_UI={})
@@ -160,15 +191,22 @@ async def test_api_key_builds_a_model_with_an_explicit_provider() -> None:
     assert isinstance(resolved, AnthropicModel)
 
 
-async def test_anonymous_is_rejected_when_require_authenticated() -> None:
-    view = DjangoAGUIView(_registry(), model=TestModel(), require_authenticated=True)
-    # RequestFactory builds no `.user`, so the request is unauthenticated.
-    response = await view(_post(_run_input("hi")))
+async def test_anonymous_is_rejected_by_default() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    # The plain factory builds no `.user`, so the request is unauthenticated —
+    # and nothing had to be passed to have it refused.
+    response = await view(_post(_run_input("hi"), anonymous=True))
     assert response.status_code == 401
 
 
+async def test_anonymous_is_served_when_authentication_is_waived() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel(), require_authenticated=False)
+    response = await view(_post(_run_input("hi"), anonymous=True))
+    assert isinstance(response, StreamingHttpResponse)
+
+
 async def test_authenticated_user_passes_the_gate() -> None:
-    view = DjangoAGUIView(_registry(), model=TestModel(), require_authenticated=True)
+    view = DjangoAGUIView(_registry(), model=TestModel())
     request = _post(_run_input("hi"))
     request.user = SimpleNamespace(is_authenticated=True)
     response = await view(request)
@@ -180,7 +218,6 @@ async def test_get_user_hook_establishes_the_user() -> None:
     view = DjangoAGUIView(
         _registry(),
         model=TestModel(),
-        require_authenticated=True,
         get_user=lambda _request: user,
     )
     request = _post(_run_input("hi"))
@@ -306,9 +343,12 @@ async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
     from django_pydantic_agent.contrib.store.models import StoredConversation
 
     view = DjangoAGUIView(
-        _registry(), model=TestModel(), conversation_store=DefaultConversationStore()
+        _registry(),
+        model=TestModel(),
+        conversation_store=DefaultConversationStore(),
+        require_authenticated=False,
     )
-    response = await view(_post(_run_input("double 5")))  # anonymous request
+    response = await view(_post(_run_input("double 5"), anonymous=True))
     body = await _drain(response)
     assert "RUN_FINISHED" in body
     assert await StoredConversation.objects.acount() == 0

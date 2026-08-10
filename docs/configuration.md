@@ -564,9 +564,9 @@ The spec tools' card labels are surfaced to the web component through the same
 
 The agent endpoint and every mounted sub-view (tools, skills, threads,
 attachments, transcribe) share **one authentication seam**, and it defaults
-**open** — an unauthenticated visitor can drive the agent and reach the stores.
-Lock a mount down by passing the seam to `AGUIServer`; it forwards to every view
-it builds, including the agent endpoint:
+**closed** — `require_authenticated` is `True`, so an anonymous visitor gets a
+`401` from every route without anything being configured. `AGUIServer` forwards
+the seam to every view it builds, including the agent endpoint:
 
 ```python
 from django.urls import path
@@ -575,7 +575,8 @@ from django_ag_ui import AGUIServer
 
 agent = AGUIServer(
     registry,
-    require_authenticated=True,  # 401 for anonymous requests
+    csrf_exempt=False,  # cookie auth: enforce CSRF
+    # require_authenticated=False,          # opt into anonymous runs
     # authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user
     # get_user=lambda r: token_user(r),     # establish the acting user
 )
@@ -584,11 +585,39 @@ urlpatterns = [
 ]
 ```
 
-- **`require_authenticated=True`** → an anonymous request gets **401** (JSON).
+- **`require_authenticated`** (default `True`) → an anonymous request gets
+  **401** (JSON). Pass `False` to serve anonymous runs deliberately.
 - **`authorize=<predicate>`** runs after the user is established; a falsy return
   gives **403** (JSON, never an HTML login redirect). Use it for a staff gate.
 - **`get_user=<hook>`** establishes `request.user` (sync or async — a sync ORM
   token lookup runs off the event loop).
+- **`csrf_exempt`** (default: unstated, which behaves as exempt) → see
+  [CSRF](#csrf) below.
+
+### CSRF
+
+The endpoint is CSRF-exempt unless told otherwise, because AG-UI clients
+typically authenticate by header (Bearer / API key), where CSRF does not apply.
+
+If your deployment authenticates with **session cookies**, pass
+`csrf_exempt=False` and send the token from the client (the web component takes
+`chat.headers = {"X-CSRFToken": …}`). Tools act as `request.user`, so a
+cookie-authenticated endpoint with CSRF off lets any third-party page drive the
+agent as whoever is logged in — mitigated, but not eliminated, by Django's
+default `SameSite=Lax` cookie.
+
+!!! warning "Saying nothing warns at construction"
+    Leaving `csrf_exempt` unset *and* passing no `get_user` hook emits a
+    `RuntimeWarning` when the endpoint is built. That combination says nothing
+    about how requests authenticate, and the likeliest reading is the dangerous
+    one — the acting user arriving from the session cookie, with CSRF off. It is
+    the case `require_authenticated` cannot see: those requests *are*
+    authenticated.
+
+    Any of three answers settles it and silences the warning:
+    `csrf_exempt=False` (cookie auth, CSRF enforced), `csrf_exempt=True`
+    (deliberately exempt — header-authenticated clients), or a `get_user` hook
+    (the request carries its own credential).
 
 ### `ALLOW_ANONYMOUS`
 
@@ -605,8 +634,8 @@ anonymous visitors from one another — they have no user id.
 - **`True`** — anonymous requests are bucketed per browser by
   `request.session.session_key` (`anon:<key>`; requires session middleware).
 
-Whenever a store persists, prefer authenticating the endpoints
-(`require_authenticated=True` / `get_user`) over relying on `ALLOW_ANONYMOUS`.
+Whenever a store persists, prefer authenticated endpoints (the default, or a
+`get_user` hook) over relying on `ALLOW_ANONYMOUS`.
 
 ### `TOOL_GUARD`
 

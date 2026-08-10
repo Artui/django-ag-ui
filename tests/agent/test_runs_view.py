@@ -10,6 +10,7 @@ from django_pydantic_agent.persistence.anonymous_operation_error import Anonymou
 from pydantic_ai_harness.step_persistence import ContinuableSnapshot, RunRecord
 
 from django_ag_ui.agent.runs_view import RunsView
+from tests.authed_request_factory import AuthedRequestFactory
 
 _STARTED = datetime(2026, 7, 27, 12, 0, tzinfo=timezone.utc)
 
@@ -67,8 +68,11 @@ def _factory(store: _FakeStore) -> Any:
     return lambda request: store
 
 
-def _get(path: str = "/runs/") -> HttpRequest:
-    return RequestFactory().get(path)
+def _get(path: str = "/runs/", *, anonymous: bool = False) -> HttpRequest:
+    # Authenticated by default: the index is owner-scoped and the view refuses
+    # anonymous callers, so a fixture that wants rows has to be a logged-in one.
+    factory = RequestFactory() if anonymous else AuthedRequestFactory()
+    return factory.get(path)
 
 
 async def _body(response: Any) -> dict[str, Any]:
@@ -148,23 +152,30 @@ class TestListing:
 
 class TestMethodAndAuth:
     async def test_post_is_not_allowed(self) -> None:
-        response = await RunsView(_factory(_FakeStore()))(RequestFactory().post("/runs/"))
+        response = await RunsView(_factory(_FakeStore()))(AuthedRequestFactory().post("/runs/"))
         assert response.status_code == 405
 
-    async def test_anonymous_is_refused_when_authentication_is_required(self) -> None:
-        request = _get()
-        request.user = None  # type: ignore[attr-defined]
-        response = await RunsView(_factory(_FakeStore()), require_authenticated=True)(request)
+    async def test_anonymous_is_refused_by_default(self) -> None:
+        response = await RunsView(_factory(_FakeStore()))(_get(anonymous=True))
 
         assert response.status_code == 401
+
+    async def test_anonymous_is_served_when_authentication_is_waived(self) -> None:
+        view = RunsView(_factory(_FakeStore()), require_authenticated=False)
+        response = await view(_get(anonymous=True))
+
+        assert response.status_code == 200
 
     async def test_an_authorize_predicate_can_deny(self) -> None:
         response = await RunsView(_factory(_FakeStore()), authorize=lambda request: False)(_get())
         assert response.status_code == 403
 
     async def test_an_anonymous_store_refusal_is_403_not_500(self) -> None:
+        # Only reachable with authentication deliberately waived: otherwise the
+        # anonymous request never reaches the store that refuses it.
         store = _FakeStore(raises=AnonymousOperationError("anonymous"))
-        response = await RunsView(_factory(store))(_get())
+        view = RunsView(_factory(store), require_authenticated=False)
+        response = await view(_get(anonymous=True))
 
         assert response.status_code == 403
 

@@ -42,15 +42,16 @@ class ThreadsView:
     a thread owned by another user simply isn't found (``404``) — never another
     user's history. The view carries the same authentication seam as
     :class:`~django_ag_ui.DjangoAGUIView` (``require_authenticated`` /
-    ``get_user``, sync or async); defaults stay open for parity with the catalog
-    views, so lock it down whenever the agent endpoint is locked down.
+    ``get_user``, sync or async), closed by default like the catalog views — and
+    here the default is load-bearing rather than a parity choice: every route is
+    owner-scoped, so an anonymous caller has no history to reach.
     """
 
     def __init__(
         self,
         store: ConversationStore,
         *,
-        require_authenticated: bool = False,
+        require_authenticated: bool = True,
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
         config: AGUIConfig | None = None,

@@ -10,6 +10,7 @@ from django.test import RequestFactory, override_settings
 
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.transcribe_view import TranscribeView
+from tests.authed_request_factory import AuthedRequestFactory
 
 
 class _FakeBackend:
@@ -29,13 +30,15 @@ def _audio_request(
     files: dict[str, Any] | None = None,
     content: bytes = b"audio-bytes",
     content_type: str = "audio/webm",
+    anonymous: bool = False,
 ) -> HttpRequest:
     data = (
         files
         if files is not None
         else {"audio": SimpleUploadedFile("clip.webm", content, content_type=content_type)}
     )
-    return RequestFactory().post("/agent/transcribe/", data=data)
+    factory = RequestFactory() if anonymous else AuthedRequestFactory()
+    return factory.post("/agent/transcribe/", data=data)
 
 
 def _body(response: Any) -> Any:
@@ -104,21 +107,27 @@ async def test_allowed_type_passes() -> None:
 
 
 async def test_rejects_non_post() -> None:
-    response = await TranscribeView(_FakeBackend())(RequestFactory().get("/agent/transcribe/"))
+    response = await TranscribeView(_FakeBackend())(
+        AuthedRequestFactory().get("/agent/transcribe/")
+    )
     assert response.status_code == 405
 
 
-async def test_anonymous_rejected_when_require_authenticated() -> None:
-    view = TranscribeView(_FakeBackend(), require_authenticated=True)
-    response = await view(_audio_request())
+async def test_anonymous_rejected_by_default() -> None:
+    response = await TranscribeView(_FakeBackend())(_audio_request(anonymous=True))
     assert response.status_code == 401
+
+
+async def test_anonymous_accepted_when_authentication_is_waived() -> None:
+    view = TranscribeView(_FakeBackend(), require_authenticated=False)
+    response = await view(_audio_request(anonymous=True))
+    assert response.status_code == 200
 
 
 async def test_get_user_hook_opens_the_endpoint() -> None:
     view = TranscribeView(
         _FakeBackend(),
-        require_authenticated=True,
         get_user=lambda _request: SimpleNamespace(is_authenticated=True),
     )
-    response = await view(_audio_request())
+    response = await view(_audio_request(anonymous=True))
     assert response.status_code == 200

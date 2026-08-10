@@ -113,14 +113,15 @@ needs constructor arguments just works.
 [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView] is an async, callable view
 instance. On each POST it:
 
-1. Establishes the user. Authentication is the **host's responsibility**, but
-   the view offers two hooks: a `get_user(request)` callable whose return value
-   is assigned onto `request.user` (so tools, the drf-mcp bridge, and
-   conversation ownership act as that user), and `require_authenticated=True`,
-   which fails closed — anonymous requests get `401` with JSON
-   `{"error": "authentication required"}`. `get_user` may be **sync or
-   async**; sync hooks run off the event loop in Django's sync executor, so
-   the canonical token lookup Just Works:
+1. Establishes the user, and **fails closed by default** —
+   `require_authenticated` is `True`, so anonymous requests get `401` with JSON
+   `{"error": "authentication required"}` (pass `require_authenticated=False`
+   to serve them deliberately). Establishing *who* is acting is still the
+   **host's responsibility**: a `get_user(request)` callable's return value is
+   assigned onto `request.user`, so tools, the drf-mcp bridge, and conversation
+   ownership act as that user. `get_user` may be **sync or async**; sync hooks
+   run off the event loop in Django's sync executor, so the canonical token
+   lookup Just Works:
 
     ```python
     def get_user(request):
@@ -181,7 +182,7 @@ from django.urls import path
 
 from django_ag_ui import AGUIServer
 
-agent = AGUIServer(registry, require_authenticated=True)
+agent = AGUIServer(registry, csrf_exempt=False)
 
 urlpatterns = [
     path("agent/", agent.urls),
@@ -203,8 +204,10 @@ urlpatterns = [
   `threads` / `attachments` / `transcribe` mount when their store/backend
   (resolved from settings by default, or passed explicitly) is not the `Null`
   one. A bare `AGUIServer(registry)` mounts only `endpoint` + `tools`.
-- **One auth policy covers the whole mount.** `require_authenticated` /
-  `get_user` / `authorize` forward to every view the object builds.
+- **One auth policy covers the whole mount, closed by default.**
+  `require_authenticated` / `get_user` / `authorize` forward to every view the
+  object builds, and `require_authenticated` is `True` — a bare mount serves
+  nobody who is not logged in.
 
 Because the object holds its own registry and config, you can mount several with
 independent registries — one per surface — each namespaced separately.
@@ -430,9 +433,9 @@ attachment store is active (a non-`Null` store, resolved from
   `text/html` can't execute as a same-origin page; missing / cross-owner → `404`.
 - `DELETE <prefix>attachments/<id>/` — drop the attachment (`204`).
 
-All owner-scoped and open by default like the catalog views — construct
-`AttachmentsView` yourself with `require_authenticated` / `get_user` to lock it
-down whenever the agent endpoint is. The web component reads
+All owner-scoped, and authenticated by default like the catalog views —
+which is load-bearing here rather than a parity choice, since an anonymous
+caller has no files to reach. The web component reads
 `data-attachments-url` to drive the composer's upload tray.
 
 ## Cancelling a run

@@ -45,7 +45,7 @@ class AGUIServer:
 
         from django_ag_ui import AGUIServer
 
-        agent = AGUIServer(registry, require_authenticated=True)
+        agent = AGUIServer(registry, csrf_exempt=False)
 
         urlpatterns = [
             path("agent/", agent.urls),
@@ -85,21 +85,22 @@ class AGUIServer:
     the agent endpoint and its tool catalog — the same surface the old
     ``get_urls(view)`` produced.
 
-    **Authentication seam.** ``require_authenticated`` / ``get_user`` /
-    ``authorize`` are forwarded to **every** view this object builds — the agent
-    endpoint and all sub-views — so one policy locks down the whole mount
-    (``401`` for anonymous when ``require_authenticated``, ``403`` from an
-    ``authorize`` predicate, ``get_user`` establishing the acting user). The
-    agent view's ``model`` / ``instructions`` / ``audit_logger`` / ``csrf_exempt``
-    fall back to settings when not passed. Everything defaults open for
-    backwards compatibility; the endpoints are unauthenticated until you set
-    these.
+    **Authentication seam, closed by default.** ``require_authenticated`` /
+    ``get_user`` / ``authorize`` are forwarded to **every** view this object
+    builds — the agent endpoint and all sub-views — so one policy locks down the
+    whole mount (``401`` for anonymous when ``require_authenticated``, ``403``
+    from an ``authorize`` predicate, ``get_user`` establishing the acting user).
+    ``require_authenticated`` defaults to **True**, so a bare
+    ``AGUIServer(registry)`` serves nobody who is not logged in. Pass
+    ``require_authenticated=False`` to serve anonymous runs deliberately. The
+    agent view's ``model`` / ``instructions`` / ``audit_logger`` /
+    ``csrf_exempt`` fall back to settings when not passed.
 
-    **Anonymous scoping caveat.** With the endpoints left open (the default) and
-    a model-backed store, an anonymous request has no owner id. The reference
+    **Anonymous scoping caveat.** With ``require_authenticated=False`` and a
+    model-backed store, an anonymous request has no owner id. The reference
     contrib stores refuse anonymous thread / attachment operations unless
     ``ALLOW_ANONYMOUS`` is set (in which case they bucket per browser session) —
-    so pass ``require_authenticated=True`` (or a ``get_user`` hook) whenever the
+    so leave the default in place (or pass a ``get_user`` hook) whenever the
     store persists, rather than relying on owner scoping to isolate anonymous
     visitors from one another.
 
@@ -153,8 +154,8 @@ class AGUIServer:
         model: Any = None,
         instructions: str | None = None,
         audit_logger: AuditLogger | None = None,
-        csrf_exempt: bool = True,
-        require_authenticated: bool = False,
+        csrf_exempt: bool | None = None,
+        require_authenticated: bool = True,
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
         skills: SkillRegistry | None = None,

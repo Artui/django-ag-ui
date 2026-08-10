@@ -130,20 +130,23 @@ agent = AGUIServer(registry, model=TestModel())
 ```
 
 !!! warning "CSRF and cookie-authenticated deployments"
-    CSRF is exempt by default — right for header-token auth (Bearer / API
-    key), where CSRF doesn't apply. If your deployment authenticates with
-    **session cookies**, pass `csrf_exempt=False` and send the token from
-    the client: tools act as `request.user`, so a cookie-auth endpoint
-    without CSRF protection lets any third-party page drive the agent as
-    the logged-in user (Django's default `SameSite=Lax` cookie mitigates,
+    CSRF is exempt unless you say otherwise — right for header-token auth
+    (Bearer / API key), where CSRF doesn't apply. If your deployment
+    authenticates with **session cookies**, pass `csrf_exempt=False` and send
+    the token from the client: tools act as `request.user`, so a cookie-auth
+    endpoint without CSRF protection lets any third-party page drive the agent
+    as the logged-in user (Django's default `SameSite=Lax` cookie mitigates,
     but does not eliminate, the risk).
 
-Authentication is the host's responsibility, but the view offers two hooks. Pass
-`require_authenticated=True` to fail closed (anonymous requests get `401`), and a
-`get_user=` callable — **sync or async**; a sync ORM lookup is fully supported
-(it runs off the event loop) — to establish the user. Its return value is
-assigned onto `request.user`, so tools and conversation ownership act as that
-user:
+    Saying nothing about it *and* passing no `get_user` hook warns at
+    construction — see [CSRF](configuration.md#csrf).
+
+The endpoint **fails closed**: `require_authenticated` defaults to `True`, so an
+anonymous request gets a `401` before any agent runs. Establishing *who* is
+acting is still the host's job, and a `get_user=` callable does it — **sync or
+async**; a sync ORM lookup is fully supported (it runs off the event loop). Its
+return value is assigned onto `request.user`, so tools and conversation
+ownership act as that user:
 
 ```python
 def get_user(request):
@@ -151,17 +154,15 @@ def get_user(request):
     return Token.objects.select_related("user").get(key=token).user
 
 
-agent = AGUIServer(
-    registry,
-    require_authenticated=True,
-    get_user=get_user,
-)
+agent = AGUIServer(registry, get_user=get_user)
 ```
+
+Serving anonymous runs deliberately is `require_authenticated=False`.
 
 `AGUIServer` forwards `require_authenticated` / `get_user` / `authorize` to
 **every** view it builds — the agent endpoint *and* the tool / skill / thread /
-attachment catalogs — so one policy locks down the whole mount (the catalogs
-enumerate every server tool and skill prompt, so they're worth gating too).
+attachment catalogs — so one policy covers the whole mount (the catalogs
+enumerate every server tool and skill prompt, so they are gated too).
 
 ## 5. (Optional) offer skills
 
