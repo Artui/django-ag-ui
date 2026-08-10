@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] — 2026-08-10
+
+### Changed
+
+- **`[drf-mcp]` now requires `djangorestframework-mcp-server>=0.28,<0.29`**
+  (was `>=0.27,<0.28`), and the `django-pydantic-agent` floor moves to
+  `>=0.10,<0.11`.
+
+  ⛔ **The previous ceiling excluded a security release.** drf-mcp 0.28.0
+  refuses an authenticated caller with no `pk` instead of collapsing every such
+  caller onto the shared `"anonymous"` principal — where any two of them can
+  present each other's sessions. This package, `django-pydantic-agent` and
+  `django-admin-agent` all pinned `<0.28`, so the fix was **published and
+  unreachable to the whole ecosystem**: the announcement reads as completion
+  while every install keeps resolving the vulnerable version.
+
+  ⚠ **It reaches the bridge, not just the MCP endpoint.** `DRFMCPToolset` calls
+  `list_tools` / `acall_tool`, so a project using `drf_mcp_server=` runs the
+  same principal resolution the HTTP transport does — this is not an
+  HTTP-only concern.
+
+  ⭐ **Found from the other end, by the extras-matrix check.** Bumping
+  `django-admin-agent[mcp]` to `>=0.28` made it *unsatisfiable* against this
+  package's `[drf-mcp]` at `<0.28` — the disjoint-window shape again, one layer
+  down from the pair 0.34.0 fixed. The conflict was the symptom; the stuck
+  security floor was the cause. ⇒ *a resolution conflict is worth reading as a
+  question about which side is stale, not only as a pin to widen.*
+
+  No code changes; the suite passes unmodified at 100% coverage.
+
 ## [0.34.0] — 2026-08-10
 
 ### Changed
@@ -1719,7 +1749,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.34.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.35.0...HEAD
+[0.35.0]: https://github.com/Artui/django-ag-ui/compare/v0.34.0...v0.35.0
 [0.34.0]: https://github.com/Artui/django-ag-ui/compare/v0.33.1...v0.34.0
 [0.33.1]: https://github.com/Artui/django-ag-ui/compare/v0.33.0...v0.33.1
 [0.33.0]: https://github.com/Artui/django-ag-ui/compare/v0.32.0...v0.33.0
