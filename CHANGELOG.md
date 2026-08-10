@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`django-pydantic-agent` floor raised to `>=0.9,<0.10`.**
+
+  ⛔ **Not a routine bump — the previous ceiling excluded a fix aimed at this
+  package.** dpa 0.9.0 moves its `[spec-tools]` and `[harness]` windows onto the
+  ones used here; until this floor moves, that release is unreachable and the
+  defect stands.
+
+  ⚠ **The defect it closes never raised an error.** A project asking for both
+  packages' extras — `django-ag-ui[spec-tools]` alongside
+  `django-pydantic-agent[spec-tools]` — resolved *successfully* by silently
+  **downgrading django-ag-ui to 0.3.0** (0.17.0 for the `[harness]` pair). A
+  resolver satisfies disjoint windows by walking the consumer back to a version
+  whose pins overlap, and there is no version far enough back to be refused, so
+  the install looked clean while shipping a transport from months earlier —
+  behind the fail-open auth fix and the closed-by-default authentication flip.
+
+  ⭐ **Neither package was wrong alone**, and `django-ag-ui[spec-tools]` on its
+  own was fine too, since dpa arrives here as a plain dependency with no extras.
+  It took asking for both, which no per-package check does.
+
+  Verified with both packages' full extras resolved together and the versions
+  asserted: dpa 0.9.0 · PAI 0.15.0 · harness 0.16.0 · drf-mcp 0.27.0 ·
+  drf-services 0.35.0. Suite green untouched at 361 tests.
+
 ## [0.33.1] — 2026-08-10
 
 ### Fixed
