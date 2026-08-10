@@ -116,6 +116,17 @@ class AGUIServer:
     different projections with no shared state. Requires the
     ``django-ag-ui[spec-tools]`` extra.
 
+    **One agent, many runs.** The endpoint builds its agent once and reuses it,
+    rather than re-deriving every tool's JSON Schema per request. Two narrow
+    hooks vary it: ``model_for_request(request)`` and
+    ``instructions_for_request(request)`` — enough for the per-tenant model and
+    the per-tenant system prompt, and narrow on purpose. A hook handed the whole
+    request could vary the agent on anything it read off one, which is not a set
+    the reuse can be reasoned about; these two ride the *run* instead, through
+    pydantic-ai's own per-run ``model`` / ``instructions``::
+
+        AGUIServer(registry, model_for_request=lambda r: r.tenant.model)
+
     **Per-run dependencies.** ``deps_factory`` is a ``request -> AgentDeps``
     callable replacing the default, which binds only the acting user. Use it to
     carry project-specific per-run context (a tenant, a feature-flag snapshot)
@@ -153,6 +164,8 @@ class AGUIServer:
         *,
         model: Any = None,
         instructions: str | None = None,
+        model_for_request: Callable[[HttpRequest], Any] | None = None,
+        instructions_for_request: Callable[[HttpRequest], str] | None = None,
         audit_logger: AuditLogger | None = None,
         csrf_exempt: bool | None = None,
         require_authenticated: bool = True,
@@ -230,6 +243,8 @@ class AGUIServer:
             registry,
             model=model,
             instructions=instructions,
+            model_for_request=model_for_request,
+            instructions_for_request=instructions_for_request,
             audit_logger=audit_logger,
             csrf_exempt=csrf_exempt,
             toolsets=toolsets,

@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] — 2026-08-10
+
+### Added
+
+- **`model_for_request` / `instructions_for_request`** — two narrow
+  `(request) -> value` hooks on `AGUIServer` / `DjangoAGUIView` for the
+  per-tenant model and the per-tenant system prompt.
+
+  ```python
+  AGUIServer(registry, model_for_request=lambda request: request.tenant.model)
+  ```
+
+  A model string goes through the same `API_KEY` / `provider=` resolution the
+  configured model does, so a hook returning `"anthropic:…"` behaves like the
+  setting rather than falling back to environment inference.
+
+  ⭐ **Narrow on purpose, and the reason is the agent reuse below rather than
+  ergonomics.** A hook handed the whole request could vary the agent on anything
+  it read off one, and that is not a set anyone can enumerate — so a reused agent
+  behind it is either impossible to justify or wrong for the second tenant, and
+  the second failure is silent. Two named axes can be reasoned about.
+
+  They also sidestep the `agent_factory=` cliff: supplying a factory turns off
+  the drf-mcp bridge, the spec capability, step persistence, the attachment
+  toolset, `MODEL_SETTINGS`, `RETRIES`, `toolsets` and `capabilities` in one go.
+  Varying the model per tenant should not cost all of that.
+
+### Changed
+
+- **The agent is built once per endpoint and reused by every run**, instead of
+  being rebuilt per request. Rebuilding meant re-deriving a JSON Schema for
+  every registered tool on every call — the most expensive thing the endpoint
+  did, repeated to produce a byte-identical result.
+
+  ⭐ **What made the rebuild look unavoidable was that the agent carried
+  request-shaped things.** It no longer does: the drf-mcp toolset, the
+  `read_attachment` toolset, the `StepPersistence` capability and the per-run
+  model / instructions all ride the **run** now, through pydantic-ai's own
+  per-run `toolsets` / `capabilities` / `model` / `instructions`. What stays on
+  the agent is exactly what the constructor fixed, which is what makes the reuse
+  provable rather than merely plausible.
+
+  ⚠ **One thing had to move upstream first: the client IP.** It was closed over
+  when the agent was built, so a reused agent would have stamped every audit
+  record with the IP of whoever arrived first — well-formed records, wrong
+  provenance, nothing to notice it by. It now rides `AgentDeps.ip_address`,
+  which is why this release requires **`django-pydantic-agent>=0.8`**.
+
+  ⚠ Instructions are deliberately **absent** from the agent and supplied per
+  run. Pydantic-AI treats per-run instructions as *additional* to the agent's,
+  which is exactly a replacement when the agent carries none — and baking them in
+  would have made `instructions_for_request` either impossible or a cache key,
+  which a project can vary per user and so would never hit.
+
+  No API changes. An `agent_factory=` is likewise called once; it takes no
+  request and never did.
+
+- **`django-pydantic-agent` floor raised to `>=0.8,<0.9`.**
+
 ## [0.31.0] — 2026-08-10
 
 ### Changed — BREAKING
@@ -1532,7 +1591,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.31.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.32.0...HEAD
+[0.32.0]: https://github.com/Artui/django-ag-ui/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/Artui/django-ag-ui/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/Artui/django-ag-ui/compare/v0.29.0...v0.30.0
 [0.29.0]: https://github.com/Artui/django-ag-ui/compare/v0.28.2...v0.29.0

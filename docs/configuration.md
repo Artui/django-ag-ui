@@ -68,6 +68,8 @@ Every one of these is also a `build_ag_ui_config(...)` keyword.
 | --- | --- |
 | `toolsets=[...]` | Extra Pydantic-AI toolsets. |
 | `capabilities=[...]` | Pydantic-AI capabilities. |
+| `model_for_request=fn` | `(request) -> model` for this run (per-tenant models). |
+| `instructions_for_request=fn` | `(request) -> str` for this run (per-tenant prompts). |
 | `agent_factory=fn` | Escape hatch replacing `build_agent`. |
 | `audit_logger=...` | `AuditLogger` implementation. |
 | `provider=...` | Explicit Pydantic-AI `Provider`; takes precedence over `API_KEY`. |
@@ -210,6 +212,13 @@ custom model providers, output types, instrumentation, or toolset wiring the
 sugar arguments do not cover. When passed, the view hands construction entirely
 to your factory and does **not** apply `MODEL_SETTINGS`, `RETRIES`, `toolsets`,
 `capabilities`, or the drf-mcp bridge itself — your factory owns all of it.
+
+!!! tip "To vary the model or prompt per request, don't reach for this"
+    `model_for_request` / `instructions_for_request` cover that without the
+    all-or-nothing cost above — see
+    [Varying the agent per request](concepts.md#varying-the-agent-per-request).
+    Like the built-in path, a factory is called **once** and its agent reused; it
+    takes no request and never did.
 
 ```python
 # myproject/agent.py

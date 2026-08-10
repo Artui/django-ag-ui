@@ -52,6 +52,16 @@ class DjangoAGUIView:
     ``instructions``, and ``audit_logger`` fall back to the ``DJANGO_AG_UI``
     settings when not passed explicitly (tests inject a ``TestModel``).
 
+    **The agent is built once and reused by every run** — see :meth:`_agent`.
+    Two narrow hooks vary it per request: ``model_for_request(request)`` and
+    ``instructions_for_request(request)``, each returning this request's value.
+    They are deliberately narrow rather than a request-aware ``agent_factory``:
+    everything either can change rides the *run*, so the reuse stays provable,
+    and neither costs the ``agent_factory=`` cliff (supplying one turns off the
+    drf-mcp bridge, the spec capability, step persistence, the attachment
+    toolset, ``MODEL_SETTINGS``, ``RETRIES``, ``toolsets`` and ``capabilities``
+    in one go).
+
     **Authentication is the host's responsibility, and the view fails closed.**
     Tools (and the ``drf-mcp`` bridge) act as ``request.user``; if your
     middleware hasn't authenticated the request, that is ``AnonymousUser`` — a
@@ -88,6 +98,8 @@ class DjangoAGUIView:
         *,
         model: Any = None,
         instructions: str | None = None,
+        model_for_request: Callable[[HttpRequest], Any] | None = None,
+        instructions_for_request: Callable[[HttpRequest], str] | None = None,
         audit_logger: AuditLogger | None = None,
         csrf_exempt: bool | None = None,
         require_authenticated: bool = True,
@@ -111,6 +123,13 @@ class DjangoAGUIView:
         self._registry = registry
         self._model = model
         self._instructions = instructions
+        # Narrow per-request hooks, deliberately narrow: they are the two axes
+        # that actually vary per tenant, and keeping them enumerable is what
+        # makes the built agent reusable (see ``_agent``). A hook handed the
+        # whole request could read anything off it, which is not a set the
+        # agent's reuse can be reasoned about against.
+        self._model_for_request = model_for_request
+        self._instructions_for_request = instructions_for_request
         self._audit_logger = audit_logger
         # Collaborators arrive as objects. They used to be dotted paths in
         # settings — an indirection that existed only because settings.py can't
@@ -138,6 +157,11 @@ class DjangoAGUIView:
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
+        # The agent, built once and reused. Lazily, so a missing MODEL still
+        # surfaces on the first request rather than at import — the same moment
+        # it always did. Instance state, never module state: two endpoints hold
+        # two agents.
+        self._built_agent: Agent[AgentDeps, Any] | None = None
         # Django's CsrfViewMiddleware reads this attribute off the view
         # callable. AG-UI clients authenticate via headers/session and post
         # JSON; CSRF is the consumer's call. Exempt unless stated, overridable —
@@ -193,9 +217,13 @@ class DjangoAGUIView:
         # composition, persistence, cancel handling) lives on AgentSession, so
         # it is testable apart from SSE and swappable under another transport.
         session = AgentSession(
-            self._build_agent(request, run_input, resume_from=resume_from),
+            self._agent(),
             run_input,
             request,
+            model=self._run_model(request),
+            instructions=self._run_instructions(request),
+            toolsets=self._run_toolsets(request),
+            capabilities=self._run_capabilities(request, run_input, resume_from),
             deps=self._build_deps(request),
             audit_logger=self._resolve_audit_logger(),
             config=self._config,
@@ -225,56 +253,146 @@ class DjangoAGUIView:
         """
         if self._deps_factory is not None:
             return self._deps_factory(request)
-        return AgentDeps(user=getattr(request, "user", None))
+        return AgentDeps(
+            user=getattr(request, "user", None),
+            # Per-run, so it travels with the run rather than with the agent.
+            # ``AuditCapability`` reads it off the deps: closed over at
+            # construction, one reused agent would stamp every audit record with
+            # the IP of whoever arrived first.
+            ip_address=request.META.get("REMOTE_ADDR"),
+        )
 
-    def _build_agent(
-        self, request: HttpRequest, run_input: Any, *, resume_from: str | None = None
-    ) -> Agent[AgentDeps, Any]:
-        """Construct the per-request agent.
+    def _agent(self) -> Agent[AgentDeps, Any]:
+        """This endpoint's agent, built once and reused by every run.
+
+        **Building it per request meant re-deriving a JSON Schema for every
+        registered tool on every call** — the single most expensive thing the
+        endpoint did, repeated to produce a byte-identical result. What made the
+        rebuild look necessary was that the agent used to carry request-shaped
+        things; it no longer does. They ride the run instead (see
+        :meth:`_run_toolsets` / :meth:`_run_capabilities` /
+        :meth:`_run_model` / :meth:`_run_instructions`), which is pydantic-ai's
+        own seam and the same move ``AgentDeps`` made for the acting user.
+
+        **So what stays here is exactly what the constructor fixed**: the
+        registry tools, this endpoint's ``toolsets`` / ``capabilities``, the spec
+        capability, model settings, retries, the tool guard, and the audit
+        logger. None of it can vary between two requests to the same endpoint —
+        which is what makes reuse provable rather than merely plausible. Two
+        endpoints are two view instances and two agents.
+
+        **Instructions are deliberately left off the agent**, even though the
+        endpoint has a resolved default. They are supplied per run instead, and
+        pydantic-ai treats per-run instructions as *additional* — which is
+        exactly a replacement when the agent carries none. Baking them in would
+        have made ``instructions_for_request`` either impossible or a cache key,
+        and a key that a project can vary per user is a key that never hits.
+
+        Lazy rather than eager, so a missing ``MODEL`` still surfaces on the
+        first request rather than at import — the same moment it always did.
+        """
+        if self._built_agent is None:
+            self._built_agent = self._build_agent()
+        return self._built_agent
+
+    def _build_agent(self) -> Agent[AgentDeps, Any]:
+        """Construct this endpoint's agent — see :meth:`_agent` for the reuse.
 
         When an ``agent_factory`` is passed, that callable takes full control of
-        construction (the escape hatch). Otherwise the built-in
-        :func:`build_agent` wires the registry tools, audited, plus this
-        endpoint's ``toolsets`` / ``capabilities`` / model settings, the
-        per-request ``drf_mcp_server`` toolset, and — when a ``step_store`` is
-        configured — a ``StepPersistence`` capability keyed on this run (and, for
-        a resume / fork, linked back to ``resume_from`` as its parent run).
+        construction (the escape hatch). It takes no request and never did, so it
+        is built once like everything else here.
         """
         config = self._config
         if self._agent_factory is not None:
             return self._agent_factory(self._registry, config)
-        # One name set threaded through every toolset builder so runtime
-        # exclusion matches ``build_tool_catalog``'s dedup precedence exactly:
-        # registry → drf-mcp → spec → attachment. Each builder excludes names
-        # already claimed and reserves its own, so a name exposed by two sources
-        # (e.g. ``DRF_MCP_SERVER`` and ``SERVICE_SPECS`` both defining ``foo``, or
-        # either defining ``read_attachment``) can't reach pydantic-ai as a
-        # duplicate and raise ``UserError`` mid-run while the catalog looks clean.
-        seen: set[str] = {binding.spec.name for binding in self._registry}
-        toolsets = list(self._toolsets or [])
-        toolsets += self._drf_mcp_toolsets(self._drf_mcp_server, request, seen)
         capabilities = list(self._capabilities or [])
         # The spec path is a capability (not a bare toolset) so its conventions
-        # reach the model via ``get_instructions`` — but it still reserves its
-        # tool names in ``seen`` here, between drf-mcp and the attachment toolset,
-        # keeping the ``build_tool_catalog`` dedup precedence unchanged.
-        capabilities += self._spec_capabilities(self._service_specs, seen)
-        capabilities += self._step_persistence_capabilities(request, run_input, resume_from)
-        toolsets += self._attachment_toolsets(self._attachment_store, request, seen)
+        # reach the model via ``get_instructions``.
+        capabilities += self._spec_capabilities(self._service_specs, self._claimed_names())
         return build_agent(
             self._registry,
             AgentConfig(
                 model=self._resolve_model(),
-                instructions=self._resolve_instructions(),
+                # Supplied per run — see the docstring above.
+                instructions=None,
                 audit_logger=self._resolve_audit_logger(),
-                audit_ip_address=request.META.get("REMOTE_ADDR"),
+                # No ``audit_ip_address`` here: it is per-request, and a value
+                # closed over at construction would stamp every audit record with
+                # the IP of whoever arrived first. It rides ``AgentDeps`` instead.
                 model_settings=config.model_settings,
                 retries=config.retries,
-                toolsets=toolsets,
+                toolsets=list(self._toolsets or []),
                 capabilities=capabilities,
                 tool_guard=config.tool_guard,
             ),
         )
+
+    def _claimed_names(self) -> set[str]:
+        """Tool names already spoken for, in ``build_tool_catalog``'s precedence.
+
+        Registry → drf-mcp → spec → attachment: each source excludes names an
+        earlier one claimed, so a name exposed by two of them (``DRF_MCP_SERVER``
+        and ``SERVICE_SPECS`` both defining ``foo``, or either defining
+        ``read_attachment``) can't reach pydantic-ai as a duplicate and raise
+        ``UserError`` mid-run while the catalog looks clean.
+
+        **Every one of these names is fixed at construction**, which is what
+        lets the spec capability sit on the reused agent while the drf-mcp and
+        attachment toolsets are built per run: it is only the *objects* that are
+        request-bound, never the name set they are filtered against. Computed
+        fresh per call rather than cached, because callers mutate the set they
+        are handed.
+        """
+        seen: set[str] = {binding.spec.name for binding in self._registry}
+        if self._drf_mcp_server is not None:
+            seen.update(binding.name for binding in self._drf_mcp_server.tools.all())
+        return seen
+
+    def _run_toolsets(self, request: HttpRequest) -> list[Any]:
+        """The request-bound toolsets this run adds to the agent's own.
+
+        Both close over the live ``request`` — the drf-mcp bridge so the agent
+        acts as the logged-in user, the attachment toolset so the model reads
+        only that user's files — so neither can live on a reused agent.
+        Pydantic-AI takes them as *additional* toolsets for the run, which is
+        what lets them stay per-request without the agent following.
+        """
+        seen = self._claimed_names()
+        toolsets = self._drf_mcp_toolsets(self._drf_mcp_server, request, seen)
+        # Reserve the spec names between the two, exactly as the catalog's
+        # precedence has it, so an attachment tool can't shadow a spec tool.
+        seen.update(self._service_specs or {})
+        toolsets += self._attachment_toolsets(self._attachment_store, request, seen)
+        return toolsets
+
+    def _run_capabilities(
+        self, request: HttpRequest, run_input: Any, resume_from: str | None
+    ) -> list[Any]:
+        """The run-bound capabilities: step persistence, keyed on *this* run."""
+        return self._step_persistence_capabilities(request, run_input, resume_from)
+
+    def _run_model(self, request: HttpRequest) -> Any:
+        """This request's model, or ``None`` to use the endpoint's own.
+
+        ``model_for_request`` is the narrow per-request hook: a string goes
+        through the same ``API_KEY`` / ``PROVIDER`` resolution the configured
+        model does, so a hook returning ``"anthropic:…"`` behaves like the
+        setting rather than falling back to environment inference.
+        """
+        if self._model_for_request is None:
+            return None
+        return self._resolve_model_value(self._model_for_request(request))
+
+    def _run_instructions(self, request: HttpRequest) -> str:
+        """This request's instructions — always supplied, never on the agent.
+
+        ``instructions_for_request`` wins; otherwise the endpoint's resolved
+        default. Passed per run because the agent carries none, so pydantic-ai's
+        "additional instructions" are the whole of them.
+        """
+        if self._instructions_for_request is not None:
+            return self._instructions_for_request(request)
+        return self._resolve_instructions()
 
     def _drf_mcp_toolsets(self, server: Any, request: HttpRequest, seen: set[str]) -> list[Any]:
         """Build the per-request drf-mcp toolset, or ``[]`` when not configured.
@@ -436,6 +554,15 @@ class DjangoAGUIView:
                 "(e.g. 'anthropic:claude-sonnet-4.6') or pass model= to "
                 "AGUIServer / DjangoAGUIView.",
             )
+        return self._resolve_model_value(model)
+
+    def _resolve_model_value(self, model: Any) -> Any:
+        """Apply the credential path to a model value, whatever supplied it.
+
+        Shared by the configured model and by ``model_for_request``, so a hook
+        returning ``"anthropic:…"`` is treated exactly like the setting instead
+        of quietly falling back to environment inference.
+        """
         # A "provider:name" string + an explicit key/provider → build the model
         # with that provider, instead of letting Pydantic-AI infer the key from
         # the environment. A pre-built Model instance is used as-is.

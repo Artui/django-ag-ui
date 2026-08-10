@@ -55,10 +55,24 @@ class AgentSession:
         config: AGUIConfig,
         conversation_store: ConversationStore,
         message_history: list[ModelMessage] | None = None,
+        model: Any = None,
+        instructions: str | None = None,
+        toolsets: list[Any] | None = None,
+        capabilities: list[Any] | None = None,
     ) -> None:
         self._agent = agent
         self._run_input = run_input
         self._request = request
+        # Per-run overrides, kept off the agent so one built agent serves every
+        # run. Pydantic-AI's own seam: ``model`` replaces the agent's model for
+        # this run, ``toolsets`` / ``capabilities`` are *additional* to the
+        # agent's, and ``instructions`` are additional too — which is exactly a
+        # replacement here, because the agent this session is handed carries
+        # none of its own. See DjangoAGUIView._agent.
+        self._model = model
+        self._instructions = instructions
+        self._toolsets = toolsets
+        self._capabilities = capabilities
         # Per-run dependencies. Everything request-scoped the agent needs reaches
         # tools / toolsets / capabilities through ``ctx.deps`` — so nothing in the
         # agent closes over this request, and the run's acting user is bound by
@@ -95,7 +109,12 @@ class AgentSession:
         # resumed run's server-loaded snapshot is prepended to whatever new turn
         # the client sent. ``None`` behaves exactly as before (client-only).
         native = self._adapter.run_stream_native(
-            message_history=self._message_history, deps=self._deps
+            message_history=self._message_history,
+            deps=self._deps,
+            model=self._model,
+            instructions=self._instructions,
+            toolsets=self._toolsets,
+            capabilities=self._capabilities,
         )
         events = self._adapter.transform_stream(native, on_complete=self._on_complete())
         # A reasoning model's chain-of-thought rides through as AG-UI reasoning
