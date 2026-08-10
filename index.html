@@ -791,9 +791,9 @@ with per-tool risk metadata.</p>
 <li>An <strong>audit boundary</strong>: the <a class="autorefs autorefs-internal" title="AuditLogger" href="api/#django_ag_ui.AuditLogger"><code>AuditLogger</code></a> Protocol
   with <a class="autorefs autorefs-internal" title="NullAuditLogger" href="api/#django_ag_ui.NullAuditLogger"><code>NullAuditLogger</code></a> (default) and
   <a class="autorefs autorefs-internal" title="LoggingAuditLogger" href="api/#django_ag_ui.LoggingAuditLogger"><code>LoggingAuditLogger</code></a> implementations.</li>
-<li><strong>Authentication hooks</strong> on the view: <code>require_authenticated=True</code> fails
-  closed (<code>401</code>) for anonymous requests, and a <code>get_user(request)</code> callable
-  establishes the user tools act as.</li>
+<li><strong>Authentication, closed by default</strong>: <code>require_authenticated</code> is <code>True</code>,
+  so anonymous requests get <code>401</code>; a <code>get_user(request)</code> callable establishes
+  the user tools act as.</li>
 <li>A <strong>skill catalog</strong> (<a class="autorefs autorefs-internal" title="SkillRegistry" href="api/#django_ag_ui.SkillRegistry"><code>SkillRegistry</code></a>) of
   pre-defined prompts, served at <code>&lt;prefix&gt;skills/</code> for the web component.</li>
 <li>A <strong>tool metadata catalog</strong> (<a class="autorefs autorefs-internal" title="ToolsView" href="api/#django_ag_ui.ToolsView"><code>ToolsView</code></a>), served at

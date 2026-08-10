@@ -948,35 +948,34 @@ be passed explicitly — handy in tests, where you inject a Pydantic-AI
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">CSRF and cookie-authenticated deployments</p>
-<p>CSRF is exempt by default — right for header-token auth (Bearer / API
-key), where CSRF doesn't apply. If your deployment authenticates with
-<strong>session cookies</strong>, pass <code>csrf_exempt=False</code> and send the token from
-the client: tools act as <code>request.user</code>, so a cookie-auth endpoint
-without CSRF protection lets any third-party page drive the agent as
-the logged-in user (Django's default <code>SameSite=Lax</code> cookie mitigates,
+<p>CSRF is exempt unless you say otherwise — right for header-token auth
+(Bearer / API key), where CSRF doesn't apply. If your deployment
+authenticates with <strong>session cookies</strong>, pass <code>csrf_exempt=False</code> and send
+the token from the client: tools act as <code>request.user</code>, so a cookie-auth
+endpoint without CSRF protection lets any third-party page drive the agent
+as the logged-in user (Django's default <code>SameSite=Lax</code> cookie mitigates,
 but does not eliminate, the risk).</p>
+<p>Saying nothing about it <em>and</em> passing no <code>get_user</code> hook warns at
+construction — see <a href="../configuration/#csrf">CSRF</a>.</p>
 </div>
-<p>Authentication is the host's responsibility, but the view offers two hooks. Pass
-<code>require_authenticated=True</code> to fail closed (anonymous requests get <code>401</code>), and a
-<code>get_user=</code> callable — <strong>sync or async</strong>; a sync ORM lookup is fully supported
-(it runs off the event loop) — to establish the user. Its return value is
-assigned onto <code>request.user</code>, so tools and conversation ownership act as that
-user:</p>
+<p>The endpoint <strong>fails closed</strong>: <code>require_authenticated</code> defaults to <code>True</code>, so an
+anonymous request gets a <code>401</code> before any agent runs. Establishing <em>who</em> is
+acting is still the host's job, and a <code>get_user=</code> callable does it — <strong>sync or
+async</strong>; a sync ORM lookup is fully supported (it runs off the event loop). Its
+return value is assigned onto <code>request.user</code>, so tools and conversation
+ownership act as that user:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_user</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">token</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Authorization&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">removeprefix</span><span class="p">(</span><span class="s2">&quot;Bearer &quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="k">return</span> <span class="n">Token</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;user&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">token</span><span class="p">)</span><span class="o">.</span><span class="n">user</span>
 </span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
 </span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">registry</span><span class="p">,</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">require_authenticated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">get_user</span><span class="o">=</span><span class="n">get_user</span><span class="p">,</span>
-</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="p">)</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">get_user</span><span class="o">=</span><span class="n">get_user</span><span class="p">)</span>
 </span></code></pre></div>
+<p>Serving anonymous runs deliberately is <code>require_authenticated=False</code>.</p>
 <p><code>AGUIServer</code> forwards <code>require_authenticated</code> / <code>get_user</code> / <code>authorize</code> to
 <strong>every</strong> view it builds — the agent endpoint <em>and</em> the tool / skill / thread /
-attachment catalogs — so one policy locks down the whole mount (the catalogs
-enumerate every server tool and skill prompt, so they're worth gating too).</p>
+attachment catalogs — so one policy covers the whole mount (the catalogs
+enumerate every server tool and skill prompt, so they are gated too).</p>
 <h2 id="5-optional-offer-skills">5. (Optional) offer skills<a class="headerlink" href="#5-optional-offer-skills" title="Permanent link">&para;</a></h2>
 <p>Register pre-defined prompts in a <a class="autorefs autorefs-internal" title="SkillRegistry" href="../api/#django_ag_ui.SkillRegistry"><code>SkillRegistry</code></a>
 and pass it as <code>AGUIServer(..., skills=...)</code> to mount a <code>&lt;prefix&gt;skills/</code> catalog

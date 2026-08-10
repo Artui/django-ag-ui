@@ -881,7 +881,7 @@ the store binds one and is built fresh per run. <code>DefaultStepStore</code>'s 
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
 </span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">registry</span><span class="p">,</span>
 </span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">step_store</span><span class="o">=</span><span class="n">DefaultStepStore</span><span class="p">,</span>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">require_authenticated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># the ledger needs an owner — see below</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">csrf_exempt</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># cookie-authenticated deployment</span>
 </span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="p">)</span>
 </span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>
 </span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span><span class="p">(</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">agent</span><span class="o">.</span><span class="n">urls</span><span class="p">)]</span>
@@ -902,8 +902,9 @@ is not a secret, the owner is the boundary.</p>
 <p>An anonymous request with <code>ALLOW_ANONYMOUS</code> off has no durable identity, so the
 store <strong>degrades instead of crashing</strong>: writes no-op and reads return empty (the
 run still streams, it just isn't recorded — the capability's hooks fire mid-run,
-so a hard refusal would abort it). Pair the store with <code>require_authenticated=True</code>
-(or a <code>get_user</code> hook, or <code>ALLOW_ANONYMOUS</code>) whenever you want it to persist.</p>
+so a hard refusal would abort it). The endpoint's <code>require_authenticated</code> default
+already keeps that case off the table; if you waive it, supply a <code>get_user</code> hook
+or <code>ALLOW_ANONYMOUS</code> whenever you want the store to persist.</p>
 <h2 id="classifying-a-crash">Classifying a crash<a class="headerlink" href="#classifying-a-crash" title="Permanent link">&para;</a></h2>
 <p>The capability records each tool call's status automatically — <code>started</code> before
 it runs, then <code>completed</code> or <code>failed</code> — so no tool changes are needed to answer

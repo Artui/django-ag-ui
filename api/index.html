@@ -4467,9 +4467,9 @@ the JSON skill list the frontend fetches via <code>data-skills-url</code>.</p>
 <p>Skill prompts can encode internal workflows — worth gating. The view
 carries the same authentication seam as <code>DjangoAGUIView</code>
 (<code>require_authenticated</code> / <code>get_user</code>, sync or async hooks), so one
-policy can cover the agent endpoint and its catalogs. Defaults stay open
-for backwards compatibility — lock the catalog down whenever the agent
-endpoint is locked down.</p>
+policy can cover the agent endpoint and its catalogs — and the same closed
+default, so an anonymous <code>GET</code> is a <code>401</code> until you pass
+<code>require_authenticated=False</code>.</p>
 
 
 
@@ -4523,7 +4523,7 @@ registry (plus optional stores / auth), then mount its <strong>namespaced</stron
 :attr:<code>urls</code> with <code>include()</code>::</p>
 <div class="language-text highlight"><pre><span></span><code>from django_ag_ui import AGUIServer
 
-agent = AGUIServer(registry, require_authenticated=True)
+agent = AGUIServer(registry, csrf_exempt=False)
 
 urlpatterns = [
     path(&quot;agent/&quot;, agent.urls),
@@ -4561,20 +4561,21 @@ sub-view automatically; pass an instance to override. Since the defaults
 resolve to the <code>Null*</code> backends, a bare <code>AGUIServer(registry)</code> mounts only
 the agent endpoint and its tool catalog — the same surface the old
 <code>get_urls(view)</code> produced.</p>
-<p><strong>Authentication seam.</strong> <code>require_authenticated</code> / <code>get_user</code> /
-<code>authorize</code> are forwarded to <strong>every</strong> view this object builds — the agent
-endpoint and all sub-views — so one policy locks down the whole mount
-(<code>401</code> for anonymous when <code>require_authenticated</code>, <code>403</code> from an
-<code>authorize</code> predicate, <code>get_user</code> establishing the acting user). The
-agent view's <code>model</code> / <code>instructions</code> / <code>audit_logger</code> / <code>csrf_exempt</code>
-fall back to settings when not passed. Everything defaults open for
-backwards compatibility; the endpoints are unauthenticated until you set
-these.</p>
-<p><strong>Anonymous scoping caveat.</strong> With the endpoints left open (the default) and
-a model-backed store, an anonymous request has no owner id. The reference
+<p><strong>Authentication seam, closed by default.</strong> <code>require_authenticated</code> /
+<code>get_user</code> / <code>authorize</code> are forwarded to <strong>every</strong> view this object
+builds — the agent endpoint and all sub-views — so one policy locks down the
+whole mount (<code>401</code> for anonymous when <code>require_authenticated</code>, <code>403</code>
+from an <code>authorize</code> predicate, <code>get_user</code> establishing the acting user).
+<code>require_authenticated</code> defaults to <strong>True</strong>, so a bare
+<code>AGUIServer(registry)</code> serves nobody who is not logged in. Pass
+<code>require_authenticated=False</code> to serve anonymous runs deliberately. The
+agent view's <code>model</code> / <code>instructions</code> / <code>audit_logger</code> /
+<code>csrf_exempt</code> fall back to settings when not passed.</p>
+<p><strong>Anonymous scoping caveat.</strong> With <code>require_authenticated=False</code> and a
+model-backed store, an anonymous request has no owner id. The reference
 contrib stores refuse anonymous thread / attachment operations unless
 <code>ALLOW_ANONYMOUS</code> is set (in which case they bucket per browser session) —
-so pass <code>require_authenticated=True</code> (or a <code>get_user</code> hook) whenever the
+so leave the default in place (or pass a <code>get_user</code> hook) whenever the
 store persists, rather than relying on owner scoping to isolate anonymous
 visitors from one another.</p>
 <p><strong>Spec tools.</strong> <code>service_specs</code> takes a <code>name -&gt; spec</code> mapping <em>or</em> a
@@ -4700,23 +4701,32 @@ tools declared in the request are merged by the adapter automatically.</p>
 project can mount several with independent registries. <code>model</code>,
 <code>instructions</code>, and <code>audit_logger</code> fall back to the <code>DJANGO_AG_UI</code>
 settings when not passed explicitly (tests inject a <code>TestModel</code>).</p>
-<p><strong>Authentication is the host's responsibility.</strong> Tools (and the <code>drf-mcp</code>
-bridge) act as <code>request.user</code>; if your middleware hasn't authenticated the
-request, that is <code>AnonymousUser</code> — a data-exposure footgun. Pass
-<code>require_authenticated=True</code> to fail closed (401 for unauthenticated
-requests), and/or a <code>get_user(request)</code> hook to establish the user (e.g.
-from a token) before tools run. <code>get_user</code> may be <strong>sync or async</strong>; a
-sync hook runs off the event loop, so a plain ORM token → <code>User</code> lookup
+<p><strong>Authentication is the host's responsibility, and the view fails closed.</strong>
+Tools (and the <code>drf-mcp</code> bridge) act as <code>request.user</code>; if your
+middleware hasn't authenticated the request, that is <code>AnonymousUser</code> — a
+data-exposure footgun. <code>require_authenticated</code> therefore defaults to
+<strong>True</strong>: an anonymous request gets a 401 before any agent runs. Pass
+<code>require_authenticated=False</code> to serve anonymous runs deliberately, and/or
+a <code>get_user(request)</code> hook to establish the user (e.g. from a token)
+before tools run. <code>get_user</code> may be <strong>sync or async</strong>; a sync hook runs
+off the event loop, so a plain ORM token → <code>User</code> lookup
 (<code>Token.objects.select_related("user").get(key=...).user</code>) is fully
 supported. A hook that raises propagates as an unhandled error (500) —
 return <code>AnonymousUser</code> (or <code>None</code>) for a clean 401 instead.</p>
-<p><strong>CSRF:</strong> the view defaults to <code>csrf_exempt=True</code> because AG-UI clients
-typically authenticate via headers (Bearer / API key), where CSRF does not
-apply. If your deployment authenticates with <strong>session cookies</strong>, pass
-<code>csrf_exempt=False</code> and send the CSRF token from the client — tools act
-as <code>request.user</code>, so a cookie-auth endpoint without CSRF protection
-lets any third-party page drive the agent as the logged-in user
-(mitigated, not eliminated, by Django's default <code>SameSite=Lax</code> cookie).</p>
+<p><strong>CSRF:</strong> the view is CSRF-exempt unless told otherwise, because AG-UI
+clients typically authenticate via headers (Bearer / API key), where CSRF
+does not apply. If your deployment authenticates with <strong>session cookies</strong>,
+pass <code>csrf_exempt=False</code> and send the CSRF token from the client — tools
+act as <code>request.user</code>, so a cookie-auth endpoint without CSRF protection
+lets any third-party page drive the agent as the logged-in user (mitigated,
+not eliminated, by Django's default <code>SameSite=Lax</code> cookie).</p>
+<p>⚠ <strong>Leaving <code>csrf_exempt</code> unset while supplying no <code>get_user</code> warns at
+construction.</strong> That combination says nothing about how requests
+authenticate, and the likeliest reading is the dangerous one: the acting
+user arrives from Django's session cookie, with CSRF turned off. Stating
+either half — <code>csrf_exempt=False</code>, <code>csrf_exempt=True</code>, or a <code>get_user</code>
+hook — settles it and silences the warning. See
+:func:<code>_warn_if_csrf_unstated</code>.</p>
 
 
 
@@ -4852,8 +4862,8 @@ server-side tools (whose schema never reaches the browser).</p>
 worth gating. The view carries the same authentication seam as
 <code>DjangoAGUIView</code> (<code>require_authenticated</code> / <code>get_user</code>, sync or
 async hooks), so one policy can cover the agent endpoint and its
-catalogs. Defaults stay open for backwards compatibility — lock the
-catalog down whenever the agent endpoint is locked down.</p>
+catalogs — and the same closed default, so an anonymous <code>GET</code> is a
+<code>401</code> until you pass <code>require_authenticated=False</code>.</p>
 
 
 
@@ -6628,8 +6638,9 @@ same :class:<code>~django_ag_ui.ConversationStore</code> the agent view uses:</p
 a thread owned by another user simply isn't found (<code>404</code>) — never another
 user's history. The view carries the same authentication seam as
 :class:<code>~django_ag_ui.DjangoAGUIView</code> (<code>require_authenticated</code> /
-<code>get_user</code>, sync or async); defaults stay open for parity with the catalog
-views, so lock it down whenever the agent endpoint is locked down.</p>
+<code>get_user</code>, sync or async), closed by default like the catalog views — and
+here the default is load-bearing rather than a parity choice: every route is
+owner-scoped, so an anonymous caller has no history to reach.</p>
 
 
 
@@ -7123,8 +7134,10 @@ one user's id can never resolve another's file. Downloads are served as an
 <code>attachment</code> with <code>X-Content-Type-Options: nosniff</code> so an uploaded
 <code>text/html</code> can't execute as a same-origin page. The view carries the same
 authentication seam as :class:<code>~django_ag_ui.DjangoAGUIView</code>
-(<code>require_authenticated</code> / <code>get_user</code>); defaults stay open for parity
-with the catalog views, so lock it down whenever the agent endpoint is.</p>
+(<code>require_authenticated</code> / <code>get_user</code>), closed by default like the
+catalog views — and here the default is load-bearing rather than a parity
+choice: every route is owner-scoped, so an anonymous caller has no files to
+reach.</p>
 <p>With the default :class:<code>NullAttachmentStore</code> an upload returns <code>410</code> (off):
 mount the view with a real store to enable it.</p>
 
@@ -7427,8 +7440,9 @@ a :class:<code>~django_ag_ui.persistence.types.transcription_backend.Transcripti
 :class:<code>~django_ag_ui.persistence.attachments_view.AttachmentsView</code> there is
 no download/delete route. The view carries the same authentication seam as
 :class:<code>~django_ag_ui.DjangoAGUIView</code> (<code>require_authenticated</code> /
-<code>get_user</code>); defaults stay open for parity with the other endpoints, so
-lock it down whenever the agent endpoint is.</p>
+<code>get_user</code>), closed by default like the other endpoints — which matters
+here beyond consistency: the backend spends money per request, so an open
+route is a bill as well as a leak.</p>
 <p>With the default :class:<code>NullTranscriptionBackend</code> a request returns <code>410</code>
 (off): mount the view with a real backend to enable it.</p>
 
