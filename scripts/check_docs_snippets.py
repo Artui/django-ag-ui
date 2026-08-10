@@ -12,8 +12,10 @@ This closes that gap statically. For every ``python`` fence in ``docs/`` and
 1. parses the snippet — a syntax error is a failure, since nobody can run it;
 2. resolves every ``from X import Y`` against the **installed** packages,
    whoever owns them, and fails on a symbol that no longer exists;
-3. checks keyword arguments at every call whose callee it can resolve, against
-   the real signature.
+3. binds the arguments of every call whose callee it can resolve against the
+   real signature — which catches an unknown keyword *and* an argument passed
+   positionally to a keyword-only parameter, the second of which reads
+   perfectly and raises ``TypeError`` for the first person to run it.
 
 What it deliberately does **not** do: execute the snippets (most reference a
 reader's own modules), or check semantics. It answers "does this still exist,
@@ -38,7 +40,16 @@ from typing import Any
 
 import django
 
-FENCE = re.compile(r"```python\n(.*?)```", re.S)
+# The info string after ``python`` is optional: mkdocs-material titles a fence
+# with ``python title="urls.py"``, and those are the copy-paste-this-into-your-
+# project examples. Matching only a bare ```python skipped every one of them
+# while still reporting a clean run — the failure this whole script exists to
+# prevent, in the script itself.
+FENCE = re.compile(r"```python[^\n]*\n(.*?)```", re.S)
+
+# Stands in for a snippet argument whose value is irrelevant: only whether it
+# can be passed at all is being checked.
+_PLACEHOLDER = object()
 
 
 def _iter_fences(root: pathlib.Path) -> list[tuple[pathlib.Path, int, str]]:
@@ -96,6 +107,14 @@ def _resolve_imports(tree: ast.AST) -> tuple[dict[str, Any], list[str]]:
 
 
 def _check_calls(tree: ast.AST, resolved: dict[str, Any]) -> list[str]:
+    """Check every resolvable call against the real signature.
+
+    Binding the arguments rather than only checking keyword *names* is what
+    catches the other half of this class: a snippet passing an argument
+    positionally to a parameter the callee declares keyword-only. That reads
+    perfectly and raises ``TypeError`` for the first person to run it, and a
+    name-only check cannot see it — the keyword was never written down.
+    """
     problems: list[str] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
@@ -107,15 +126,32 @@ def _check_calls(tree: ast.AST, resolved: dict[str, Any]) -> list[str]:
             signature = inspect.signature(target)
         except (TypeError, ValueError):
             continue
-        parameters = signature.parameters
-        if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()):
-            continue
-        problems.extend(
-            f"{node.func.id}(...) has no {keyword.arg}="
-            for keyword in node.keywords
-            if keyword.arg is not None and keyword.arg not in parameters
-        )
+        problems.extend(_bind_problems(node, signature))
     return problems
+
+
+def _bind_problems(node: ast.Call, signature: inspect.Signature) -> list[str]:
+    """Bind a snippet's arguments to ``signature``, reporting what will not fit.
+
+    ``bind_partial`` rather than ``bind`` because a snippet legitimately omits
+    required arguments it has already shown elsewhere; what it must not do is
+    pass one the callee cannot accept. Starred arguments make the real arity
+    unknowable statically, so a call carrying one is skipped rather than
+    guessed at.
+    """
+    name = node.func.id if isinstance(node.func, ast.Name) else "call"
+    if any(isinstance(a, ast.Starred) for a in node.args) or any(
+        k.arg is None for k in node.keywords
+    ):
+        return []
+    try:
+        signature.bind_partial(
+            *[_PLACEHOLDER] * len(node.args),
+            **{k.arg: _PLACEHOLDER for k in node.keywords if k.arg is not None},
+        )
+    except TypeError as exc:
+        return [f"{name}(...) does not match its signature {signature}: {exc}"]
+    return []
 
 
 def main() -> int:

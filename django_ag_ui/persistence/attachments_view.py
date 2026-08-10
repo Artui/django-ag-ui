@@ -92,7 +92,7 @@ class AttachmentsView:
             return await self._detail(request, attachment_id)
         except AnonymousOperationError:
             # A model-backed store refusing an anonymous request (the default
-            # unless ``ALLOW_ANONYMOUS``): forbidden, not a server error.
+            # unless ``allow_anonymous``): forbidden, not a server error.
             return auth_error_response(403)
 
     async def _upload(self, request: HttpRequest) -> HttpResponseBase:

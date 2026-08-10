@@ -87,7 +87,7 @@ class ThreadsView:
             return await self._detail(request, thread_id)
         except AnonymousOperationError:
             # A model-backed store refusing an anonymous request (the default
-            # unless ``ALLOW_ANONYMOUS``): forbidden, not a server error.
+            # unless ``allow_anonymous``): forbidden, not a server error.
             return auth_error_response(403)
 
     async def _list(self, request: HttpRequest) -> HttpResponseBase:

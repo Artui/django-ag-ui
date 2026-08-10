@@ -35,14 +35,14 @@ Each maps to the corresponding `pydantic-ai-slim` provider extra:
 | `django-ag-ui[openai]` | `pydantic-ai-slim[openai]` |
 | `django-ag-ui[google]` | `pydantic-ai-slim[google]` |
 
-When you set [`API_KEY` or `PROVIDER`](configuration.md#api_key) so the model is
+When you set [`API_KEY` or `provider=`](configuration.md#api_key) so the model is
 built with an explicit key, the `MODEL` string's `provider:` prefix may be **any
 provider Pydantic-AI knows** (`anthropic`, `openai`, `openai-responses`,
 `google`, `google-gla`, `groq`, `bedrock`, …) — resolution is delegated to
 Pydantic-AI, so the list tracks whatever your installed version supports. A bare
 model name it can map to a provider (e.g. `claude-…`) works too. When the
 provider can't be resolved, the view raises `ImproperlyConfigured` (set
-`PROVIDER` to a `Provider` instance instead). Install the matching provider
+`provider=` to a `Provider` instance instead). Install the matching provider
 extra for whichever you use.
 
 ## ASGI is required
@@ -78,5 +78,5 @@ This pulls in `djangorestframework-mcp-server>=0.6.1` (which in turn pulls
 ([`DRFMCPToolset`](concepts.md#the-drf-mcp-toolset-bridge)) is imported lazily,
 only when a `drf_mcp_server=` is passed, so the dependency stays
 optional for projects that do not use it. See
-[Configuration → `DRF_MCP_SERVER`](configuration.md#drf_mcp_server).
+[Configuration → `drf_mcp_server=`](configuration.md#drf_mcp_server).
 </content>

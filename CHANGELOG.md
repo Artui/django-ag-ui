@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.1] — 2026-08-10
+
+### Fixed
+
+- **28 references to settings removed in 0.19.0**, across the README and eight
+  doc pages — `TOOLSETS`, `CAPABILITIES`, `AGENT_FACTORY`, `PROVIDER`,
+  `SERVICE_SPECS`, `CONVERSATION_STORE`, `ATTACHMENT_STORE`, `DRF_MCP_SERVER`.
+  All of them are constructor arguments now, and setting any of the old keys
+  raises `ImproperlyConfigured` — so the docs taught a configuration that fails
+  at startup.
+
+  ⚠ **Two of them contradicted the snippet directly beneath them**: "`CAPABILITIES`
+  takes dotted paths to zero-argument callables", followed by an example passing
+  `capabilities=[…]` to `AGUIServer`. Dotted paths were removed wholesale; there
+  is no `import_string` in this package.
+
+- **There is no `ALLOW_ANONYMOUS` setting**, and there never was one that
+  worked. It was documented as the default for
+  `ModelConversationStore(allow_anonymous=)`, and nothing read it — not this
+  package, not `django-pydantic-agent`.
+
+  ⛔ **It could not have worked.** *You* construct the store and pass it in, so
+  there is no point at which this package could apply a settings value to it. A
+  project that set the key got the `False` default and no indication otherwise.
+  Documented now as what it is: a store constructor argument.
+
+- **Two API cross-links pointed at the old package path** —
+  `build_model` and `build_tool_catalog` moved to `django-pydantic-agent`, and
+  the links still said `django_ag_ui`.
+
+- **Said plainly that SSE stream resumability does not exist.** `resume/` and
+  `fork/` seed a **new run** from a saved snapshot; they do not reattach to an
+  interrupted stream. AG-UI has no such primitive — there is no `Last-Event-ID`
+  replay and no way to rejoin a run in flight, so a client should treat a
+  dropped stream as a lost run and offer resume as a deliberate action.
+
+### Added
+
+- **`make docs-check` now runs in CI**, and checks more than it did.
+
+  ⛔ **Its fence pattern matched only a bare ` ```python `,** so every fence
+  titled ` ```python title="urls.py" ` was skipped — while the run still
+  reported clean. Those are the copy-this-into-your-project examples.
+
+  ⭐ **It now binds each call's arguments** rather than only checking keyword
+  names, which catches an argument passed positionally to a keyword-only
+  parameter. That reads perfectly and a name-only check cannot see it, because
+  the keyword was never written down.
+
+- **Missing anchors now fail the docs build.** mkdocs reports them at `INFO`, so
+  a link to a heading that moved survives a clean `--strict` build; two had
+  accumulated exactly that way. `validation.anchors` is now `warn`, and CI runs
+  `--strict`.
+
+- **A test asserting every `__all__` name is actually bound**, checked against
+  the source rather than the imported module — importing `pkg.thing` binds
+  `thing` on `pkg`, so a runtime `hasattr` check passes while
+  `from pkg import thing` hands back a module that is not callable.
+
 ## [0.33.0] — 2026-08-10
 
 ### Added
@@ -1632,7 +1691,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.33.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.33.1...HEAD
+[0.33.1]: https://github.com/Artui/django-ag-ui/compare/v0.33.0...v0.33.1
 [0.33.0]: https://github.com/Artui/django-ag-ui/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/Artui/django-ag-ui/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/Artui/django-ag-ui/compare/v0.30.0...v0.31.0

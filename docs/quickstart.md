@@ -28,7 +28,7 @@ pip install "django-ag-ui[anthropic]"
 
 By default Pydantic-AI infers the provider key from the environment. To pass it
 explicitly instead, set [`API_KEY`](configuration.md#api_key) (or
-[`PROVIDER`](configuration.md#provider) for a custom `base_url` / client):
+[`provider=`](configuration.md#provider) for a custom `base_url` / client):
 
 ```python
 DJANGO_AG_UI = {
@@ -196,7 +196,7 @@ browser.
 
 Each entry is `{"name", "summary", "description"?}`; `summary` falls back from
 `@tool(summary=…)` to a prettified tool name. With
-[`DRF_MCP_SERVER`](configuration.md#drf_mcp_server) set, the catalog also surfaces
+[`drf_mcp_server=`](configuration.md#drf_mcp_server) set, the catalog also surfaces
 the drf-mcp tools, using their `display_name` as the label. See
 [Tool metadata catalog](concepts.md#tool-metadata-catalog).
 

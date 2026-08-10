@@ -57,7 +57,6 @@ AGUIServer(registry, config=build_ag_ui_config(retries=5))
 | `FORWARD_REASONING` | `bool` | `True` | Forward a reasoning model's thoughts to the client (`False` strips them). |
 | `TRANSCRIPTION_MAX_BYTES` | `int` | `26214400` | Max accepted audio-clip size in bytes (`0` disables the cap). |
 | `TRANSCRIPTION_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed audio content types (empty = any). |
-| `ALLOW_ANONYMOUS` | `bool` | `False` | Default for `ModelConversationStore(allow_anonymous=)` / `ModelAttachmentStore(allow_anonymous=)` — a **store** policy (see [Authentication & anonymous scoping](#authentication-anonymous-scoping)). |
 | `TOOL_GUARD` | `dict` | `{}` | Server-side destructive-tool approval gate (off by default). See [`TOOL_GUARD`](#tool_guard). |
 
 Every one of these is also a `build_ag_ui_config(...)` keyword.
@@ -126,23 +125,23 @@ always wins over this setting.
 DJANGO_AG_UI = {"MODEL": "anthropic:claude-sonnet-4.6"}
 ```
 
-When [`API_KEY`](#api_key) or [`PROVIDER`](#provider) is set, the `MODEL` string
-is routed through [`build_model`](api.md#django_ag_ui.agent.build_model.build_model),
+When [`API_KEY`](#api_key) or [`provider=`](#provider) is set, the `MODEL` string
+is routed through [`build_model`](api.md#django_pydantic_agent.agent.build_model.build_model),
 which delegates the `provider:` prefix → model resolution to Pydantic-AI itself —
 so any provider it knows works (`anthropic`, `openai`, `openai-responses`,
 `google`, `google-gla`, `groq`, `bedrock`, …), as does a bare model name it can
 map to a provider (e.g. `claude-…`). When the provider can't be resolved the view
-raises `ImproperlyConfigured` (set `PROVIDER` instead). A pre-built `Model`
-instance ignores `API_KEY` / `PROVIDER` and is used as-is.
+raises `ImproperlyConfigured` (set `provider=` instead). A pre-built `Model`
+instance ignores `API_KEY` / `provider=` and is used as-is.
 
 ## `API_KEY`
 
 An explicit provider API key. When set (and `MODEL` is a `provider:name`
 string), the view builds the model via
-[`build_model`](api.md#django_ag_ui.agent.build_model.build_model) — passing the
+[`build_model`](api.md#django_pydantic_agent.agent.build_model.build_model) — passing the
 key to the prefix's default `Provider` — **instead of** letting Pydantic-AI
 infer the key from environment variables. Requires the matching provider extra
-installed (e.g. `django-ag-ui[anthropic]`). [`PROVIDER`](#provider), if also
+installed (e.g. `django-ag-ui[anthropic]`). [`provider=`](#provider), if also
 set, takes precedence over `API_KEY`.
 
 ```python
@@ -292,7 +291,7 @@ AGUIServer(registry, toolsets=[weather_toolset])
 ```
 
 Two endpoints can now hold different toolsets — the point of the change. With a
-single global `TOOLSETS` setting, a public agent necessarily carried the internal
+single global toolset setting, a public agent necessarily carried the internal
 one's tools.
 
 ## `capabilities=`
@@ -677,12 +676,17 @@ default `SameSite=Lax` cookie.
     (deliberately exempt — header-authenticated clients), or a `get_user` hook
     (the request carries its own credential).
 
-### `ALLOW_ANONYMOUS`
+### `allow_anonymous=`
 
-Governs how the **model-backed stores** (`ModelConversationStore` /
-`ModelAttachmentStore` and the `contrib.store` reference implementations) treat
-anonymous requests. It exists because owner scoping alone can't isolate
-anonymous visitors from one another — they have no user id.
+A **store constructor argument**, not a setting. Governs how the model-backed
+stores (`ModelConversationStore` / `ModelAttachmentStore` and the
+`contrib.store` reference implementations) treat anonymous requests. It exists
+because owner scoping alone can't isolate anonymous visitors from one another —
+they have no user id.
+
+```python
+AGUIServer(registry, conversation_store=DefaultConversationStore(allow_anonymous=True))
+```
 
 - **`False` (default)** — anonymous store operations are **refused**
   (`AnonymousOperationError`, surfaced as **403** by the persistence views; the
@@ -692,8 +696,15 @@ anonymous visitors from one another — they have no user id.
 - **`True`** — anonymous requests are bucketed per browser by
   `request.session.session_key` (`anon:<key>`; requires session middleware).
 
+!!! warning "There is no `ALLOW_ANONYMOUS` setting"
+    Earlier docs described one, and it was never read — by this package or any
+    other. It could not work: **you** construct the store and pass it in, so
+    there is no point at which django-ag-ui could apply a settings value to it.
+    A project that set the key got the `False` default and no indication
+    otherwise. Pass the argument to the store instead.
+
 Whenever a store persists, prefer authenticated endpoints (the default, or a
-`get_user` hook) over relying on `ALLOW_ANONYMOUS`.
+`get_user` hook) over relying on `allow_anonymous=True`.
 
 ### `TOOL_GUARD`
 

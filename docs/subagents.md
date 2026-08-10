@@ -9,7 +9,7 @@ the parent picks a named sub-agent, hands it a task, and gets its result back �
 each child runs as a fresh, isolated run.
 
 Like [CodeMode](code-mode.md), this is pure composition over the
-[`CAPABILITIES`](configuration.md#capabilities) seam plus the optional
+[`capabilities=`](configuration.md#capabilities) seam plus the optional
 `[harness]` extra — **no django-ag-ui configuration beyond one dotted path.**
 
 ## Install
@@ -24,8 +24,8 @@ lazy, only imported by the capability you wire in.
 
 ## Wire it in
 
-`CAPABILITIES` takes dotted paths to zero-argument callables that return a
-capability. Add one that returns a `SubAgents` with your child agents:
+`capabilities=` takes capability instances, or zero-argument callables that
+return one. Add one that returns a `SubAgents` with your child agents:
 
 ```python
 # myproject/agent.py
@@ -101,7 +101,7 @@ message as the tool result rather than an exception, so the run continues.
 
 !!! note
     `SubAgents` is one of several `pydantic-ai-harness` capabilities that drop
-    into the same `CAPABILITIES` seam (compaction, step-persistence, CodeMode,
+    into the same `capabilities=` seam (compaction, step-persistence, CodeMode,
     …). They all ride the `[harness]` extra.
 
     Today a delegated child's answer surfaces as the parent's `delegate_task`

@@ -177,7 +177,7 @@ class AgentSession:
             except AnonymousOperationError:
                 # An anonymous run on an open agent endpoint with a persisting
                 # store that refuses anonymous writes (the default, no
-                # ``ALLOW_ANONYMOUS``): the run still streams, it just isn't
+                # ``allow_anonymous``): the run still streams, it just isn't
                 # saved — better than crashing the completed stream.
                 return
 

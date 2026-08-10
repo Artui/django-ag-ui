@@ -37,6 +37,16 @@ theme:
     - content.action.edit
     - toc.follow
 
+# mkdocs reports unresolved anchors at INFO, so a link to a heading that moved
+# stays broken through a clean --strict build. Two had accumulated that way
+# (both from symbols that moved to django-pydantic-agent). Warnings become
+# errors under --strict, which is what CI runs.
+validation:
+  anchors: warn
+  links:
+    absolute_links: warn
+    unrecognized_links: warn
+
 plugins:
   - search
   - mkdocstrings:
