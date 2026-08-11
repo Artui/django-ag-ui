@@ -736,6 +736,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tool_failure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TOOL_FAILURE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tool_guard" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1328,6 +1339,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tool_failure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TOOL_FAILURE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tool_guard" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1495,6 +1517,12 @@ agent bridges to <em>which</em> MCP server. See
 <td><code>dict</code></td>
 <td><code>{}</code></td>
 <td>Server-side destructive-tool approval gate (off by default). See <a href="#tool_guard"><code>TOOL_GUARD</code></a>.</td>
+</tr>
+<tr>
+<td><code>TOOL_FAILURE</code></td>
+<td><code>dict</code></td>
+<td><code>{}</code></td>
+<td>What an unhandled tool exception costs. <strong>On</strong> by default. See <a href="#tool_failure"><code>TOOL_FAILURE</code></a>.</td>
 </tr>
 </tbody>
 </table>
@@ -2060,6 +2088,32 @@ otherwise. Pass the argument to the store instead.</p>
 </div>
 <p>Whenever a store persists, prefer authenticated endpoints (the default, or a
 <code>get_user</code> hook) over relying on <code>allow_anonymous=True</code>.</p>
+<h3 id="tool_failure"><code>TOOL_FAILURE</code><a class="headerlink" href="#tool_failure" title="Permanent link">&para;</a></h3>
+<p><strong>On by default</strong>, and the only policy here whose absent-settings answer is
+"enabled". A tool that raises used to end the run: the endpoint emitted
+<code>RUN_ERROR</code>, the turn stopped, and the answer the model had already assembled
+went with it, along with the results of every other tool in the same round. One
+broken integration cost the whole turn.</p>
+<p>With the policy on, the failing call comes back to the model marked failed and
+naming the tool, and the run carries on.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>    <span class="c1"># ...</span>
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>    <span class="s2">&quot;TOOL_FAILURE&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>        <span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>  <span class="c1"># default; False restores the failing run</span>
+</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>        <span class="s2">&quot;INCLUDE_DETAIL&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>  <span class="c1"># default; True sends the exception text to the model</span>
+</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>    <span class="p">},</span>
+</span><span id="__span-28-7"><a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><strong><code>INCLUDE_DETAIL</code> is off by default, and the split is deliberate.</strong> Whether the
+run survives is a reliability question; whether an exception's text reaches the
+model is a disclosure one. A traceback message can carry a query, a path or a
+credential, and anything handed to the model is also handed to whatever renders
+the transcript in a browser.</p>
+<p>The operator's copy is never redacted. The full exception reaches your
+<code>AuditLogger</code> and the <code>django_pydantic_agent.failure</code> Python logger either way,
+recorded against the tool that raised it.</p>
+<p>⚠ Note it spends no retry budget, so a model may call a persistently broken tool
+again. Bound that with run-level <code>UsageLimits</code>, not with this.</p>
 <h3 id="tool_guard"><code>TOOL_GUARD</code><a class="headerlink" href="#tool_guard" title="Permanent link">&para;</a></h3>
 <p>An <strong>opt-in server-side approval gate</strong> for destructive tools. By default a
 server-side tool (a <code>@tool</code> registry tool or a drf-mcp-bridged tool) runs
@@ -2072,14 +2126,14 @@ mechanism the web component already applies to client-registered destructive
 tools, now for server-side ones. The wire stays vanilla AG-UI. For the full
 end-to-end flow (what the user sees, custom clients, <code>ask_user</code>), see
 <a href="../tool-approval/">Tool approval</a>.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>    <span class="c1"># …</span>
-</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>        <span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>        <span class="s2">&quot;EXEMPT&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;refresh_cache&quot;</span><span class="p">],</span>  <span class="c1"># never gate these, even if destructive</span>
-</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>        <span class="s2">&quot;REQUIRE_APPROVAL&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;export_pii&quot;</span><span class="p">],</span>  <span class="c1"># always gate these, even if not destructive</span>
-</span><span id="__span-28-7"><a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>    <span class="p">},</span>
-</span><span id="__span-28-8"><a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="p">}</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>    <span class="c1"># …</span>
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>        <span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>        <span class="s2">&quot;EXEMPT&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;refresh_cache&quot;</span><span class="p">],</span>  <span class="c1"># never gate these, even if destructive</span>
+</span><span id="__span-29-6"><a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>        <span class="s2">&quot;REQUIRE_APPROVAL&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;export_pii&quot;</span><span class="p">],</span>  <span class="c1"># always gate these, even if not destructive</span>
+</span><span id="__span-29-7"><a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>    <span class="p">},</span>
+</span><span id="__span-29-8"><a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>
