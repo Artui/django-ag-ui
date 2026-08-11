@@ -21,6 +21,7 @@ from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
+from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
 from django_ag_ui.agent.guarded_stream import guarded_stream
 from django_ag_ui.agent.inject_compaction_events import inject_compaction_events
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
@@ -113,7 +114,7 @@ class AgentSession:
             message_history=self._message_history,
             deps=self._deps,
             model=self._model,
-            instructions=self._instructions,
+            instructions=self._run_instructions(),
             toolsets=self._toolsets,
             capabilities=self._capabilities,
         )
@@ -139,6 +140,30 @@ class AgentSession:
             native_events=native,
             on_cancel=self._on_cancel(transcript),
         )
+
+    def _run_instructions(self) -> list[str] | str | None:
+        """The operator instructions, plus this run's fenced client context.
+
+        The delivery hook for everything the client announced about the user's
+        situation — ``RunAgentInput.context`` and the attachment refs riding the
+        posted messages. Both were arriving on every request and being dropped
+        on the floor, because pydantic-ai's adapter deliberately leaves them to
+        the consumer, and this session is the consumer.
+
+        Operator instructions come **first** so the model reads the rules before
+        the data; the block's own closing line re-asserts that precedence at the
+        point the data ends. ``run_stream_native`` takes a ``Sequence[str]``
+        here (``normalize_instructions``) and joins the entries onto
+        ``ModelRequest.instructions``, which is what keeps the client's text out
+        of the operator's prompt string, off the persisted thread, and out of
+        what streams back to the browser.
+        """
+        block = build_untrusted_context(self._run_input, config=self._config.run_context)
+        if block is None:
+            return self._instructions
+        if self._instructions is None:
+            return block
+        return [self._instructions, block]
 
     async def _persist_on_error(
         self,
