@@ -18,6 +18,7 @@ from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize,
 
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.persistence.utils import stored_messages_to_wire
 
 # The model stores back ``title`` with ``CharField(max_length=255)``; cap the
 # rename here (truncate — a title is cosmetic) so an over-long PATCH is a clean
@@ -105,9 +106,14 @@ class ThreadsView:
             return JsonResponse(
                 {
                     "thread_id": conversation.thread_id,
-                    # Already storage records (the transport serialised them on
-                    # the way in), so they go out to the client as-is.
-                    "messages": list(conversation.messages),
+                    # Normalised on the way out rather than echoed. A storage
+                    # record is not automatically a wire record: rows written
+                    # before the messages were dumped by alias hold the Python
+                    # field spelling, and a client reading the protocol's
+                    # camelCase keys finds no tool calls and no tool results in
+                    # them. Re-serialising covers both eras without a data
+                    # migration.
+                    "messages": stored_messages_to_wire(conversation.messages),
                 }
             )
         if request.method == "PATCH":

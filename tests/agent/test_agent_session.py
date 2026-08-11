@@ -347,3 +347,112 @@ async def test_tool_guard_exemption_lets_the_tool_run() -> None:
     joined = await _events(_session(agent, _approval_run_input()))
     assert '"type":"interrupt"' not in joined
     assert calls == ["widget-1"]
+
+
+class _RecordingStore:
+    """Probe store: captures whatever the session decides to persist."""
+
+    def __init__(self) -> None:
+        self.saved: list[Any] = []
+
+    async def save(self, conversation: Any, *, request: Any) -> None:
+        self.saved.append(conversation)
+
+    async def load(self, thread_id: str, *, request: Any) -> Any:
+        return None
+
+    async def list_threads(self, *, request: Any) -> list[Any]:
+        return []
+
+    async def delete(self, thread_id: str, *, request: Any) -> bool:
+        return False
+
+    async def rename(self, thread_id: str, title: str, *, request: Any) -> bool:
+        return False
+
+
+class _RecordingStore:
+    """Captures what the session persists, and to which thread."""
+
+    def __init__(self) -> None:
+        self.saved: list[Any] = []
+
+    async def save(self, conversation: Any, *, request: Any) -> None:
+        self.saved.append(conversation)
+
+    async def load(self, thread_id: str, *, request: Any) -> Any:
+        return None
+
+    async def list_threads(self, *, request: Any) -> list[Any]:
+        return []
+
+    async def delete(self, thread_id: str, *, request: Any) -> bool:
+        return False
+
+    async def rename(self, thread_id: str, title: str, *, request: Any) -> bool:
+        return False
+
+
+class _RecordingAudit:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    def record(self, event: Any) -> None:
+        self.events.append(event)
+
+
+def _failing_agent() -> Agent[Any, Any]:
+    agent: Agent[Any, Any] = Agent(TestModel(call_tools=["boom"]))
+
+    @agent.tool_plain
+    def boom() -> str:
+        raise RuntimeError("kaboom")
+
+    return agent
+
+
+async def test_a_run_that_errors_persists_the_exchange() -> None:
+    """The exit that used to save nothing.
+
+    ``on_complete`` never fires for a failed run and the disconnect guard only
+    sees cancellation, so a run killed by a raising tool left the thread with
+    no record of the turn at all.
+    """
+    store = _RecordingStore()
+    session = _session(_failing_agent(), conversation_store=store)
+
+    joined = await _events(session)
+
+    assert "RUN_ERROR" in joined
+    assert len(store.saved) == 1
+    roles = [m["role"] for m in store.saved[0].messages]
+    assert roles[0] == "user"
+    # The adapter closes an interrupted call with a tool result, so the stored
+    # exchange carries the tool round rather than a call with no return.
+    assert "tool" in roles
+
+
+async def test_a_run_that_errors_is_audited_at_the_run_level() -> None:
+    audit = _RecordingAudit()
+    session = AgentSession(
+        _failing_agent(),
+        _run_input(),
+        RequestFactory().post("/agent/"),
+        deps=AgentDeps(),
+        audit_logger=audit,
+        config=build_ag_ui_config(),
+        conversation_store=NullConversationStore(),
+    )
+
+    await _events(session)
+
+    run_events = [e for e in audit.events if e.tool_name == "agent.run"]
+    assert len(run_events) == 1
+    assert run_events[0].success is False
+    assert "kaboom" in (run_events[0].error or "")
+
+
+async def test_a_run_that_errors_without_a_store_still_streams() -> None:
+    # Persistence off is the default; the error path must not depend on it.
+    joined = await _events(_session(_failing_agent()))
+    assert "RUN_ERROR" in joined

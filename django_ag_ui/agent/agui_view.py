@@ -333,6 +333,7 @@ class DjangoAGUIView:
                 toolsets=list(self._toolsets or []),
                 capabilities=capabilities,
                 tool_guard=config.tool_guard,
+                tool_failure=config.tool_failure,
             ),
         )
 

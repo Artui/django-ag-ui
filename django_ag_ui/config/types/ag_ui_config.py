@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 
@@ -92,6 +93,11 @@ class AGUIConfig:
     """Server-side destructive-tool approval policy. When enabled, a
     ``ToolGuard`` capability flips destructive tools to require the AG-UI
     approval interrupt."""
+
+    tool_failure: ToolFailureConfig
+    """What an unhandled tool exception costs. On by default, so a raising tool
+    fails its own call and the turn carries on rather than ending in
+    ``RUN_ERROR`` with the answer so far discarded."""
 
 
 __all__ = ["AGUIConfig"]

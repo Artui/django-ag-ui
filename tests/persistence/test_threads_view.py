@@ -101,6 +101,43 @@ async def test_detail_get_returns_messages() -> None:
     assert [m["id"] for m in payload["messages"]] == ["u1"]
 
 
+async def test_detail_get_serves_the_protocol_key_names() -> None:
+    """A thread stored in the old spelling still reaches the client usable.
+
+    The endpoint used to hand storage records straight out, which meant a
+    client looking for ``toolCalls`` found ``tool_calls`` and rendered a
+    transcript with every tool call and result missing.
+    """
+    store = _FakeStore(
+        conversations={
+            "t1": Conversation(
+                thread_id="t1",
+                messages=[
+                    {
+                        "id": "a1",
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {"name": "read_page", "arguments": "{}"},
+                            }
+                        ],
+                    },
+                    {"id": "t1", "role": "tool", "content": "{}", "tool_call_id": "call_1"},
+                ],
+            )
+        }
+    )
+    response = await ThreadsView(store)(
+        AuthedRequestFactory().get("/agent/threads/t1/"), thread_id="t1"
+    )
+    messages = _body(response)["messages"]
+    assert messages[0]["toolCalls"][0]["id"] == "call_1"
+    assert messages[1]["toolCallId"] == "call_1"
+
+
 async def test_anonymous_operation_refused_is_403() -> None:
     # Only reachable with authentication deliberately waived: otherwise the
     # anonymous request never gets past the view to the store that refuses it.

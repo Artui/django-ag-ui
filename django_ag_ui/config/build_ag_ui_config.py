@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 from django_ag_ui.conf import get_setting
@@ -24,6 +25,7 @@ def build_ag_ui_config(
     transcription_allowed_types: tuple[str, ...] | list[str] | None = None,
     thread_list_limit: int | None = None,
     tool_guard: ToolGuardConfig | None = None,
+    tool_failure: ToolFailureConfig | None = None,
 ) -> AGUIConfig:
     """Resolve an :class:`AGUIConfig` from ``DJANGO_AG_UI``, applying overrides.
 
@@ -71,6 +73,9 @@ def build_ag_ui_config(
         tool_guard=tool_guard
         if tool_guard is not None
         else _parse_tool_guard(get_setting("TOOL_GUARD")),
+        tool_failure=tool_failure
+        if tool_failure is not None
+        else _parse_tool_failure(get_setting("TOOL_FAILURE")),
     )
 
 
@@ -85,6 +90,22 @@ def _parse_tool_guard(raw: Any) -> ToolGuardConfig:
         enabled=bool(guard.get("ENABLED", False)),
         exempt=frozenset(guard.get("EXEMPT", ()) or ()),
         require_approval=frozenset(guard.get("REQUIRE_APPROVAL", ()) or ()),
+    )
+
+
+def _parse_tool_failure(raw: Any) -> ToolFailureConfig:
+    """Build a :class:`ToolFailureConfig` from the ``TOOL_FAILURE`` settings dict.
+
+    Absent → the record's own defaults, which turn the policy **on**. That is
+    the one place this differs from ``TOOL_GUARD`` above: an absent guard means
+    no gate, whereas an absent failure policy means a raising tool costs its own
+    call rather than the whole turn. Reading ``ENABLED`` with a ``True`` default
+    is what keeps "no settings at all" and "an empty dict" the same answer.
+    """
+    failure: dict[str, Any] = raw or {}
+    return ToolFailureConfig(
+        enabled=bool(failure.get("ENABLED", True)),
+        include_detail=bool(failure.get("INCLUDE_DETAIL", False)),
     )
 
 

@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- ⛔ **Stored conversations were served with the wrong key names, and a restored
+  transcript lost every tool call and tool result.** `messages_to_jsonable`
+  dumped the AG-UI message union by Python field name rather than by alias, so
+  the thread endpoint returned `tool_calls` / `tool_call_id` / `encrypted_value`
+  to a client reading the protocol's `toolCalls` / `toolCallId`. On reload an
+  assistant turn that was nothing but tool calls rendered as nothing at all, and
+  every tool result missed the card it belonged to. Prose survived, so the
+  transcript looked thin rather than broken.
+
+  ⭐ **The reason it went unnoticed is worth more than the fix.** `ag_ui.core`
+  sets `populate_by_name=True`, so decoding accepts either spelling: encode →
+  store → decode → resume agreed with itself perfectly, and the suite asserted
+  exactly that. **A round-trip proves agreement, not correctness** — two ends
+  using the same non-wire spelling agree completely. The mismatch could only
+  appear where another language read the JSON. The new tests assert the emitted
+  **keys**.
+
+  ⚠ **The fix is two-sided.** Dumping by alias corrects new writes; rows already
+  stored hold the old spelling, so `ThreadsView` now re-serialises on read
+  instead of handing storage records straight out. Both eras come back on the
+  wire shape and **no data migration is needed**.
+
+- **A run that ends in error now persists the exchange.** Completion was covered
+  by `on_complete` and a client disconnect by the stream guard, which left the
+  third exit saving nothing at all: a failed run dropped the whole turn from the
+  thread, including the user's own message. The partial exchange is now stored
+  the way a cancelled one is, and audited at the run level.
+
+### Changed
+
+- **`django-pydantic-agent` floor raised to `>=0.11,<0.12`**, for
+  `ToolFailurePolicy`. A tool that raises now fails its own call instead of the
+  whole run: the model gets a result marked failed naming the tool, and the turn
+  continues rather than ending in `RUN_ERROR` with everything else discarded.
+
+  New `TOOL_FAILURE` settings block (and a `build_ag_ui_config(tool_failure=)`
+  keyword): `ENABLED` defaults to `True` — the one policy here whose
+  absent-settings answer is "on" — and `INCLUDE_DETAIL` defaults to `False`, so
+  the exception's text does not reach the model or the browser rendering its
+  answer. Your `AuditLogger` still receives the real exception.
+
+  ⚠ This changes behaviour for an existing project: a run that used to die on a
+  raising tool now completes. Set `"TOOL_FAILURE": {"ENABLED": False}` to keep
+  the old behaviour.
+
 ## [0.35.0] — 2026-08-10
 
 ### Changed
