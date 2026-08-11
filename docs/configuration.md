@@ -78,7 +78,7 @@ Every one of these is also a `build_ag_ui_config(...)` keyword.
 | `attachment_store=...` | Server-side file-upload storage (uploads off when unset). |
 | `transcription_backend=...` | Speech-to-text backend for voice input (voice off when unset). |
 | `drf_mcp_server=...` | drf-mcp server whose tools the agent gets. |
-| `service_specs={...}` | drf-services specs mapping exposed as tools, no MCP hop (`[spec-tools]` extra). |
+| `service_specs={...}` | drf-services specs exposed as tools, no MCP hop — a mapping, a `SpecRegistry`, or a pre-built `SpecToolset` / `SpecCapability` (`[spec-tools]` extra). |
 
 ## Multiple endpoints
 

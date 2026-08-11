@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pathlib
+import shutil
+import subprocess
 import warnings
 from typing import Any
 
@@ -15,6 +18,46 @@ from rest_framework_pydantic_ai import SpecCapability, SpecToolset
 from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec, SpecRegistry
 
 from django_ag_ui.agent.agui_server import AGUIServer
+from django_ag_ui.agent.types.spec_capability_source import SpecCapabilitySource
+from django_ag_ui.agent.types.spec_toolset_source import SpecToolsetSource
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+
+# Every shape the constructor accepts, written the way a consumer writes it —
+# through the public import, with real drf-services specs. Checked by ``ty``
+# rather than executed: what is under test is the *declaration*, and running
+# this proves nothing the tests above have not already proved.
+CONSUMER_SNIPPET = '''"""A consumer passing each accepted ``service_specs=`` shape."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from rest_framework.permissions import AllowAny
+from rest_framework_pydantic_ai import SpecCapability, SpecToolset
+from rest_framework_services import SelectorKind, SelectorSpec, SpecRegistry
+
+from django_ag_ui import AGUIServer
+
+
+def list_widgets(user: Any) -> list[Any]:
+    """List widgets."""
+    return []
+
+
+SPECS = {
+    "list_widgets": SelectorSpec(
+        kind=SelectorKind.LIST, selector=list_widgets, permission_classes=[AllowAny]
+    )
+}
+
+AGUIServer(ToolRegistry(), service_specs=SPECS)
+AGUIServer(ToolRegistry(), service_specs=SpecRegistry())
+AGUIServer(ToolRegistry(), service_specs=SpecToolset(SPECS))
+AGUIServer(ToolRegistry(), service_specs=SpecCapability(SPECS))
+AGUIServer(ToolRegistry(), service_specs=None)
+'''
 
 
 def _list_widgets(user: Any) -> list[Any]:
@@ -302,6 +345,55 @@ class TestPreBuiltToolset:
         tools = await server._spec_capability.get_toolset().get_tools(None)
         schema = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
         assert schema["limit"]["maximum"] == 25
+
+    def test_the_declared_protocols_match_the_real_toolset_and_capability(self) -> None:
+        """⚠ **A too-narrow annotation trains consumers to suppress correct code.**
+
+        Passing a pre-built toolset worked from the day it was accepted, but the
+        parameter stayed typed as the mapping-or-registry union — so a project
+        doing the documented thing had a green test suite and a red type
+        checker, and the cheapest fix on their side is an ignore comment on code
+        that was never wrong. The tests above assert the *behaviour*; this one
+        and the next assert the **declaration** keeps up with it.
+
+        The cheap half, in-process: the two protocols the union names are
+        matched structurally, so a member misspelled in either would still
+        type-check against itself and silently describe nothing that exists.
+        """
+        assert isinstance(SpecToolset({"list_widgets": _selector()}), SpecToolsetSource)
+        assert isinstance(SpecCapability({"list_widgets": _selector()}), SpecCapabilitySource)
+
+    def test_a_type_checker_accepts_every_shape_at_the_call_site(
+        self, tmp_path: pathlib.Path
+    ) -> None:
+        """The durable half — the consumer's own checker, on the consumer's code.
+
+        ``ty`` is the checker this repo gates on, so running it over a snippet
+        that passes all four shapes is the only assertion that fails for the
+        same reason a consumer's build does. Structural conformance alone would
+        not have caught the original defect: ``SpecToolset`` satisfies a
+        ``runtime_checkable`` ``SpecSource`` at runtime (``hasattr(x, "specs")``
+        is true of a property too) while failing assignability, which is exactly
+        the gap between the two halves of this test.
+        """
+        if shutil.which("ty") is None:
+            pytest.skip("ty is a dev-group dependency; nothing to check without it")
+        snippet = tmp_path / "consumer.py"
+        snippet.write_text(CONSUMER_SNIPPET)
+
+        result = subprocess.run(
+            ["ty", "check", str(snippet)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+        output = result.stdout + result.stderr
+        # Proves ty resolved this package rather than reporting a clean run over
+        # a file whose imports it never found — without this the assertion below
+        # passes for the wrong reason.
+        assert "unresolved-import" not in output, output
+        assert "service_specs" not in output, output
 
     def test_the_view_attaches_it_and_reserves_its_names(self) -> None:
         """The server holds it; this proves the view actually composes it.

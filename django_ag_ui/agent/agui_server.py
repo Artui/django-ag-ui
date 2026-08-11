@@ -21,6 +21,8 @@ from django_pydantic_agent.utils import AuthorizePredicate, GetUser
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.runs_view import RunsView
 from django_ag_ui.agent.tools_view import ToolsView
+from django_ag_ui.agent.types.spec_capability_source import SpecCapabilitySource
+from django_ag_ui.agent.types.spec_toolset_source import SpecToolsetSource
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.check_removed_settings import check_removed_settings
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
@@ -117,6 +119,23 @@ class AGUIServer:
     different projections with no shared state. Requires the
     ``django-ag-ui[spec-tools]`` extra.
 
+    An **already-built** ``SpecToolset`` or ``SpecCapability`` is accepted here
+    too — the only way to reach a toolset knob (``max_page_size``, an
+    ``exception_map``, a ``build_context`` override, ``require_permissions=False``
+    while migrating) without abandoning ``service_specs=`` for ``capabilities=``,
+    which the tool catalog never sees::
+
+        AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
+
+    Both are attached as themselves and their ``specs`` read for the catalog, so
+    the powerful form keeps the tool-call card labels. The parameter's type is
+    the union of all four shapes — a mapping, a
+    :class:`~django_pydantic_agent.integrations.types.spec_source.SpecSource`, a
+    :class:`~django_ag_ui.agent.types.spec_toolset_source.SpecToolsetSource` and a
+    :class:`~django_ag_ui.agent.types.spec_capability_source.SpecCapabilitySource`
+    — the last two matched structurally, since drf-pydantic-ai's own types cannot
+    be named from a package that only optionally depends on it.
+
     **One agent, many runs.** The endpoint builds its agent once and reuses it,
     rather than re-deriving every tool's JSON Schema per request. Two narrow
     hooks vary it: ``model_for_request(request)`` and
@@ -192,7 +211,11 @@ class AGUIServer:
         capabilities: list[Any] | None = None,
         agent_factory: AgentFactoryFn | None = None,
         drf_mcp_server: Any = None,
-        service_specs: Mapping[str, Any] | SpecSource | None = None,
+        service_specs: Mapping[str, Any]
+        | SpecSource
+        | SpecToolsetSource
+        | SpecCapabilitySource
+        | None = None,
         provider: Any = None,
         config: AGUIConfig | None = None,
         namespace: str = DEFAULT_NAMESPACE,
@@ -351,6 +374,15 @@ def _resolve_spec_source(
     Three shapes go in — a ``name -> spec`` mapping, a ``SpecRegistry``, or an
     already-built ``SpecToolset`` / ``SpecCapability`` — and the same two things
     come out, so everything downstream sees one normalised pair.
+
+    ⚠ **The parameter is ``Any`` on purpose; the public one is not.** This is the
+    sniffing boundary — each arm is recognised by ``getattr``, which no narrowing
+    a checker can follow, so declaring the constructor's four-shape union here
+    would only make the resolved arms unassignable to what each branch calls
+    (``resolve_spec_mapping`` takes the two mapping shapes, ``from_toolset``
+    wants drf-pydantic-ai's own ``SpecToolset``, which this package cannot name).
+    The union that consumers are checked against lives on
+    :meth:`AGUIServer.__init__`, where it is the whole point.
 
     ⚠ **Accepting a pre-built object is what makes every ``SpecToolset`` knob
     reachable from here.** ``service_specs=`` could only ever pass the mapping,
