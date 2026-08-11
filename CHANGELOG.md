@@ -9,6 +9,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`csrf_exempt` now reaches every view `AGUIServer` mounts, not the run
+  endpoint alone.** It was passed into `DjangoAGUIView` while the sub-views were
+  built from the auth dict beside it, so `csrf_exempt=True` exempted the stream
+  and left five write routes under `CsrfViewMiddleware`: `POST /attachments/`
+  (upload), `DELETE /attachments/<id>/`, `PATCH /threads/<id>/` (rename),
+  `DELETE /threads/<id>/`, and `POST /transcribe/`. Each answered a hard **403**
+  for exactly the header-authenticated client the exemption exists to serve, and
+  no consumer-side setting could fix it — `CSRF_USE_SESSIONS = True` mints no
+  readable `csrftoken` cookie, and a JWT-authenticated SPA has no session to
+  carry one, which is the reason the run endpoint is exempt in the first place.
+
+  ⭐ **The failure read as half-broken rather than misconfigured**, which is why
+  it survived: chatting worked, history listed fine, and a *new* thread is
+  created through the run stream, so only the writes died. `tools/`, `skills/`
+  and `runs/` were unaffected because they are `GET`-only — they would have
+  broken the same way the day either gained a write verb. ⇒ *Cookie-less
+  deployments get working uploads, thread rename/delete and voice input with no
+  mount-point patching.*
+
+  ⚠ **This widens what the *unstated* default covers.** `csrf_exempt` left unset
+  resolves to exempt, and now resolves that way across the mount — so a project
+  that passed nothing goes from "writes enforced by accident" to "writes
+  exempt". Two groups: one already gets the `RuntimeWarning` at construction and
+  already has the strictly larger hole open on the run endpoint, where tools act
+  as the logged-in user; the other passes a `get_user` hook, which silences the
+  warning precisely because the request carries its own credential rather than
+  the session cookie. Neither is left worse off than the run endpoint already
+  left them, but the change is a widening and not only a fix — **if you want
+  CSRF enforced, state `csrf_exempt=False`**, which behaved correctly throughout
+  and still does. Note too that `csrf_exempt=True` lets a cross-site page `POST
+  multipart/form-data` to `attachments/` without a preflight; the store is
+  owner-scoped, the response is unreadable cross-origin and
+  `ATTACHMENT_MAX_BYTES` caps the size, so it is a nuisance upload rather than a
+  disclosure.
+
+  The flag now resolves through one shared helper, and the policy travels in the
+  same dict as `require_authenticated` / `get_user` / `authorize` — a key added
+  there reaches every view or fails loudly at construction, where a second
+  forwarding path could silently miss one. `ToolsView`, `ThreadsView`,
+  `AttachmentsView` and `TranscribeView` accordingly accept `csrf_exempt=` when
+  constructed directly, as they already accept the auth arguments.
+
+  ⚠ **Nothing could have caught this.** `tests/conftest_settings.py` mounts no
+  middleware, so an exempt view and an enforced one are indistinguishable in the
+  suite. The regression tests assert the flag across the whole set derived from
+  `server.urls` — never a hand-written path list, which cannot cover a view a
+  later release starts mounting — and drive the same mount through a real
+  `CsrfViewMiddleware`, because asserting the attribute proves only what the
+  views declare, not what Django does with the declaration.
+
 - **Docstrings still described the removed `get_urls` factory and the removed
   settings-resolved collaborators.** `ThreadsView`, `AttachmentsView` and
   `TranscribeView` each opened with "Mounted by `get_urls` with
@@ -29,6 +79,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   settings-resolved backend" and that "configuring a store in settings mounts its
   sub-view automatically". They are passed or absent; unpassed, each falls back
   to its `Null*` backend and the sub-view simply does not mount.
+
+- **The same docstring also claimed `audit_logger` and `csrf_exempt` fall back to
+  settings.** Neither has been settings-resolvable since collaborators became
+  constructor arguments; `AGUIConfig` carries no such field. `model` and
+  `instructions` still do, and the docstring now says only that.
 
 ## [0.40.0] — 2026-08-11
 

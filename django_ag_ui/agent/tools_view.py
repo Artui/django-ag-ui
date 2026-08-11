@@ -9,6 +9,8 @@ from django_pydantic_agent.agent.build_tool_catalog import build_tool_catalog
 from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from django_pydantic_agent.utils import AuthorizePredicate, auth_error_response, authorize
 
+from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
+
 
 class ToolsView:
     """A read-only endpoint returning the agent's server-tool catalog (GET, JSON).
@@ -36,6 +38,7 @@ class ToolsView:
         | Callable[[HttpRequest], Awaitable[Any]]
         | None = None,
         authorize: AuthorizePredicate | None = None,
+        csrf_exempt: bool | None = None,
         drf_mcp_server: Any = None,
         service_specs: dict[str, Any] | None = None,
         spec_capability: Any = None,
@@ -52,6 +55,12 @@ class ToolsView:
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
+        # Read by Django's CsrfViewMiddleware off this callable instance. GET is
+        # a safe method the middleware never checks, so the flag changes nothing
+        # here today — it is carried so the request policy is uniform across the
+        # mount, and so a write verb added later inherits the answer instead of
+        # silently enforcing against a client that cannot produce a token.
+        self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
 
     def __call__(self, request: HttpRequest) -> HttpResponseBase:
         if request.method != "GET":

@@ -195,6 +195,10 @@ as a 500 — return `AnonymousUser` (or `None`) for a clean `401` instead. An
 AG-UI clients typically authenticate by header (Bearer / API key), where CSRF
 does not apply — so the view is CSRF-exempt by default.
 
+Whatever you answer covers the **whole mount**: the run endpoint, the catalogs,
+and the write routes (attachment upload / delete, thread rename / delete,
+transcribe) all resolve the same flag.
+
 **If your deployment authenticates with session cookies, that default is
 wrong for you.** Tools act as `request.user`, so a cookie-authenticated endpoint
 with CSRF off lets any third-party page drive the agent as whoever is logged in

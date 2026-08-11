@@ -16,6 +16,7 @@ from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
+from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 
 
 class TranscribeView:
@@ -48,6 +49,7 @@ class TranscribeView:
         require_authenticated: bool = True,
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
+        csrf_exempt: bool | None = None,
         config: AGUIConfig | None = None,
     ) -> None:
         self._backend = backend
@@ -57,6 +59,10 @@ class TranscribeView:
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
+        # ⚠ Load-bearing here, unlike on the read-only catalogs: the only route
+        # is POST, so CsrfViewMiddleware checks every request this view serves —
+        # a token-less client could not reach the backend at all.
+        self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
         # Mark this callable instance async so Django awaits ``__call__`` (see
         # DjangoAGUIView for the rationale); the backend operation is async.
         markcoroutinefunction(cast("Any", self))

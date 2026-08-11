@@ -90,16 +90,25 @@ class AGUIServer:
     ``AGUIServer(registry)`` serves the agent endpoint and its tool catalog and
     nothing else.
 
-    **Authentication seam, closed by default.** ``require_authenticated`` /
-    ``get_user`` / ``authorize`` are forwarded to **every** view this object
-    builds — the agent endpoint and all sub-views — so one policy locks down the
-    whole mount (``401`` for anonymous when ``require_authenticated``, ``403``
-    from an ``authorize`` predicate, ``get_user`` establishing the acting user).
-    ``require_authenticated`` defaults to **True**, so a bare
-    ``AGUIServer(registry)`` serves nobody who is not logged in. Pass
+    **Request policy, closed by default.** ``require_authenticated`` /
+    ``get_user`` / ``authorize`` / ``csrf_exempt`` are forwarded to **every**
+    view this object builds — the agent endpoint and all sub-views — so one
+    policy governs the whole mount (``401`` for anonymous when
+    ``require_authenticated``, ``403`` from an ``authorize`` predicate,
+    ``get_user`` establishing the acting user, and one answer to CSRF rather
+    than one per endpoint). ``require_authenticated`` defaults to **True**, so a
+    bare ``AGUIServer(registry)`` serves nobody who is not logged in. Pass
     ``require_authenticated=False`` to serve anonymous runs deliberately. The
-    agent view's ``model`` / ``instructions`` / ``audit_logger`` /
-    ``csrf_exempt`` fall back to settings when not passed.
+    agent view's ``model`` and ``instructions`` fall back to the
+    ``DJANGO_AG_UI`` settings when not passed.
+
+    ⚠ **``csrf_exempt`` covers the write endpoints too, and it used to reach
+    only the run endpoint.** ``csrf_exempt=True`` exempts attachment upload /
+    delete, thread rename / delete and transcribe alongside the run endpoint;
+    before, those five stayed under ``CsrfViewMiddleware`` and answered ``403``
+    for precisely the header-authenticated client the exemption exists to serve.
+    If you want CSRF enforced, that is ``csrf_exempt=False`` — which behaved
+    correctly throughout and still does.
 
     **Anonymous scoping caveat.** With ``require_authenticated=False`` and a
     model-backed store, an anonymous request has no owner id. The reference
@@ -230,13 +239,24 @@ class AGUIServer:
         # ever be global. This is what lets /internal/agent and /public/agent
         # hold different tool-guard policies, retry budgets, upload caps.
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
-        # The auth policy shared by every view this object builds — splatted into
-        # each constructor. Typed ``Any`` so the mixed-value dict satisfies each
-        # constructor's specific parameter types.
-        self._auth: dict[str, Any] = {
+        # The request policy shared by every view this object builds — splatted
+        # into each constructor. Typed ``Any`` so the mixed-value dict satisfies
+        # each constructor's specific parameter types.
+        #
+        # ⚠ **``csrf_exempt`` belongs in here, not beside it.** It used to be
+        # passed to the agent view alone while the sub-views got only the auth
+        # keys, so ``csrf_exempt=True`` exempted the run endpoint and left every
+        # write endpoint under CsrfViewMiddleware — upload, attachment delete,
+        # thread rename, thread delete and transcribe all 403 for exactly the
+        # header-authenticated client the exemption exists to serve. One dict is
+        # what stops the two halves of a mount answering differently: a key
+        # added here reaches every view or fails loudly at construction, where
+        # a second forwarding path can silently miss one.
+        self._policy: dict[str, Any] = {
             "require_authenticated": require_authenticated,
             "get_user": get_user,
             "authorize": authorize,
+            "csrf_exempt": csrf_exempt,
         }
         # Collaborators are passed, never resolved from a dotted path. The
         # indirection existed only because settings.py can't hold a live object;
@@ -282,7 +302,6 @@ class AGUIServer:
             model_for_request=model_for_request,
             instructions_for_request=instructions_for_request,
             audit_logger=audit_logger,
-            csrf_exempt=csrf_exempt,
             toolsets=toolsets,
             capabilities=capabilities,
             agent_factory=agent_factory,
@@ -296,7 +315,7 @@ class AGUIServer:
             deps_factory=self._deps_factory,
             throttle=throttle,
             config=self._config,
-            **self._auth,
+            **self._policy,
         )
 
     @property
@@ -323,7 +342,7 @@ class AGUIServer:
                     drf_mcp_server=self._drf_mcp_server,
                     service_specs=self._service_specs,
                     spec_capability=self._spec_capability,
-                    **self._auth,
+                    **self._policy,
                 ),
                 name="tools",
             ),
@@ -344,17 +363,21 @@ class AGUIServer:
             # an index a client can only continue a run whose id it still holds
             # — ruling out resuming after a reload or from another device.
             patterns.append(
-                path("runs/", RunsView(self._step_store, **self._auth), name="runs"),
+                path("runs/", RunsView(self._step_store, **self._policy), name="runs"),
             )
         if self._skills is not None:
-            patterns.append(path("skills/", SkillsView(self._skills, **self._auth), name="skills"))
+            patterns.append(
+                path("skills/", SkillsView(self._skills, **self._policy), name="skills")
+            )
         if not isinstance(self._conversation_store, NullConversationStore):
-            threads_view = ThreadsView(self._conversation_store, config=self._config, **self._auth)
+            threads_view = ThreadsView(
+                self._conversation_store, config=self._config, **self._policy
+            )
             patterns.append(path("threads/", threads_view, name="threads"))
             patterns.append(path("threads/<str:thread_id>/", threads_view, name="thread"))
         if not isinstance(self._attachment_store, NullAttachmentStore):
             attachments_view = AttachmentsView(
-                self._attachment_store, config=self._config, **self._auth
+                self._attachment_store, config=self._config, **self._policy
             )
             patterns.append(path("attachments/", attachments_view, name="attachments"))
             patterns.append(
@@ -362,7 +385,7 @@ class AGUIServer:
             )
         if not isinstance(self._transcription_backend, NullTranscriptionBackend):
             transcribe_view = TranscribeView(
-                self._transcription_backend, config=self._config, **self._auth
+                self._transcription_backend, config=self._config, **self._policy
             )
             patterns.append(path("transcribe/", transcribe_view, name="transcribe"))
         return patterns

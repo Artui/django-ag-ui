@@ -8,6 +8,8 @@ from django.http.response import HttpResponseBase
 from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
 from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
+from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
+
 # The step-store protocol and its records live in ``pydantic-ai-harness``; both
 # this view and the store are only reachable when a ``step_store`` is
 # configured, which requires that extra. Typed ``Any`` so the module imports
@@ -56,6 +58,7 @@ class RunsView:
         require_authenticated: bool = True,
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
+        csrf_exempt: bool | None = None,
     ) -> None:
         # A ``request -> StepStore`` factory, not a store: the harness protocol's
         # methods carry no request, so the store binds one and is built per call
@@ -64,6 +67,12 @@ class RunsView:
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
+        # Read by Django's CsrfViewMiddleware off this callable instance. GET is
+        # a safe method the middleware never checks, so the flag changes nothing
+        # here today — it is carried so the request policy is uniform across the
+        # mount, and so a write verb added later inherits the answer instead of
+        # silently enforcing against a client that cannot produce a token.
+        self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
         # Mark this callable instance async so Django awaits ``__call__`` (see
         # DjangoAGUIView for the rationale); the store operations are async.
         markcoroutinefunction(cast("Any", self))
