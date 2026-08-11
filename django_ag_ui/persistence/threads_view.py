@@ -19,6 +19,7 @@ from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize,
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.utils import stored_messages_to_wire
+from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 
 # The model stores back ``title`` with ``CharField(max_length=255)``; cap the
 # rename here (truncate — a title is cosmetic) so an over-long PATCH is a clean
@@ -56,6 +57,7 @@ class ThreadsView:
         require_authenticated: bool = True,
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
+        csrf_exempt: bool | None = None,
         config: AGUIConfig | None = None,
     ) -> None:
         self._store = store
@@ -65,6 +67,12 @@ class ThreadsView:
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
+        # ⚠ Load-bearing here, unlike on the read-only catalogs: rename is PATCH
+        # and delete is DELETE, so CsrfViewMiddleware checks both. Listing and
+        # reading a thread are GET and were never affected — which is exactly
+        # what made the split hard to see from the client, since a new thread is
+        # created through the run stream rather than through this view.
+        self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
         # Mark this callable instance async so Django awaits ``__call__`` (see
         # DjangoAGUIView for the rationale); the store operations are async.
         markcoroutinefunction(cast("Any", self))

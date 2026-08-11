@@ -664,6 +664,21 @@ cookie-authenticated endpoint with CSRF off lets any third-party page drive the
 agent as whoever is logged in — mitigated, but not eliminated, by Django's
 default `SameSite=Lax` cookie.
 
+`AGUIServer` forwards the answer to **every** view it mounts, so the run
+endpoint and the write routes beside it — `POST`/`DELETE` on `attachments/`,
+`PATCH`/`DELETE` on `threads/<id>/`, `POST` on `transcribe/` — are always
+governed together.
+
+!!! warning "`csrf_exempt=True` exempts the write routes, not just the stream"
+    Under `csrf_exempt=True` a cross-site page can `POST multipart/form-data` to
+    `attachments/` with no preflight, since that content type is CORS-simple. The
+    damage is bounded — the store is owner-scoped, the response is unreadable
+    cross-origin, and `ATTACHMENT_MAX_BYTES` caps the size — so it is a nuisance
+    upload rather than a disclosure, and it is strictly smaller than what the
+    same flag already permits on the run endpoint, where tools act as the
+    logged-in user. It is still a real consequence of the answer, and it is a
+    reason to prefer `csrf_exempt=False` whenever the client can hold a token.
+
 !!! warning "Saying nothing warns at construction"
     Leaving `csrf_exempt` unset *and* passing no `get_user` hook emits a
     `RuntimeWarning` when the endpoint is built. That combination says nothing

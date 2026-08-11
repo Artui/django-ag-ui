@@ -4,7 +4,7 @@ import warnings
 from typing import Any
 
 import pytest
-from django.test import override_settings
+from django.test import Client, override_settings
 from django.urls import resolve, reverse
 from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
 from django_pydantic_agent.registry.tool_registry import ToolRegistry
@@ -197,6 +197,83 @@ def test_every_view_requires_authentication_by_default() -> None:
     assert patterns  # a mount with no patterns would pass vacuously
     for pattern in patterns:
         assert pattern.callback._require_authenticated is True, pattern.name
+
+
+@pytest.mark.parametrize("stated", [True, False], ids=["exempt", "enforced"])
+def test_csrf_reaches_every_view_in_the_mount(stated: bool) -> None:
+    """One CSRF answer covers the whole mount, not the run endpoint alone.
+
+    ⚠ **Asserted across every pattern, derived from ``server.urls``, rather than
+    on the agent view or a hand-written list of paths.** ``csrf_exempt`` used to
+    be passed only into ``DjangoAGUIView`` while the sub-views were built from
+    the auth dict beside it, so ``csrf_exempt=True`` exempted the run endpoint
+    and left upload, attachment delete, thread rename, thread delete and
+    transcribe under ``CsrfViewMiddleware`` — a hard 403 each, for exactly the
+    header-authenticated client the exemption is for. A hand-written list could
+    not have covered a route a later release starts mounting; iterating the
+    mount means a new view is included the day it appears.
+    """
+    from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+
+    server = _server(
+        csrf_exempt=stated,
+        skills=SkillRegistry(),
+        # With a step store the mount also carries runs/ and the resume + fork
+        # routes, so this covers every view AGUIServer can build.
+        step_store=DefaultStepStore,
+        conversation_store=_DummyStore(),
+        attachment_store=_DummyAttachmentStore(),
+        transcription_backend=_DummyTranscriptionBackend(),
+    )
+    patterns, _, _ = server.urls
+    assert patterns  # a mount with no patterns would pass vacuously
+    for pattern in patterns:
+        assert pattern.callback.csrf_exempt is stated, pattern.name
+
+
+def test_unstated_csrf_is_exempt_across_the_whole_mount() -> None:
+    # The default is *unstated*, which resolves to exempt — and resolves the
+    # same way everywhere, so the mount cannot disagree with itself.
+    with pytest.warns(RuntimeWarning, match="CSRF-exempt"):
+        server = _server(
+            conversation_store=_DummyStore(),
+            attachment_store=_DummyAttachmentStore(),
+        )
+    patterns, _, _ = server.urls
+    for pattern in patterns:
+        assert pattern.callback.csrf_exempt is True, pattern.name
+
+
+@override_settings(
+    ROOT_URLCONF="tests.agent.agui_server_csrf_urls",
+    MIDDLEWARE=["django.middleware.csrf.CsrfViewMiddleware"],
+)
+@pytest.mark.parametrize(
+    ("method", "url"),
+    [
+        ("post", "/assistant/attachments/"),
+        ("delete", "/assistant/attachments/abc/"),
+        ("patch", "/assistant/threads/abc/"),
+        ("delete", "/assistant/threads/abc/"),
+        ("post", "/assistant/transcribe/"),
+    ],
+)
+def test_exempt_write_routes_reach_their_view_under_csrf_middleware(method: str, url: str) -> None:
+    """The flag is only worth asserting if Django acts on it.
+
+    ⭐ The attribute test above proves what the views *declare*; this drives the
+    same mount through the real ``CsrfViewMiddleware`` with a client that sends
+    no token, because that is the layer the bug lived at. Any status other than
+    403 means the request reached the view — the middleware rejects before
+    dispatch, so it is reaching the view at all that is under test here, not
+    which answer the view then gives.
+
+    The suite's settings mount no middleware at all, which is why nothing caught
+    this: without ``CsrfViewMiddleware`` in the stack there is no observable
+    difference between an exempt view and an enforced one.
+    """
+    response = getattr(Client(enforce_csrf_checks=True), method)(url)
+    assert response.status_code != 403
 
 
 def test_the_csrf_guard_reaches_the_server_path() -> None:

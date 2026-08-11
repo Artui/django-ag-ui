@@ -22,6 +22,7 @@ from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize,
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.capped_upload_handler import CappedUploadHandler
+from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 
 
 class AttachmentsView:
@@ -60,6 +61,7 @@ class AttachmentsView:
         require_authenticated: bool = True,
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
+        csrf_exempt: bool | None = None,
         config: AGUIConfig | None = None,
     ) -> None:
         self._store = store
@@ -69,6 +71,12 @@ class AttachmentsView:
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
+        # ⚠ Load-bearing here, unlike on the read-only catalogs: upload is POST
+        # and delete is DELETE, so CsrfViewMiddleware checks both. A client that
+        # cannot produce a token — a Bearer-authenticated SPA, or any project on
+        # ``CSRF_USE_SESSIONS``, which mints no readable cookie — gets a hard
+        # 403 on both, not a degraded response.
+        self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
         # Mark this callable instance async so Django awaits ``__call__`` (see
         # DjangoAGUIView for the rationale); the store operations are async.
         markcoroutinefunction(cast("Any", self))

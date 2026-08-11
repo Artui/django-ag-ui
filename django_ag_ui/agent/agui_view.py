@@ -37,6 +37,7 @@ from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 
 
 class DjangoAGUIView:
@@ -174,8 +175,13 @@ class DjangoAGUIView:
         # ``None`` means *unstated*, which behaves as exempt but is what lets the
         # guard below tell "header auth, CSRF does not apply" (an explicit True)
         # apart from "nobody decided" (the default).
+        #
+        # The warning fires here and only here. Every sibling view resolves the
+        # same flag through the same helper, but this is the view a consumer
+        # always mounts and the one whose exemption is worth warning about — the
+        # sub-views would raise the identical concern up to six more times.
         _warn_if_csrf_unstated(csrf_exempt, get_user)
-        self.csrf_exempt = True if csrf_exempt is None else csrf_exempt
+        self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
         # Mark this callable instance as a coroutine function so Django's
         # request handler awaits ``__call__`` when the view is mounted. Without
         # it, ``asgiref.iscoroutinefunction(instance)`` is False and the handler
