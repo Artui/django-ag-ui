@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.test import override_settings
+from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
@@ -60,3 +61,37 @@ def test_two_endpoints_can_hold_different_scalars() -> None:
         public = build_ag_ui_config(retries=9, thread_list_limit=500)
     assert (internal.retries, internal.thread_list_limit) == (1, 10)
     assert (public.retries, public.thread_list_limit) == (9, 500)
+
+
+def test_tool_failure_defaults_to_on_with_no_settings() -> None:
+    """The one policy whose absent-settings answer is "on".
+
+    An absent ``TOOL_GUARD`` means no gate; an absent ``TOOL_FAILURE`` means a
+    raising tool costs its own call rather than the whole turn.
+    """
+    with override_settings(DJANGO_AG_UI={}):
+        config = build_ag_ui_config()
+    assert config.tool_failure.enabled is True
+    assert config.tool_failure.include_detail is False
+
+
+def test_tool_failure_is_parsed_from_the_settings_dict() -> None:
+    with override_settings(
+        DJANGO_AG_UI={"TOOL_FAILURE": {"ENABLED": False, "INCLUDE_DETAIL": True}}
+    ):
+        config = build_ag_ui_config()
+    assert config.tool_failure.enabled is False
+    assert config.tool_failure.include_detail is True
+
+
+def test_an_empty_tool_failure_dict_reads_as_the_defaults() -> None:
+    # "Configured but empty" must not read as "disabled".
+    with override_settings(DJANGO_AG_UI={"TOOL_FAILURE": {}}):
+        config = build_ag_ui_config()
+    assert config.tool_failure.enabled is True
+
+
+def test_an_explicit_tool_failure_wins() -> None:
+    with override_settings(DJANGO_AG_UI={"TOOL_FAILURE": {"ENABLED": True}}):
+        config = build_ag_ui_config(tool_failure=ToolFailureConfig(enabled=False))
+    assert config.tool_failure.enabled is False

@@ -7,7 +7,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, cast
 
-from ag_ui.core import Message
+from ag_ui.core import BaseEvent, Message, RunErrorEvent
 from django.http import HttpRequest
 from django_pydantic_agent.agent.types.agent_deps import AgentDeps
 from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
@@ -36,7 +36,8 @@ class AgentSession:
     the request, parsed the ``RunAgentInput``, and built the agent — and before
     the response object exists: the ``AGUIAdapter``, the composed event stream
     (native → transformed → reasoning-filtered → encoded → disconnect-guarded),
-    completed-run persistence, and the cancelled-run persist + audit path.
+    and persistence on all three of a run's exits — completed, failed and
+    cancelled — the last two audited as well.
 
     Splitting it from :class:`~django_ag_ui.agent.agui_view.DjangoAGUIView`
     makes the streaming pipeline testable without a ``StreamingHttpResponse``
@@ -127,11 +128,36 @@ class AgentSession:
         # ``CompactionObserver`` is in the capability list, and wrapping it in a
         # flag would mean a second way to express the same opt-in.
         events = inject_compaction_events(events)
+        # Persistence has three exits, not two. ``on_complete`` covers a run
+        # that finishes and the guard below covers a client that disconnects,
+        # which left a run that *fails* saving nothing at all — the one exit
+        # where the user most wants the exchange back. The adapter offers no
+        # error callback to hang this on, so the terminal event is the hook.
+        observed = self._persist_on_error(transcript.observe(events), transcript)
         return guarded_stream(
-            self._adapter.encode_stream(transcript.observe(events)),
+            self._adapter.encode_stream(observed),
             native_events=native,
             on_cancel=self._on_cancel(transcript),
         )
+
+    async def _persist_on_error(
+        self,
+        events: AsyncIterator[BaseEvent],
+        transcript: RunTranscript,
+    ) -> AsyncIterator[BaseEvent]:
+        """Pass ``events`` through, persisting the exchange if the run errors.
+
+        Wraps the transcript observer rather than sitting inside it: an event
+        reaches here only after the transcript has recorded it, so by the time
+        ``RUN_ERROR`` arrives the transcript already holds the closing tool
+        results the adapter emits for interrupted calls. Persisting any earlier
+        would store a truncated exchange.
+        """
+        finalize = self._on_error(transcript)
+        async for event in events:
+            if isinstance(event, RunErrorEvent):
+                await finalize(event.message)
+            yield event
 
     def _on_complete(self) -> Callable[[Any], Awaitable[None]] | None:
         """The adapter's ``on_complete`` callback persisting the conversation.
@@ -183,16 +209,17 @@ class AgentSession:
 
         return _save
 
-    def _on_cancel(self, transcript: RunTranscript) -> Callable[[], Awaitable[None]]:
-        """The guard's ``on_cancel``: persist the partial exchange, then audit.
+    def _run_finalizer(self, transcript: RunTranscript) -> Callable[[str], Awaitable[None]]:
+        """Persist the partial exchange and audit the run, given a reason.
 
-        Persistence mirrors the completed-run shape — the client-sent history
-        plus whatever the transcript observed before the disconnect — so a
-        durable thread reflects the truncated exchange (matching the client,
-        which keeps the partial assistant bubble). The audit record rides the
-        existing ``record(AuditEvent)`` surface as a ``tool_name="agent.run"``
-        event rather than a new protocol method, so custom loggers keep
-        working unchanged; ``duration_ms`` measures run start → cancellation.
+        Shared by the two non-completing exits. Persistence mirrors the
+        completed-run shape — the client-sent history plus whatever the
+        transcript observed — so a durable thread reflects the truncated
+        exchange (matching the client, which keeps the partial assistant
+        bubble). The audit record rides the existing ``record(AuditEvent)``
+        surface as a ``tool_name="agent.run"`` event rather than a new protocol
+        method, so custom loggers keep working unchanged; ``duration_ms``
+        measures run start to the failure.
         """
         save = self._message_saver()
         audit = self._audit_logger
@@ -204,7 +231,7 @@ class AgentSession:
         )
         ip_address = self._request.META.get("REMOTE_ADDR")
 
-        async def _on_cancel() -> None:
+        async def _finalize(error: str) -> None:
             if save is not None:
                 await save([*input_messages, *transcript.messages()])
             audit.record(
@@ -213,12 +240,35 @@ class AgentSession:
                     arguments_repr=run_ref,
                     duration_ms=(time.perf_counter() - started) * 1000.0,
                     success=False,
-                    error="cancelled: client disconnected mid-run",
+                    error=error,
                     ip_address=ip_address,
                 ),
             )
 
+        return _finalize
+
+    def _on_cancel(self, transcript: RunTranscript) -> Callable[[], Awaitable[None]]:
+        """The guard's ``on_cancel``: persist the partial exchange, then audit."""
+        finalize = self._run_finalizer(transcript)
+
+        async def _on_cancel() -> None:
+            await finalize("cancelled: client disconnected mid-run")
+
         return _on_cancel
+
+    def _on_error(self, transcript: RunTranscript) -> Callable[[str], Awaitable[None]]:
+        """The ``RUN_ERROR`` counterpart: persist the partial exchange, then audit.
+
+        A failed run is audited at the run level even though a failing *tool*
+        is already recorded by the audit capability, because the two are not
+        the same fact and not every run failure comes from a tool.
+        """
+        finalize = self._run_finalizer(transcript)
+
+        async def _on_error(message: str) -> None:
+            await finalize(f"run failed: {message}")
+
+        return _on_error
 
 
 __all__ = ["AgentSession"]

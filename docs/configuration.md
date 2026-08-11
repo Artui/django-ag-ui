@@ -58,6 +58,7 @@ AGUIServer(registry, config=build_ag_ui_config(retries=5))
 | `TRANSCRIPTION_MAX_BYTES` | `int` | `26214400` | Max accepted audio-clip size in bytes (`0` disables the cap). |
 | `TRANSCRIPTION_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed audio content types (empty = any). |
 | `TOOL_GUARD` | `dict` | `{}` | Server-side destructive-tool approval gate (off by default). See [`TOOL_GUARD`](#tool_guard). |
+| `TOOL_FAILURE` | `dict` | `{}` | What an unhandled tool exception costs. **On** by default. See [`TOOL_FAILURE`](#tool_failure). |
 
 Every one of these is also a `build_ag_ui_config(...)` keyword.
 
@@ -705,6 +706,40 @@ AGUIServer(registry, conversation_store=DefaultConversationStore(allow_anonymous
 
 Whenever a store persists, prefer authenticated endpoints (the default, or a
 `get_user` hook) over relying on `allow_anonymous=True`.
+
+### `TOOL_FAILURE`
+
+**On by default**, and the only policy here whose absent-settings answer is
+"enabled". A tool that raises used to end the run: the endpoint emitted
+`RUN_ERROR`, the turn stopped, and the answer the model had already assembled
+went with it, along with the results of every other tool in the same round. One
+broken integration cost the whole turn.
+
+With the policy on, the failing call comes back to the model marked failed and
+naming the tool, and the run carries on.
+
+```python
+DJANGO_AG_UI = {
+    # ...
+    "TOOL_FAILURE": {
+        "ENABLED": True,  # default; False restores the failing run
+        "INCLUDE_DETAIL": False,  # default; True sends the exception text to the model
+    },
+}
+```
+
+**`INCLUDE_DETAIL` is off by default, and the split is deliberate.** Whether the
+run survives is a reliability question; whether an exception's text reaches the
+model is a disclosure one. A traceback message can carry a query, a path or a
+credential, and anything handed to the model is also handed to whatever renders
+the transcript in a browser.
+
+The operator's copy is never redacted. The full exception reaches your
+`AuditLogger` and the `django_pydantic_agent.failure` Python logger either way,
+recorded against the tool that raised it.
+
+⚠ Note it spends no retry budget, so a model may call a persistently broken tool
+again. Bound that with run-level `UsageLimits`, not with this.
 
 ### `TOOL_GUARD`
 
