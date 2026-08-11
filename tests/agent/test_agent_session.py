@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -10,6 +11,7 @@ from django_pydantic_agent.persistence.types.conversation_store import Conversat
 from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
 from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 from pydantic_ai import Agent
+from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models.function import DeltaThinkingPart, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.ui.ag_ui import AGUIAdapter
@@ -44,6 +46,7 @@ def _session(
     config: AGUIConfig | None = None,
     conversation_store: ConversationStore | None = None,
     instructions: str | None = None,
+    message_history: list[Any] | None = None,
 ) -> AgentSession:
     """Build a session with its collaborators passed in.
 
@@ -61,6 +64,7 @@ def _session(
             conversation_store if conversation_store is not None else NullConversationStore()
         ),
         instructions=instructions,
+        message_history=message_history,
     )
 
 
@@ -567,3 +571,132 @@ async def test_the_delivered_block_is_never_persisted() -> None:
     saved = json.dumps(store.saved[0].messages)
     assert "untrusted-client-context" not in saved
     assert "Order #42" not in saved
+
+
+# --- what a stored thread is made of ---------------------------------------------
+#
+# The run's own history is the model's, not the client's: dumping all of it back
+# out regenerated every message id and dropped the ``attachments`` field riding a
+# user message, so a reloaded thread lost its chips and referred to files by ids
+# nothing recognised. The prior turns are therefore stored as posted, and only the
+# run's *new* messages are dumped.
+
+
+def _server_history() -> list[Any]:
+    """A resumed run's server-loaded snapshot, in pydantic-ai's own types."""
+    return [
+        ModelRequest(parts=[UserPromptPart(content="older question")]),
+        ModelResponse(parts=[TextPart(content="older answer")]),
+    ]
+
+
+def _failing_resumed_agent() -> Agent[Any, Any]:
+    """Reaches for a raising tool however the run was seeded.
+
+    ``_failing_agent``'s ``TestModel`` answers with plain text once the history
+    already holds a turn, so a *resumed* failure needs a model that calls the
+    tool unconditionally.
+    """
+    from pydantic_ai.models.function import DeltaToolCall
+
+    async def stream_fn(messages: list, info: Any) -> Any:
+        yield {0: DeltaToolCall(name="boom", json_args="{}", tool_call_id="call-1")}
+
+    agent: Agent[Any, Any] = Agent(FunctionModel(stream_function=stream_fn))
+
+    @agent.tool_plain
+    def boom() -> str:
+        raise RuntimeError("kaboom")
+
+    return agent
+
+
+def _parked_agent() -> Agent[None, Any]:
+    """Streams one text delta and then waits, so a run can be cut mid-stream."""
+
+    async def stream_fn(messages: list, info: Any) -> Any:
+        yield "partial answer"
+        await asyncio.Event().wait()
+
+    return Agent(FunctionModel(stream_function=stream_fn))
+
+
+async def _cut_mid_stream(session: AgentSession) -> None:
+    """Consume until the first assistant text, then close the stream.
+
+    Closing the generator delivers ``GeneratorExit`` into the disconnect guard —
+    the second of the two shapes a client disconnect arrives in, and the one a
+    test can drive without an ASGI handler.
+    """
+    stream = session.stream()
+    async for chunk in stream:
+        if "partial answer" in chunk:
+            break
+    await stream.aclose()
+
+
+async def test_a_completed_run_stores_the_client_turn_exactly_once_as_sent() -> None:
+    store = _RecordingStore()
+    await _events(_session(run_input=_run_input(ATTACHMENT_MESSAGE), conversation_store=store))
+
+    (conversation,) = store.saved
+    assert [message["role"] for message in conversation.messages] == ["user", "assistant"]
+    # The client's own id, not a regenerated one — an attachment ref the model
+    # was told about has to still resolve after a reload.
+    assert conversation.messages[0]["id"] == "m1"
+    assert conversation.messages[0]["attachments"] == ATTACHMENT_MESSAGE[0]["attachments"]
+
+
+async def test_a_resumed_run_stores_server_history_then_the_client_turn() -> None:
+    store = _RecordingStore()
+    session = _session(conversation_store=store, message_history=_server_history())
+
+    await _events(session)
+
+    (conversation,) = store.saved
+    contents = [message["content"] for message in conversation.messages]
+    assert contents[:3] == ["older question", "older answer", "hi"]
+    assert len(conversation.messages) == 4
+
+
+async def test_a_failed_run_keeps_the_prefix_the_completed_run_would_have() -> None:
+    # The gap this closes: the failure path took the client's messages alone, so
+    # a resumed run that died truncated the thread it was resuming.
+    store = _RecordingStore()
+    session = _session(
+        _failing_resumed_agent(),
+        _run_input(ATTACHMENT_MESSAGE),
+        conversation_store=store,
+        message_history=_server_history(),
+    )
+
+    joined = await _events(session)
+
+    assert "RUN_ERROR" in joined
+    (conversation,) = store.saved
+    assert [message["role"] for message in conversation.messages][:3] == [
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert conversation.messages[2]["id"] == "m1"
+    assert conversation.messages[2]["attachments"] == ATTACHMENT_MESSAGE[0]["attachments"]
+    assert "tool" in [message["role"] for message in conversation.messages]
+
+
+async def test_a_cancelled_run_keeps_the_same_prefix() -> None:
+    store = _RecordingStore()
+    session = _session(
+        _parked_agent(),
+        _run_input(ATTACHMENT_MESSAGE),
+        conversation_store=store,
+        message_history=_server_history(),
+    )
+
+    await _cut_mid_stream(session)
+
+    (conversation,) = store.saved
+    contents = [message["content"] for message in conversation.messages]
+    assert contents[:3] == ["older question", "older answer", "what is the budget?"]
+    assert conversation.messages[2]["attachments"] == ATTACHMENT_MESSAGE[0]["attachments"]
+    assert "partial answer" in contents

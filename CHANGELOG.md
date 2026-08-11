@@ -7,6 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`RunAgentInput.context` was never read, so nothing a client put there reached
+  the model.** That field is where an AG-UI front end describes the user's
+  situation — what page they are on, what they have selected — and
+  `AGUIAdapter` consumes only `thread_id`, `run_id`, `id`, `messages`, `tools`
+  and `state`. Leaving `context` (along with `forwardedProps` and `parentRunId`)
+  to the consumer is deliberate upstream policy, not an upstream bug — and this
+  package is the consumer that never wired it. Every entry was parsed,
+  validated, and dropped on the floor. What a user saw: an agent answering a
+  question about the screen in front of them with "I don't have one in this chat
+  yet", and an agent asked about the PDF they had just attached replying "please
+  attach the PDF here". Both sources now reach the model as a fenced, labelled
+  block delivered as additional run instructions, after the operator's own. ⇒ *A
+  page-aware client stops having to paste its own context into the user's
+  message to get it seen.*
+
+  ⚠ **Client-supplied text now reaches the model where it previously did not.**
+  That is the fix, and it is also a widening: whatever your front end puts in
+  `context` is now in front of the model on every request of every run. The block
+  says in as many words that its contents are data and not instructions, and the
+  marker is neutralised wherever a client value contains it so the fence cannot
+  be forged or closed early — but fencing frames text, it does not sanitise it,
+  and it is no defence against instructions hidden *inside* a page or a file.
+  `DJANGO_AG_UI["RUN_CONTEXT"] = {"CLIENT_CONTEXT": False}` restores the old
+  silence. A project whose client never populated the field sends no block at all
+  and is unaffected.
+
+- **Attachment refs are now derived from the messages themselves, so they survive
+  the next turn.** The composer rides them on the user message as an
+  `attachments` field: undeclared by AG-UI, kept intact by `ag_ui.core`'s
+  `extra="allow"` validation, and ignored by `AGUIAdapter.load_messages` — so the
+  ids never reached the model and `read_attachment` had nothing to be called
+  with. The manifest is built from the posted message list rather than from this
+  run's own uploads, because the client clears its per-run list once a run
+  settles; derived from the messages, a file attached ten turns ago is still
+  listed (once — refs are deduped by id) when the user finally asks about it.
+
+- **A completed run no longer re-dumps the client's turn.** `on_complete` stored
+  `dump_messages(result.all_messages())` — the *model's* history, round-tripped
+  back to the wire — which regenerated every message id and dropped the
+  `attachments` field off the user message. Reloading a thread therefore lost its
+  attachment chips, and the ids the model had been told about matched nothing
+  stored. The prior turns are now stored as the client posted them, and only the
+  run's own new messages are dumped.
+
+  The same helper closes a second gap on the way: the failure/cancellation path
+  built its list from the client's messages alone, never including the
+  server-loaded history, so a **resumed** run that errored or was cancelled
+  persisted only the new turn and silently truncated the thread it was resuming.
+
+  ⚠ **Two behaviour changes ride along.** A client-posted **system** message is
+  now stored — it is still stripped before the model sees it (`sanitize_messages`,
+  under the default `MANAGE_SYSTEM_PROMPT = "server"`), so it is inert, but it is
+  in the row where before it was dropped on the way to storage. And a stored user
+  message now keeps the **client's** id rather than a freshly generated one, which
+  is the point of the change: it is what makes an attachment ref still resolvable
+  after a reload.
+
+### Added
+
+- **`RUN_CONTEXT` and `RunContextConfig`**,
+  resolved per endpoint like every other scalar: `CLIENT_CONTEXT` and
+  `ATTACHMENT_MANIFEST` (both `True` by default — the flags are read the way
+  `TOOL_FAILURE` is rather than `TOOL_GUARD`, so an empty dict and no dict at all
+  are the same answer) plus `MAX_CHARS` (`20000`). The ceiling exists because
+  `context` is unbounded client text limited only by
+  `DATA_UPLOAD_MAX_MEMORY_SIZE`, and run instructions are re-rendered on *every*
+  model request, so an over-eager page map is paid for repeatedly; content over
+  the limit is truncated behind a visible marker naming it rather than dropped in
+  silence. `AGUIConfig` accordingly gains a required `run_context` field — build
+  it through `build_ag_ui_config(...)`, as its own docstring already asks, rather
+  than constructing it directly.
+
 ## [0.41.0] — 2026-08-11
 
 ### Fixed

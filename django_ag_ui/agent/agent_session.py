@@ -184,20 +184,53 @@ class AgentSession:
                 await finalize(event.message)
             yield event
 
+    def _prior_messages(self) -> list[Message]:
+        """Everything before this run's own output, in the client's own shape.
+
+        Server-loaded history first (a resumed / forked run's snapshot, dumped to
+        the wire shape), then the messages the client posted — the same order
+        ``run_stream_native`` composes them in, so the stored thread reads the
+        way the run did.
+
+        **The client's own messages are stored verbatim rather than re-dumped**
+        from the model's history, and that is the whole point: a round-trip
+        through pydantic-ai's types regenerates every message id and drops the
+        non-standard ``attachments`` field the web component rides on a user
+        message. A reloaded thread then showed no attachment chips, and the ids
+        the model had been told about no longer matched anything stored.
+
+        Two behaviour changes follow from taking the client's list as posted:
+
+        - **A client-posted system message is now stored.** It is still stripped
+          before the model sees it (``sanitize_messages``, under the default
+          ``MANAGE_SYSTEM_PROMPT="server"``), so it is inert — but it is in the
+          row, where before it was silently dropped on the way to storage.
+        - **Stored user messages keep the client's id** rather than a freshly
+          generated one, which is what makes an attachment ref resolvable after
+          a reload.
+        """
+        return [
+            *AGUIAdapter.dump_messages(self._message_history or []),
+            *self._run_input.messages,
+        ]
+
     def _on_complete(self) -> Callable[[Any], Awaitable[None]] | None:
         """The adapter's ``on_complete`` callback persisting the conversation.
 
         ``None`` when persistence is off (the default ``NullConversationStore``),
-        so the stateless path adds no overhead. Otherwise the callback mirrors
-        the run's full message history into the configured store when the run
-        finishes streaming.
+        so the stateless path adds no overhead. Otherwise the callback stores the
+        prior exchange as the client shaped it plus **only** this run's new
+        messages — ``result.new_messages()`` rather than ``all_messages()``,
+        because the run's history already contains the client's turn and dumping
+        the lot re-derived it from the model's types (see
+        :meth:`_prior_messages`).
         """
         save = self._message_saver()
         if save is None:
             return None
 
         async def _on_complete(result: Any) -> None:
-            await save(AGUIAdapter.dump_messages(result.all_messages()))
+            await save([*self._prior_messages(), *AGUIAdapter.dump_messages(result.new_messages())])
 
         return _on_complete
 
@@ -238,10 +271,14 @@ class AgentSession:
         """Persist the partial exchange and audit the run, given a reason.
 
         Shared by the two non-completing exits. Persistence mirrors the
-        completed-run shape — the client-sent history plus whatever the
+        completed-run shape — :meth:`_prior_messages` plus whatever the
         transcript observed — so a durable thread reflects the truncated
         exchange (matching the client, which keeps the partial assistant
-        bubble). The audit record rides the existing ``record(AuditEvent)``
+        bubble). Sharing that helper also closes a gap of its own: this path
+        used to take the *client's* messages alone, so a **resumed** run that
+        failed or was cancelled persisted only the new turn and silently
+        truncated the thread it was resuming. The audit record rides the
+        existing ``record(AuditEvent)``
         surface as a ``tool_name="agent.run"`` event rather than a new protocol
         method, so custom loggers keep working unchanged; ``duration_ms``
         measures run start to the failure.
@@ -249,7 +286,7 @@ class AgentSession:
         save = self._message_saver()
         audit = self._audit_logger
         started = time.perf_counter()
-        input_messages: list[Message] = list(self._run_input.messages)
+        prior = self._prior_messages()
         run_ref = json.dumps(
             {"run_id": self._run_input.run_id, "thread_id": self._run_input.thread_id},
             sort_keys=True,
@@ -258,7 +295,7 @@ class AgentSession:
 
         async def _finalize(error: str) -> None:
             if save is not None:
-                await save([*input_messages, *transcript.messages()])
+                await save([*prior, *transcript.messages()])
             audit.record(
                 AuditEvent(
                     tool_name="agent.run",
