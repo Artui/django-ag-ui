@@ -21,8 +21,9 @@ from django_ag_ui.persistence.types.transcription_backend import TranscriptionBa
 class TranscribeView:
     """Owner-scoped speech-to-text endpoint (async, multipart in / JSON out).
 
-    Mounted by :func:`~django_ag_ui.get_urls` with ``transcribe=<backend>`` over
-    a :class:`~django_ag_ui.persistence.types.transcription_backend.TranscriptionBackend`:
+    Mounted by :class:`~django_ag_ui.AGUIServer` whenever
+    ``transcription_backend=`` is a live
+    :class:`~django_ag_ui.persistence.types.transcription_backend.TranscriptionBackend`:
 
     - ``POST <prefix>transcribe/`` → multipart audio under the ``audio`` field;
       validates size/type from ``DJANGO_AG_UI`` settings, runs the backend, and

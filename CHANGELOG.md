@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Docstrings still described the removed `get_urls` factory and the removed
+  settings-resolved collaborators.** `ThreadsView`, `AttachmentsView` and
+  `TranscribeView` each opened with "Mounted by `get_urls` with
+  `threads=<store>`" — a Sphinx cross-reference to a symbol that no longer
+  exists, naming keyword arguments that no longer exist, on three classes whose
+  docstrings are published in the API reference. They now name `AGUIServer` and
+  the real constructor arguments (`conversation_store=` / `attachment_store=` /
+  `transcription_backend=`).
+
+  ⚠ **Two of these were instructions that break a project rather than merely
+  dangling references.** `OpenAITranscriptionBackend` told you to enable it by
+  pointing `DJANGO_AG_UI["TRANSCRIPTION_BACKEND"]` at its dotted path, and
+  `NullTranscriptionBackend` raised `NotImplementedError` advising the same key —
+  but that key, along with `CONVERSATION_STORE` and `ATTACHMENT_STORE`, is
+  refused at startup by `check_removed_settings`, so following the documentation
+  produced an `ImproperlyConfigured`. `AGUIServer`'s own docstring likewise still
+  claimed the three collaborators "default to the `DJANGO_AG_UI`
+  settings-resolved backend" and that "configuring a store in settings mounts its
+  sub-view automatically". They are passed or absent; unpassed, each falls back
+  to its `Null*` backend and the sub-view simply does not mount.
+
 ## [0.40.0] — 2026-08-11
 
 ### Changed

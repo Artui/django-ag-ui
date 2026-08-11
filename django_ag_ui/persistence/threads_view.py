@@ -29,8 +29,9 @@ _MAX_TITLE_LEN = 255
 class ThreadsView:
     """Owner-scoped thread index endpoint for the chat-history drawer (async, JSON).
 
-    Mounted by :func:`~django_ag_ui.get_urls` with ``threads=<store>`` over the
-    same :class:`~django_ag_ui.ConversationStore` the agent view uses:
+    Mounted by :class:`~django_ag_ui.AGUIServer` whenever
+    ``conversation_store=`` is a live store, over the same
+    :class:`~django_ag_ui.ConversationStore` the agent view uses:
 
     - ``GET    <prefix>threads/``       → the user's threads, **metadata only**
       (``{"threads": [...]}``);
