@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0] — 2026-08-11
+
+### Changed
+
+- **The upper bound came off every sibling window: `django-pydantic-agent>=0.13`,
+  `djangorestframework-mcp-server>=0.30`, `djangorestframework-pydantic-ai>=0.16`,
+  `pydantic-ai-harness[code-mode]>=0.13`, `ag-ui-protocol>=0.1.19`.** Each was a
+  one-minor window, and for the first three that window sat over a package we
+  ship ourselves — which is not a compatibility statement but a *schedule*:
+  every upstream release made this package unresolvable until someone re-cut it,
+  whether or not anything broke. Against that there is no recorded case of a
+  ceiling here catching a real incompatibility, while they caused four incidents
+  in this ecosystem, including a **Security** release published-and-unreachable,
+  and two disjoint windows that resolved *successfully* by silently downgrading
+  a consumer past every fix. ⇒ *`django-admin-agent` and any other consumer can
+  now combine this transport with the current substrate on the day it ships.*
+
+  ⚠ **`ag-ui-protocol` and `pydantic-ai-harness` are external 0.x packages,
+  where a minor bump is breaking by SemVer and we do not control the release.**
+  That is the riskiest part of this change and it is a bet, not a proof: that
+  the weekly drift job finds a breaking 0.x minor faster than a stale ceiling
+  would have been noticed. The evidence behind the bet is that a stale harness
+  ceiling has already made this stack unreachable twice, and neither time was
+  the ceiling what noticed. The `>=0.1.19` floor on `ag-ui-protocol` is
+  unchanged and still load-bearing — it is what gates the interrupt/resume
+  approval lifecycle, and `pydantic-ai-slim` only floors it at `>=0.1.10`.
+
+- **`pydantic-ai-slim` keeps every `<3`.** A major bound is a real compatibility
+  statement — the v2 capability seam and the `[ag-ui]` adapter are what this
+  transport is built on — and nothing here argues for dropping it.
+
+### Added
+
+- **A `floor` job in `tests.yml`, wired into the `tests` aggregate gate.** It
+  resolves every *declared* dependency at `--resolution lowest-direct` and runs
+  the suite, then installs the package **alone** — no extras, no dev group — and
+  imports it plus a few public symbols. ⇒ *The two measurements that replace the
+  ceiling are now both in place: `upstream-drift.yml` resolves unpinned weekly
+  (the newest end), and `floor` resolves lowest-direct per PR (the oldest end).*
+  An all-extras install cannot check a floor on its own, because one extra can
+  hold a shared dependency above the floor being claimed.
+
 ## [0.39.0] — 2026-08-11
 
 ### Fixed
@@ -1881,7 +1923,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.39.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.40.0...HEAD
+[0.40.0]: https://github.com/Artui/django-ag-ui/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/Artui/django-ag-ui/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/Artui/django-ag-ui/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/Artui/django-ag-ui/compare/v0.36.0...v0.37.0
