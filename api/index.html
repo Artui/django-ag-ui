@@ -4643,6 +4643,21 @@ this endpoint reads the same source an MCP server and the HTTP views do::</p>
 (<code>by_tag</code> / <code>subset</code>) is itself a registry, so two endpoints can be given
 different projections with no shared state. Requires the
 <code>django-ag-ui[spec-tools]</code> extra.</p>
+<p>An <strong>already-built</strong> <code>SpecToolset</code> or <code>SpecCapability</code> is accepted here
+too — the only way to reach a toolset knob (<code>max_page_size</code>, an
+<code>exception_map</code>, a <code>build_context</code> override, <code>require_permissions=False</code>
+while migrating) without abandoning <code>service_specs=</code> for <code>capabilities=</code>,
+which the tool catalog never sees::</p>
+<div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
+</code></pre></div>
+<p>Both are attached as themselves and their <code>specs</code> read for the catalog, so
+the powerful form keeps the tool-call card labels. The parameter's type is
+the union of all four shapes — a mapping, a
+:class:<code>~django_pydantic_agent.integrations.types.spec_source.SpecSource</code>, a
+:class:<code>~django_ag_ui.agent.types.spec_toolset_source.SpecToolsetSource</code> and a
+:class:<code>~django_ag_ui.agent.types.spec_capability_source.SpecCapabilitySource</code>
+— the last two matched structurally, since drf-pydantic-ai's own types cannot
+be named from a package that only optionally depends on it.</p>
 <p><strong>One agent, many runs.</strong> The endpoint builds its agent once and reuses it,
 rather than re-deriving every tool's JSON Schema per request. Two narrow
 hooks vary it: <code>model_for_request(request)</code> and
