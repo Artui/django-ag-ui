@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`[drf-mcp]` now requires `djangorestframework-mcp-server>=0.29,<0.30`**
+  (was `>=0.28,<0.29`), and the `django-pydantic-agent` floor moves to
+  `>=0.12,<0.13`.
+
+  ⛔ **Both edits are needed, and neither works alone.** drf-mcp 0.29.0 was
+  published-and-unreachable through this package's own extra; moving that
+  ceiling alone still leaves the bridge's backing package pinned to a
+  `django-pydantic-agent` whose `[drf-mcp]` extra caps at `<0.29`. The two
+  ceilings are the same ceiling wearing different labels, so they move
+  together.
+
+  What 0.29.0 carries is a *default*, not a fix: drf-mcp's `MAX_PAGE_SIZE`
+  drops from 500 to 100, so a `paginate=True` selector tool no longer
+  advertises a `limit.maximum` five times its own dispatch default — a model
+  reads `maximum` as a target, which is how an unconfigured deployment came to
+  request 500 rows.
+
+  No code changes; the suite passes unmodified at 100% coverage against
+  drf-mcp 0.29.0 and django-pydantic-agent 0.12.0.
+
 ## [0.37.0] — 2026-08-11
 
 ### Changed
