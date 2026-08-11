@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.39.0] — 2026-08-11
+
+### Fixed
+
+- **`AGUIServer(service_specs=...)` is typed for the shapes it actually
+  accepts.** The annotation said `Mapping[str, Any] | SpecSource | None` while
+  the docstring on the same method documented handling a pre-built toolset.
+  Passing one worked at runtime and `ty` flagged it, so consumers added a
+  suppression on correct code — which trains them to suppress this class of
+  error generally.
+
+  ⭐ **A runtime test could never have caught it**, and one already existed:
+  constructing with a pre-built toolset was covered and passed against the
+  broken annotation. `SpecToolset` satisfies a `runtime_checkable` `SpecSource`
+  because `hasattr(x, "specs")` is true of a property, while failing
+  assignability — so the structural check and the type checker disagreed, which
+  is exactly how the defect survived. The guard added alongside runs `ty` over a
+  consumer-shaped snippet.
+
+  The two new protocols are declared structurally rather than importing
+  drf-pydantic-ai's concrete classes, for the same reason `SpecSource` is
+  duck-typed: that package arrives only with the optional `[spec-tools]` extra,
+  so naming its types in a signature would force the dependency on every
+  install.
+
+### Changed
+
+- **Upstream windows moved onto the releases where a `FilterSet` owns
+  ordering** — `django-pydantic-agent>=0.13,<0.14`,
+  `djangorestframework-mcp-server>=0.30,<0.31`,
+  `djangorestframework-pydantic-ai>=0.16,<0.17`. No code change here; ordering
+  reaches the model through the toolsets these packages build.
+
+- ⛔ **The `[harness]` window widened to `<0.19`, from a `<0.17` that had gone
+  stale against a published 0.18.1.** The extra resolved to 0.16.x and could not
+  combine with a project on the current harness. ⇒ *The third instance of
+  published-and-unreachable in this stack, and the first a consumer spotted —
+  from our own changelog wording, which makes the pattern legible from outside
+  and leaving one open more expensive than the bump.*
+
 ## [0.38.0] — 2026-08-11
 
 ### Changed
@@ -1841,7 +1881,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.38.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.39.0...HEAD
+[0.39.0]: https://github.com/Artui/django-ag-ui/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/Artui/django-ag-ui/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/Artui/django-ag-ui/compare/v0.36.0...v0.37.0
 [0.36.0]: https://github.com/Artui/django-ag-ui/compare/v0.35.0...v0.36.0
