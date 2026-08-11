@@ -2048,6 +2048,21 @@ typically authenticate by header (Bearer / API key), where CSRF does not apply.<
 cookie-authenticated endpoint with CSRF off lets any third-party page drive the
 agent as whoever is logged in — mitigated, but not eliminated, by Django's
 default <code>SameSite=Lax</code> cookie.</p>
+<p><code>AGUIServer</code> forwards the answer to <strong>every</strong> view it mounts, so the run
+endpoint and the write routes beside it — <code>POST</code>/<code>DELETE</code> on <code>attachments/</code>,
+<code>PATCH</code>/<code>DELETE</code> on <code>threads/&lt;id&gt;/</code>, <code>POST</code> on <code>transcribe/</code> — are always
+governed together.</p>
+<div class="admonition warning">
+<p class="admonition-title"><code>csrf_exempt=True</code> exempts the write routes, not just the stream</p>
+<p>Under <code>csrf_exempt=True</code> a cross-site page can <code>POST multipart/form-data</code> to
+<code>attachments/</code> with no preflight, since that content type is CORS-simple. The
+damage is bounded — the store is owner-scoped, the response is unreadable
+cross-origin, and <code>ATTACHMENT_MAX_BYTES</code> caps the size — so it is a nuisance
+upload rather than a disclosure, and it is strictly smaller than what the
+same flag already permits on the run endpoint, where tools act as the
+logged-in user. It is still a real consequence of the answer, and it is a
+reason to prefer <code>csrf_exempt=False</code> whenever the client can hold a token.</p>
+</div>
 <div class="admonition warning">
 <p class="admonition-title">Saying nothing warns at construction</p>
 <p>Leaving <code>csrf_exempt</code> unset <em>and</em> passing no <code>get_user</code> hook emits a

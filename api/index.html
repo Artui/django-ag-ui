@@ -4610,22 +4610,32 @@ backend is <em>active</em>:</p>
   last continuable snapshot; <code>runs/</code> indexes what may be resumed).</li>
 </ul>
 <p><code>conversation_store</code> / <code>attachment_store</code> / <code>transcription_backend</code>
-default to the <code>DJANGO_AG_UI</code> settings-resolved backend (the same one the
-agent view persists to), so configuring a store in settings mounts its
-sub-view automatically; pass an instance to override. Since the defaults
-resolve to the <code>Null*</code> backends, a bare <code>AGUIServer(registry)</code> mounts only
-the agent endpoint and its tool catalog — the same surface the old
-<code>get_urls(view)</code> produced.</p>
-<p><strong>Authentication seam, closed by default.</strong> <code>require_authenticated</code> /
-<code>get_user</code> / <code>authorize</code> are forwarded to <strong>every</strong> view this object
-builds — the agent endpoint and all sub-views — so one policy locks down the
-whole mount (<code>401</code> for anonymous when <code>require_authenticated</code>, <code>403</code>
-from an <code>authorize</code> predicate, <code>get_user</code> establishing the acting user).
-<code>require_authenticated</code> defaults to <strong>True</strong>, so a bare
-<code>AGUIServer(registry)</code> serves nobody who is not logged in. Pass
+are <strong>passed here or absent</strong> — there is no settings fallback, and the
+<code>CONVERSATION_STORE</code> / <code>ATTACHMENT_STORE</code> / <code>TRANSCRIPTION_BACKEND</code>
+keys that once held a dotted path are refused at startup by
+:func:<code>~django_ag_ui.check_removed_settings.check_removed_settings</code> rather
+than ignored. Unpassed, each falls back to its <code>Null*</code> backend, whose only
+effect is that the matching sub-view does not mount — so a bare
+<code>AGUIServer(registry)</code> serves the agent endpoint and its tool catalog and
+nothing else.</p>
+<p><strong>Request policy, closed by default.</strong> <code>require_authenticated</code> /
+<code>get_user</code> / <code>authorize</code> / <code>csrf_exempt</code> are forwarded to <strong>every</strong>
+view this object builds — the agent endpoint and all sub-views — so one
+policy governs the whole mount (<code>401</code> for anonymous when
+<code>require_authenticated</code>, <code>403</code> from an <code>authorize</code> predicate,
+<code>get_user</code> establishing the acting user, and one answer to CSRF rather
+than one per endpoint). <code>require_authenticated</code> defaults to <strong>True</strong>, so a
+bare <code>AGUIServer(registry)</code> serves nobody who is not logged in. Pass
 <code>require_authenticated=False</code> to serve anonymous runs deliberately. The
-agent view's <code>model</code> / <code>instructions</code> / <code>audit_logger</code> /
-<code>csrf_exempt</code> fall back to settings when not passed.</p>
+agent view's <code>model</code> and <code>instructions</code> fall back to the
+<code>DJANGO_AG_UI</code> settings when not passed.</p>
+<p>⚠ <strong><code>csrf_exempt</code> covers the write endpoints too, and it used to reach
+only the run endpoint.</strong> <code>csrf_exempt=True</code> exempts attachment upload /
+delete, thread rename / delete and transcribe alongside the run endpoint;
+before, those five stayed under <code>CsrfViewMiddleware</code> and answered <code>403</code>
+for precisely the header-authenticated client the exemption exists to serve.
+If you want CSRF enforced, that is <code>csrf_exempt=False</code> — which behaved
+correctly throughout and still does.</p>
 <p><strong>Anonymous scoping caveat.</strong> With <code>require_authenticated=False</code> and a
 model-backed store, an anonymous request has no owner id. The reference
 contrib stores refuse anonymous thread / attachment operations unless built
@@ -6790,8 +6800,9 @@ define the model, its fields, and the owner relationship.</p>
 
 
         <p>Owner-scoped thread index endpoint for the chat-history drawer (async, JSON).</p>
-<p>Mounted by :func:<code>~django_ag_ui.get_urls</code> with <code>threads=&lt;store&gt;</code> over the
-same :class:<code>~django_ag_ui.ConversationStore</code> the agent view uses:</p>
+<p>Mounted by :class:<code>~django_ag_ui.AGUIServer</code> whenever
+<code>conversation_store=</code> is a live store, over the same
+:class:<code>~django_ag_ui.ConversationStore</code> the agent view uses:</p>
 <ul>
 <li><code>GET    &lt;prefix&gt;threads/</code>       → the user's threads, <strong>metadata only</strong>
   (<code>{"threads": [...]}</code>);</li>
@@ -7284,8 +7295,9 @@ the package ships no concrete model so it forces no migration; the opt-in
 
 
         <p>Owner-scoped file-upload + download endpoint (async, multipart/JSON).</p>
-<p>Mounted by :func:<code>~django_ag_ui.get_urls</code> with <code>attachments=&lt;store&gt;</code> over
-an :class:<code>~django_pydantic_agent.persistence.types.attachment_store.AttachmentStore</code>:</p>
+<p>Mounted by :class:<code>~django_ag_ui.AGUIServer</code> whenever <code>attachment_store=</code>
+is a live
+:class:<code>~django_pydantic_agent.persistence.types.attachment_store.AttachmentStore</code>:</p>
 <ul>
 <li><code>POST   &lt;prefix&gt;attachments/</code>      → multipart upload under the <code>file</code>
   field; validates size/type from <code>DJANGO_AG_UI</code> settings, persists the
@@ -7483,7 +7495,7 @@ before a thread exists, so attachments never depend on a conversation row.</p>
 
 
         <p>Pluggable server-side speech-to-text for the composer's voice input.</p>
-<p>Resolved from <code>DJANGO_AG_UI["TRANSCRIPTION_BACKEND"]</code>. The package ships a
+<p>Passed as <code>AGUIServer(transcription_backend=...)</code>. The package ships a
 no-op default (:class:<code>~django_ag_ui.NullTranscriptionBackend</code> — voice off)
 and an opt-in reference implementation over an OpenAI-compatible
 <code>/audio/transcriptions</code> endpoint
@@ -7547,8 +7559,8 @@ audio bytes into text.</p>
 this backend and returns <code>410 Gone</code> so a misconfigured client gets a clear
 "voice is off" signal instead of a silent failure. <code>transcribe</code> still
 raises if called directly, to fail loudly rather than fabricate a transcript.
-The endpoint is inert until a real backend is configured via
-<code>DJANGO_AG_UI["TRANSCRIPTION_BACKEND"]</code>.</p>
+The endpoint is inert until a real backend is passed as
+<code>AGUIServer(transcription_backend=...)</code>.</p>
 
 
 
@@ -7595,8 +7607,9 @@ The endpoint is inert until a real backend is configured via
 
 
         <p>Owner-scoped speech-to-text endpoint (async, multipart in / JSON out).</p>
-<p>Mounted by :func:<code>~django_ag_ui.get_urls</code> with <code>transcribe=&lt;backend&gt;</code> over
-a :class:<code>~django_ag_ui.persistence.types.transcription_backend.TranscriptionBackend</code>:</p>
+<p>Mounted by :class:<code>~django_ag_ui.AGUIServer</code> whenever
+<code>transcription_backend=</code> is a live
+:class:<code>~django_ag_ui.persistence.types.transcription_backend.TranscriptionBackend</code>:</p>
 <ul>
 <li><code>POST &lt;prefix&gt;transcribe/</code> → multipart audio under the <code>audio</code> field;
   validates size/type from <code>DJANGO_AG_UI</code> settings, runs the backend, and
@@ -7665,14 +7678,14 @@ subclass it to change the model or point at another OpenAI-compatible server.</p
         <p>A ready-to-use transcription backend over an OpenAI-compatible API.</p>
 <p>The batteries-included voice backend: it forwards the recorded clip to an
 OpenAI <code>/audio/transcriptions</code> endpoint and returns the text. Enable it by
-installing the <code>[openai]</code> extra and pointing
-<code>DJANGO_AG_UI["TRANSCRIPTION_BACKEND"]</code> at this class's dotted path
-(<code>django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend</code>).</p>
-<p>Self-configuring so :func:<code>~django_ag_ui.resolve_transcription_backend</code> can
-instantiate it with no arguments: the API key comes from the <code>OPENAI_API_KEY</code>
-environment variable (the SDK default). Override the model or point at an
-OpenAI-compatible server (Azure OpenAI, a local Whisper server, Groq, …) by
-subclassing and setting the class attributes::</p>
+installing the <code>[openai]</code> extra and passing an instance to the server,
+which is what mounts <code>transcribe/</code>::</p>
+<div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, transcription_backend=OpenAITranscriptionBackend())
+</code></pre></div>
+<p>Constructible with no arguments: the API key comes from the
+<code>OPENAI_API_KEY</code> environment variable (the SDK default). Override the model
+or point at an OpenAI-compatible server (Azure OpenAI, a local Whisper
+server, Groq, …) by subclassing and setting the class attributes::</p>
 <div class="language-text highlight"><pre><span></span><code>class GroqTranscription(OpenAITranscriptionBackend):
     model = &quot;whisper-large-v3&quot;
     base_url = &quot;https://api.groq.com/openai/v1&quot;
