@@ -6,6 +6,8 @@ from typing import Any
 from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 
+from django_ag_ui.config.types.run_context_config import RunContextConfig
+
 
 @dataclass(frozen=True)
 class AGUIConfig:
@@ -98,6 +100,11 @@ class AGUIConfig:
     """What an unhandled tool exception costs. On by default, so a raising tool
     fails its own call and the turn carries on rather than ending in
     ``RUN_ERROR`` with the answer so far discarded."""
+
+    run_context: RunContextConfig
+    """What client-supplied context reaches the model: the host page's own
+    ``RunAgentInput.context`` entries and the attachment refs riding the posted
+    messages, fenced and labelled as data, capped by a character ceiling."""
 
 
 __all__ = ["AGUIConfig"]

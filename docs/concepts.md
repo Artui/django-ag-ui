@@ -465,10 +465,21 @@ The lifecycle:
 1. The composer uploads each file (multipart `POST <prefix>attachments/`) and
    gets back an [`AttachmentRef`][django_ag_ui.AttachmentRef] — a durable handle,
    not bytes.
-2. The user sends a message carrying the refs.
+2. The user sends a message carrying the refs. They ride the message as an
+   `attachments` field — AG-UI does not declare one, but `ag_ui.core` validates
+   with `extra="allow"`, so it arrives intact. The server derives a **manifest**
+   from the posted messages (see [`RUN_CONTEXT`](configuration.md#run_context))
+   and gives it to the model as fenced context, so the model knows a file exists
+   and what id reads it.
 3. When the model needs a file's contents, it calls the built-in
    `read_attachment(attachment_id)` tool, which resolves the bytes **server-side,
    owner-scoped to the acting user**.
+
+The manifest is derived from the message list rather than from the current
+request's uploads, because the client clears its per-run list once a run settles
+— so refs stay visible on follow-up turns about the same file. A stored thread
+keeps the client's messages as posted, ids and `attachments` field included, so
+the chips (and the ids) survive a page reload.
 
 ### The store
 
@@ -503,6 +514,29 @@ All owner-scoped, and authenticated by default like the catalog views —
 which is load-bearing here rather than a parity choice, since an anonymous
 caller has no files to reach. The web component reads
 `data-attachments-url` to drive the composer's upload tray.
+
+## Client-supplied run context
+
+A `RunAgentInput` carries a `context` list — ordered `{description, value}` pairs
+the host page fills in with whatever the user is looking at. Pydantic-AI's
+`AGUIAdapter` deliberately leaves that field (like `forwardedProps` and
+`parentRunId`) to the consumer, so this package is what delivers it, alongside
+the [attachment manifest](#file-uploads) derived from the posted messages.
+
+Both arrive at the model in one **fenced, labelled block** headed
+`<untrusted-client-context>`, telling the model in as many words that everything
+inside it is data describing the user's situation rather than instructions, and
+that the operator's rules win. The marker itself is neutralised wherever a client
+value contains it, so the fence cannot be forged or closed early.
+
+The block is delivered as **additional run instructions**, not as a message and
+not merged into the operator's prompt string. That placement is what keeps it
+out of the record: instructions live on the model request, so the text is never
+written into the stored thread and never echoed back to the browser. It is also
+re-rendered on every model request, so it survives compaction and stays in front
+of the model on the later steps of a long run — which is why it is capped
+([`MAX_CHARS`](configuration.md#run_context)), with anything over the ceiling
+truncated behind a visible marker.
 
 ## Cancelling a run
 

@@ -1,3 +1,4 @@
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.config.types.run_context_config import RunContextConfig
 
-__all__ = ["AGUIConfig"]
+__all__ = ["AGUIConfig", "RunContextConfig"]

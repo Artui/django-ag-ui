@@ -7,6 +7,7 @@ from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuard
 
 from django_ag_ui.conf import get_setting
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.config.types.run_context_config import RunContextConfig
 
 
 def build_ag_ui_config(
@@ -26,6 +27,7 @@ def build_ag_ui_config(
     thread_list_limit: int | None = None,
     tool_guard: ToolGuardConfig | None = None,
     tool_failure: ToolFailureConfig | None = None,
+    run_context: RunContextConfig | None = None,
 ) -> AGUIConfig:
     """Resolve an :class:`AGUIConfig` from ``DJANGO_AG_UI``, applying overrides.
 
@@ -76,6 +78,9 @@ def build_ag_ui_config(
         tool_failure=tool_failure
         if tool_failure is not None
         else _parse_tool_failure(get_setting("TOOL_FAILURE")),
+        run_context=run_context
+        if run_context is not None
+        else _parse_run_context(get_setting("RUN_CONTEXT")),
     )
 
 
@@ -106,6 +111,28 @@ def _parse_tool_failure(raw: Any) -> ToolFailureConfig:
     return ToolFailureConfig(
         enabled=bool(failure.get("ENABLED", True)),
         include_detail=bool(failure.get("INCLUDE_DETAIL", False)),
+    )
+
+
+def _parse_run_context(raw: Any) -> RunContextConfig:
+    """Build a :class:`RunContextConfig` from the ``RUN_CONTEXT`` settings dict.
+
+    Absent or empty → both sources on and the default ceiling, following
+    ``TOOL_FAILURE`` rather than ``TOOL_GUARD``: reading the flags with a
+    ``True`` default is what keeps "no settings at all" and "an empty dict" the
+    same answer. A project that wants the old silence — nothing a client puts
+    in ``context`` reaching the model — says ``CLIENT_CONTEXT: False``.
+
+    ``MAX_CHARS`` exists because ``context`` is unbounded client-supplied text,
+    limited only by ``DATA_UPLOAD_MAX_MEMORY_SIZE``, and it reaches the model on
+    every request of every run. 20 000 characters is roughly 5 000 tokens: a
+    ceiling on a pathological page, not a budget to plan against.
+    """
+    run_context: dict[str, Any] = raw or {}
+    return RunContextConfig(
+        client_context=bool(run_context.get("CLIENT_CONTEXT", True)),
+        attachment_manifest=bool(run_context.get("ATTACHMENT_MANIFEST", True)),
+        max_chars=int(run_context.get("MAX_CHARS", 20000)),
     )
 
 

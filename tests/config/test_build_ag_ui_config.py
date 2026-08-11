@@ -5,6 +5,7 @@ from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolF
 from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from django_ag_ui.config.types.run_context_config import RunContextConfig
 
 
 def test_defaults_when_unconfigured() -> None:
@@ -95,3 +96,42 @@ def test_an_explicit_tool_failure_wins() -> None:
     with override_settings(DJANGO_AG_UI={"TOOL_FAILURE": {"ENABLED": True}}):
         config = build_ag_ui_config(tool_failure=ToolFailureConfig(enabled=False))
     assert config.tool_failure.enabled is False
+
+
+def test_run_context_defaults_to_delivering_both_sources() -> None:
+    """The other policy whose absent-settings answer is "on".
+
+    A client that populates ``RunAgentInput.context`` has already decided the
+    model should see it; an endpoint that reads the setting as "off" would keep
+    the defect this feature fixes.
+    """
+    with override_settings(DJANGO_AG_UI={}):
+        config = build_ag_ui_config()
+    assert config.run_context == RunContextConfig(
+        client_context=True, attachment_manifest=True, max_chars=20000
+    )
+
+
+def test_one_run_context_flag_flips_without_disturbing_the_others() -> None:
+    with override_settings(DJANGO_AG_UI={"RUN_CONTEXT": {"CLIENT_CONTEXT": False}}):
+        config = build_ag_ui_config()
+    assert config.run_context.client_context is False
+    assert config.run_context.attachment_manifest is True
+    assert config.run_context.max_chars == 20000
+
+
+def test_the_run_context_ceiling_is_parsed_through() -> None:
+    with override_settings(DJANGO_AG_UI={"RUN_CONTEXT": {"MAX_CHARS": 10}}):
+        config = build_ag_ui_config()
+    assert config.run_context.max_chars == 10
+
+
+def test_an_explicit_run_context_wins() -> None:
+    with override_settings(DJANGO_AG_UI={"RUN_CONTEXT": {"CLIENT_CONTEXT": True}}):
+        config = build_ag_ui_config(
+            run_context=RunContextConfig(
+                client_context=False, attachment_manifest=False, max_chars=5
+            )
+        )
+    assert config.run_context.client_context is False
+    assert config.run_context.max_chars == 5
