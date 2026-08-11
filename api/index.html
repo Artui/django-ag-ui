@@ -4242,7 +4242,7 @@ gate execution — that is the <code>destructive</code> flag's job.</p>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">add</span><span class="p">(</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">send_immediately</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -4306,11 +4306,19 @@ gate execution — that is the <code>destructive</code> flag's job.</p>
 
 
 
-        <p>A pre-defined prompt offered to the user (a "skill").</p>
+        <p>A pre-defined action offered to the user (a "skill").</p>
 <p>Serialised into the client catalog the frontend surfaces as chips and/or
-the <code>/</code>-command palette. Skills are data, not callables — the <code>prompt</code>
-is a static string (it may contain <code>{placeholder}</code>s the client fills from
-its skill context before sending).</p>
+the <code>/</code>-command palette.</p>
+<p><strong>A skill need not ship its prompt to the browser.</strong> With <code>prompt</code> unset
+the catalog advertises only the name and label, and picking the skill sends
+the bare <code>/name</code> token — the agent resolves what that means, from the
+harness <code>Skills</code> capability or from its own instructions. That keeps the
+wording of an internal workflow on the server, where a catalog endpoint
+cannot leak it and a reader of the page source cannot lift it.</p>
+<p>Setting <code>prompt</code> keeps the older behaviour, where the client holds the
+text and fills any <code>{placeholder}</code>s from its skill context before
+sending. Useful for a prompt that is genuinely a user-facing convenience
+rather than an internal one, and for placeholders only the page can fill.</p>
 
 
 
@@ -4387,16 +4395,19 @@ its skill context before sending).</p>
 
 
   <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
 <a href="#django_ag_ui.SkillSpec.prompt" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>The prompt inserted (or sent). May contain <code>{placeholder}</code>s.</p>
+        <p>Prompt text handed to the client, or <code>None</code> to keep it server-side and
+have the client send <code>/name</code> instead. May contain <code>{placeholder}</code>s the
+client fills before sending.</p>
 
     </div>
 
