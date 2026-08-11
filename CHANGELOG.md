@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.37.0] — 2026-08-11
+
 ### Changed
 
 - **A skill can now keep its prompt on the server.** `SkillSpec.prompt` is
@@ -1815,7 +1817,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.36.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.37.0...HEAD
+[0.37.0]: https://github.com/Artui/django-ag-ui/compare/v0.36.0...v0.37.0
 [0.36.0]: https://github.com/Artui/django-ag-ui/compare/v0.35.0...v0.36.0
 [0.35.0]: https://github.com/Artui/django-ag-ui/compare/v0.34.0...v0.35.0
 [0.34.0]: https://github.com/Artui/django-ag-ui/compare/v0.33.1...v0.34.0
