@@ -27,8 +27,9 @@ from django_ag_ui.persistence.capped_upload_handler import CappedUploadHandler
 class AttachmentsView:
     """Owner-scoped file-upload + download endpoint (async, multipart/JSON).
 
-    Mounted by :func:`~django_ag_ui.get_urls` with ``attachments=<store>`` over
-    an :class:`~django_pydantic_agent.persistence.types.attachment_store.AttachmentStore`:
+    Mounted by :class:`~django_ag_ui.AGUIServer` whenever ``attachment_store=``
+    is a live
+    :class:`~django_pydantic_agent.persistence.types.attachment_store.AttachmentStore`:
 
     - ``POST   <prefix>attachments/``      → multipart upload under the ``file``
       field; validates size/type from ``DJANGO_AG_UI`` settings, persists the

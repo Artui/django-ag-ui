@@ -12,15 +12,15 @@ class OpenAITranscriptionBackend:
 
     The batteries-included voice backend: it forwards the recorded clip to an
     OpenAI ``/audio/transcriptions`` endpoint and returns the text. Enable it by
-    installing the ``[openai]`` extra and pointing
-    ``DJANGO_AG_UI["TRANSCRIPTION_BACKEND"]`` at this class's dotted path
-    (``django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend``).
+    installing the ``[openai]`` extra and passing an instance to the server,
+    which is what mounts ``transcribe/``::
 
-    Self-configuring so :func:`~django_ag_ui.resolve_transcription_backend` can
-    instantiate it with no arguments: the API key comes from the ``OPENAI_API_KEY``
-    environment variable (the SDK default). Override the model or point at an
-    OpenAI-compatible server (Azure OpenAI, a local Whisper server, Groq, …) by
-    subclassing and setting the class attributes::
+        AGUIServer(registry, transcription_backend=OpenAITranscriptionBackend())
+
+    Constructible with no arguments: the API key comes from the
+    ``OPENAI_API_KEY`` environment variable (the SDK default). Override the model
+    or point at an OpenAI-compatible server (Azure OpenAI, a local Whisper
+    server, Groq, …) by subclassing and setting the class attributes::
 
         class GroqTranscription(OpenAITranscriptionBackend):
             model = "whisper-large-v3"

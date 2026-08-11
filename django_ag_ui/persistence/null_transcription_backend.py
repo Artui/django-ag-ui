@@ -12,14 +12,14 @@ class NullTranscriptionBackend:
     this backend and returns ``410 Gone`` so a misconfigured client gets a clear
     "voice is off" signal instead of a silent failure. ``transcribe`` still
     raises if called directly, to fail loudly rather than fabricate a transcript.
-    The endpoint is inert until a real backend is configured via
-    ``DJANGO_AG_UI["TRANSCRIPTION_BACKEND"]``.
+    The endpoint is inert until a real backend is passed as
+    ``AGUIServer(transcription_backend=...)``.
     """
 
     async def transcribe(self, audio: UploadedFile, *, request: HttpRequest) -> str:
         raise NotImplementedError(
-            "transcription is disabled: set DJANGO_AG_UI['TRANSCRIPTION_BACKEND'] "
-            "to enable voice input"
+            "transcription is disabled: pass transcription_backend=YourBackend() "
+            "to AGUIServer(...) to enable voice input"
         )
 
 

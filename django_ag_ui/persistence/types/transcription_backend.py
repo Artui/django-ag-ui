@@ -10,7 +10,7 @@ from django.http import HttpRequest
 class TranscriptionBackend(Protocol):
     """Pluggable server-side speech-to-text for the composer's voice input.
 
-    Resolved from ``DJANGO_AG_UI["TRANSCRIPTION_BACKEND"]``. The package ships a
+    Passed as ``AGUIServer(transcription_backend=...)``. The package ships a
     no-op default (:class:`~django_ag_ui.NullTranscriptionBackend` — voice off)
     and an opt-in reference implementation over an OpenAI-compatible
     ``/audio/transcriptions`` endpoint

@@ -81,12 +81,14 @@ class AGUIServer:
       last continuable snapshot; ``runs/`` indexes what may be resumed).
 
     ``conversation_store`` / ``attachment_store`` / ``transcription_backend``
-    default to the ``DJANGO_AG_UI`` settings-resolved backend (the same one the
-    agent view persists to), so configuring a store in settings mounts its
-    sub-view automatically; pass an instance to override. Since the defaults
-    resolve to the ``Null*`` backends, a bare ``AGUIServer(registry)`` mounts only
-    the agent endpoint and its tool catalog — the same surface the old
-    ``get_urls(view)`` produced.
+    are **passed here or absent** — there is no settings fallback, and the
+    ``CONVERSATION_STORE`` / ``ATTACHMENT_STORE`` / ``TRANSCRIPTION_BACKEND``
+    keys that once held a dotted path are refused at startup by
+    :func:`~django_ag_ui.check_removed_settings.check_removed_settings` rather
+    than ignored. Unpassed, each falls back to its ``Null*`` backend, whose only
+    effect is that the matching sub-view does not mount — so a bare
+    ``AGUIServer(registry)`` serves the agent endpoint and its tool catalog and
+    nothing else.
 
     **Authentication seam, closed by default.** ``require_authenticated`` /
     ``get_user`` / ``authorize`` are forwarded to **every** view this object
