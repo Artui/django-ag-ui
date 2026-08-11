@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from django_ag_ui.agent.render_untrusted_context import render_untrusted_context
+from django_ag_ui.agent.render_untrusted_context import SENTINEL, render_untrusted_context
 from django_ag_ui.agent.types.untrusted_context_item import UntrustedContextItem
 
-OPEN = "<untrusted-client-context>"
-CLOSE = "</untrusted-client-context>"
+# Derived from the module's own constant: a rename that forgot one of these
+# assertions would otherwise leave them passing against a marker no longer used.
+OPEN = f"<{SENTINEL}>"
+CLOSE = f"</{SENTINEL}>"
 
 
 def test_nothing_to_say_renders_no_block() -> None:

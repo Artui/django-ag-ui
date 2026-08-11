@@ -17,6 +17,7 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
+from django_ag_ui.agent.render_untrusted_context import SENTINEL
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 
@@ -477,7 +478,7 @@ async def test_a_run_that_errors_without_a_store_still_streams() -> None:
 # and read the block off ``ModelRequest.instructions``, which is where it must land
 # for it to stay off the persisted thread and out of the client's stream.
 
-CLOSE_SENTINEL = "</untrusted-client-context>"
+CLOSE_SENTINEL = f"</{SENTINEL}>"
 PAGE_CONTEXT = [{"description": "Current page", "value": "Order #42, status shipped"}]
 ATTACHMENT_MESSAGE: list[dict[str, Any]] = [
     {
@@ -547,7 +548,7 @@ async def test_a_run_with_nothing_to_say_sends_no_fence_at_all() -> None:
     seen: dict[str, Any] = {}
     await _events(_session(_capturing_agent(seen), instructions="OPERATOR RULES"))
     instructions = _delivered_instructions(seen)
-    assert "untrusted-client-context" not in instructions
+    assert SENTINEL not in instructions
     assert instructions.endswith("OPERATOR RULES")
 
 
@@ -569,7 +570,7 @@ async def test_the_delivered_block_is_never_persisted() -> None:
     )
     await _events(session)
     saved = json.dumps(store.saved[0].messages)
-    assert "untrusted-client-context" not in saved
+    assert SENTINEL not in saved
     assert "Order #42" not in saved
 
 
