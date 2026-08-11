@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A skill can now keep its prompt on the server.** `SkillSpec.prompt` is
+  optional; leave it unset and the catalog advertises only the name and label,
+  with the client sending the bare `/name` token for the agent to resolve —
+  from the harness `Skills` capability, or from your own instructions.
+
+  ⚠ **The catalog is a plain `GET`, so a prompt in it is public to anyone who
+  can reach the endpoint and sits in the page for anyone who opens the source.**
+  A skill is often where a project's internal workflow is written down most
+  plainly, which made shipping it to the browser the wrong default. Setting
+  `prompt` is still right for a user-facing convenience, or for one carrying
+  `{placeholder}`s only the page can fill.
+
+  Additive: `prompt` keeps working exactly as before when set, and the key is
+  **omitted** rather than serialised as `null` when it is not.
+
 ## [0.36.0] — 2026-08-11
 
 ### Fixed

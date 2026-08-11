@@ -28,7 +28,7 @@ class SkillRegistry:
         self,
         name: str,
         title: str,
-        prompt: str,
+        prompt: str | None = None,
         *,
         description: str | None = None,
         send_immediately: bool = False,
@@ -58,7 +58,11 @@ class SkillRegistry:
 
 
 def _as_dict(spec: SkillSpec) -> dict[str, Any]:
-    data: dict[str, Any] = {"name": spec.name, "title": spec.title, "prompt": spec.prompt}
+    data: dict[str, Any] = {"name": spec.name, "title": spec.title}
+    # Omitted rather than sent as null when the prompt stays server-side: the
+    # catalog is a public GET, so the absent key is the whole point.
+    if spec.prompt is not None:
+        data["prompt"] = spec.prompt
     if spec.description is not None:
         data["description"] = spec.description
     if spec.send_immediately:

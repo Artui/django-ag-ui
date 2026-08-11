@@ -174,6 +174,11 @@ the web component fetches via `data-skills-url`:
 from django_ag_ui import AGUIServer, SkillRegistry
 
 skills = SkillRegistry()
+# No prompt: the catalog advertises the name and label only, and picking the
+# skill sends the bare "/triage" token for the agent to resolve.
+skills.add("triage", title="Triage this request", chip=True)
+# With a prompt: the client holds the text and fills {placeholder}s from the
+# page before sending.
 skills.add(
     "summarise",
     title="Summarise",
@@ -185,6 +190,14 @@ urlpatterns = [
     path("agent/", AGUIServer(registry, skills=skills).urls),
 ]
 ```
+
+**Prefer leaving `prompt` unset when the wording is internal.** This catalog is
+a plain `GET`, so anything in `prompt` is readable by anyone who can reach the
+endpoint and is sitting in the page for anyone who opens the source. Without it
+the client sends `/triage` and the agent decides what that means — from the
+harness `Skills` capability, or from your own instructions. Set `prompt` when
+it is genuinely a user-facing convenience, or when it carries `{placeholder}`s
+only the page can fill.
 
 ## 6. The tool catalog
 
