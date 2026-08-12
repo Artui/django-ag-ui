@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0] — 2026-08-12
+
 ### Fixed
 
 - **A file the model read is no longer stored as base64 in the conversation
@@ -36,8 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   blinded the model to any pasted image.
 
   **A row written by 0.41.0 keeps its payload until something rewrites it, and
-  that something is not the run loop.** With the
-  `django_pydantic_agent.contrib.store` app installed, `manage.py
+  that something is not the run loop.** With django-pydantic-agent 0.15.0 or
+  newer and its `django_pydantic_agent.contrib.store` app installed, `manage.py
   agent_store_strip_inline_bytes` (`--dry-run` first) cleans stored rows in
   place, keeping every message id and the `attachments` array. A data migration
   is the right layer for stored data; rewriting what a client posted, on the way
@@ -2118,7 +2120,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.41.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.42.0...HEAD
+[0.42.0]: https://github.com/Artui/django-ag-ui/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/Artui/django-ag-ui/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/Artui/django-ag-ui/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/Artui/django-ag-ui/compare/v0.38.0...v0.39.0

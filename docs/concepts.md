@@ -522,7 +522,8 @@ blind the model to any pasted image.
 **Rows written before this are cleaned at rest, not by the run loop.** A
 conversation stored by an earlier release keeps its base64 until something
 rewrites it, and that something is a management command rather than the next run:
-with the `django_pydantic_agent.contrib.store` app installed, `manage.py
+with django-pydantic-agent 0.15.0 or newer and its
+`django_pydantic_agent.contrib.store` app installed, `manage.py
 agent_store_strip_inline_bytes` (`--dry-run` to see what it would reclaim) does
 structural JSON surgery on the stored rows, keeping every message id and the
 `attachments` array intact. The attachments themselves are untouched in the
