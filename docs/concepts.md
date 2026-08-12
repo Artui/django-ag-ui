@@ -399,6 +399,19 @@ When a non-null store is configured, the view persists the run's full message
 history when the run finishes streaming, scoped to the authenticated user
 (`owner_id`).
 
+**A stored thread holds no file bytes the server itself produced.** The base64 a
+`read_attachment` return serialises into is removed before the run's messages
+reach the store, and a message that was *only* those bytes is dropped rather than
+kept as an empty turn. Text parts survive, and so does the tool message
+describing what was read, so the thread still reads as a record of the exchange.
+
+The rule is deliberately one-sided: **the server never persists bytes it
+generated, and never discards bytes the client sent.** Inline content a front end
+posts is stored exactly as it arrived, the same way message ids and the
+`attachments` field are. See [File uploads](#file-uploads) for what that means
+for a follow-up question, and for how rows written before this existed are
+cleaned.
+
 ### Thread history
 
 The store also powers a **chat-history drawer**: a user's past conversations,
@@ -480,6 +493,47 @@ request's uploads, because the client clears its per-run list once a run settles
 — so refs stay visible on follow-up turns about the same file. A stored thread
 keeps the client's messages as posted, ids and `attachments` field included, so
 the chips (and the ids) survive a page reload.
+
+### Bytes reach the model, not the row
+
+Step 3 is where the wire's "refs, never bytes" rule meets its one exception: for
+a PDF or an image inside the size cap, `read_attachment` returns the file itself,
+and the model needs it. That return serialises onto the wire as a synthetic user
+message whose whole content is a base64 `document` part — so left alone it lands
+in the conversation row, ships back to the browser on every thread load, and is
+posted again by the client on every turn after a reload. A 2.6 MB PDF is roughly
+3.5 MB of base64 in a single row.
+
+The bytes are therefore taken off the run's own new messages on the way to the
+store, and off a resumed run's server-loaded snapshot when that is dumped into
+the row. They still reach the model during the run, which is the only place they
+were ever needed.
+
+**What the server does not touch is the history the client posted.** The rule is
+that the server never persists bytes it generated and never discards bytes the
+client sent, so an inline image a front end puts in a message reaches both the
+model and the row untouched. Stripping the posted history too would have been the
+tidier symmetry and the wrong one:
+[`ALLOW_UPLOADED_FILES`](configuration.md#allow_uploaded_files) governs provider
+file-id references, not inline content, so a `data`-sourced image part reaches
+the model whatever that setting says — taking it off the way in would silently
+blind the model to any pasted image.
+
+**Rows written before this are cleaned at rest, not by the run loop.** A
+conversation stored by an earlier release keeps its base64 until something
+rewrites it, and that something is a management command rather than the next run:
+with the `django_pydantic_agent.contrib.store` app installed, `manage.py
+agent_store_strip_inline_bytes` (`--dry-run` to see what it would reclaim) does
+structural JSON surgery on the stored rows, keeping every message id and the
+`attachments` array intact. The attachments themselves are untouched in the
+attachment store, so the model still reaches every file by id.
+
+**What changes for a reader.** A follow-up question about the same file, asked
+after a page reload, makes the model call `read_attachment` again instead of
+finding the file already in its history. Within one session that was always the
+case — the bytes never travelled the event stream, so the client never had them
+to post back — and the extra call is server-side, owner-scoped, and cheaper than
+the upload it replaces.
 
 ### The store
 

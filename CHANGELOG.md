@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A file the model read is no longer stored as base64 in the conversation
+  row.** `read_attachment` hands a PDF or an image to the model as a `ToolReturn`
+  carrying the bytes, which is right for the *run* and wrong for the *record*:
+  the return serialises onto the wire as a synthetic `user` message whose whole
+  content is a base64 `document` part, so it landed in the stored thread. A
+  2300-byte PDF measured 3994 bytes in the row; a 2.6 MB one is roughly 3.5 MB,
+  refetched by the browser on every thread load and posted back on every turn
+  after a reload. Those bytes now come off the run's own new messages on the way
+  to the store, and off a resumed run's server-loaded snapshot when that is
+  dumped into the row — while still reaching the model during the run, the only
+  place they were needed. Text parts survive, the tool message naming what was
+  read survives, and a message left holding nothing is dropped rather than
+  stored as an empty turn. Message ids and the non-standard `attachments` refs
+  survive too: the strip copies with `model_copy`, never by re-validating
+  through the adapter, which would regenerate ids and discard the extras the
+  previous entry exists to keep.
+
+  **The rule is one-sided on purpose: the server never persists bytes it
+  generated, and never discards bytes the client sent.** The posted history is
+  not touched, so an inline image a front end sends reaches both the model and
+  the row exactly as sent. Stripping it as well was the tidier symmetry and the
+  wrong one — `ALLOW_UPLOADED_FILES` governs provider file-id references
+  (`UploadedFile`), not inline content, so a `data`-sourced image part reaches
+  the model on either setting and taking it off the way in would have silently
+  blinded the model to any pasted image.
+
+  **A row written by 0.41.0 keeps its payload until something rewrites it, and
+  that something is not the run loop.** With the
+  `django_pydantic_agent.contrib.store` app installed, `manage.py
+  agent_store_strip_inline_bytes` (`--dry-run` first) cleans stored rows in
+  place, keeping every message id and the `attachments` array. A data migration
+  is the right layer for stored data; rewriting what a client posted, on the way
+  through a run, is not.
+
+  **A follow-up question after a page reload now re-reads the file server-side**
+  instead of finding it in history. Within a single session that was already the
+  behaviour — the bytes never travelled the event stream (measured: 0 of 1828
+  bytes across 11 events), so the client had nothing to post back and the model
+  simply called `read_attachment` again. The stored copy only ever paid off
+  across a reload, and it charged every load and every subsequent turn for it.
+
 - **`RunAgentInput.context` was never read, so nothing a client put there reached
   the model.** That field is where an AG-UI front end describes the user's
   situation — what page they are on, what they have selected — and

@@ -26,6 +26,7 @@ from django_ag_ui.agent.guarded_stream import guarded_stream
 from django_ag_ui.agent.inject_compaction_events import inject_compaction_events
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_transcript import RunTranscript
+from django_ag_ui.agent.strip_binary_content import strip_binary_content
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.utils import messages_to_jsonable
 
@@ -208,9 +209,20 @@ class AgentSession:
         - **Stored user messages keep the client's id** rather than a freshly
           generated one, which is what makes an attachment ref resolvable after
           a reload.
+
+        The server-loaded half *is* stripped of inlined file bytes on the way
+        out, and the client's half is not. That asymmetry is the rule the whole
+        change turns on: **the server never persists bytes it generated, and
+        never discards bytes the client sent.** The snapshot arrives in
+        pydantic-ai's own types, where a previous run's ``read_attachment``
+        return still holds the file, so dumping it would write that file back
+        into the row as base64 — server-generated, safe to drop, and nothing is
+        lost that the dump has not already lost. What the client posted is
+        preserved verbatim for exactly the reason its ids and extras are: it is
+        not this server's to edit.
         """
         return [
-            *AGUIAdapter.dump_messages(self._message_history or []),
+            *strip_binary_content(AGUIAdapter.dump_messages(self._message_history or [])),
             *self._run_input.messages,
         ]
 
@@ -224,13 +236,21 @@ class AgentSession:
         because the run's history already contains the client's turn and dumping
         the lot re-derived it from the model's types (see
         :meth:`_prior_messages`).
+
+        The run's new messages are stripped of inlined file bytes on the way to
+        the store. Those bytes are this server's own doing — a
+        ``read_attachment`` handing the model a PDF — and the model has to see
+        them, so the strip sits on the persistence side of the run rather than
+        anywhere the model reads. Nothing the *client* posted passes through it:
+        that half reaches the store exactly as sent.
         """
         save = self._message_saver()
         if save is None:
             return None
 
         async def _on_complete(result: Any) -> None:
-            await save([*self._prior_messages(), *AGUIAdapter.dump_messages(result.new_messages())])
+            new = strip_binary_content(AGUIAdapter.dump_messages(result.new_messages()))
+            await save([*self._prior_messages(), *new])
 
         return _on_complete
 
@@ -282,6 +302,14 @@ class AgentSession:
         surface as a ``tool_name="agent.run"`` event rather than a new protocol
         method, so custom loggers keep working unchanged; ``duration_ms``
         measures run start to the failure.
+
+        The transcript half needs no binary strip, and adding one would be dead
+        code. ``RunTranscript`` builds its messages out of AG-UI *events*, and
+        the only content-bearing ones it reads are text deltas and tool calls
+        and results — all of them plain strings. Inlined file bytes never travel
+        the event stream at all, which is the same measurement this change rests
+        on: they exist only in the run's dumped messages, and those are stripped
+        where they are dumped.
         """
         save = self._message_saver()
         audit = self._audit_logger
