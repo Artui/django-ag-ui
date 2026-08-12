@@ -11,12 +11,10 @@ from pydantic_ai.capabilities import WrapperCapability
 # The per-run sink a wrapped capability appends to, drained by
 # ``inject_compaction_events`` while it forwards the AG-UI stream.
 #
-# A ``ContextVar`` rather than state on the observer: a consumer builds the
-# capability **once**, at configuration time, and the same instance then serves
-# every request. An instance-level list would interleave concurrent runs into
-# each other's transcripts. Context variables are per-task, so each run reads and
-# writes its own sink with no coordination, and a run whose stream never set one
-# (a capability used outside this transport) simply records nothing.
+# A ``ContextVar`` rather than state on the observer, which is built once at
+# configuration time and then serves every request: an instance-level list would
+# interleave concurrent runs into each other's transcripts. Context variables are
+# per-task, and a run whose stream never set one records nothing.
 COMPACTION_SINK: ContextVar[list[Compaction] | None] = ContextVar(
     "django_ag_ui_compaction_sink", default=None
 )
@@ -44,22 +42,17 @@ class CompactionObserver(WrapperCapability[Any]):
 
         capabilities=[CompactionObserver(SlidingWindowCompaction(max_messages=80))]
 
-    Opt-in by construction. A consumer who passes the strategy unwrapped gets
-    exactly today's behaviour, and nothing is emitted.
+    Opt-in by construction: passing the strategy unwrapped emits nothing.
 
     Subclassing ``WrapperCapability`` (pydantic-ai's supported wrapper, analogous
-    to ``WrapperToolset``) rather than hand-rolling a proxy is what keeps the rest
-    of the capability protocol intact — ordering, the ``has_*`` hook-introspection
-    flags, and every lifecycle method delegate untouched. Only
-    ``before_model_request`` is overridden.
+    to ``WrapperToolset``) rather than hand-rolling a proxy keeps the rest of the
+    capability protocol intact — ordering, the ``has_*`` hook-introspection flags
+    and every other lifecycle method delegate untouched.
 
     Detection is a message-count comparison across the delegated call, because
-    that is all the upstream contract exposes: a strategy mutates
-    ``request_context.messages`` and returns the context. A strategy that
-    *rewrites* history without shortening it — a summarizer replacing twenty
-    messages with one, which does shorten, versus one that swaps content in place
-    — registers only if the count drops. That is the honest limit of this seam,
-    and it matches what the indicator claims: turns were dropped.
+    that is all the upstream contract exposes. A strategy that rewrites history
+    without shortening it registers nothing, which is the honest limit of this
+    seam and matches what the indicator claims: turns were dropped.
     """
 
     def __init__(self, wrapped: Any) -> None:

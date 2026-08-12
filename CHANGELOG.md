@@ -67,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   page-aware client stops having to paste its own context into the user's
   message to get it seen.*
 
-  ⚠ **Client-supplied text now reaches the model where it previously did not.**
+  **Client-supplied text now reaches the model where it previously did not.**
   That is the fix, and it is also a widening: whatever your front end puts in
   `context` is now in front of the model on every request of every run. The block
   says in as many words that its contents are data and not instructions, and the
@@ -101,7 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   server-loaded history, so a **resumed** run that errored or was cancelled
   persisted only the new turn and silently truncated the thread it was resuming.
 
-  ⚠ **Two behaviour changes ride along.** A client-posted **system** message is
+  **Two behaviour changes ride along.** A client-posted **system** message is
   now stored — it is still stripped before the model sees it (`sanitize_messages`,
   under the default `MANAGE_SYSTEM_PROMPT = "server"`), so it is inert, but it is
   in the row where before it was dropped on the way to storage. And a stored user
@@ -139,7 +139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   readable `csrftoken` cookie, and a JWT-authenticated SPA has no session to
   carry one, which is the reason the run endpoint is exempt in the first place.
 
-  ⭐ **The failure read as half-broken rather than misconfigured**, which is why
+  **The failure read as half-broken rather than misconfigured**, which is why
   it survived: chatting worked, history listed fine, and a *new* thread is
   created through the run stream, so only the writes died. `tools/`, `skills/`
   and `runs/` were unaffected because they are `GET`-only — they would have
@@ -147,7 +147,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deployments get working uploads, thread rename/delete and voice input with no
   mount-point patching.*
 
-  ⚠ **This widens what the *unstated* default covers.** `csrf_exempt` left unset
+  **This widens what the *unstated* default covers.** `csrf_exempt` left unset
   resolves to exempt, and now resolves that way across the mount — so a project
   that passed nothing goes from "writes enforced by accident" to "writes
   exempt". Two groups: one already gets the `RuntimeWarning` at construction and
@@ -170,7 +170,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `AttachmentsView` and `TranscribeView` accordingly accept `csrf_exempt=` when
   constructed directly, as they already accept the auth arguments.
 
-  ⚠ **Nothing could have caught this.** `tests/conftest_settings.py` mounts no
+  **Nothing could have caught this.** `tests/conftest_settings.py` mounts no
   middleware, so an exempt view and an enforced one are indistinguishable in the
   suite. The regression tests assert the flag across the whole set derived from
   `server.urls` — never a hand-written path list, which cannot cover a view a
@@ -187,7 +187,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the real constructor arguments (`conversation_store=` / `attachment_store=` /
   `transcription_backend=`).
 
-  ⚠ **Two of these were instructions that break a project rather than merely
+  **Two of these were instructions that break a project rather than merely
   dangling references.** `OpenAITranscriptionBackend` told you to enable it by
   pointing `DJANGO_AG_UI["TRANSCRIPTION_BACKEND"]` at its dotted path, and
   `NullTranscriptionBackend` raised `NotImplementedError` advising the same key —
@@ -221,7 +221,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a consumer past every fix. ⇒ *`django-admin-agent` and any other consumer can
   now combine this transport with the current substrate on the day it ships.*
 
-  ⚠ **`ag-ui-protocol` and `pydantic-ai-harness` are external 0.x packages,
+  **`ag-ui-protocol` and `pydantic-ai-harness` are external 0.x packages,
   where a minor bump is breaking by SemVer and we do not control the release.**
   That is the riskiest part of this change and it is a bet, not a proof: that
   the weekly drift job finds a breaking 0.x minor faster than a stale ceiling
@@ -257,7 +257,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   suppression on correct code — which trains them to suppress this class of
   error generally.
 
-  ⭐ **A runtime test could never have caught it**, and one already existed:
+  **A runtime test could never have caught it**, and one already existed:
   constructing with a pre-built toolset was covered and passed against the
   broken annotation. `SpecToolset` satisfies a `runtime_checkable` `SpecSource`
   because `hasattr(x, "specs")` is true of a property, while failing
@@ -279,7 +279,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `djangorestframework-pydantic-ai>=0.16,<0.17`. No code change here; ordering
   reaches the model through the toolsets these packages build.
 
-- ⛔ **The `[harness]` window widened to `<0.19`, from a `<0.17` that had gone
+- **The `[harness]` window widened to `<0.19`, from a `<0.17` that had gone
   stale against a published 0.18.1.** The extra resolved to 0.16.x and could not
   combine with a project on the current harness. ⇒ *The third instance of
   published-and-unreachable in this stack, and the first a consumer spotted —
@@ -294,7 +294,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (was `>=0.28,<0.29`), and the `django-pydantic-agent` floor moves to
   `>=0.12,<0.13`.
 
-  ⛔ **Both edits are needed, and neither works alone.** drf-mcp 0.29.0 was
+  **Both edits are needed, and neither works alone.** drf-mcp 0.29.0 was
   published-and-unreachable through this package's own extra; moving that
   ceiling alone still leaves the bridge's backing package pinned to a
   `django-pydantic-agent` whose `[drf-mcp]` extra caps at `<0.29`. The two
@@ -319,7 +319,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the client sending the bare `/name` token for the agent to resolve —
   from the harness `Skills` capability, or from your own instructions.
 
-  ⚠ **The catalog is a plain `GET`, so a prompt in it is public to anyone who
+  **The catalog is a plain `GET`, so a prompt in it is public to anyone who
   can reach the endpoint and sits in the page for anyone who opens the source.**
   A skill is often where a project's internal workflow is written down most
   plainly, which made shipping it to the browser the wrong default. Setting
@@ -333,7 +333,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- ⛔ **Stored conversations were served with the wrong key names, and a restored
+- **Stored conversations were served with the wrong key names, and a restored
   transcript lost every tool call and tool result.** `messages_to_jsonable`
   dumped the AG-UI message union by Python field name rather than by alias, so
   the thread endpoint returned `tool_calls` / `tool_call_id` / `encrypted_value`
@@ -342,7 +342,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   every tool result missed the card it belonged to. Prose survived, so the
   transcript looked thin rather than broken.
 
-  ⭐ **The reason it went unnoticed is worth more than the fix.** `ag_ui.core`
+  **The reason it went unnoticed is worth more than the fix.** `ag_ui.core`
   sets `populate_by_name=True`, so decoding accepts either spelling: encode →
   store → decode → resume agreed with itself perfectly, and the suite asserted
   exactly that. **A round-trip proves agreement, not correctness** — two ends
@@ -350,7 +350,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   appear where another language read the JSON. The new tests assert the emitted
   **keys**.
 
-  ⚠ **The fix is two-sided.** Dumping by alias corrects new writes; rows already
+  **The fix is two-sided.** Dumping by alias corrects new writes; rows already
   stored hold the old spelling, so `ThreadsView` now re-serialises on read
   instead of handing storage records straight out. Both eras come back on the
   wire shape and **no data migration is needed**.
@@ -374,7 +374,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the exception's text does not reach the model or the browser rendering its
   answer. Your `AuditLogger` still receives the real exception.
 
-  ⚠ This changes behaviour for an existing project: a run that used to die on a
+  This changes behaviour for an existing project: a run that used to die on a
   raising tool now completes. Set `"TOOL_FAILURE": {"ENABLED": False}` to keep
   the old behaviour.
 
@@ -386,7 +386,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (was `>=0.27,<0.28`), and the `django-pydantic-agent` floor moves to
   `>=0.10,<0.11`.
 
-  ⛔ **The previous ceiling excluded a security release.** drf-mcp 0.28.0
+  **The previous ceiling excluded a security release.** drf-mcp 0.28.0
   refuses an authenticated caller with no `pk` instead of collapsing every such
   caller onto the shared `"anonymous"` principal — where any two of them can
   present each other's sessions. This package, `django-pydantic-agent` and
@@ -394,12 +394,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unreachable to the whole ecosystem**: the announcement reads as completion
   while every install keeps resolving the vulnerable version.
 
-  ⚠ **It reaches the bridge, not just the MCP endpoint.** `DRFMCPToolset` calls
+  **It reaches the bridge, not just the MCP endpoint.** `DRFMCPToolset` calls
   `list_tools` / `acall_tool`, so a project using `drf_mcp_server=` runs the
   same principal resolution the HTTP transport does — this is not an
   HTTP-only concern.
 
-  ⭐ **Found from the other end, by the extras-matrix check.** Bumping
+  **Found from the other end, by the extras-matrix check.** Bumping
   `django-admin-agent[mcp]` to `>=0.28` made it *unsatisfiable* against this
   package's `[drf-mcp]` at `<0.28` — the disjoint-window shape again, one layer
   down from the pair 0.34.0 fixed. The conflict was the symptom; the stuck
@@ -414,12 +414,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`django-pydantic-agent` floor raised to `>=0.9,<0.10`.**
 
-  ⛔ **Not a routine bump — the previous ceiling excluded a fix aimed at this
+  **Not a routine bump — the previous ceiling excluded a fix aimed at this
   package.** dpa 0.9.0 moves its `[spec-tools]` and `[harness]` windows onto the
   ones used here; until this floor moves, that release is unreachable and the
   defect stands.
 
-  ⚠ **The defect it closes never raised an error.** A project asking for both
+  **The defect it closes never raised an error.** A project asking for both
   packages' extras — `django-ag-ui[spec-tools]` alongside
   `django-pydantic-agent[spec-tools]` — resolved *successfully* by silently
   **downgrading django-ag-ui to 0.3.0** (0.17.0 for the `[harness]` pair). A
@@ -428,7 +428,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the install looked clean while shipping a transport from months earlier —
   behind the fail-open auth fix and the closed-by-default authentication flip.
 
-  ⭐ **Neither package was wrong alone**, and `django-ag-ui[spec-tools]` on its
+  **Neither package was wrong alone**, and `django-ag-ui[spec-tools]` on its
   own was fine too, since dpa arrives here as a plain dependency with no extras.
   It took asking for both, which no per-package check does.
 
@@ -447,7 +447,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   raises `ImproperlyConfigured` — so the docs taught a configuration that fails
   at startup.
 
-  ⚠ **Two of them contradicted the snippet directly beneath them**: "`CAPABILITIES`
+  **Two of them contradicted the snippet directly beneath them**: "`CAPABILITIES`
   takes dotted paths to zero-argument callables", followed by an example passing
   `capabilities=[…]` to `AGUIServer`. Dotted paths were removed wholesale; there
   is no `import_string` in this package.
@@ -457,7 +457,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ModelConversationStore(allow_anonymous=)`, and nothing read it — not this
   package, not `django-pydantic-agent`.
 
-  ⛔ **It could not have worked.** *You* construct the store and pass it in, so
+  **It could not have worked.** *You* construct the store and pass it in, so
   there is no point at which this package could apply a settings value to it. A
   project that set the key got the `False` default and no indication otherwise.
   Documented now as what it is: a store constructor argument.
@@ -476,11 +476,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`make docs-check` now runs in CI**, and checks more than it did.
 
-  ⛔ **Its fence pattern matched only a bare ` ```python `,** so every fence
+  **Its fence pattern matched only a bare ` ```python `,** so every fence
   titled ` ```python title="urls.py" ` was skipped — while the run still
   reported clean. Those are the copy-this-into-your-project examples.
 
-  ⭐ **It now binds each call's arguments** rather than only checking keyword
+  **It now binds each call's arguments** rather than only checking keyword
   names, which catches an argument passed positionally to a keyword-only
   parameter. That reads perfectly and a name-only check cannot see it, because
   the keyword was never written down.
@@ -512,21 +512,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Retry-After` in seconds, or `None` to allow the run. A refusal is `429` with
   a `Retry-After` header.
 
-  ⭐ **Applied to the agent endpoint only.** It is the one route that costs a
+  **Applied to the agent endpoint only.** It is the one route that costs a
   model call per request; the catalogs and the thread drawer are cheap reads and
   keep sharing the auth seam instead.
 
-  ⭐ **It runs after authentication**, so a limiter can key on the acting user
+  **It runs after authentication**, so a limiter can key on the acting user
   rather than only an IP — including a user established by a `get_user` hook —
   and **before** the body is parsed, so a throttled request costs nothing beyond
   the auth it already did. A request that was going to be `401` never spends
   quota.
 
-  ⚠ **One method, not check-then-commit.** `consume` is the gate *and* the
+  **One method, not check-then-commit.** `consume` is the gate *and* the
   bookkeeping update, because "check, then commit" races under exactly the
   concurrency a limiter exists for.
 
-  ⚠ **`consume` is synchronous**, run off the event loop so it may touch the
+  **`consume` is synchronous**, run off the event loop so it may touch the
   cache or the ORM directly. An `async def consume` is **refused at
   construction**: awaiting it silently would make every request a `429` whose
   `Retry-After` is a coroutine, so the endpoint would look rate-limited rather
@@ -552,7 +552,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   configured model does, so a hook returning `"anthropic:…"` behaves like the
   setting rather than falling back to environment inference.
 
-  ⭐ **Narrow on purpose, and the reason is the agent reuse below rather than
+  **Narrow on purpose, and the reason is the agent reuse below rather than
   ergonomics.** A hook handed the whole request could vary the agent on anything
   it read off one, and that is not a set anyone can enumerate — so a reused agent
   behind it is either impossible to justify or wrong for the second tenant, and
@@ -570,7 +570,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   every registered tool on every call — the most expensive thing the endpoint
   did, repeated to produce a byte-identical result.
 
-  ⭐ **What made the rebuild look unavoidable was that the agent carried
+  **What made the rebuild look unavoidable was that the agent carried
   request-shaped things.** It no longer does: the drf-mcp toolset, the
   `read_attachment` toolset, the `StepPersistence` capability and the per-run
   model / instructions all ride the **run** now, through pydantic-ai's own
@@ -578,13 +578,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the agent is exactly what the constructor fixed, which is what makes the reuse
   provable rather than merely plausible.
 
-  ⚠ **One thing had to move upstream first: the client IP.** It was closed over
+  **One thing had to move upstream first: the client IP.** It was closed over
   when the agent was built, so a reused agent would have stamped every audit
   record with the IP of whoever arrived first — well-formed records, wrong
   provenance, nothing to notice it by. It now rides `AgentDeps.ip_address`,
   which is why this release requires **`django-pydantic-agent>=0.8`**.
 
-  ⚠ Instructions are deliberately **absent** from the agent and supplied per
+  Instructions are deliberately **absent** from the agent and supplied per
   run. Pydantic-AI treats per-run instructions as *additional* to the agent's,
   which is exactly a replacement when the agent carries none — and baking them in
   would have made `instructions_for_request` either impossible or a cache key,
@@ -604,7 +604,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drawer, the attachment routes, transcription, and the run index — refuses an
   anonymous request with `401` unless told otherwise.
 
-  ⚠ **Deployments currently serving anonymous runs will get 401s until they opt
+  **Deployments currently serving anonymous runs will get 401s until they opt
   in.** The one-line migration:
 
   ```python
@@ -615,7 +615,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same way passing `True` used to lock it down. The individual view classes take
   the same argument.
 
-  ⭐ **Why break it.** Server-side tools act as `request.user`. With the old
+  **Why break it.** Server-side tools act as `request.user`. With the old
   default, a project that mounted the endpoint and configured nothing had an
   agent any visitor could drive — and an endpoint that *looks* configured is the
   failure mode worth breaking a release over, because nothing about it is
@@ -628,7 +628,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   see.** Building an endpoint that leaves `csrf_exempt` unstated *and* supplies
   no `get_user` hook now emits a `RuntimeWarning`.
 
-  ⚠ **This is the deployment the `require_authenticated` default cannot
+  **This is the deployment the `require_authenticated` default cannot
   reach.** That default refuses anonymous callers, which is the whole of the
   protection when nobody is logged in. It says nothing about the case where
   callers *are* authenticated — by session cookie, through Django's auth
@@ -636,7 +636,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drive the agent as the logged-in user, and every request looks perfectly
   authenticated from the inside.
 
-  ⭐ **The unstated state is the signal, not the value.** `csrf_exempt=True` is
+  **The unstated state is the signal, not the value.** `csrf_exempt=True` is
   a defensible choice — it is right for Bearer / API-key clients, where CSRF
   does not apply — so warning on the value would fire on a correct
   configuration with no way to say so, which is how a project learns to filter
@@ -660,7 +660,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`service_specs=` accepts an already-built `SpecToolset` or
   `SpecCapability`**, not just a mapping or a `SpecRegistry`.
 
-  ⚠ **The two escape hatches used to cost each other.** `service_specs=` could
+  **The two escape hatches used to cost each other.** `service_specs=` could
   pass only the mapping, so a project needing any `SpecToolset` knob —
   `max_page_size`, an `exception_map`, a `build_context` override, or
   `require_permissions=False` while migrating — had to abandon it for
@@ -668,17 +668,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tool-call cards render unlabelled. Taking the powerful form meant losing the
   labels.
 
-  ⭐ **Now it doesn't.** The endpoint attaches the object as-is *and* extracts
+  **Now it doesn't.** The endpoint attaches the object as-is *and* extracts
   its `specs` for the tool catalog and the tool-name dedup, so the powerful form
   and the labelled form are the same form.
 
-  ⚠ **A pre-built toolset is not filtered.** For a mapping, a tool name the
+  **A pre-built toolset is not filtered.** For a mapping, a tool name the
   `@tool` registry already defines is dropped in the registry's favour; that
   cannot apply to an object the consumer built, so a collision is **refused at
   construction**. Left alone, pydantic-ai raises `UserError` for the duplicate
   *mid-run*, long after the catalog looked clean.
 
-  ⚠ **Nor is it re-checked.** Its constructor already ran the
+  **Nor is it re-checked.** Its constructor already ran the
   `permission_classes` check and may have been given `require_permissions=False`
   on purpose — which is the entire reason for accepting one. Re-validating on
   arrival would take that decision back and leave no route to it.
@@ -693,7 +693,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed — BREAKING for `service_specs=`
 
-- ⛔ **`AGUIServer(service_specs=…)` now refuses a spec with no
+- **`AGUIServer(service_specs=…)` now refuses a spec with no
   `permission_classes`**, raising `ImproperlyConfigured` at construction and
   naming every offender at once.
 
@@ -703,14 +703,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   HTTP tests, was **callable by whatever the model decided to call**. Set
   `spec.permission_classes` on each.
 
-  ⚠ **The check is upstream (`djangorestframework-pydantic-ai` 0.13); what this
+  **The check is upstream (`djangorestframework-pydantic-ai` 0.13); what this
   release adds is *when*.** This transport builds its spec capability **per
   request** — it needs the request-scoped name set for tool dedup — so the
   upstream refusal alone would surface as a 500 on the first agent call rather
   than as a failure to start. An operator reading a traceback in `urls.py` is in
   a different situation from one reading it in Sentry a week later.
 
-  ⚠ Constructing a `DjangoAGUIView` directly still fails per request. That is
+  Constructing a `DjangoAGUIView` directly still fails per request. That is
   the un-documented path; the general fix is for the view to stop rebuilding the
   capability every request, which is a larger change to the construction seam.
 
@@ -718,12 +718,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   capability yourself instead of using `service_specs=` — it is the only place
   PAI's `require_permissions=False` is reachable:
   `AGUIServer(registry, capabilities=[SpecCapability(SPECS,
-  require_permissions=False)])`. ⛔ That path skips `service_specs=`'s
+  require_permissions=False)])`. That path skips `service_specs=`'s
   tool-catalog registration, so tool-call cards render unlabelled. A migration
   step, not a destination.
 
 - **List tools advertise `ordering`, not `order`** (PAI 0.13), and only where
-  the toolset declares `ordering_fields`. ⭐ **The `service_specs=` example in
+  the toolset declares `ordering_fields`. **The `service_specs=` example in
   `docs/configuration.md` would itself have raised** — its two specs carried no
   `permission_classes`. Fixed, along with a stale claim in the same paragraph
   that the acting user is bound from `request`; it comes from the run's `deps`,
@@ -735,7 +735,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `djangorestframework-pydantic-ai>=0.13`, `[drf-mcp]` to
   `djangorestframework-mcp-server>=0.27`.
 
-  ⛔ **The drf-mcp move is what makes the pair installable.** PAI 0.13 requires
+  **The drf-mcp move is what makes the pair installable.** PAI 0.13 requires
   `djangorestframework-services>=0.35,<0.36` while drf-mcp 0.26 required
   `>=0.34.0,<0.35` — disjoint, so `django-ag-ui[drf-mcp,spec-tools]` **could not
   resolve at all**. drf-mcp 0.27.0 moves its window to 0.35.
@@ -745,14 +745,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `SlidingWindowCompaction`. harness 0.13 renamed the strategy and kept the old
   spelling as a deprecated alias that warns on import and is slated for removal.
 
-  ⚠ **A raised floor rather than a compat shim**, because the two spellings
+  **A raised floor rather than a compat shim**, because the two spellings
   never overlap: `SlidingWindowCompaction` does not exist on 0.12, so no single
   import works across the old `>=0.12,<0.17` range. Nothing in this package
   constructs a harness capability — the consumer does — so the floor costs a
   version that only the deprecated name could reach, and buys one honest
   spelling in the docs and tests.
 
-  ⭐ **The package never imported the alias.** The only non-test occurrence was
+  **The package never imported the alias.** The only non-test occurrence was
   a docstring example on `CompactionObserver`, which is why the
   `HarnessDeprecationWarning` showed up in this repo's own test runs and never
   in a consumer's — the floor raise is the tidy-up, not a fix for anything
@@ -767,7 +767,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exclusive ceiling *excluded* the fix, so installing this extra resolved to the
   vulnerable release.
 
-  ⚠ **The bridge is in the blast radius, not just the HTTP transport.** The
+  **The bridge is in the blast radius, not just the HTTP transport.** The
   `[drf-mcp]` toolset calls `MCPServer.list_tools` / `acall_tool` in process, so
   it runs the same permission and listing checks — and those were the sites that
   failed open. A project whose `MCPPermission.has_permission` or `is_listable`
@@ -792,13 +792,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   side of the delegated call. That surface is unchanged across 0.12–0.16, so
   every pairing in the range genuinely works.
 
-  ⚠ **harness 0.13 renamed `SlidingWindow` to `SlidingWindowCompaction`**,
+  **harness 0.13 renamed `SlidingWindow` to `SlidingWindowCompaction`**,
   keeping the old name as a deprecated alias. The docs keep using
   `SlidingWindow` because it is the only spelling that imports across the whole
   accepted range — `SlidingWindowCompaction` does not exist on 0.12. Pin harness
   to `>=0.13` in your own project to use the new name warning-free.
 
-  ⭐ **The upgrade broke only the tests, and for a reason worth recording.** Two
+  **The upgrade broke only the tests, and for a reason worth recording.** Two
   hand-rolled `_RequestContext` doubles here carried nothing but `messages`;
   harness 0.13 started reading `model` off the context to notice a capability
   swapping the model mid-run, and the doubles fell over. They were replaced with
@@ -814,13 +814,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `djangorestframework-pydantic-ai>=0.12`. Dev-group pins move in lockstep with
   the extras they back.
 
-  ⚠ **Floors rather than widened ceilings**, because drf-mcp 0.25 changes
+  **Floors rather than widened ceilings**, because drf-mcp 0.25 changes
   behaviour rather than adding surface: an unguarded tool now *raises* at
   registration instead of warning, and a request with no `Mcp-Session-Id`
   returns `400` rather than `404`. Admitting 0.24 alongside 0.25 is a pairing
   that resolves cleanly and behaves differently — which no resolver can see.
 
-  ⭐ **It arrived as an import failure, not a test failure.** Three bridge
+  **It arrived as an import failure, not a test failure.** Three bridge
   fixture servers here registered tools with no permissions and stopped
   collecting outright. They now declare `AllowAny` explicitly — the honest form
   for a fixture. Consumers upgrading should expect the same shape;
@@ -835,7 +835,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   extension). All three open advisories on this repo are closed.
 
 - **Tested against Django 6.1**, with the lock moved to `djangorestframework>=3.18`.
-  ⚠ Django 6.1 removed `django.utils.cache.cc_delim_re`, which DRF 3.17.x
+  Django 6.1 removed `django.utils.cache.cc_delim_re`, which DRF 3.17.x
   imports at module level, so that pairing fails at `import rest_framework`.
 
 ## [0.27.1] — 2026-08-02
@@ -854,7 +854,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   authenticated one in the pool that decides which row gets mutated and which set
   gets bulk-deleted. Fixed in drf-services 0.33.0.
 
-  ⚠ A version pair that resolves cleanly and leaves the bypass live is exactly
+  A version pair that resolves cleanly and leaves the bypass live is exactly
   what a resolver cannot see, which is why the floor moves rather than the
   ceiling. Installing this extra now gets the fix, rather than merely permitting
   it.
@@ -865,18 +865,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- ⚠ **Ceilings raised across the drf chain:** drf-mcp-server to `<0.25` (was
+- **Ceilings raised across the drf chain:** drf-mcp-server to `<0.25` (was
   `<0.22`), djangorestframework-pydantic-ai to `<0.12` (was `<0.11`), and
   **django-pydantic-agent to `>=0.5,<0.6`** (was `>=0.4,<0.5`).
 
-  ⛔ **This closes a live install conflict rather than refreshing stale pins.**
+  **This closes a live install conflict rather than refreshing stale pins.**
   drf-mcp 0.24.0 requires drf-services `>=0.32` while PAI `<0.11` required
   `<0.30`, so the `[drf-mcp]` and `[spec-tools]` extras had become **mutually
   unsatisfiable at their new versions** — masked only by ceilings old enough to
   hold both at earlier releases. The chain moved upstream-first: PAI 0.11.0 →
   django-pydantic-agent 0.5.0 → here.
 
-  ⚠ **The dpa floor is `>=0.5`, not `>=0.4`, on purpose.** 0.5.0 changes how an
+  **The dpa floor is `>=0.5`, not `>=0.4`, on purpose.** 0.5.0 changes how an
   unknown drf-mcp tool is reported: drf-mcp moved that condition from `-32004`
   to `-32602` in 0.24.0 (matching the MCP spec's worked example), which made it
   indistinguishable from malformed arguments, so the bridge now answers both

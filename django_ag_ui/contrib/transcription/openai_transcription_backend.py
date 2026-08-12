@@ -40,10 +40,9 @@ class OpenAITranscriptionBackend:
     timeout: float | None = 60.0
 
     def __init__(self) -> None:
-        # The client (and its HTTP connection pool) is cached on the instance —
-        # the ``TranscribeView`` holds one backend per process — so a new session
-        # isn't built per request. Typed ``Any``: ``AsyncOpenAI`` is an optional
-        # dependency imported lazily.
+        # The client and its connection pool are cached on the instance (the
+        # view holds one backend per process), so no new session per request.
+        # Typed ``Any``: ``AsyncOpenAI`` is imported lazily.
         self._client: Any = None
 
     async def transcribe(self, audio: UploadedFile, *, request: HttpRequest) -> str:
@@ -54,8 +53,8 @@ class OpenAITranscriptionBackend:
                 "OpenAITranscriptionBackend requires the 'openai' package: "
                 "install django-ag-ui[openai]"
             ) from error
-        # Read the bytes off the event loop — a large recording may be spooled to
-        # a temp file, so the read is blocking I/O.
+        # Off the event loop: a large recording may be spooled to a temp file,
+        # making the read blocking I/O.
         data = await sync_to_async(audio.read)()
         if self._client is None:
             self._client = AsyncOpenAI(base_url=self.base_url, timeout=self.timeout)

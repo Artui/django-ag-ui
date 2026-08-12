@@ -34,9 +34,9 @@ class TranscribeView:
     :class:`~django_ag_ui.persistence.attachments_view.AttachmentsView` there is
     no download/delete route. The view carries the same authentication seam as
     :class:`~django_ag_ui.DjangoAGUIView` (``require_authenticated`` /
-    ``get_user``), closed by default like the other endpoints — which matters
-    here beyond consistency: the backend spends money per request, so an open
-    route is a bill as well as a leak.
+    ``get_user``), closed by default — which matters here beyond consistency:
+    the backend spends money per request, so an open route is a bill as well as
+    a leak.
 
     With the default :class:`NullTranscriptionBackend` a request returns ``410``
     (off): mount the view with a real backend to enable it.
@@ -53,24 +53,20 @@ class TranscribeView:
         config: AGUIConfig | None = None,
     ) -> None:
         self._backend = backend
-        # Resolved once by AGUIServer; read per request these could only
-        # ever be global, so two endpoints could not differ.
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
-        # ⚠ Load-bearing here, unlike on the read-only catalogs: the only route
-        # is POST, so CsrfViewMiddleware checks every request this view serves —
-        # a token-less client could not reach the backend at all.
+        # Load-bearing here, unlike on the read-only catalogs: the only route is
+        # POST, so CsrfViewMiddleware checks every request this view serves and a
+        # token-less client could not reach the backend at all.
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
-        # Mark this callable instance async so Django awaits ``__call__`` (see
-        # DjangoAGUIView for the rationale); the backend operation is async.
+        # Mark this callable instance async so Django awaits ``__call__``.
         markcoroutinefunction(cast("Any", self))
 
     async def __call__(self, request: HttpRequest) -> HttpResponseBase:
-        # Establish + authorize the acting user first: this materializes
-        # ``request.user`` off the event loop, so a backend that scopes by user
-        # is loop-safe.
+        # First, so ``request.user`` is materialized off the event loop and a
+        # backend that scopes by user is loop-safe.
         deny = await aauthorize(
             request,
             get_user=self._get_user,
@@ -83,8 +79,8 @@ class TranscribeView:
             return HttpResponseNotAllowed(["POST"])
         if isinstance(self._backend, NullTranscriptionBackend):
             return JsonResponse({"error": "transcription is disabled"}, status=410)
-        # Parse the multipart body off the event loop — Django may spill a large
-        # recording to a temp file, which is blocking I/O.
+        # Off the event loop: Django may spill a large recording to a temp file,
+        # which is blocking I/O.
         audio = await sync_to_async(_read_audio)(request)
         if audio is None:
             return JsonResponse(

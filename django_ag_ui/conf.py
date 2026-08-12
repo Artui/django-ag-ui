@@ -12,11 +12,8 @@ def get_setting(name: str, default: Any = None) -> Any:
 
     The package's only settings primitive. Settings are a **default source**,
     read once when a server / store / backend is constructed — never on the
-    request path, which is what lets two endpoints in one project differ.
-
-    There is deliberately no ``get_settings()`` returning a whole snapshot any
-    more: a process-global config object is exactly what made two AG-UI
-    endpoints impossible to tell apart. Use
+    request path, which is what lets two endpoints in one project differ. There
+    is deliberately no snapshot accessor: use
     :func:`~django_ag_ui.config.build_ag_ui_config.build_ag_ui_config` for the
     resolved per-endpoint scalars.
     """

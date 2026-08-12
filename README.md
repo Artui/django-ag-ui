@@ -83,7 +83,7 @@ browser half is
   logged-in user, with the spec conventions taught to the model.
 - **100% test coverage**, type-checked, Python 3.10–3.14, Django 4.2–6.0.
 
-📖 **Full documentation:** <https://artui.github.io/django-ag-ui/>
+**Full documentation:** <https://artui.github.io/django-ag-ui/>
 
 ```bash
 pip install "django-ag-ui[anthropic]"   # or [openai], or [google]

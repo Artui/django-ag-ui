@@ -2,22 +2,15 @@
 
 ``__all__`` is a claim, and nothing else checks it. A name listed but never
 imported passes lint, passes types, passes the whole suite — and fails for the
-first person who writes ``from django_ag_ui import <name>``, which is
-exactly the spelling the docs teach. It also breaks ``import *``
-outright, with an ``AttributeError`` naming a symbol that plainly exists one
-file away.
+first person who writes ``from django_ag_ui import <name>``, exactly the
+spelling the docs teach.
 
-That happened here: the sibling package this convention is shared with shipped
-``check_oauth_url_shadowing`` in an ``__all__`` with no import beside it.
-
-⭐ **Checked statically, against the source, rather than with ``hasattr`` on the
-imported module** — and the difference is the whole test. Importing
-``pkg.thing`` binds ``thing`` as an attribute of ``pkg``, so once anything has
-imported the submodule (a sibling, a test, the walk itself), ``hasattr(pkg,
-"thing")`` is ``True`` while ``from pkg import thing`` hands back a *module*
-that raises ``TypeError: 'module' object is not callable``. A runtime check
-reports that as fine. A draft of this test did exactly that and passed with a
-reintroduced defect in the sibling package.
+**Checked statically, against the source, rather than with ``hasattr`` on the
+imported module**, and the difference is the whole test. Importing ``pkg.thing``
+binds ``thing`` as an attribute of ``pkg``, so once anything has imported the
+submodule, ``hasattr(pkg, "thing")`` is ``True`` while ``from pkg import thing``
+hands back a *module* that raises ``TypeError: 'module' object is not callable``.
+A runtime check reports that as fine.
 """
 
 from __future__ import annotations

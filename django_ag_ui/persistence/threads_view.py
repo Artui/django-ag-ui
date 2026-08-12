@@ -45,9 +45,8 @@ class ThreadsView:
     a thread owned by another user simply isn't found (``404``) — never another
     user's history. The view carries the same authentication seam as
     :class:`~django_ag_ui.DjangoAGUIView` (``require_authenticated`` /
-    ``get_user``, sync or async), closed by default like the catalog views — and
-    here the default is load-bearing rather than a parity choice: every route is
-    owner-scoped, so an anonymous caller has no history to reach.
+    ``get_user``, sync or async), and the closed default is load-bearing here:
+    every route is owner-scoped, so an anonymous caller has no history to reach.
     """
 
     def __init__(
@@ -61,28 +60,22 @@ class ThreadsView:
         config: AGUIConfig | None = None,
     ) -> None:
         self._store = store
-        # Resolved once by AGUIServer; read per request these could only ever
-        # be global, so two endpoints could not differ.
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
-        # ⚠ Load-bearing here, unlike on the read-only catalogs: rename is PATCH
+        # Load-bearing here, unlike on the read-only catalogs: rename is PATCH
         # and delete is DELETE, so CsrfViewMiddleware checks both. Listing and
-        # reading a thread are GET and were never affected — which is exactly
-        # what made the split hard to see from the client, since a new thread is
-        # created through the run stream rather than through this view.
+        # reading a thread are GET and are never affected.
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
-        # Mark this callable instance async so Django awaits ``__call__`` (see
-        # DjangoAGUIView for the rationale); the store operations are async.
+        # Mark this callable instance async so Django awaits ``__call__``.
         markcoroutinefunction(cast("Any", self))
 
     async def __call__(
         self, request: HttpRequest, thread_id: str | None = None
     ) -> HttpResponseBase:
-        # Establish + authorize the acting user first: this materializes
-        # ``request.user`` off the event loop, so the store's owner scoping is
-        # loop-safe on the calls below.
+        # First, so ``request.user`` is materialized off the event loop and the
+        # store's owner scoping is loop-safe on the calls below.
         deny = await aauthorize(
             request,
             get_user=self._get_user,
@@ -115,13 +108,11 @@ class ThreadsView:
             return JsonResponse(
                 {
                     "thread_id": conversation.thread_id,
-                    # Normalised on the way out rather than echoed. A storage
-                    # record is not automatically a wire record: rows written
-                    # before the messages were dumped by alias hold the Python
-                    # field spelling, and a client reading the protocol's
-                    # camelCase keys finds no tool calls and no tool results in
-                    # them. Re-serialising covers both eras without a data
-                    # migration.
+                    # Normalised on the way out, not echoed: rows written before
+                    # the messages were dumped by alias hold the Python field
+                    # spelling, in which a client reading the protocol's
+                    # camelCase keys finds no tool calls and no tool results.
+                    # Re-serialising covers both eras without a data migration.
                     "messages": stored_messages_to_wire(conversation.messages),
                 }
             )
@@ -136,9 +127,8 @@ class ThreadsView:
         title = _parse_title(request)
         if title is None:
             return JsonResponse({"error": "a non-empty 'title' is required"}, status=400)
-        # Probe existence (metadata only) so a missing / cross-owner thread is a
-        # 404 rather than a silent rename of nothing — without deserializing the
-        # whole message body just to answer.
+        # Metadata-only probe, so a missing / cross-owner thread is a 404 rather
+        # than a silent rename of nothing, without deserializing the message body.
         if not await self._store.exists(thread_id, request=request):
             return JsonResponse({"error": "not found"}, status=404)
         await self._store.rename(thread_id, title, request=request)

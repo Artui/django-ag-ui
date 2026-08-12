@@ -27,28 +27,19 @@ class RunsView:
     - ``GET <prefix>runs/`` → the user's recorded runs, newest first
       (``{"runs": [...]}``).
 
-    **Why this exists.** ``resume`` / ``fork`` both address a run *by id*, so
-    without an index a client can only continue a run whose id it still holds —
-    which rules out resuming after a page reload or from another device, most of
-    what durable step persistence is for. This is the discovery half.
+    The discovery half of resume / fork, which both address a run *by id*: an
+    index is what lets a client resume after a page reload or from another
+    device.
 
-    Each row carries ``continuable``: whether the run has a saved snapshot to
-    seed from. A run that never reached a provider-valid boundary has none, and
-    resuming it would start from nothing — so a client should offer the action
-    only for rows where this is ``true``, and the row is otherwise informational
-    (a crashed run worth showing, not worth resuming).
+    Each row carries ``continuable`` — whether the run has a saved snapshot to
+    seed from — so a client offers the action only where it is ``true``; a run
+    that never reached a provider-valid boundary is informational only.
+    ``parent_run_id`` exposes fork lineage.
 
-    ``parent_run_id`` exposes fork lineage, so a client can show that a run
-    branched from another rather than presenting a flat list of near-identical
-    transcripts.
-
-    Every operation is scoped to the acting user: the store filters by owner, so
-    another user's runs are simply absent — never a 403 that would confirm the
-    id exists. Carries the same authentication seam as
-    :class:`~django_ag_ui.DjangoAGUIView`, closed by default like the other
-    catalog views — and here the default is load-bearing rather than a parity
-    choice: the index is *per owner*, so an anonymous caller has no runs to
-    list in the first place.
+    Owner-scoped: the store filters by owner, so another user's runs are absent
+    rather than a 403 that would confirm the id exists. Carries the same
+    authentication seam as :class:`~django_ag_ui.DjangoAGUIView`, closed by
+    default — load-bearing here, since an anonymous caller has no runs to list.
     """
 
     def __init__(
@@ -61,26 +52,22 @@ class RunsView:
         csrf_exempt: bool | None = None,
     ) -> None:
         # A ``request -> StepStore`` factory, not a store: the harness protocol's
-        # methods carry no request, so the store binds one and is built per call
-        # (the same reason ``AGUIServer`` holds a factory).
+        # methods carry no request, so the store binds one and is built per call.
         self._step_store = step_store
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
-        # Read by Django's CsrfViewMiddleware off this callable instance. GET is
-        # a safe method the middleware never checks, so the flag changes nothing
-        # here today — it is carried so the request policy is uniform across the
-        # mount, and so a write verb added later inherits the answer instead of
-        # silently enforcing against a client that cannot produce a token.
+        # GET is a safe method the middleware never checks, so this changes
+        # nothing today. Carried so the mount's request policy stays uniform and
+        # a write verb added later inherits the answer rather than silently
+        # enforcing against a client that cannot produce a token.
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
-        # Mark this callable instance async so Django awaits ``__call__`` (see
-        # DjangoAGUIView for the rationale); the store operations are async.
+        # Mark this callable instance async so Django awaits ``__call__``.
         markcoroutinefunction(cast("Any", self))
 
     async def __call__(self, request: HttpRequest) -> HttpResponseBase:
-        # Establish + authorize the acting user first: this materializes
-        # ``request.user`` off the event loop, so the store's owner scoping is
-        # loop-safe on the calls below.
+        # First, so ``request.user`` is materialized off the event loop and the
+        # store's owner scoping is loop-safe on the calls below.
         deny = await aauthorize(
             request,
             get_user=self._get_user,
@@ -103,9 +90,9 @@ class RunsView:
         runs = await store.list_runs()
         rows = []
         for record in runs:
-            # ``latest_snapshot`` is the same call ``resume`` makes, so
-            # ``continuable`` answers exactly "would resuming this find a
-            # checkpoint" rather than approximating it from event counts.
+            # The same call ``resume`` makes, so ``continuable`` answers exactly
+            # "would resuming find a checkpoint" rather than approximating it
+            # from event counts.
             snapshot = await store.latest_snapshot(run_id=record.run_id)
             rows.append(_run_to_json(record, continuable=snapshot is not None))
         return JsonResponse({"runs": rows})

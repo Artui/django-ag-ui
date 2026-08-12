@@ -45,10 +45,9 @@ class AttachmentsView:
     ``attachment`` with ``X-Content-Type-Options: nosniff`` so an uploaded
     ``text/html`` can't execute as a same-origin page. The view carries the same
     authentication seam as :class:`~django_ag_ui.DjangoAGUIView`
-    (``require_authenticated`` / ``get_user``), closed by default like the
-    catalog views — and here the default is load-bearing rather than a parity
-    choice: every route is owner-scoped, so an anonymous caller has no files to
-    reach.
+    (``require_authenticated`` / ``get_user``), and the closed default is
+    load-bearing here: every route is owner-scoped, so an anonymous caller has no
+    files to reach.
 
     With the default :class:`NullAttachmentStore` an upload returns ``410`` (off):
     mount the view with a real store to enable it.
@@ -65,28 +64,23 @@ class AttachmentsView:
         config: AGUIConfig | None = None,
     ) -> None:
         self._store = store
-        # Resolved once by AGUIServer; read per request these could only
-        # ever be global, so two endpoints could not differ.
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
-        # ⚠ Load-bearing here, unlike on the read-only catalogs: upload is POST
-        # and delete is DELETE, so CsrfViewMiddleware checks both. A client that
-        # cannot produce a token — a Bearer-authenticated SPA, or any project on
-        # ``CSRF_USE_SESSIONS``, which mints no readable cookie — gets a hard
-        # 403 on both, not a degraded response.
+        # Load-bearing here, unlike on the read-only catalogs: upload is POST and
+        # delete is DELETE, so CsrfViewMiddleware checks both, and a client that
+        # cannot produce a token (a Bearer-authenticated SPA, or any project on
+        # ``CSRF_USE_SESSIONS``, which mints no readable cookie) gets a hard 403.
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
-        # Mark this callable instance async so Django awaits ``__call__`` (see
-        # DjangoAGUIView for the rationale); the store operations are async.
+        # Mark this callable instance async so Django awaits ``__call__``.
         markcoroutinefunction(cast("Any", self))
 
     async def __call__(
         self, request: HttpRequest, attachment_id: str | None = None
     ) -> HttpResponseBase:
-        # Establish + authorize the acting user first: this materializes
-        # ``request.user`` off the event loop, so the store's owner scoping is
-        # loop-safe on the calls below.
+        # First, so ``request.user`` is materialized off the event loop and the
+        # store's owner scoping is loop-safe on the calls below.
         deny = await aauthorize(
             request,
             get_user=self._get_user,
@@ -110,8 +104,8 @@ class AttachmentsView:
         if isinstance(self._store, NullAttachmentStore):
             return JsonResponse({"error": "attachments are disabled"}, status=410)
         settings = self._config
-        # Insert the size guard *before* parsing so an oversized upload is aborted
-        # mid-stream — Django doesn't spool the whole body to a temp file first.
+        # Before parsing, so an oversized upload aborts mid-stream rather than
+        # spooling the whole body to a temp file first.
         guard = CappedUploadHandler(settings.attachment_max_bytes)
         request.upload_handlers.insert(0, guard)
         # Parse the multipart body off the event loop — an in-cap upload may still
@@ -126,8 +120,6 @@ class AttachmentsView:
             return JsonResponse(
                 {"error": "a single file under the 'file' field is required"}, status=400
             )
-        # The size cap is enforced up-front by the guard; here only the
-        # (client-declared) content-type allowlist remains.
         rejection = _validate_type(upload, settings.attachment_allowed_types)
         if rejection is not None:
             return rejection

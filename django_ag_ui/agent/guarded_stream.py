@@ -15,28 +15,25 @@ async def guarded_stream(
     """Yield ``stream`` through; on client-disconnect cancellation, tear down and observe.
 
     AG-UI has no server-side cancel route — the client aborts the streaming
-    request, and the disconnect surfaces here in one of two shapes (both occur
-    under Django's ASGI handler):
+    request, and under Django's ASGI handler the disconnect surfaces here in one
+    of two shapes:
 
-    - ``asyncio.CancelledError`` — the handler cancels the task consuming the
-      response, and the error is delivered at the innermost ``await`` of the
-      streaming chain, unwinding the agent run on its way up through this
-      frame.
-    - ``GeneratorExit`` — this generator is ``aclose()``d directly (the event
-      loop's async-generator finalizer, test harnesses); the inner generators
-      are left suspended at their own yields and never see the exception.
+    - ``asyncio.CancelledError`` — the handler cancels the consuming task and the
+      error is delivered at the innermost ``await``, unwinding the agent run on
+      its way up through this frame.
+    - ``GeneratorExit`` — this generator is ``aclose()``d directly (the loop's
+      async-generator finalizer, test harnesses), leaving the inner generators
+      suspended at their own yields, never seeing the exception.
 
-    In both cases the guard closes ``native_events`` — the innermost
-    generator, whose agent-run context manager owns the provider's streaming
-    request — so upstream teardown is guaranteed rather than left to garbage
-    collection order (an orphaned generation keeps billing). On the
-    ``CancelledError`` path the chain has already unwound and the ``aclose()``
-    is a no-op.
+    Either way the guard closes ``native_events``, the innermost generator, whose
+    agent-run context manager owns the provider's streaming request — so upstream
+    teardown is guaranteed rather than left to garbage-collection order, and an
+    orphaned generation stops billing. On the ``CancelledError`` path the chain
+    has already unwound and the ``aclose()`` is a no-op.
 
-    ``on_cancel`` then persists/audits the cancelled run. Its failures are
+    ``on_cancel`` then persists / audits the cancelled run. Its failures are
     logged and swallowed so the cancellation itself is always re-raised:
-    swallowing ``CancelledError`` (or replacing it with a persistence error)
-    breaks the caller's teardown contract.
+    swallowing ``CancelledError`` breaks the caller's teardown contract.
     """
     try:
         async for chunk in stream:

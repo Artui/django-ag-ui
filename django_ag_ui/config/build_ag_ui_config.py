@@ -101,11 +101,10 @@ def _parse_tool_guard(raw: Any) -> ToolGuardConfig:
 def _parse_tool_failure(raw: Any) -> ToolFailureConfig:
     """Build a :class:`ToolFailureConfig` from the ``TOOL_FAILURE`` settings dict.
 
-    Absent → the record's own defaults, which turn the policy **on**. That is
-    the one place this differs from ``TOOL_GUARD`` above: an absent guard means
-    no gate, whereas an absent failure policy means a raising tool costs its own
-    call rather than the whole turn. Reading ``ENABLED`` with a ``True`` default
-    is what keeps "no settings at all" and "an empty dict" the same answer.
+    Absent → the record's own defaults, which turn the policy **on**, unlike
+    ``TOOL_GUARD`` above where absent means no gate. Reading ``ENABLED`` with a
+    ``True`` default is what keeps "no settings at all" and "an empty dict" the
+    same answer.
     """
     failure: dict[str, Any] = raw or {}
     return ToolFailureConfig(
@@ -118,10 +117,8 @@ def _parse_run_context(raw: Any) -> RunContextConfig:
     """Build a :class:`RunContextConfig` from the ``RUN_CONTEXT`` settings dict.
 
     Absent or empty → both sources on and the default ceiling, following
-    ``TOOL_FAILURE`` rather than ``TOOL_GUARD``: reading the flags with a
-    ``True`` default is what keeps "no settings at all" and "an empty dict" the
-    same answer. A project that wants the old silence — nothing a client puts
-    in ``context`` reaching the model — says ``CLIENT_CONTEXT: False``.
+    ``TOOL_FAILURE`` rather than ``TOOL_GUARD``. A project that wants nothing a
+    client puts in ``context`` reaching the model says ``CLIENT_CONTEXT: False``.
 
     ``MAX_CHARS`` exists because ``context`` is unbounded client-supplied text,
     limited only by ``DATA_UPLOAD_MAX_MEMORY_SIZE``, and it reaches the model on
