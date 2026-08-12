@@ -1469,6 +1469,67 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIConfig.run_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_context
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.RunContextConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunContextConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RunContextConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.RunContextConfig.client_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        client_context
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.RunContextConfig.attachment_manifest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attachment_manifest
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.RunContextConfig.max_chars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        max_chars
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2907,6 +2968,67 @@
     <span class="md-ellipsis">
       
         tool_failure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIConfig.run_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_context
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.RunContextConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunContextConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RunContextConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.RunContextConfig.client_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        client_context
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.RunContextConfig.attachment_manifest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attachment_manifest
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.RunContextConfig.max_chars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        max_chars
       
     </span>
   </a>
@@ -5881,6 +6003,170 @@ fails its own call and the turn carries on rather than ending in
 
 </div>
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.AGUIConfig.run_context" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">run_context</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.AGUIConfig.run_context" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">run_context</span><span class="p">:</span> <span class="n">RunContextConfig</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>What client-supplied context reaches the model: the host page's own
+<code>RunAgentInput.context</code> entries and the attachment refs riding the posted
+messages, fenced and labelled as data, capped by a character ceiling.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.RunContextConfig" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">RunContextConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#django_ag_ui.RunContextConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>What client-supplied context reaches the model, and how much of it.</p>
+<p>An endpoint's answer to a question AG-UI leaves to the consumer: a
+<code>RunAgentInput</code> carries a <code>context</code> list the host page fills in, and
+pydantic-ai's adapter deliberately does not read it. This record is where a
+project says whether it wants that text delivered, whether the attachment
+refs the web component posts alongside a message become a manifest the model
+can act on, and what either is allowed to cost.</p>
+<p>Every field is <strong>already resolved</strong>, matching :class:<code>AGUIConfig</code>'s contract
+— there is no unset state here. Build it through
+:func:<code>~django_ag_ui.config.build_ag_ui_config.build_ag_ui_config</code>, which
+layers the <code>RUN_CONTEXT</code> settings dict under any override.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.RunContextConfig.client_context" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">client_context</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.RunContextConfig.client_context" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">client_context</span><span class="p">:</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Whether <code>RunAgentInput.context</code> entries are delivered to the model.
+<code>False</code> restores the behaviour of every release before this feature: the
+client can announce whatever it likes and the model never sees it.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.RunContextConfig.attachment_manifest" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">attachment_manifest</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.RunContextConfig.attachment_manifest" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">attachment_manifest</span><span class="p">:</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Whether attachment refs carried on the posted user messages are derived
+into a manifest of files the model can read with <code>read_attachment</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.RunContextConfig.max_chars" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_chars</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.RunContextConfig.max_chars" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Ceiling on the combined length of the delivered values. Client context is
+unbounded text that reaches the model on <em>every</em> request of a run, so this
+is a ceiling rather than a budget — content over it is truncated visibly,
+not dropped in silence.</p>
+
+    </div>
+
+</div>
+
 
 
 
@@ -5917,7 +6203,8 @@ fails its own call and the turn carries on rather than ending in
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">thread_list_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">tool_guard</span><span class="p">:</span> <span class="n">ToolGuardConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">tool_failure</span><span class="p">:</span> <span class="n">ToolFailureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AGUIConfig</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">run_context</span><span class="p">:</span> <span class="n">RunContextConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AGUIConfig</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -6885,6 +7172,11 @@ refused rather than sharing one <code>""</code> bucket). The unique
 <code>(owner_id, thread_id)</code> constraint holds regardless. Titles are derived
 from the first user message at first save and then left alone except by
 :meth:<code>_rename</code>; <code>preview</code> re-derives on every save.</p>
+<p>Saving also reconciles which attachments the thread refers to, and deleting
+it drops the ones nothing else refers to. Attachments therefore have a
+lifetime tied to the conversations that quote them rather than living
+forever; uploads that were never sent belong to no conversation at all and
+are collected by the <code>agent_store_prune_attachments</code> command instead.</p>
 
 
 
@@ -6939,6 +7231,11 @@ list as JSON (the same shape every store round-trips); <code>title</code> and
 message bodies, and <code>updated_at</code> orders it. <code>owner_id</code> is the resolved
 owner (the user's pk, or an <code>anon:&lt;session_key&gt;</code> bucket under
 <code>ALLOW_ANONYMOUS</code>) — the store always filters by it, the security boundary.</p>
+<p><code>attachments</code> is the reconciled set of files this conversation refers to,
+derived from <code>messages</code> on every save (see
+:func:<code>~django_pydantic_agent.contrib.store.reconcile_conversation_attachments.reconcile_conversation_attachments</code>)
+and authoritative for attachment lifecycle: deleting the conversation drops
+the attachments nothing else still points at.</p>
 <p>Used by
 :class:<code>~django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore</code>.
 Run lineage (<code>run_id</code> / step ledger) is intentionally out of scope here;
@@ -7387,6 +7684,10 @@ refused rather than sharing one <code>""</code> bucket) — so one user's id nev
 resolves another's file. The unique <code>(owner_id, attachment_id)</code> constraint
 holds regardless. The public <code>attachment_id</code> is an opaque UUID, kept
 separate from the storage filename.</p>
+<p>Uploads are <strong>deduplicated by content hash, within one owner</strong>. The same file
+sent into five threads is written to storage once and pointed at five times;
+see :meth:<code>_save</code> for why the row is still new every time, and why the scope
+is one owner rather than the whole table.</p>
 
 
 
@@ -7441,9 +7742,16 @@ holds the bytes via Django <code>Storage</code> (so S3 etc. come free through
 are the denormalised metadata returned without reading the file back.
 <code>owner_id</code> is the resolved owner (the user's pk, or an <code>anon:&lt;session_key&gt;</code>
 bucket under <code>ALLOW_ANONYMOUS</code>) — the store always filters by it, the
-security boundary. <code>thread_id</code> optionally ties an
-attachment to one conversation; it is left blank when a file is uploaded
-before a thread exists, so attachments never depend on a conversation row.</p>
+security boundary. <code>thread_id</code> is a loose label a subclass or a project may
+set to tie an attachment to one conversation; the reference store leaves it
+blank, and it is <em>not</em> what lifecycle runs on — the
+:class:<code>ConversationAttachment</code> relation is. It is kept because projects read
+it.</p>
+<p><code>sha256</code> is the hex digest of the file's bytes, computed chunked at upload.
+It is what makes a re-upload of the same bytes reuse the blob already in
+storage instead of writing a second copy. It is blank on rows written before
+the column existed; the <code>agent_store_backfill_hashes</code> management command
+fills those in.</p>
 <p>Used by
 :class:<code>~django_pydantic_agent.contrib.store.default_attachment_store.DefaultAttachmentStore</code>.</p>
 
@@ -7946,8 +8254,11 @@ which Django forbids on the async event loop.</p>
 
 <a href="#django_pydantic_agent.agent.attachment_toolset.build_attachment_toolset" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_attachment_toolset</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">store</span><span class="p">:</span> <span class="n">AttachmentStore</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionToolset</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">store</span><span class="p">:</span> <span class="n">AttachmentStore</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">inline</span><span class="p">:</span> <span class="n">AttachmentInlineConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionToolset</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -7959,6 +8270,12 @@ only read files that user uploaded, never another's by id. Wired in by a
 transport's agent build when an attachment store is configured, so the wire
 stays protocol-vanilla: attachments travel as lightweight refs and the bytes
 are reached here, server-side, only when the model asks.</p>
+<p><code>inline</code> decides which binary types come back as file content the model
+can actually look at, and how large a file may be before it is described
+rather than attached; <code>None</code> takes the
+:class:<code>~django_pydantic_agent.agent.types.attachment_inline_config.AttachmentInlineConfig</code>
+defaults. Read its docstring before widening either — inlined bytes go to
+the provider on every model request left in the run.</p>
 
 
     </div>

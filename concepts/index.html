@@ -772,6 +772,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#bytes-reach-the-model-not-the-row" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bytes reach the model, not the row
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-store" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -795,6 +806,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-supplied-run-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client-supplied run context
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1055,6 +1077,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#bytes-reach-the-model-not-the-row" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bytes reach the model, not the row
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-store" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1078,6 +1111,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-supplied-run-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client-supplied run context
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1563,6 +1607,17 @@ and an <code>owner_id</code> for authorization scoping.</p>
 <p>When a non-null store is configured, the view persists the run's full message
 history when the run finishes streaming, scoped to the authenticated user
 (<code>owner_id</code>).</p>
+<p><strong>A stored thread holds no file bytes the server itself produced.</strong> The base64 a
+<code>read_attachment</code> return serialises into is removed before the run's messages
+reach the store, and a message that was <em>only</em> those bytes is dropped rather than
+kept as an empty turn. Text parts survive, and so does the tool message
+describing what was read, so the thread still reads as a record of the exchange.</p>
+<p>The rule is deliberately one-sided: <strong>the server never persists bytes it
+generated, and never discards bytes the client sent.</strong> Inline content a front end
+posts is stored exactly as it arrived, the same way message ids and the
+<code>attachments</code> field are. See <a href="#file-uploads">File uploads</a> for what that means
+for a follow-up question, and for how rows written before this existed are
+cleaned.</p>
 <h3 id="thread-history">Thread history<a class="headerlink" href="#thread-history" title="Permanent link">&para;</a></h3>
 <p>The store also powers a <strong>chat-history drawer</strong>: a user's past conversations,
 each loadable, renamable, and deletable. Two Protocol methods back it, both
@@ -1657,11 +1712,57 @@ catalog</a> uses to keep schemas off the wire.</p>
       dataclass
   " href="../api/#django_ag_ui.AttachmentRef"><code>AttachmentRef</code></a> — a durable handle,
    not bytes.</li>
-<li>The user sends a message carrying the refs.</li>
+<li>The user sends a message carrying the refs. They ride the message as an
+   <code>attachments</code> field — AG-UI does not declare one, but <code>ag_ui.core</code> validates
+   with <code>extra="allow"</code>, so it arrives intact. The server derives a <strong>manifest</strong>
+   from the posted messages (see <a href="../configuration/#run_context"><code>RUN_CONTEXT</code></a>)
+   and gives it to the model as fenced context, so the model knows a file exists
+   and what id reads it.</li>
 <li>When the model needs a file's contents, it calls the built-in
    <code>read_attachment(attachment_id)</code> tool, which resolves the bytes <strong>server-side,
    owner-scoped to the acting user</strong>.</li>
 </ol>
+<p>The manifest is derived from the message list rather than from the current
+request's uploads, because the client clears its per-run list once a run settles
+— so refs stay visible on follow-up turns about the same file. A stored thread
+keeps the client's messages as posted, ids and <code>attachments</code> field included, so
+the chips (and the ids) survive a page reload.</p>
+<h3 id="bytes-reach-the-model-not-the-row">Bytes reach the model, not the row<a class="headerlink" href="#bytes-reach-the-model-not-the-row" title="Permanent link">&para;</a></h3>
+<p>Step 3 is where the wire's "refs, never bytes" rule meets its one exception: for
+a PDF or an image inside the size cap, <code>read_attachment</code> returns the file itself,
+and the model needs it. That return serialises onto the wire as a synthetic user
+message whose whole content is a base64 <code>document</code> part — so left alone it lands
+in the conversation row, ships back to the browser on every thread load, and is
+posted again by the client on every turn after a reload. A 2.6 MB PDF is roughly
+3.5 MB of base64 in a single row.</p>
+<p>The bytes are therefore taken off the run's own new messages on the way to the
+store, and off a resumed run's server-loaded snapshot when that is dumped into
+the row. They still reach the model during the run, which is the only place they
+were ever needed.</p>
+<p><strong>What the server does not touch is the history the client posted.</strong> The rule is
+that the server never persists bytes it generated and never discards bytes the
+client sent, so an inline image a front end puts in a message reaches both the
+model and the row untouched. Stripping the posted history too would have been the
+tidier symmetry and the wrong one:
+<a href="../configuration/#allow_uploaded_files"><code>ALLOW_UPLOADED_FILES</code></a> governs provider
+file-id references, not inline content, so a <code>data</code>-sourced image part reaches
+the model whatever that setting says — taking it off the way in would silently
+blind the model to any pasted image.</p>
+<p><strong>Rows written before this are cleaned at rest, not by the run loop.</strong> A
+conversation stored by an earlier release keeps its base64 until something
+rewrites it, and that something is a management command rather than the next run:
+with django-pydantic-agent 0.15.0 or newer and its
+<code>django_pydantic_agent.contrib.store</code> app installed, <code>manage.py
+agent_store_strip_inline_bytes</code> (<code>--dry-run</code> to see what it would reclaim) does
+structural JSON surgery on the stored rows, keeping every message id and the
+<code>attachments</code> array intact. The attachments themselves are untouched in the
+attachment store, so the model still reaches every file by id.</p>
+<p><strong>What changes for a reader.</strong> A follow-up question about the same file, asked
+after a page reload, makes the model call <code>read_attachment</code> again instead of
+finding the file already in its history. Within one session that was always the
+case — the bytes never travelled the event stream, so the client never had them
+to post back — and the extra call is server-side, owner-scoped, and cheaper than
+the upload it replaces.</p>
 <h3 id="the-store">The store<a class="headerlink" href="#the-store" title="Permanent link">&para;</a></h3>
 <p><a class="autorefs autorefs-internal" title="AttachmentStore" href="../api/#django_ag_ui.AttachmentStore"><code>AttachmentStore</code></a> is the persistence seam, set
 via <a href="../configuration/#attachment_store"><code>attachment_store=</code></a>. Every method is
@@ -1692,6 +1793,25 @@ attachment store is active (a non-<code>Null</code> store, resolved from
 which is load-bearing here rather than a parity choice, since an anonymous
 caller has no files to reach. The web component reads
 <code>data-attachments-url</code> to drive the composer's upload tray.</p>
+<h2 id="client-supplied-run-context">Client-supplied run context<a class="headerlink" href="#client-supplied-run-context" title="Permanent link">&para;</a></h2>
+<p>A <code>RunAgentInput</code> carries a <code>context</code> list — ordered <code>{description, value}</code> pairs
+the host page fills in with whatever the user is looking at. Pydantic-AI's
+<code>AGUIAdapter</code> deliberately leaves that field (like <code>forwardedProps</code> and
+<code>parentRunId</code>) to the consumer, so this package is what delivers it, alongside
+the <a href="#file-uploads">attachment manifest</a> derived from the posted messages.</p>
+<p>Both arrive at the model in one <strong>fenced, labelled block</strong> headed
+<code>&lt;untrusted-client-context&gt;</code>, telling the model in as many words that everything
+inside it is data describing the user's situation rather than instructions, and
+that the operator's rules win. The marker itself is neutralised wherever a client
+value contains it, so the fence cannot be forged or closed early.</p>
+<p>The block is delivered as <strong>additional run instructions</strong>, not as a message and
+not merged into the operator's prompt string. That placement is what keeps it
+out of the record: instructions live on the model request, so the text is never
+written into the stored thread and never echoed back to the browser. It is also
+re-rendered on every model request, so it survives compaction and stays in front
+of the model on the later steps of a long run — which is why it is capped
+(<a href="../configuration/#run_context"><code>MAX_CHARS</code></a>), with anything over the ceiling
+truncated behind a visible marker.</p>
 <h2 id="cancelling-a-run">Cancelling a run<a class="headerlink" href="#cancelling-a-run" title="Permanent link">&para;</a></h2>
 <p>AG-UI has <strong>no server-side cancel route</strong>. A run is one streaming HTTP request;
 the client cancels it by aborting that request, and the server observes a
