@@ -453,7 +453,7 @@ a [stored thread](concepts.md#bytes-reach-the-model-not-the-row) does not carry
 base64 the server produced, and a reloaded conversation re-reads the file
 server-side instead of re-uploading it. Inline content the *client* posted is
 stored as sent; rows written by an earlier release are cleaned by `manage.py
-agent_store_strip_inline_bytes`.
+agent_store_strip_inline_bytes`, from django-pydantic-agent 0.15.0.
 
 The package ships an abstract
 [`ModelAttachmentStore`][django_ag_ui.ModelAttachmentStore] base you can subclass

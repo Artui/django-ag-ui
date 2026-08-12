@@ -38,8 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   blinded the model to any pasted image.
 
   **A row written by 0.41.0 keeps its payload until something rewrites it, and
-  that something is not the run loop.** With the
-  `django_pydantic_agent.contrib.store` app installed, `manage.py
+  that something is not the run loop.** With django-pydantic-agent 0.15.0 or
+  newer and its `django_pydantic_agent.contrib.store` app installed, `manage.py
   agent_store_strip_inline_bytes` (`--dry-run` first) cleans stored rows in
   place, keeping every message id and the `attachments` array. A data migration
   is the right layer for stored data; rewriting what a client posted, on the way
