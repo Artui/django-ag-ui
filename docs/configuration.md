@@ -447,6 +447,14 @@ user attached — the AG-UI message stream stays free of file payloads (uploads 
 out-of-band and travel as lightweight refs). A consumer that registers its own
 `read_attachment` tool keeps it (registry tools win).
 
+For a PDF or an image the tool returns the file's bytes so the model can actually
+see it. Those bytes are removed again before the run's messages are persisted, so
+a [stored thread](concepts.md#bytes-reach-the-model-not-the-row) does not carry
+base64 the server produced, and a reloaded conversation re-reads the file
+server-side instead of re-uploading it. Inline content the *client* posted is
+stored as sent; rows written by an earlier release are cleaned by `manage.py
+agent_store_strip_inline_bytes`.
+
 The package ships an abstract
 [`ModelAttachmentStore`][django_ag_ui.ModelAttachmentStore] base you can subclass
 with your own model + storage. For a ready-made store, opt into the

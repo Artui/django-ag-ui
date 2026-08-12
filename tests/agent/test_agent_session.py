@@ -701,3 +701,151 @@ async def test_a_cancelled_run_keeps_the_same_prefix() -> None:
     assert contents[:3] == ["older question", "older answer", "what is the budget?"]
     assert conversation.messages[2]["attachments"] == ATTACHMENT_MESSAGE[0]["attachments"]
     assert "partial answer" in contents
+
+
+# --- the server's own file bytes stay out of the stored thread -------------------
+#
+# ``read_attachment`` hands the model a PDF as a ``ToolReturn`` carrying
+# ``BinaryContent``, which serialises onto the wire as a synthetic user message
+# whose whole content is a base64 ``document`` part. Persisted, a 2.6 MB PDF is
+# roughly 3.5 MB of base64 in one row, refetched on every thread load and
+# re-posted on every turn after a reload. The bytes never travel the live event
+# stream, so a same-session follow-up already re-reads the file server-side.
+#
+# The rule these pin is one-sided on purpose: **the server never persists bytes
+# it generated, and never discards bytes the client sent.** So a run's own new
+# messages and a resumed run's dumped snapshot are stripped, and the posted
+# history is not touched at all — an inline image a front end sends reaches the
+# model and the row exactly as sent. Rows written before the strip existed are
+# cleaned at rest by ``manage.py agent_store_strip_inline_bytes``, not by the run
+# loop rewriting what a client posted.
+
+PDF_B64 = "JVBERi0xLjQgZmFrZQ=="
+PNG_B64 = "iVBORw0KGgoAAAANSUhEUg=="
+INLINED_DOCUMENT: dict[str, Any] = {
+    "type": "document",
+    "source": {"type": "data", "value": PDF_B64, "mimeType": "application/pdf"},
+}
+PASTED_IMAGE: list[dict[str, Any]] = [
+    {
+        "id": "m1",
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "what is in this screenshot?"},
+            {
+                "type": "image",
+                "source": {"type": "data", "value": PNG_B64, "mimeType": "image/png"},
+            },
+        ],
+        "attachments": [{"id": "a1f3", "name": "shot.png", "mime": "image/png", "size": 91231}],
+    }
+]
+
+
+def _inlining_agent() -> Agent[Any, Any]:
+    """Calls a tool that returns a file's bytes, the way ``read_attachment`` does."""
+    from pydantic_ai.messages import BinaryContent, ToolReturn
+    from pydantic_ai.models.function import DeltaToolCall
+
+    calls: list[int] = []
+
+    async def stream_fn(messages: list, info: Any) -> Any:
+        if calls:
+            yield "the budget is 12"
+            return
+        calls.append(1)
+        yield {0: DeltaToolCall(name="read_attachment", json_args="{}", tool_call_id="c1")}
+
+    agent: Agent[Any, Any] = Agent(FunctionModel(stream_function=stream_fn))
+
+    @agent.tool_plain
+    def read_attachment() -> Any:
+        return ToolReturn(
+            return_value="Attached below: report.pdf",
+            content=[BinaryContent(data=b"%PDF-1.4 fake", media_type="application/pdf")],
+        )
+
+    return agent
+
+
+async def test_a_run_whose_tool_returns_bytes_stores_no_base64() -> None:
+    store = _RecordingStore()
+    session = _session(_inlining_agent(), conversation_store=store)
+
+    joined = await _events(session)
+
+    (conversation,) = store.saved
+    saved = json.dumps(conversation.messages)
+    assert PDF_B64 not in saved
+    assert PDF_B64 not in joined
+    # The note the tool wrote is a separate string-content tool message, so a
+    # reader still sees which file was read and what the model was told.
+    assert "Attached below: report.pdf" in saved
+    # The emptied synthetic user message is gone rather than stored blank.
+    assert [message["role"] for message in conversation.messages] == [
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+    ]
+
+
+async def test_a_client_posted_inline_image_still_reaches_the_model() -> None:
+    """The guard on where the strip is *not* applied.
+
+    Stripping the posted history as well was the obvious symmetry and the wrong
+    one: `ALLOW_UPLOADED_FILES` governs provider file-id references
+    (`UploadedFile`), not inline content, so a `data`-sourced image part reaches
+    the model on either setting. Taking it off the way in would have silently
+    blinded the model to any pasted image, for the sake of storage the client
+    was paying for anyway.
+    """
+    seen: dict[str, Any] = {}
+    session = _session(_capturing_agent(seen), _run_input(PASTED_IMAGE))
+
+    await _events(session)
+
+    parts = [type(part).__name__ for part in seen["messages"][0].parts[0].content]
+    assert parts == ["str", "BinaryContent"]
+
+
+async def test_a_client_posted_inline_image_is_stored_exactly_as_sent() -> None:
+    # The other half of the rule: the server does not edit what the client sent,
+    # bytes included — the same principle that keeps the ids and the
+    # ``attachments`` refs. A row written before the strip existed is cleaned by
+    # ``manage.py agent_store_strip_inline_bytes``, not here.
+    store = _RecordingStore()
+    session = _session(run_input=_run_input(PASTED_IMAGE), conversation_store=store)
+
+    await _events(session)
+
+    (conversation,) = store.saved
+    assert conversation.messages[0]["id"] == "m1"
+    assert conversation.messages[0]["attachments"] == PASTED_IMAGE[0]["attachments"]
+    assert PNG_B64 in json.dumps(conversation.messages)
+
+
+async def test_a_resumed_runs_server_history_is_dumped_without_its_bytes() -> None:
+    # The step store holds a previous run's messages in pydantic-ai's own types,
+    # bytes included; dumping them would put the base64 straight back in the row.
+    from pydantic_ai.messages import BinaryContent
+
+    store = _RecordingStore()
+    history = [
+        *_server_history(),
+        ModelRequest(
+            parts=[
+                UserPromptPart(
+                    content=[BinaryContent(data=b"%PDF-1.4 fake", media_type="application/pdf")]
+                )
+            ]
+        ),
+    ]
+    session = _session(conversation_store=store, message_history=history)
+
+    await _events(session)
+
+    (conversation,) = store.saved
+    assert PDF_B64 not in json.dumps(conversation.messages)
+    contents = [message["content"] for message in conversation.messages]
+    assert contents[:3] == ["older question", "older answer", "hi"]
