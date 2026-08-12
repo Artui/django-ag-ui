@@ -17,13 +17,11 @@ class TranscriptionBackend(Protocol):
     (:class:`~django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend`).
 
     The single method is async and receives the acting ``request`` so a backend
-    can scope by user / rate-limit / bill per principal. Unlike
+    can scope by user, rate-limit, or bill per principal. Unlike an
     :class:`~django_pydantic_agent.persistence.types.attachment_store.AttachmentStore`,
-    transcription keeps no durable artifact: the recorded audio is transcribed
-    and the text returned in one shot (the composer drops it into the textarea),
-    so there is nothing to ``open`` or ``delete``. ``transcribe`` validates
-    nothing about size/type itself (the view does, from settings); it just turns
-    audio bytes into text.
+    transcription keeps no durable artifact — audio in, text out, nothing to
+    ``open`` or ``delete``. ``transcribe`` validates nothing about size or type;
+    the view does that from settings.
     """
 
     async def transcribe(self, audio: UploadedFile, *, request: HttpRequest) -> str: ...

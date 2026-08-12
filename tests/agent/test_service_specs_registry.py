@@ -113,11 +113,9 @@ class TestNormalisation:
         )
 
     def test_names_are_names_not_records(self) -> None:
-        """The whole reason normalisation happens at the entry point.
-
-        Iterating a registry yields ``RegisteredSpec`` records; the view reserves
-        tool names by iterating this value, so records here would silently break
-        collision detection.
+        """Iterating a registry yields ``RegisteredSpec`` records, and the view
+        reserves tool names by iterating this value — records here would silently
+        break collision detection.
         """
         server = _server(service_specs=_registry())
         assert sorted(server._service_specs) == ["create_widget", "list_widgets"]
@@ -193,11 +191,10 @@ class TestReachesTheViews:
 class TestUnguardedSpecs:
     """The refusal happens at construction, which is the point of doing it here.
 
-    ``SpecCapability`` already refuses an unguarded spec — but this transport
-    builds its capability **per request** (it needs the request-scoped ``seen``
-    set for tool-name dedup), so relying on the upstream check alone would turn
-    a misconfiguration into a 500 on the first agent call instead of a failure
-    to start.
+    ``SpecCapability`` already refuses an unguarded spec, but this transport
+    builds its capability per request, so the upstream check alone would turn a
+    misconfiguration into a 500 on the first agent call instead of a failure to
+    start.
     """
 
     def test_a_spec_with_no_permission_classes_refuses_to_construct(self) -> None:
@@ -217,9 +214,9 @@ class TestUnguardedSpecs:
     def test_the_refusal_points_at_the_migration_path(self) -> None:
         """A large registry cannot be guarded in one commit, so say what to do.
 
-        Upstream's own message offers ``require_permissions=False``; that flag is
-        not reachable through ``service_specs=``, so repeating it verbatim would
-        send an operator looking for a keyword this constructor does not take.
+        Upstream's message offers ``require_permissions=False``, which is not a
+        keyword this constructor takes, so repeating it verbatim would send an
+        operator looking for something that does not exist.
         """
         with pytest.raises(ImproperlyConfigured) as excinfo:
             AGUIServer(ToolRegistry(), model=TestModel(), service_specs={"go": _bare_service()})
@@ -247,12 +244,10 @@ class TestUnguardedSpecs:
 class TestPreBuiltToolset:
     """``service_specs=`` accepts an already-built ``SpecToolset`` / capability.
 
-    ⚠ **The two escape hatches used to cost each other.** ``service_specs=``
-    could pass only the mapping, so a project needing any ``SpecToolset`` knob —
-    ``max_page_size``, an ``exception_map``, a ``build_context`` override — had
-    to abandon it for ``capabilities=``, which is not wired into the tool
-    catalog, so its tool-call cards render unlabelled. Taking the powerful form
-    meant losing the labels.
+    It is the only way to reach a ``SpecToolset`` knob (``max_page_size``, an
+    ``exception_map``, a ``build_context`` override) without falling back to
+    ``capabilities=``, which the tool catalog never sees — so its tool-call cards
+    would render unlabelled.
     """
 
     def _server(self, source: Any) -> AGUIServer:
@@ -271,22 +266,17 @@ class TestPreBuiltToolset:
         assert server._spec_capability is capability
 
     def test_its_specs_still_reach_the_catalog(self) -> None:
-        """⭐ The point of extracting the mapping as well as holding the object.
-
-        Choosing the powerful form must not cost the tool-call card labels —
-        that trade is the whole defect.
-        """
+        """Choosing the powerful form must not cost the tool-call card labels."""
         server = self._server(SpecToolset({"list_widgets": _selector()}))
 
         assert set(server._service_specs) == {"list_widgets"}
 
     def test_a_toolset_built_to_skip_the_permission_check_is_not_re_checked(self) -> None:
-        """⛔ Re-checking would take back a decision the consumer already made.
+        """Re-checking would take back a decision the consumer already made.
 
         ``require_permissions=False`` is the documented migration path for a
-        registry too large to guard in one commit, and passing a pre-built
-        toolset is the *only* way to reach it from here. Validating again on
-        arrival would make that impossible and leave no route at all.
+        registry too large to guard in one commit, and a pre-built toolset is the
+        only way to reach it from here.
         """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -299,7 +289,7 @@ class TestPreBuiltToolset:
         assert server._spec_capability is not None
 
     def test_a_name_the_registry_already_owns_is_refused_at_construction(self) -> None:
-        """⚠ A pre-built toolset cannot be filtered, so this has to fail loudly.
+        """A pre-built toolset cannot be filtered, so this has to fail loudly.
 
         For a mapping the endpoint drops the colliding name and the registry
         wins. That option does not exist here — the object is the consumer's —
@@ -347,18 +337,16 @@ class TestPreBuiltToolset:
         assert schema["limit"]["maximum"] == 25
 
     def test_the_declared_protocols_match_the_real_toolset_and_capability(self) -> None:
-        """⚠ **A too-narrow annotation trains consumers to suppress correct code.**
+        """**A too-narrow annotation trains consumers to suppress correct code.**
 
-        Passing a pre-built toolset worked from the day it was accepted, but the
-        parameter stayed typed as the mapping-or-registry union — so a project
-        doing the documented thing had a green test suite and a red type
-        checker, and the cheapest fix on their side is an ignore comment on code
-        that was never wrong. The tests above assert the *behaviour*; this one
-        and the next assert the **declaration** keeps up with it.
+        The tests above assert the behaviour; this one and the next assert the
+        *declaration* keeps up with it, so a project doing the documented thing
+        does not end up with a green suite, a red type checker, and an ignore
+        comment on code that was never wrong.
 
-        The cheap half, in-process: the two protocols the union names are
-        matched structurally, so a member misspelled in either would still
-        type-check against itself and silently describe nothing that exists.
+        The cheap half, in-process: the two protocols the union names are matched
+        structurally, so a member misspelled in either would still type-check
+        against itself while describing nothing that exists.
         """
         assert isinstance(SpecToolset({"list_widgets": _selector()}), SpecToolsetSource)
         assert isinstance(SpecCapability({"list_widgets": _selector()}), SpecCapabilitySource)
@@ -369,12 +357,11 @@ class TestPreBuiltToolset:
         """The durable half — the consumer's own checker, on the consumer's code.
 
         ``ty`` is the checker this repo gates on, so running it over a snippet
-        that passes all four shapes is the only assertion that fails for the
-        same reason a consumer's build does. Structural conformance alone would
-        not have caught the original defect: ``SpecToolset`` satisfies a
-        ``runtime_checkable`` ``SpecSource`` at runtime (``hasattr(x, "specs")``
-        is true of a property too) while failing assignability, which is exactly
-        the gap between the two halves of this test.
+        passing all four shapes is the only assertion that fails for the same
+        reason a consumer's build does. Structural conformance alone is not
+        enough: ``SpecToolset`` satisfies a ``runtime_checkable`` ``SpecSource``
+        at runtime (``hasattr(x, "specs")`` is true of a property too) while
+        failing assignability.
         """
         if shutil.which("ty") is None:
             pytest.skip("ty is a dev-group dependency; nothing to check without it")
@@ -398,9 +385,9 @@ class TestPreBuiltToolset:
     def test_the_view_attaches_it_and_reserves_its_names(self) -> None:
         """The server holds it; this proves the view actually composes it.
 
-        ⚠ The names are still added to ``seen`` even though nothing filters the
-        capability itself — the attachment toolset built *after* it must not be
-        able to shadow one of its tools.
+        The names are added to ``seen`` even though nothing filters the
+        capability itself, so the attachment toolset built after it cannot shadow
+        one of its tools.
         """
         toolset = SpecToolset({"list_widgets": _selector()})
         server = AGUIServer(ToolRegistry(), model=TestModel(), service_specs=toolset)

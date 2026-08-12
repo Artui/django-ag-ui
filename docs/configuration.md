@@ -243,7 +243,7 @@ bookkeeping update, because "check, then commit" races under exactly the
 concurrency a limiter exists for. Implementations decrement atomically in shared
 storage.
 
-⚠ **`consume` is synchronous.** django-ag-ui runs it off the event loop, so it
+**`consume` is synchronous.** django-ag-ui runs it off the event loop, so it
 may touch the cache or the ORM directly. An `async def consume` is refused at
 construction with `ImproperlyConfigured` — awaiting it silently would make every
 request a `429` whose `Retry-After` is a coroutine, so the endpoint would look
@@ -606,7 +606,7 @@ exactly once. Use this when you have drf-services specs but no reason to stand u
 an MCP server; use `drf_mcp_server=` when you already run one (or want MCP
 clients to share the tools).
 
-⛔ **Every spec needs its own `permission_classes`.** Since
+**Every spec needs its own `permission_classes`.** Since
 `djangorestframework-pydantic-ai` 0.13 a spec that omits them makes the endpoint
 raise `ImproperlyConfigured` at construction rather than exposing an ungated
 tool. `permission_classes=None` means *inherit* over HTTP — the viewset's
@@ -650,19 +650,19 @@ AGUIServer(
 
 A `SpecCapability` is accepted the same way, so `defer_loading` composes too.
 
-⭐ **This does not cost you the tool-call card labels.** The endpoint attaches
+**This does not cost you the tool-call card labels.** The endpoint attaches
 the object as-is *and* reads its `specs` for the tool catalog and the tool-name
 dedup — so the powerful form and the labelled form are the same form. (Before,
 the only route to a toolset option was `capabilities=`, which the catalog never
 saw, so every card from it rendered unlabelled.)
 
-⚠ **A pre-built toolset is not filtered.** For a mapping, a tool name the
+**A pre-built toolset is not filtered.** For a mapping, a tool name the
 `@tool` registry already defines is dropped in the registry's favour. That
 cannot apply to an object you built, so a collision is **refused at
 construction** instead — rename on one side, or pass a mapping to get the old
 precedence.
 
-⚠ **Nor is it re-checked.** Its constructor already ran the
+**Nor is it re-checked.** Its constructor already ran the
 `permission_classes` check, and it may have been built with
 `require_permissions=False` deliberately — validating again on arrival would
 take that decision back and leave no route to it at all.
@@ -834,7 +834,7 @@ The operator's copy is never redacted. The full exception reaches your
 `AuditLogger` and the `django_pydantic_agent.failure` Python logger either way,
 recorded against the tool that raised it.
 
-⚠ Note it spends no retry budget, so a model may call a persistently broken tool
+Note it spends no retry budget, so a model may call a persistently broken tool
 again. Bound that with run-level `UsageLimits`, not with this.
 
 ### `TOOL_GUARD`

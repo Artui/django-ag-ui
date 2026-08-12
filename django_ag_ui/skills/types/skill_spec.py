@@ -12,15 +12,12 @@ class SkillSpec:
 
     **A skill need not ship its prompt to the browser.** With ``prompt`` unset
     the catalog advertises only the name and label, and picking the skill sends
-    the bare ``/name`` token — the agent resolves what that means, from the
-    harness ``Skills`` capability or from its own instructions. That keeps the
-    wording of an internal workflow on the server, where a catalog endpoint
-    cannot leak it and a reader of the page source cannot lift it.
-
-    Setting ``prompt`` keeps the older behaviour, where the client holds the
-    text and fills any ``{placeholder}``s from its skill context before
-    sending. Useful for a prompt that is genuinely a user-facing convenience
-    rather than an internal one, and for placeholders only the page can fill.
+    the bare ``/name`` token for the agent to resolve — from the harness
+    ``Skills`` capability or its own instructions — so the wording of an internal
+    workflow never leaves the server. Setting ``prompt`` hands the text to the
+    client, which fills any ``{placeholder}``s from its skill context before
+    sending: right for a prompt that is genuinely a user-facing convenience, and
+    for placeholders only the page can fill.
     """
 
     name: str

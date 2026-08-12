@@ -67,19 +67,17 @@ class AgentSession:
         self._run_input = run_input
         self._request = request
         # Per-run overrides, kept off the agent so one built agent serves every
-        # run. Pydantic-AI's own seam: ``model`` replaces the agent's model for
-        # this run, ``toolsets`` / ``capabilities`` are *additional* to the
-        # agent's, and ``instructions`` are additional too — which is exactly a
-        # replacement here, because the agent this session is handed carries
-        # none of its own. See DjangoAGUIView._agent.
+        # run. Pydantic-AI's seam: ``model`` replaces the agent's for this run,
+        # while ``toolsets`` / ``capabilities`` / ``instructions`` are
+        # *additional* — and additional instructions are a replacement here,
+        # because the agent this session is handed carries none of its own.
         self._model = model
         self._instructions = instructions
         self._toolsets = toolsets
         self._capabilities = capabilities
-        # Per-run dependencies. Everything request-scoped the agent needs reaches
-        # tools / toolsets / capabilities through ``ctx.deps`` — so nothing in the
-        # agent closes over this request, and the run's acting user is bound by
-        # pydantic-ai's own mechanism rather than ours.
+        # Everything request-scoped the agent needs reaches tools / toolsets /
+        # capabilities through ``ctx.deps``, so nothing in the agent closes over
+        # this request.
         self._deps = deps
         self._audit_logger = audit_logger
         self._config = config
@@ -108,9 +106,8 @@ class AgentSession:
         persists the partial exchange and audits the cancellation.
         """
         transcript = RunTranscript()
-        # The adapter composes ``[*message_history, *client_messages]`` — so a
-        # resumed run's server-loaded snapshot is prepended to whatever new turn
-        # the client sent. ``None`` behaves exactly as before (client-only).
+        # The adapter composes ``[*message_history, *client_messages]``, so a
+        # resumed run's server-loaded snapshot is prepended to the new turn.
         native = self._adapter.run_stream_native(
             message_history=self._message_history,
             deps=self._deps,
@@ -120,21 +117,16 @@ class AgentSession:
             capabilities=self._capabilities,
         )
         events = self._adapter.transform_stream(native, on_complete=self._on_complete())
-        # A reasoning model's chain-of-thought rides through as AG-UI reasoning
-        # events (adapter pass-through). Forward it by default; strip it when
-        # the consumer opts out, so the model can reason privately.
         if not self._forward_reasoning:
             events = drop_reasoning_events(events)
-        # Establishes the per-run compaction sink and interleaves an activity
-        # event for each firing. Unconditional: it is a no-op unless a
-        # ``CompactionObserver`` is in the capability list, and wrapping it in a
-        # flag would mean a second way to express the same opt-in.
+        # Unconditional: a no-op unless a ``CompactionObserver`` is in the
+        # capability list, and a flag would mean a second way to express the
+        # same opt-in.
         events = inject_compaction_events(events)
-        # Persistence has three exits, not two. ``on_complete`` covers a run
-        # that finishes and the guard below covers a client that disconnects,
-        # which left a run that *fails* saving nothing at all — the one exit
-        # where the user most wants the exchange back. The adapter offers no
-        # error callback to hang this on, so the terminal event is the hook.
+        # The third exit. ``on_complete`` covers a run that finishes and the
+        # guard below covers a client that disconnects; the adapter offers no
+        # error callback, so the terminal event is the only hook a *failing* run
+        # can be persisted from.
         observed = self._persist_on_error(transcript.observe(events), transcript)
         return guarded_stream(
             self._adapter.encode_stream(observed),
@@ -145,19 +137,16 @@ class AgentSession:
     def _run_instructions(self) -> list[str] | str | None:
         """The operator instructions, plus this run's fenced client context.
 
-        The delivery hook for everything the client announced about the user's
+        The delivery hook for what the client announced about the user's
         situation — ``RunAgentInput.context`` and the attachment refs riding the
-        posted messages. Both were arriving on every request and being dropped
-        on the floor, because pydantic-ai's adapter deliberately leaves them to
-        the consumer, and this session is the consumer.
+        posted messages — which pydantic-ai's adapter deliberately leaves to the
+        consumer.
 
         Operator instructions come **first** so the model reads the rules before
-        the data; the block's own closing line re-asserts that precedence at the
-        point the data ends. ``run_stream_native`` takes a ``Sequence[str]``
-        here (``normalize_instructions``) and joins the entries onto
-        ``ModelRequest.instructions``, which is what keeps the client's text out
-        of the operator's prompt string, off the persisted thread, and out of
-        what streams back to the browser.
+        the data; the block's closing line re-asserts that precedence where the
+        data ends. Returning a sequence rather than one joined string is what
+        keeps the client's text out of the operator's prompt string, off the
+        persisted thread, and out of what streams back to the browser.
         """
         block = build_untrusted_context(self._run_input, config=self._config.run_context)
         if block is None:
@@ -193,33 +182,22 @@ class AgentSession:
         ``run_stream_native`` composes them in, so the stored thread reads the
         way the run did.
 
-        **The client's own messages are stored verbatim rather than re-dumped**
-        from the model's history, and that is the whole point: a round-trip
-        through pydantic-ai's types regenerates every message id and drops the
-        non-standard ``attachments`` field the web component rides on a user
-        message. A reloaded thread then showed no attachment chips, and the ids
-        the model had been told about no longer matched anything stored.
+        **The client's messages are stored verbatim, never re-dumped** from the
+        model's history: a round-trip through pydantic-ai's types regenerates
+        every message id and drops the non-standard ``attachments`` field the web
+        component rides on a user message, so a reloaded thread loses its
+        attachment chips and the ids the model was told about match nothing
+        stored. Two consequences: a client-posted system message reaches the row
+        (inert — ``sanitize_messages`` still strips it before the model under the
+        default ``MANAGE_SYSTEM_PROMPT="server"``), and stored user messages keep
+        the client's id.
 
-        Two behaviour changes follow from taking the client's list as posted:
-
-        - **A client-posted system message is now stored.** It is still stripped
-          before the model sees it (``sanitize_messages``, under the default
-          ``MANAGE_SYSTEM_PROMPT="server"``), so it is inert — but it is in the
-          row, where before it was silently dropped on the way to storage.
-        - **Stored user messages keep the client's id** rather than a freshly
-          generated one, which is what makes an attachment ref resolvable after
-          a reload.
-
-        The server-loaded half *is* stripped of inlined file bytes on the way
-        out, and the client's half is not. That asymmetry is the rule the whole
-        change turns on: **the server never persists bytes it generated, and
-        never discards bytes the client sent.** The snapshot arrives in
-        pydantic-ai's own types, where a previous run's ``read_attachment``
-        return still holds the file, so dumping it would write that file back
-        into the row as base64 — server-generated, safe to drop, and nothing is
-        lost that the dump has not already lost. What the client posted is
-        preserved verbatim for exactly the reason its ids and extras are: it is
-        not this server's to edit.
+        The strip is asymmetric on purpose, and it is the invariant this method
+        turns on: **the server never persists bytes it generated, and never
+        discards bytes the client sent.** The snapshot arrives in pydantic-ai's
+        types, where a prior run's ``read_attachment`` return still holds the
+        file, so dumping it unstripped would write that file back into the row as
+        base64. What the client posted is not this server's to edit.
         """
         return [
             *strip_binary_content(AGUIAdapter.dump_messages(self._message_history or [])),
@@ -232,17 +210,14 @@ class AgentSession:
         ``None`` when persistence is off (the default ``NullConversationStore``),
         so the stateless path adds no overhead. Otherwise the callback stores the
         prior exchange as the client shaped it plus **only** this run's new
-        messages — ``result.new_messages()`` rather than ``all_messages()``,
-        because the run's history already contains the client's turn and dumping
-        the lot re-derived it from the model's types (see
-        :meth:`_prior_messages`).
+        messages — ``result.new_messages()``, not ``all_messages()``, because the
+        run's history already holds the client's turn and dumping the lot would
+        re-derive it from the model's types (see :meth:`_prior_messages`).
 
-        The run's new messages are stripped of inlined file bytes on the way to
-        the store. Those bytes are this server's own doing — a
-        ``read_attachment`` handing the model a PDF — and the model has to see
-        them, so the strip sits on the persistence side of the run rather than
-        anywhere the model reads. Nothing the *client* posted passes through it:
-        that half reaches the store exactly as sent.
+        The new messages are stripped of inlined file bytes here rather than
+        anywhere the model reads: those bytes are the server's own doing (a
+        ``read_attachment`` handing the model a PDF) and the model has to see
+        them.
         """
         save = self._message_saver()
         if save is None:
@@ -270,8 +245,8 @@ class AgentSession:
 
         async def _save(messages: list[Message]) -> None:
             conversation = Conversation(
-                # The store keeps transport-owned records, so the AG-UI wire
-                # shape is serialised here rather than inside the substrate.
+                # The AG-UI wire shape is serialised here rather than inside the
+                # substrate, which keeps transport-owned records.
                 thread_id=thread_id,
                 messages=messages_to_jsonable(messages),
                 owner_id=owner_id,
@@ -279,10 +254,9 @@ class AgentSession:
             try:
                 await store.save(conversation, request=request)
             except AnonymousOperationError:
-                # An anonymous run on an open agent endpoint with a persisting
-                # store that refuses anonymous writes (the default, no
-                # ``allow_anonymous``): the run still streams, it just isn't
-                # saved — better than crashing the completed stream.
+                # An anonymous run against a store that refuses anonymous writes
+                # (the default): the run still streams, it just isn't saved,
+                # rather than crashing an already-completed stream.
                 return
 
         return _save
@@ -293,22 +267,19 @@ class AgentSession:
         Shared by the two non-completing exits. Persistence mirrors the
         completed-run shape — :meth:`_prior_messages` plus whatever the
         transcript observed — so a durable thread reflects the truncated
-        exchange (matching the client, which keeps the partial assistant
-        bubble). Sharing that helper also closes a gap of its own: this path
-        used to take the *client's* messages alone, so a **resumed** run that
-        failed or was cancelled persisted only the new turn and silently
-        truncated the thread it was resuming. The audit record rides the
-        existing ``record(AuditEvent)``
-        surface as a ``tool_name="agent.run"`` event rather than a new protocol
-        method, so custom loggers keep working unchanged; ``duration_ms``
-        measures run start to the failure.
+        exchange, matching the client, which keeps the partial assistant bubble.
+        Going through ``_prior_messages`` is also what stops a **resumed** run
+        that fails or is cancelled from persisting only the new turn and
+        truncating the thread it was resuming.
 
-        The transcript half needs no binary strip, and adding one would be dead
-        code. ``RunTranscript`` builds its messages out of AG-UI *events*, and
-        the only content-bearing ones it reads are text deltas and tool calls
-        and results — all of them plain strings. Inlined file bytes never travel
-        the event stream at all, which is the same measurement this change rests
-        on: they exist only in the run's dumped messages, and those are stripped
+        The audit record rides the existing ``record(AuditEvent)`` surface as a
+        ``tool_name="agent.run"`` event rather than a new protocol method, so
+        custom loggers keep working unchanged; ``duration_ms`` measures run start
+        to the failure.
+
+        The transcript half needs no binary strip: ``RunTranscript`` builds its
+        messages out of AG-UI *events*, and inlined file bytes never travel the
+        event stream — they exist only in dumped messages, which are stripped
         where they are dumped.
         """
         save = self._message_saver()

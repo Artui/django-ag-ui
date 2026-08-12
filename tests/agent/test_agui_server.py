@@ -203,7 +203,7 @@ def test_every_view_requires_authentication_by_default() -> None:
 def test_csrf_reaches_every_view_in_the_mount(stated: bool) -> None:
     """One CSRF answer covers the whole mount, not the run endpoint alone.
 
-    ⚠ **Asserted across every pattern, derived from ``server.urls``, rather than
+    **Asserted across every pattern, derived from ``server.urls``, rather than
     on the agent view or a hand-written list of paths.** ``csrf_exempt`` used to
     be passed only into ``DjangoAGUIView`` while the sub-views were built from
     the auth dict beside it, so ``csrf_exempt=True`` exempted the run endpoint
@@ -261,7 +261,7 @@ def test_unstated_csrf_is_exempt_across_the_whole_mount() -> None:
 def test_exempt_write_routes_reach_their_view_under_csrf_middleware(method: str, url: str) -> None:
     """The flag is only worth asserting if Django acts on it.
 
-    ⭐ The attribute test above proves what the views *declare*; this drives the
+    The attribute test above proves what the views *declare*; this drives the
     same mount through the real ``CsrfViewMiddleware`` with a client that sends
     no token, because that is the layer the bug lived at. Any status other than
     403 means the request reached the view — the middleware rejects before
@@ -279,7 +279,7 @@ def test_exempt_write_routes_reach_their_view_under_csrf_middleware(method: str,
 def test_the_csrf_guard_reaches_the_server_path() -> None:
     """The check lives on the view, so building a server inherits it.
 
-    ⭐ That placement is deliberate: both constructors run at import time, so
+    That placement is deliberate: both constructors run at import time, so
     putting it on the view covers ``AGUIServer`` *and* a directly-constructed
     ``DjangoAGUIView`` with one implementation and one warning, rather than
     reproducing the gap the unguarded-spec refusal has to document.

@@ -33,56 +33,39 @@ def render_untrusted_context(
 ) -> str | None:
     """Render ``items`` as one fenced, labelled block of client-supplied data.
 
-    Returns ``None`` when nothing survives — an empty sequence, values that are
-    all blank, or a budget of zero — so the caller skips the block entirely
-    rather than sending the model an empty fence and a paragraph explaining that
-    there is nothing in it.
+    Returns ``None`` when nothing survives — an empty sequence, all-blank values,
+    or a budget of zero — so the caller skips the block rather than sending an
+    empty fence.
 
-    **Delivery.** The returned text is passed as *additional run instructions*
-    (``run_stream_native(instructions=[operator, block])``). It is never merged
-    into the operator's prompt string, so the two can always be told apart, and
-    never as a ``SystemPromptPart`` — a system part would be fighting
-    ``ReinjectSystemPrompt(replace_existing=True)``, which owns that slot.
-    Instructions are re-rendered on every model request, so the block survives
-    compaction and stays in front of the model on later steps of the same run.
-    Instructions are also the one delivery vehicle that stays off the record:
-    they land on ``ModelRequest.instructions``, which
-    ``AGUIAdapter.dump_messages`` does not emit — so this text is neither
-    persisted into the thread nor echoed back to the client.
+    **Delivery.** The text is passed as *additional run instructions*, never
+    merged into the operator's prompt string (so the two can always be told
+    apart) and never as a ``SystemPromptPart`` (which would fight
+    ``ReinjectSystemPrompt(replace_existing=True)`` for that slot). Instructions
+    are re-rendered on every model request, so the block survives compaction, and
+    they land on ``ModelRequest.instructions``, which ``AGUIAdapter.dump_messages``
+    does not emit — so this text is neither persisted into the thread nor echoed
+    back to the client.
 
-    **What the fence buys, and what it does not.** It is defence in depth on the
-    *framing* only: the model is told which bytes came from the browser, the
-    marker cannot be forged or closed early (see the neutralisation below), and
-    a client ``description`` cannot spread across lines to fake a new section.
-    It is **no defence at all against hostile content inside an attachment or a
-    page** — an instruction hidden in a PDF the model reads through
-    ``read_attachment``, or in a page map the host serialises, arrives with
-    whatever authority the model gives it. Treat this as labelling, not as a
-    sanitiser.
-
-    Rules the rendering enforces:
+    **This is labelling, not sanitisation.** It is defence in depth on the
+    framing only, and **no defence against hostile content inside an attachment
+    or a page**: an instruction hidden in a PDF read through ``read_attachment``
+    arrives with whatever authority the model gives it. What the rendering does
+    enforce:
 
     - **Sentinel neutralisation.** Every case-insensitive occurrence of the
-      marker word in a label or a value is rewritten without its hyphens, so a
+      marker word in a label or value is rewritten without its hyphens, so a
       client can neither forge an opening marker nor close the block early and
       continue outside it. ``<`` and ``>`` are deliberately *not* escaped
-      wholesale: a page map legitimately contains markup, and mangling it would
-      cost the feature its point.
+      wholesale — a page map legitimately contains markup.
     - **Label sanitisation.** Whitespace runs collapse to single spaces and the
       result is capped, so a ``description`` cannot carry newlines and forge a
-      new section header.
-    - **Blank values dropped**, here rather than in each source, so there is one
-      place it happens.
-    - **Budget.** ``max_chars`` caps the total of the rendered values. Items are
+      section header.
+    - **Blank values dropped** here rather than in each source.
+    - **Budget.** ``max_chars`` caps the total rendered value length. Items are
       walked in order, the one that crosses the budget is truncated, the rest
-      are dropped, and a marker line naming the limit is appended — silent
-      truncation would leave the model reasoning confidently about a page map
-      whose second half it never saw.
-
-    Kept in this package for now because there is exactly one consumer and
-    putting it in ``django_pydantic_agent`` would make this fix unshippable
-    until core cuts a release. Promote it there when a second transport needs
-    the same fencing.
+      dropped, and a marker line naming the limit appended — silent truncation
+      would leave the model reasoning confidently about a page map whose second
+      half it never saw.
     """
     sections: list[str] = []
     remaining = max_chars

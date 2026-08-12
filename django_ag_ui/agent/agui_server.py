@@ -44,7 +44,7 @@ class AGUIServer:
     The Django-idiomatic front door for the package — the ``admin.site`` idiom
     and the mirror of drf-mcp's ``MCPServer``. Construct it once with the tool
     registry (plus optional stores / auth), then mount its **namespaced**
-    :attr:`urls` with ``include()``::
+    :attr:`urls` with ``path()``::
 
         from django_ag_ui import AGUIServer
 
@@ -57,140 +57,109 @@ class AGUIServer:
 
     The registry is passed **once**: the object builds the agent view
     (:class:`~django_ag_ui.agent.agui_view.DjangoAGUIView`) *and* the read-only
-    tool catalog (:class:`~django_ag_ui.agent.tools_view.ToolsView`) from it — no
-    ``tools=registry`` echo. The mount point is the consumer's to choose the
-    Django way (``path("<prefix>", agent.urls)``); there is no ``prefix=``.
+    tool catalog (:class:`~django_ag_ui.agent.tools_view.ToolsView`) from it. The
+    mount point is the consumer's to choose the Django way, so there is no
+    ``prefix=``.
 
     **What gets mounted.** The agent endpoint (``endpoint``) and its tool catalog
-    (``tools``) always mount. The persistence sub-views mount only when their
-    backend is *active*:
+    (``tools``) always mount. The rest mount only when their backend is *active*:
 
-    - ``skills`` — when a :class:`~django_ag_ui.skills.skill_registry.SkillRegistry`
-      is passed (``skills/``, GET JSON for ``data-skills-url``).
-    - ``threads`` / ``thread`` — when the conversation store is not a
-      :class:`~django_pydantic_agent.persistence.null_conversation_store.NullConversationStore`
-      (``threads/`` + ``threads/<id>/`` for the history drawer's ``data-threads-url``).
-    - ``attachments`` / ``attachment`` — when the attachment store is not a
-      :class:`~django_pydantic_agent.persistence.null_attachment_store.NullAttachmentStore`
-      (``attachments/`` + ``attachments/<id>/`` for the composer's ``data-attachments-url``).
-    - ``transcribe`` — when the transcription backend is not a
-      :class:`~django_ag_ui.persistence.null_transcription_backend.NullTranscriptionBackend`
-      (``transcribe/`` for the mic's ``data-transcribe-url``).
-    - ``resume`` / ``fork`` / ``runs`` — when a ``step_store`` is configured
-      (``resume/<run_id>/`` + ``fork/<run_id>/`` seed a new run from a prior run's
-      last continuable snapshot; ``runs/`` indexes what may be resumed).
+    - ``skills`` — a :class:`~django_ag_ui.skills.skill_registry.SkillRegistry`
+      was passed (``skills/``, GET JSON for ``data-skills-url``).
+    - ``threads`` / ``thread`` — the conversation store is not a
+      ``NullConversationStore`` (``threads/`` + ``threads/<id>/``, the history
+      drawer's ``data-threads-url``).
+    - ``attachments`` / ``attachment`` — the attachment store is not a
+      ``NullAttachmentStore`` (``attachments/`` + ``attachments/<id>/``, the
+      composer's ``data-attachments-url``).
+    - ``transcribe`` — the transcription backend is not a
+      ``NullTranscriptionBackend`` (the mic's ``data-transcribe-url``).
+    - ``resume`` / ``fork`` / ``runs`` — a ``step_store`` is configured.
 
-    ``conversation_store`` / ``attachment_store`` / ``transcription_backend``
-    are **passed here or absent** — there is no settings fallback, and the
-    ``CONVERSATION_STORE`` / ``ATTACHMENT_STORE`` / ``TRANSCRIPTION_BACKEND``
-    keys that once held a dotted path are refused at startup by
+    Collaborators are **passed here or absent**: there is no settings fallback,
+    and the keys that once held a dotted path are refused at startup by
     :func:`~django_ag_ui.check_removed_settings.check_removed_settings` rather
-    than ignored. Unpassed, each falls back to its ``Null*`` backend, whose only
-    effect is that the matching sub-view does not mount — so a bare
+    than ignored. Unpassed, each falls back to its ``Null*`` backend, so a bare
     ``AGUIServer(registry)`` serves the agent endpoint and its tool catalog and
     nothing else.
 
     **Request policy, closed by default.** ``require_authenticated`` /
     ``get_user`` / ``authorize`` / ``csrf_exempt`` are forwarded to **every**
-    view this object builds — the agent endpoint and all sub-views — so one
-    policy governs the whole mount (``401`` for anonymous when
-    ``require_authenticated``, ``403`` from an ``authorize`` predicate,
-    ``get_user`` establishing the acting user, and one answer to CSRF rather
-    than one per endpoint). ``require_authenticated`` defaults to **True**, so a
-    bare ``AGUIServer(registry)`` serves nobody who is not logged in. Pass
+    view this object builds, so one policy governs the whole mount — including
+    the write endpoints (attachment upload / delete, thread rename / delete,
+    transcribe), which ``csrf_exempt=True`` exempts alongside the run endpoint.
+    ``require_authenticated`` defaults to **True**, so a bare
+    ``AGUIServer(registry)`` serves nobody who is not logged in; pass
     ``require_authenticated=False`` to serve anonymous runs deliberately. The
     agent view's ``model`` and ``instructions`` fall back to the
     ``DJANGO_AG_UI`` settings when not passed.
 
-    ⚠ **``csrf_exempt`` covers the write endpoints too, and it used to reach
-    only the run endpoint.** ``csrf_exempt=True`` exempts attachment upload /
-    delete, thread rename / delete and transcribe alongside the run endpoint;
-    before, those five stayed under ``CsrfViewMiddleware`` and answered ``403``
-    for precisely the header-authenticated client the exemption exists to serve.
-    If you want CSRF enforced, that is ``csrf_exempt=False`` — which behaved
-    correctly throughout and still does.
-
     **Anonymous scoping caveat.** With ``require_authenticated=False`` and a
     model-backed store, an anonymous request has no owner id. The reference
     contrib stores refuse anonymous thread / attachment operations unless built
-    with ``allow_anonymous=True`` (in which case they bucket per browser session) —
-    so leave the default in place (or pass a ``get_user`` hook) whenever the
-    store persists, rather than relying on owner scoping to isolate anonymous
-    visitors from one another.
+    with ``allow_anonymous=True`` (which buckets per browser session), so leave
+    the default in place — or pass a ``get_user`` hook — whenever the store
+    persists, rather than relying on owner scoping to isolate anonymous visitors
+    from one another.
 
-    **Spec tools.** ``service_specs`` takes a ``name -> spec`` mapping *or* a
-    spec registry — drf-services 0.27's ``SpecRegistry``, the single declaration
-    site for a project exposing the same specs over more than one transport, so
-    this endpoint reads the same source an MCP server and the HTTP views do::
+    **Spec tools.** ``service_specs`` takes a ``name -> spec`` mapping, a spec
+    registry (drf-services' ``SpecRegistry``, the single declaration site for a
+    project exposing the same specs over several transports), or an
+    already-built ``SpecToolset`` / ``SpecCapability``::
 
         AGUIServer(registry, service_specs=spec_registry.by_tag("public"))
-
-    Either shape is normalised **once, here**, into a plain dict; a filtered view
-    (``by_tag`` / ``subset``) is itself a registry, so two endpoints can be given
-    different projections with no shared state. Requires the
-    ``django-ag-ui[spec-tools]`` extra.
-
-    An **already-built** ``SpecToolset`` or ``SpecCapability`` is accepted here
-    too — the only way to reach a toolset knob (``max_page_size``, an
-    ``exception_map``, a ``build_context`` override, ``require_permissions=False``
-    while migrating) without abandoning ``service_specs=`` for ``capabilities=``,
-    which the tool catalog never sees::
-
         AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
 
-    Both are attached as themselves and their ``specs`` read for the catalog, so
-    the powerful form keeps the tool-call card labels. The parameter's type is
-    the union of all four shapes — a mapping, a
-    :class:`~django_pydantic_agent.integrations.types.spec_source.SpecSource`, a
-    :class:`~django_ag_ui.agent.types.spec_toolset_source.SpecToolsetSource` and a
-    :class:`~django_ag_ui.agent.types.spec_capability_source.SpecCapabilitySource`
-    — the last two matched structurally, since drf-pydantic-ai's own types cannot
-    be named from a package that only optionally depends on it.
+    A filtered registry view (``by_tag`` / ``subset``) is itself a registry, so
+    two endpoints can be given different projections with no shared state. The
+    pre-built form is the only way to reach a toolset knob (``max_page_size``, an
+    ``exception_map``, a ``build_context`` override, ``require_permissions=False``
+    while migrating) without abandoning ``service_specs=`` for ``capabilities=``,
+    which the tool catalog never sees; it is attached as itself and its ``specs``
+    are read for the catalog, so the powerful form keeps the tool-call card
+    labels. The parameter's union covers all four shapes, the last two matched
+    structurally because drf-pydantic-ai's own types cannot be named from a
+    package that only optionally depends on it. Requires the
+    ``django-ag-ui[spec-tools]`` extra.
 
-    **One agent, many runs.** The endpoint builds its agent once and reuses it,
-    rather than re-deriving every tool's JSON Schema per request. Two narrow
-    hooks vary it: ``model_for_request(request)`` and
-    ``instructions_for_request(request)`` — enough for the per-tenant model and
-    the per-tenant system prompt, and narrow on purpose. A hook handed the whole
-    request could vary the agent on anything it read off one, which is not a set
-    the reuse can be reasoned about; these two ride the *run* instead, through
-    pydantic-ai's own per-run ``model`` / ``instructions``::
+    **One agent, many runs.** The endpoint builds its agent once and reuses it
+    rather than re-deriving every tool's JSON Schema per request.
+    ``model_for_request(request)`` and ``instructions_for_request(request)`` are
+    the two hooks that vary it — the per-tenant model and the per-tenant system
+    prompt — and they ride the *run*, through pydantic-ai's own per-run
+    ``model`` / ``instructions``::
 
         AGUIServer(registry, model_for_request=lambda r: r.tenant.model)
 
     **Rate limiting.** ``throttle`` takes a
     :class:`~django_ag_ui.agent.types.throttle.Throttle` — one ``consume(request)``
     returning the suggested ``Retry-After`` in seconds, or ``None`` to allow the
-    run — and applies to the **agent endpoint only**, which is the one that costs
-    a model call per request. It runs after authentication, so a limiter can key
-    on the acting user rather than only an IP::
+    run — and applies to the **agent endpoint only**, the one that costs a model
+    call per request. It runs after authentication, so a limiter can key on the
+    acting user rather than only an IP::
 
         AGUIServer(registry, throttle=FixedWindowThrottle(max_runs=20, per_seconds=60))
 
     **Per-run dependencies.** ``deps_factory`` is a ``request -> AgentDeps``
-    callable replacing the default, which binds only the acting user. Use it to
-    carry project-specific per-run context (a tenant, a feature-flag snapshot)
-    on an ``AgentDeps`` subclass, or to seed ``AgentDeps.state`` with a Pydantic
-    model — the only way to have AG-UI's inbound shared state *validated*, since
-    pydantic-ai validates it against ``type(deps.state)``. Whatever it returns
-    reaches every tool, toolset and capability as ``ctx.deps``.
+    callable replacing the default, which binds only the acting user and their
+    IP. Use it to carry project-specific per-run context on an ``AgentDeps``
+    subclass, or to seed ``AgentDeps.state`` with a Pydantic model — the only way
+    to have AG-UI's inbound shared state *validated*, since pydantic-ai validates
+    it against ``type(deps.state)``. Whatever it returns reaches every tool,
+    toolset and capability as ``ctx.deps``.
 
     **Durable step persistence.** ``step_store`` is a *factory* — a
-    ``request -> StepStore`` callable, not a shared store instance, because the
-    ``pydantic-ai-harness`` step-store protocol carries no request, so the store
-    binds one and is built per run. When set, every run attaches a
-    ``StepPersistence`` capability that records an owner-scoped run / event /
-    snapshot / tool-effect ledger through that store. Pass
-    :class:`~django_pydantic_agent.contrib.store.default_step_store.DefaultStepStore` (its
-    constructor *is* the ``request -> StepStore`` factory) for the reference
-    model-backed store, or any such callable. Requires the
-    ``django-ag-ui[harness]`` extra. Configuring it also mounts three owner-scoped
-    endpoints: ``resume/<run_id>/`` and ``fork/<run_id>/``, which seed a new run
-    with a prior run's last continuable snapshot, and ``runs/``, which indexes the
-    user's runs so a client can *discover* what it may resume. Without that index
-    a client can only continue a run whose id it still holds — ruling out
-    resuming after a page reload or from another device, which is most of what
-    durable persistence is for.
+    ``request -> StepStore`` callable rather than a shared store, because the
+    ``pydantic-ai-harness`` step-store protocol carries no request. When set,
+    every run attaches a ``StepPersistence`` capability recording an owner-scoped
+    run / event / snapshot / tool-effect ledger, and three owner-scoped endpoints
+    mount: ``resume/<run_id>/`` and ``fork/<run_id>/`` seed a new run with a prior
+    run's last continuable snapshot, and ``runs/`` indexes the user's runs so a
+    client can *discover* what it may resume rather than only continuing a run
+    whose id it still holds. Pass
+    :class:`~django_pydantic_agent.contrib.store.default_step_store.DefaultStepStore`
+    (its constructor *is* the factory) for the reference model-backed store, or
+    any such callable. Requires the ``django-ag-ui[harness]`` extra.
 
     **Namespacing.** :attr:`urls` returns the ``(patterns, app_name, namespace)``
     triple ``path()`` mounts directly (like ``admin.site.urls`` — no
@@ -235,33 +204,21 @@ class AGUIServer:
         self._registry = registry
         self._skills = skills
         self._namespace = namespace
-        # Scalars, resolved once — not on every request, where they could only
-        # ever be global. This is what lets /internal/agent and /public/agent
-        # hold different tool-guard policies, retry budgets, upload caps.
+        # Scalars, resolved once. Read per request they could only ever be
+        # global, so no two mounts could differ on a tool-guard policy, a retry
+        # budget or an upload cap.
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
-        # The request policy shared by every view this object builds — splatted
-        # into each constructor. Typed ``Any`` so the mixed-value dict satisfies
-        # each constructor's specific parameter types.
-        #
-        # ⚠ **``csrf_exempt`` belongs in here, not beside it.** It used to be
-        # passed to the agent view alone while the sub-views got only the auth
-        # keys, so ``csrf_exempt=True`` exempted the run endpoint and left every
-        # write endpoint under CsrfViewMiddleware — upload, attachment delete,
-        # thread rename, thread delete and transcribe all 403 for exactly the
-        # header-authenticated client the exemption exists to serve. One dict is
-        # what stops the two halves of a mount answering differently: a key
-        # added here reaches every view or fails loudly at construction, where
-        # a second forwarding path can silently miss one.
+        # One dict splatted into every view constructor, so a key added here
+        # reaches all of them or fails loudly at construction — a second
+        # forwarding path can silently miss one, which is how ``csrf_exempt``
+        # once left every write endpoint under CsrfViewMiddleware. Typed ``Any``
+        # so the mixed-value dict satisfies each constructor's parameter types.
         self._policy: dict[str, Any] = {
             "require_authenticated": require_authenticated,
             "get_user": get_user,
             "authorize": authorize,
             "csrf_exempt": csrf_exempt,
         }
-        # Collaborators are passed, never resolved from a dotted path. The
-        # indirection existed only because settings.py can't hold a live object;
-        # urls.py can, so `drf_mcp_server=internal_mcp` is now expressible at all
-        # — with one global dotted path it was not.
         self._conversation_store: ConversationStore = (
             conversation_store if conversation_store is not None else NullConversationStore()
         )
@@ -274,25 +231,21 @@ class AGUIServer:
             else NullTranscriptionBackend()
         )
         self._drf_mcp_server = drf_mcp_server
-        # Normalised **once, here**, so everything downstream sees a plain
-        # mapping: the spec capability, the tool catalog, and the view's
-        # tool-name reservation. A registry reaching those unresolved fails
-        # three different ways — ``build_tool_catalog`` calls ``.items()``
-        # (AttributeError), and the view's ``seen.update(...)`` iterates, which
-        # yields ``RegisteredSpec`` records rather than names and would quietly
-        # stop detecting tool-name collisions.
+        # Normalised once, here, so the spec capability, the tool catalog and the
+        # view's tool-name reservation all see a plain mapping. A registry
+        # reaching those unresolved breaks both: ``build_tool_catalog`` calls
+        # ``.items()``, and the view's ``seen.update(...)`` would iterate
+        # ``RegisteredSpec`` records rather than names, quietly stopping
+        # tool-name collision detection.
         self._service_specs, self._spec_capability = _resolve_spec_source(service_specs)
-        # ⚠ Only a mapping is checked here. A pre-built toolset ran the same
-        # check in its own constructor — and may have been built with
-        # ``require_permissions=False`` on purpose, which is the entire reason
-        # for accepting one. Re-checking would take that decision back.
+        # Only a mapping is checked. A pre-built toolset ran the same check in
+        # its own constructor, and may have been built with
+        # ``require_permissions=False`` on purpose — the entire reason for
+        # accepting one — so re-checking would take that decision back.
         if self._spec_capability is None and self._service_specs:
             _reject_unguarded_specs(self._service_specs)
         if self._spec_capability is not None:
             _reject_spec_name_collisions(self._service_specs or {}, registry)
-        # A per-request factory, not a shared store (the harness step-store
-        # protocol carries no request). Retained on the object because the
-        # resume/fork endpoints a later release mounts will need it too.
         self._step_store = step_store
         self._deps_factory = deps_factory
         self._view = DjangoAGUIView(
@@ -323,12 +276,9 @@ class AGUIServer:
         """The namespaced ``(patterns, app_name, namespace)`` triple ``path()`` mounts.
 
         Mounts directly at any prefix — ``path("agent/", server.urls)``, no
-        ``include()`` — exactly like ``admin.site.urls``. Reverse the endpoints
-        within the namespace: ``reverse("<namespace>:endpoint")``,
-        ``"<namespace>:tools"``, ``"<namespace>:skills"``, ``"<namespace>:threads"``,
-        ``"<namespace>:thread"``, ``"<namespace>:attachments"``,
-        ``"<namespace>:attachment"``, ``"<namespace>:transcribe"``,
-        ``"<namespace>:resume"``, ``"<namespace>:fork"``.
+        ``include()`` — exactly like ``admin.site.urls``. Every route name listed
+        under "What gets mounted" reverses within the namespace, as
+        ``reverse("<namespace>:endpoint")`` and so on.
         """
         return self._build_patterns(), self._namespace, self._namespace
 
@@ -348,20 +298,16 @@ class AGUIServer:
             ),
         ]
         if self._step_store is not None:
-            # Both verbs share the agent view, which loads the source run's last
-            # snapshot as message_history when Django hands it ``resume_from``.
-            # ``continue_run`` and ``fork_run`` are data-identical in the harness;
-            # the endpoints are two names for one mechanism — seed a new run from a
-            # prior run's checkpoint — so a client can speak the intent it means.
+            # Two names for one mechanism, so a client can speak the intent it
+            # means: ``continue_run`` and ``fork_run`` are data-identical in the
+            # harness, and both verbs share the agent view, which loads the
+            # source run's last snapshot when Django hands it ``resume_from``.
             patterns.append(
                 path("resume/<str:resume_from>/", self._view, name="resume"),
             )
             patterns.append(
                 path("fork/<str:resume_from>/", self._view, name="fork"),
             )
-            # The discovery half: both verbs address a run *by id*, so without
-            # an index a client can only continue a run whose id it still holds
-            # — ruling out resuming after a reload or from another device.
             patterns.append(
                 path("runs/", RunsView(self._step_store, **self._policy), name="runs"),
             )
@@ -398,28 +344,14 @@ def _resolve_spec_source(
 
     Three shapes go in — a ``name -> spec`` mapping, a ``SpecRegistry``, or an
     already-built ``SpecToolset`` / ``SpecCapability`` — and the same two things
-    come out, so everything downstream sees one normalised pair.
+    come out, so everything downstream sees one normalised pair. A pre-built
+    object is attached as itself *and* has its ``specs`` extracted, so it still
+    feeds the tool catalog and the tool-name dedup.
 
-    ⚠ **The parameter is ``Any`` on purpose; the public one is not.** This is the
-    sniffing boundary — each arm is recognised by ``getattr``, which no narrowing
-    a checker can follow, so declaring the constructor's four-shape union here
-    would only make the resolved arms unassignable to what each branch calls
-    (``resolve_spec_mapping`` takes the two mapping shapes, ``from_toolset``
-    wants drf-pydantic-ai's own ``SpecToolset``, which this package cannot name).
-    The union that consumers are checked against lives on
-    :meth:`AGUIServer.__init__`, where it is the whole point.
-
-    ⚠ **Accepting a pre-built object is what makes every ``SpecToolset`` knob
-    reachable from here.** ``service_specs=`` could only ever pass the mapping,
-    so a project needing ``max_page_size``, an ``exception_map`` or a
-    ``build_context`` override had to abandon it for ``capabilities=`` — and
-    that path is not wired into the tool catalog, so its tool-call cards render
-    unlabelled. One escape hatch cost the other.
-
-    ⭐ **The mapping is still extracted, and that is the point.** A pre-built
-    toolset is attached *as itself*, but its ``specs`` also feed the tool
-    catalog and the tool-name dedup, so choosing the powerful form no longer
-    costs the labels.
+    The parameter is ``Any`` on purpose while the public one is not: this is the
+    sniffing boundary, and each arm is recognised by ``getattr``, which no
+    checker can narrow through. Declaring the four-shape union here would only
+    make the resolved arms unassignable to what each branch calls.
     """
     if service_specs is None:
         return None, None
@@ -445,10 +377,9 @@ def _resolve_spec_source(
 def _reject_spec_name_collisions(specs: Mapping[str, Any], registry: ToolRegistry) -> None:
     """Refuse a pre-built toolset whose tool names the registry already owns.
 
-    ⚠ **A pre-built toolset cannot be filtered, which is exactly why this has to
-    fail loudly.** For a mapping the endpoint drops colliding names and lets the
-    registry win; that option does not exist here — the consumer built the
-    object and its tool set is theirs. Left alone, pydantic-ai raises
+    For a mapping the endpoint drops colliding names and lets the registry win;
+    a pre-built toolset is the consumer's and cannot be filtered, so the
+    collision has to fail loudly here. Left alone, pydantic-ai raises
     ``UserError`` for the duplicate **mid-run**, long after the catalog looked
     clean.
     """
@@ -467,29 +398,20 @@ def _reject_spec_name_collisions(specs: Mapping[str, Any], registry: ToolRegistr
 def _reject_unguarded_specs(specs: dict[str, Any]) -> None:
     """Refuse a spec with no ``permission_classes`` here, at construction.
 
-    ⚠ **The check exists upstream; what this adds is *when*.**
-    ``SpecCapability`` refuses the same thing, but this transport builds its
-    capability **per request** — it needs the request-scoped ``seen`` set for
-    tool-name dedup — so the upstream refusal would surface as a 500 on the
-    first agent call rather than as a failure to start. This wave's whole
-    pattern is *fail at registration, not at request time*: an operator reading
-    a traceback in ``urls.py`` is in a different situation from one reading it
-    in Sentry a week later.
+    ``permission_classes=None`` means *inherit* over HTTP — the viewset's own
+    classes, then DRF's ``DEFAULT_PERMISSION_CLASSES``. Off HTTP neither exists,
+    so a spec correctly guarded behind a viewset, with passing HTTP tests,
+    becomes callable by whatever the model decides to call.
 
-    ⛔ **Why the ambiguity is worth failing over.** ``permission_classes=None``
-    means *inherit* over HTTP — the viewset's own classes, then DRF's
-    ``DEFAULT_PERMISSION_CLASSES``. Off HTTP neither exists, so a spec that is
-    correctly guarded behind a viewset, with passing HTTP tests, becomes
-    callable by whatever the model decides to call.
+    ``SpecCapability`` refuses the same thing, but this transport builds its
+    capability per request (it needs the request-scoped ``seen`` set for
+    tool-name dedup), so the upstream refusal would surface as a 500 on the
+    first agent call rather than as a failure to start. Constructing a
+    ``DjangoAGUIView`` directly still fails per request.
 
     Imported lazily: ``djangorestframework-services`` arrives with the
-    ``[spec-tools]`` extra, and ``service_specs`` being set is what proves it
-    is installed.
-
-    ⚠ Constructing a ``DjangoAGUIView`` directly still fails per request — this
-    is the documented path, not the only one. The general fix is for the view to
-    stop rebuilding the capability every request, which is a larger change to
-    the construction seam.
+    ``[spec-tools]`` extra, and ``service_specs`` being set is what proves it is
+    installed.
     """
     from rest_framework_services import unguarded_specs
 

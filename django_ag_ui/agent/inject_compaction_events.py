@@ -18,18 +18,17 @@ async def inject_compaction_events(stream: AsyncIterator[BaseEvent]) -> AsyncIte
 
     Establishes the per-run sink that :class:`CompactionObserver` writes into,
     then drains it as the stream advances. The agent run happens *inside* this
-    iteration, so a compaction recorded during one model request surfaces just
-    before the events that request produces — which is where a reader wants it:
-    immediately above the turn that ran with the shortened history.
+    iteration, so a compaction surfaces immediately above the turn that ran with
+    the shortened history.
 
     An ``ACTIVITY_SNAPSHOT`` rather than a ``CUSTOM`` event, so the wire stays
-    vanilla AG-UI: any AG-UI client can render it as an activity message, and
-    ours is not privileged. Each carries a fresh ``message_id`` — a compaction is
-    a distinct occurrence in the transcript, not a mutation of a prior one.
+    vanilla AG-UI and ours is not a privileged client. Each carries a fresh
+    ``message_id``: a compaction is a distinct occurrence, not a mutation of a
+    prior one.
 
-    The final drain after the loop matters: the last compaction of a run can be
+    The final drain after the loop is load-bearing — a run's last compaction is
     recorded during the model request that produces the closing events, and
-    without it that one would be dropped on the floor.
+    would otherwise be dropped.
     """
     sink: list[Compaction] = []
     token = COMPACTION_SINK.set(sink)

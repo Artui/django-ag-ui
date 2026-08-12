@@ -151,7 +151,7 @@ async def test_unstated_csrf_with_no_get_user_warns() -> None:
     ids=["csrf-enforced", "csrf-exempt-deliberately", "get-user-hook"],
 )
 async def test_stating_how_requests_authenticate_silences_the_warning(kwargs: dict) -> None:
-    # ⭐ An explicit csrf_exempt=True is a *decision* (header-authenticated
+    # An explicit csrf_exempt=True is a *decision* (header-authenticated
     # clients, where CSRF does not apply), so it silences the warning just as
     # csrf_exempt=False does. Warning on the value rather than on the silence
     # would fire on a correct configuration with no way to say so.

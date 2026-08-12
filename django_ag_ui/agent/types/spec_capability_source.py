@@ -16,13 +16,10 @@ class SpecCapabilitySource(Protocol):
     the toolset it hands back is read only for the specs that feed the tool
     catalog and the tool-name dedup.
 
-    Matched **structurally rather than imported**: drf-pydantic-ai arrives only
-    with the optional ``[spec-tools]`` extra, so this package cannot name its
-    types in a signature without forcing the dependency on every install.
-
-    ``get_toolset`` is the distinguishing member — neither a mapping, a
-    ``SpecSource`` nor a bare toolset carries one, so it is what the endpoint
-    checks first.
+    Matched **structurally rather than imported**, since drf-pydantic-ai arrives
+    only with the optional ``[spec-tools]`` extra. ``get_toolset`` is the
+    distinguishing member — neither a mapping, a ``SpecSource`` nor a bare
+    toolset carries one — so the endpoint checks it first.
     """
 
     def get_toolset(self) -> SpecToolsetSource: ...

@@ -9,23 +9,21 @@ class SpecToolsetSource(Protocol):
     """An already-built spec toolset handed to ``AGUIServer(service_specs=...)``.
 
     ``djangorestframework-pydantic-ai``'s ``SpecToolset`` is the intended
-    implementation: a project needing one of its knobs — ``max_page_size``, an
+    implementation: a project needing one of its knobs (``max_page_size``, an
     ``exception_map``, a ``build_context`` override, ``require_permissions=False``
-    while migrating — builds the toolset itself and passes that instead of the
-    mapping, and the endpoint attaches it as-is while still reading its specs for
-    the tool catalog.
+    while migrating) builds the toolset itself and passes that instead of the
+    mapping. The endpoint attaches it as-is while still reading its specs for the
+    tool catalog.
 
-    Matched **structurally rather than imported**, for the same reason
-    :class:`~django_pydantic_agent.integrations.types.spec_source.SpecSource` is:
+    Matched **structurally rather than imported**, like
+    :class:`~django_pydantic_agent.integrations.types.spec_source.SpecSource`:
     drf-pydantic-ai arrives only with the optional ``[spec-tools]`` extra, so
-    naming ``SpecToolset`` in a signature would either force the dependency on
-    every install or bury the type behind a lazy import where it cannot appear in
-    a signature at all.
+    naming ``SpecToolset`` in a signature would force the dependency on every
+    install.
 
-    ⚠ **The distinguishing member is that ``specs`` is a property, not a
-    method.** A ``SpecSource`` (drf-services' ``SpecRegistry``) spells the same
-    name as ``specs()``, and that difference is what tells the two shapes apart
-    at runtime — a registry has to be called, a built toolset has to be read.
+    **The distinguishing member is that ``specs`` is a property, not a method.**
+    A ``SpecSource`` spells the same name as ``specs()``, and that difference is
+    what tells the two shapes apart at runtime.
     """
 
     @property

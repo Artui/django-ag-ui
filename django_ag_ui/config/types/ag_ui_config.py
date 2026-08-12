@@ -19,15 +19,11 @@ class AGUIConfig:
     which reads ``DJANGO_AG_UI``) and threads it to the agent view and every
     sub-view.
 
-    That indirection is the point. Read at request time, these values could only
-    ever be global, so two AG-UI endpoints in one project could not differ on any
-    of them — an ``/internal/agent`` and a ``/public/agent`` were forced to share
-    one tool-guard policy, one retry budget, one upload cap.
-
-    Replaces the old ``AppSettings``, which mixed these scalars with *dotted
-    paths to collaborators*. Those are now constructor arguments taking real
-    objects (``toolsets=``, ``capabilities=``, ``conversation_store=``, …), so
-    what remains here is only values.
+    Resolving once is what lets two endpoints in one project differ: read at
+    request time these values could only ever be global, forcing an
+    ``/internal/agent`` and a ``/public/agent`` to share one tool-guard policy,
+    one retry budget, one upload cap. Collaborators are not here at all — they
+    are constructor arguments taking real objects.
 
     Do **not** construct this directly to override a field: a
     partially-specified config would silently discard the project's own
