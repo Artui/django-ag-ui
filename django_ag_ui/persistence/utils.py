@@ -22,8 +22,23 @@ def messages_to_jsonable(messages: list[Message]) -> list[dict[str, Any]]:
     restored transcript while the prose survives. Nothing in Python notices,
     because ``populate_by_name=True`` makes the round-trip symmetric — the
     mismatch exists only where another language reads the JSON.
+
+    ``exclude_none=True`` is the same class of fix, found the same way. The
+    protocol's Python models type an assistant turn's ``tool_calls`` as
+    ``list[ToolCall] | None``, so a turn that called no tool serialises as
+    ``"toolCalls": null`` — while the protocol's **TypeScript** schema types that
+    field optional-and-not-nullable and *rejects* the null outright
+    (``Expected array, received null``). Two SDKs of one protocol disagree about
+    the wire, and this end is the one that can stop emitting it: an absent field
+    is valid in both, so dropping nulls is conformance rather than tidiness. It
+    cost a released version of the web component, whose history replay threw on
+    the null and dropped every later turn from a restored transcript.
+
+    Omitting a null loses nothing on the way back: ``messages_from_jsonable``
+    validates against the same models, where every nullable field is also
+    optional and defaults to ``None``.
     """
-    return _MESSAGES.dump_python(messages, mode="json", by_alias=True)
+    return _MESSAGES.dump_python(messages, mode="json", by_alias=True, exclude_none=True)
 
 
 def messages_from_jsonable(raw: Any) -> list[Message]:

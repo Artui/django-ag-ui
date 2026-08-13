@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **An approval card can ask a question a person can read.** The question an
+  AG-UI interrupt carries is generated from the call itself —
+  `Approve delete_project({"project_id": 7})?` — which is accurate and not
+  something to show. Two sources now replace it, in order: a registry tool's own
+  `@tool(confirm=...)`, which is already the wording the web component uses when
+  *it* gates the call in the browser, and a new `APPROVAL_PROMPTS` map (settings,
+  or `build_ag_ui_config(approval_prompts=...)` per endpoint) for tools whose
+  schema carries none — a spec tool reaching the agent in-process, or a bridged
+  MCP tool. The phrase rides the interrupt's `metadata` as `x-confirm`, the same
+  key the client already reads off a tool's schema, so one concept covers both
+  gates. A tool with neither source keeps the generated question, and an interrupt
+  whose tool supplied its own `x-confirm` is left alone.
+- **`ToolGuard` and `ToolGuardConfig` are re-exported.** `build_ag_ui_config`
+  takes a `ToolGuardConfig` and `AGUIConfig` is typed with one, while the package
+  exported neither — so configuring the gate in code meant importing from
+  `django_pydantic_agent` beside a call into `django_ag_ui`, with nothing
+  explaining the split. `ToolFailureConfig` was already re-exported, which made
+  the omission look accidental rather than principled.
+
+### Fixed
+
+- **A stored turn that called no tool no longer serialises `"toolCalls": null`.**
+  The two SDKs of this protocol disagree about that field: `ag_ui.core` types it
+  `list[ToolCall] | None`, while the TypeScript schema types it
+  optional-and-not-nullable and **rejects** the null (`Expected array, received
+  null`). An absent field is valid in both, so this end stops emitting it —
+  conformance, not tidiness. It had already cost a released version of the web
+  component, whose history replay threw on the null and dropped every later turn
+  from a restored transcript; that client-side guard shipped in 0.23.1, and this
+  is the server half. Nothing is lost on the way back: every nullable field on
+  these models is also optional.
+
+### Documentation
+
+- **What a resumed request has to carry**, which is two things and the second is
+  easy to miss: the `resume[]` array answers the interrupt, and the assistant turn
+  holding the pending tool call has to be in `messages[]` beside it, with no tool
+  message (nothing has run). Send the answer alone and the run starts the turn
+  over. Also that a denial reaches the model as a tool return whose `outcome` is
+  `"denied"` — read the outcome, not the message text.
+- **How a server-side write tells the host page.** An approved call changes data
+  the page may be rendering, and the page has no reason to refetch. The two
+  channels are now named where the gate is documented: the web component's
+  `ag-ui-run-finished` event (needs nothing of the agent) and shared state (richer,
+  but the agent has to emit a snapshot).
+
 ### Fixed
 
 - **Three attribute descriptions now reach the page at all.** `OpenAITranscriptionBackend`'s

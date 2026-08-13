@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -208,7 +209,9 @@ class AGUIServer:
         # Scalars, resolved once. Read per request they could only ever be
         # global, so no two mounts could differ on a tool-guard policy, a retry
         # budget or an upload cap.
-        self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
+        self._config: AGUIConfig = _with_registry_prompts(
+            config if config is not None else build_ag_ui_config(), registry
+        )
         # One dict splatted into every view constructor, so a key added here
         # reaches all of them or fails loudly at construction — a second
         # forwarding path can silently miss one, which is how ``csrf_exempt``
@@ -430,6 +433,31 @@ def _reject_unguarded_specs(specs: dict[str, Any]) -> None:
         "capabilities=[SpecCapability(specs, require_permissions=False)] — "
         "which skips this server's tool-catalog registration, so tool-call "
         "cards render unlabelled."
+    )
+
+
+def _with_registry_prompts(config: AGUIConfig, registry: ToolRegistry) -> AGUIConfig:
+    """Fold each registry tool's ``confirm=`` into the approval-prompt map.
+
+    A destructive registry tool already carries a human-readable question: the
+    ``confirm=`` that reaches the browser as ``x-confirm`` and is what the
+    client-side confirmation card asks. When the *server* gates the same tool
+    instead, the question should not silently become the serialized call, so the
+    two gates read from one source.
+
+    Resolved once, at construction, alongside the rest of the scalars — and the
+    project's own ``APPROVAL_PROMPTS`` wins, so a tool's default question can be
+    overridden per endpoint without touching the tool.
+    """
+    from_registry = {
+        binding.spec.name: binding.spec.confirm
+        for binding in registry
+        if binding.spec.confirm is not None
+    }
+    if not from_registry:
+        return config
+    return dataclasses.replace(
+        config, approval_prompts={**from_registry, **config.approval_prompts}
     )
 
 

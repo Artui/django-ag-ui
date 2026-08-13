@@ -58,6 +58,7 @@ AGUIServer(registry, config=build_ag_ui_config(retries=5))
 | `TRANSCRIPTION_MAX_BYTES` | `int` | `26214400` | Max accepted audio-clip size in bytes (`0` disables the cap). |
 | `TRANSCRIPTION_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed audio content types (empty = any). |
 | `TOOL_GUARD` | `dict` | `{}` | Server-side destructive-tool approval gate (off by default). See [`TOOL_GUARD`](#tool_guard). |
+| `APPROVAL_PROMPTS` | `dict[str, str]` | `{}` | What the approval card asks, per gated tool. See [`APPROVAL_PROMPTS`](#approval_prompts). |
 | `TOOL_FAILURE` | `dict` | `{}` | What an unhandled tool exception costs. **On** by default. See [`TOOL_FAILURE`](#tool_failure). |
 | `RUN_CONTEXT` | `dict` | `{}` | What client-supplied context reaches the model. **On** by default. See [`RUN_CONTEXT`](#run_context). |
 
@@ -877,3 +878,23 @@ named in `EXEMPT`.
 The gate is only useful with a client that renders the interrupt and resumes —
 the web component's approval card is the front-end half of this feature; a bespoke
 AG-UI client handles the interrupt itself.
+
+### `APPROVAL_PROMPTS`
+
+What a gated tool's approval card **asks**, by tool name. Without one, the
+question is the call spelled out — `Approve export_pii({"scope": "all"})?` —
+which is accurate and not something to put in front of a person.
+
+```python
+DJANGO_AG_UI = {
+    # …
+    "APPROVAL_PROMPTS": {"export_pii": "Export every personal record in scope?"},
+}
+```
+
+A registry tool's own `@tool(confirm=...)` is folded in automatically, so this
+only needs entries for tools whose schema carries none — a spec tool reaching the
+agent in-process, or a bridged MCP tool — and an entry here overrides a tool's own
+wording for this endpoint. The phrase rides the interrupt's `metadata` as
+`x-confirm`, the same key the web component reads off a tool's schema for a
+browser-side confirmation. See [Tool approval](tool-approval.md#what-the-card-asks).

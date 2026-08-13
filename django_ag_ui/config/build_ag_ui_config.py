@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
@@ -25,6 +26,7 @@ def build_ag_ui_config(
     transcription_max_bytes: int | None = None,
     transcription_allowed_types: tuple[str, ...] | list[str] | None = None,
     thread_list_limit: int | None = None,
+    approval_prompts: Mapping[str, str] | None = None,
     tool_guard: ToolGuardConfig | None = None,
     tool_failure: ToolFailureConfig | None = None,
     run_context: RunContextConfig | None = None,
@@ -75,6 +77,7 @@ def build_ag_ui_config(
             pick(transcription_allowed_types, "TRANSCRIPTION_ALLOWED_TYPES", ()) or ()
         ),
         thread_list_limit=int(pick(thread_list_limit, "THREAD_LIST_LIMIT", 200)),
+        approval_prompts=dict(pick(approval_prompts, "APPROVAL_PROMPTS", {}) or {}),
         tool_guard=tool_guard
         if tool_guard is not None
         else _parse_tool_guard(get_setting("TOOL_GUARD")),
