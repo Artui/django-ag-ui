@@ -22,7 +22,7 @@ _REMOVED_SETTINGS: dict[str, str] = {
 def check_removed_settings() -> None:
     """Reject removed ``DJANGO_AG_UI`` keys instead of ignoring them.
 
-    Called from :meth:`AGUIServer.__init__`, so a stale settings dict fails when
+    Called from ``AGUIServer.__init__``, so a stale settings dict fails when
     the URL conf is imported rather than on some later request. Left in place, a
     removed key is **silently dropped**: an agent quietly loses its ``TOOLSETS``,
     or runs without the ``TOOL_GUARD`` approval policy the project believes it

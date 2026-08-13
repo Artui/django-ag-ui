@@ -15,9 +15,11 @@ from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 class ToolsView:
     """A read-only endpoint returning the agent's server-tool catalog (GET, JSON).
 
-    A callable instance (like :class:`~django_ag_ui.agent.agui_view.DjangoAGUIView`)
-    holding the same :class:`~django_pydantic_agent.registry.tool_registry.ToolRegistry`
-    the view uses. ``GET`` returns the :func:`build_tool_catalog` list the web
+    A callable instance (like [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView])
+    holding the same [`ToolRegistry`][django_ag_ui.ToolRegistry]
+    the view uses. ``GET`` returns the
+    [`build_tool_catalog`][django_pydantic_agent.agent.build_tool_catalog.build_tool_catalog]
+    list the web
     component fetches via ``data-tools-url`` to label tool-call cards for
     server-side tools (whose schema never reaches the browser).
 

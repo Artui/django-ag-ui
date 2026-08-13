@@ -11,7 +11,7 @@ class SpecCapabilitySource(Protocol):
 
     ``djangorestframework-pydantic-ai``'s ``SpecCapability`` is the intended
     implementation — the wrapped form of a
-    :class:`~django_ag_ui.agent.types.spec_toolset_source.SpecToolsetSource`,
+    ``SpecToolsetSource``,
     accepted so ``defer_loading`` composes too. It is attached exactly as given;
     the toolset it hands back is read only for the specs that feed the tool
     catalog and the tool-name dedup.

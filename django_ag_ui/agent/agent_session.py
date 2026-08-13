@@ -41,10 +41,11 @@ class AgentSession:
     and persistence on all three of a run's exits — completed, failed and
     cancelled — the last two audited as well.
 
-    Splitting it from :class:`~django_ag_ui.agent.agui_view.DjangoAGUIView`
+    Splitting it from [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView]
     makes the streaming pipeline testable without a ``StreamingHttpResponse``
-    (drive :meth:`stream` directly) and keeps the SSE transport swappable —
-    a future WebSocket transport reuses the session unchanged.
+    (drive [`stream`][django_ag_ui.AgentSession.stream] directly) and keeps the
+    SSE transport swappable — a future WebSocket transport reuses the session
+    unchanged.
     """
 
     def __init__(
@@ -212,7 +213,7 @@ class AgentSession:
         prior exchange as the client shaped it plus **only** this run's new
         messages — ``result.new_messages()``, not ``all_messages()``, because the
         run's history already holds the client's turn and dumping the lot would
-        re-derive it from the model's types (see :meth:`_prior_messages`).
+        re-derive it from the model's types (see ``_prior_messages``).
 
         The new messages are stripped of inlined file bytes here rather than
         anywhere the model reads: those bytes are the server's own doing (a
@@ -265,7 +266,7 @@ class AgentSession:
         """Persist the partial exchange and audit the run, given a reason.
 
         Shared by the two non-completing exits. Persistence mirrors the
-        completed-run shape — :meth:`_prior_messages` plus whatever the
+        completed-run shape — ``_prior_messages`` plus whatever the
         transcript observed — so a durable thread reflects the truncated
         exchange, matching the client, which keeps the partial assistant bubble.
         Going through ``_prior_messages`` is also what stops a **resumed** run

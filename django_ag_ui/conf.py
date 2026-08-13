@@ -14,7 +14,7 @@ def get_setting(name: str, default: Any = None) -> Any:
     read once when a server / store / backend is constructed — never on the
     request path, which is what lets two endpoints in one project differ. There
     is deliberately no snapshot accessor: use
-    :func:`~django_ag_ui.config.build_ag_ui_config.build_ag_ui_config` for the
+    [`build_ag_ui_config`][django_ag_ui.build_ag_ui_config] for the
     resolved per-endpoint scalars.
     """
     raw: dict[str, Any] = getattr(django_settings, _SETTING_NAME, {}) or {}

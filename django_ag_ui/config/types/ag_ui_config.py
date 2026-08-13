@@ -14,8 +14,9 @@ class AGUIConfig:
     """An endpoint's resolved scalar configuration.
 
     Every field is **already resolved** — there is no "unset" state and no
-    settings lookup left to do. :class:`AGUIServer` builds one in ``__init__``
-    (via :func:`~django_ag_ui.config.build_ag_ui_config.build_ag_ui_config`,
+    settings lookup left to do. [`AGUIServer`][django_ag_ui.AGUIServer] builds
+    one in ``__init__``
+    (via [`build_ag_ui_config`][django_ag_ui.build_ag_ui_config],
     which reads ``DJANGO_AG_UI``) and threads it to the agent view and every
     sub-view.
 
@@ -44,7 +45,7 @@ class AGUIConfig:
 
     system_prompt: str | None
     """Override for the agent's default system prompt. ``None`` uses
-    :data:`DEFAULT_SYSTEM_PROMPT`."""
+    [`DEFAULT_SYSTEM_PROMPT`][django_ag_ui.DEFAULT_SYSTEM_PROMPT]."""
 
     model_settings: dict[str, Any] | None
     """Pydantic-AI ``ModelSettings`` (e.g. ``{"temperature": 0.2}``) passed

@@ -16,7 +16,7 @@ def build_untrusted_context(run_input: Any, *, config: RunContextConfig) -> str 
     page the user is on, what they have selected — then the attachment manifest,
     the specific handles the model can act on. Each is a flag, so a project can
     take one without the other, and both reduce to
-    :class:`~django_ag_ui.agent.types.untrusted_context_item.UntrustedContextItem`
+    ``UntrustedContextItem``
     so the fence treats them identically.
 
     ``context`` is a required, typed field on ``RunAgentInput``, so an entry is

@@ -7,7 +7,7 @@ from django.http import HttpRequest
 class NullTranscriptionBackend:
     """The default transcription backend: voice input disabled.
 
-    :class:`~django_ag_ui.persistence.transcribe_view.TranscribeView` detects
+    [`TranscribeView`][django_ag_ui.TranscribeView] detects
     this backend and answers ``410 Gone``, so ``transcribe`` is never reached
     through the endpoint and a misconfigured client gets a clear "voice is off"
     signal. Called directly it raises, rather than fabricating a transcript. Pass

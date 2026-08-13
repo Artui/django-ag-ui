@@ -9,7 +9,7 @@ class UntrustedContextItem:
 
     Both sources reduce to this shape before rendering — a ``RunAgentInput.context``
     entry and the attachment manifest derived from the posted messages — so
-    :func:`~django_ag_ui.agent.render_untrusted_context.render_untrusted_context`
+    ``render_untrusted_context``
     never learns where an item came from and cannot treat one source as more
     trustworthy than the other.
 

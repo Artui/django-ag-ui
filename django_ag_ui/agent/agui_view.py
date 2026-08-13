@@ -57,7 +57,7 @@ class DjangoAGUIView:
     The agent is built once and reused by every run; ``model_for_request`` and
     ``instructions_for_request`` are the only per-request hooks on it, and
     everything else varies by riding the *run* instead. ``agent_factory`` takes
-    over construction wholesale — see :class:`~django_ag_ui.AGUIServer` for what
+    over construction wholesale — see [`AGUIServer`][django_ag_ui.AGUIServer] for what
     that turns off.
 
     **Authentication is the host's responsibility, and the view fails closed.**
@@ -242,8 +242,8 @@ class DjangoAGUIView:
 
         The invariant the reuse rests on: the agent carries only what the
         constructor fixed, and nothing request-shaped may join it — that rides
-        the run instead (:meth:`_run_toolsets` / :meth:`_run_capabilities` /
-        :meth:`_run_model` / :meth:`_run_instructions`). Instructions stay off it
+        the run instead (``_run_toolsets`` / ``_run_capabilities`` /
+        ``_run_model`` / ``_run_instructions``). Instructions stay off it
         even though the endpoint resolves a default, because pydantic-ai treats
         per-run instructions as *additional*, which is a replacement only while
         the agent carries none.
@@ -256,7 +256,7 @@ class DjangoAGUIView:
         return self._built_agent
 
     def _build_agent(self) -> Agent[AgentDeps, Any]:
-        """Construct this endpoint's agent — see :meth:`_agent` for the reuse.
+        """Construct this endpoint's agent — see ``_agent`` for the reuse.
 
         An ``agent_factory`` takes full control of construction. It takes no
         request, so it too is built once.

@@ -39,7 +39,7 @@ def messages_from_jsonable(raw: Any) -> list[Message]:
 def stored_messages_to_wire(raw: Any) -> list[dict[str, Any]]:
     """Re-serialise stored message records into the AG-UI wire shape.
 
-    A row written before :func:`messages_to_jsonable` dumped by alias holds the
+    A row written before ``messages_to_jsonable`` dumped by alias holds the
     Python field spelling. Validating and re-dumping normalises both eras on
     read, so no data migration is needed.
     """

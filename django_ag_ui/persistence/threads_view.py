@@ -30,9 +30,9 @@ _MAX_TITLE_LEN = 255
 class ThreadsView:
     """Owner-scoped thread index endpoint for the chat-history drawer (async, JSON).
 
-    Mounted by :class:`~django_ag_ui.AGUIServer` whenever
+    Mounted by [`AGUIServer`][django_ag_ui.AGUIServer] whenever
     ``conversation_store=`` is a live store, over the same
-    :class:`~django_ag_ui.ConversationStore` the agent view uses:
+    [`ConversationStore`][django_ag_ui.ConversationStore] the agent view uses:
 
     - ``GET    <prefix>threads/``       → the user's threads, **metadata only**
       (``{"threads": [...]}``);
@@ -44,7 +44,7 @@ class ThreadsView:
     Every operation is scoped to the acting user: the store filters by owner, so
     a thread owned by another user simply isn't found (``404``) — never another
     user's history. The view carries the same authentication seam as
-    :class:`~django_ag_ui.DjangoAGUIView` (``require_authenticated`` /
+    [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView] (``require_authenticated`` /
     ``get_user``, sync or async), and the closed default is load-bearing here:
     every route is owner-scoped, so an anonymous caller has no history to reach.
     """
