@@ -768,6 +768,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#approval_prompts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        APPROVAL_PROMPTS
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1382,6 +1393,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#approval_prompts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        APPROVAL_PROMPTS
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1539,6 +1561,12 @@ agent bridges to <em>which</em> MCP server. See
 <td><code>dict</code></td>
 <td><code>{}</code></td>
 <td>Server-side destructive-tool approval gate (off by default). See <a href="#tool_guard"><code>TOOL_GUARD</code></a>.</td>
+</tr>
+<tr>
+<td><code>APPROVAL_PROMPTS</code></td>
+<td><code>dict[str, str]</code></td>
+<td><code>{}</code></td>
+<td>What the approval card asks, per gated tool. See <a href="#approval_prompts"><code>APPROVAL_PROMPTS</code></a>.</td>
 </tr>
 <tr>
 <td><code>TOOL_FAILURE</code></td>
@@ -1745,7 +1773,7 @@ A request that was going to be <code>401</code> never spends quota.</p>
 bookkeeping update, because "check, then commit" races under exactly the
 concurrency a limiter exists for. Implementations decrement atomically in shared
 storage.</p>
-<p>⚠ <strong><code>consume</code> is synchronous.</strong> django-ag-ui runs it off the event loop, so it
+<p><strong><code>consume</code> is synchronous.</strong> django-ag-ui runs it off the event loop, so it
 may touch the cache or the ORM directly. An <code>async def consume</code> is refused at
 construction with <code>ImproperlyConfigured</code> — awaiting it silently would make every
 request a <code>429</code> whose <code>Retry-After</code> is a coroutine, so the endpoint would look
@@ -2057,7 +2085,7 @@ rediscover them by failing a call. Those instructions come from the underlying
 exactly once. Use this when you have drf-services specs but no reason to stand up
 an MCP server; use <code>drf_mcp_server=</code> when you already run one (or want MCP
 clients to share the tools).</p>
-<p>⛔ <strong>Every spec needs its own <code>permission_classes</code>.</strong> Since
+<p><strong>Every spec needs its own <code>permission_classes</code>.</strong> Since
 <code>djangorestframework-pydantic-ai</code> 0.13 a spec that omits them makes the endpoint
 raise <code>ImproperlyConfigured</code> at construction rather than exposing an ungated
 tool. <code>permission_classes=None</code> means <em>inherit</em> over HTTP — the viewset's
@@ -2094,17 +2122,17 @@ it to <code>service_specs=</code>.</strong></p>
 </span><span id="__span-24-6"><a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>A <code>SpecCapability</code> is accepted the same way, so <code>defer_loading</code> composes too.</p>
-<p>⭐ <strong>This does not cost you the tool-call card labels.</strong> The endpoint attaches
+<p><strong>This does not cost you the tool-call card labels.</strong> The endpoint attaches
 the object as-is <em>and</em> reads its <code>specs</code> for the tool catalog and the tool-name
 dedup — so the powerful form and the labelled form are the same form. (Before,
 the only route to a toolset option was <code>capabilities=</code>, which the catalog never
 saw, so every card from it rendered unlabelled.)</p>
-<p>⚠ <strong>A pre-built toolset is not filtered.</strong> For a mapping, a tool name the
+<p><strong>A pre-built toolset is not filtered.</strong> For a mapping, a tool name the
 <code>@tool</code> registry already defines is dropped in the registry's favour. That
 cannot apply to an object you built, so a collision is <strong>refused at
 construction</strong> instead — rename on one side, or pass a mapping to get the old
 precedence.</p>
-<p>⚠ <strong>Nor is it re-checked.</strong> Its constructor already ran the
+<p><strong>Nor is it re-checked.</strong> Its constructor already ran the
 <code>permission_classes</code> check, and it may have been built with
 <code>require_permissions=False</code> deliberately — validating again on arrival would
 take that decision back and leave no route to it at all.</p>
@@ -2248,7 +2276,7 @@ the transcript in a browser.</p>
 <p>The operator's copy is never redacted. The full exception reaches your
 <code>AuditLogger</code> and the <code>django_pydantic_agent.failure</code> Python logger either way,
 recorded against the tool that raised it.</p>
-<p>⚠ Note it spends no retry budget, so a model may call a persistently broken tool
+<p>Note it spends no retry budget, so a model may call a persistently broken tool
 again. Bound that with run-level <code>UsageLimits</code>, not with this.</p>
 <h3 id="tool_guard"><code>TOOL_GUARD</code><a class="headerlink" href="#tool_guard" title="Permanent link">&para;</a></h3>
 <p>An <strong>opt-in server-side approval gate</strong> for destructive tools. By default a
@@ -2309,6 +2337,21 @@ named in <code>EXEMPT</code>.</p>
 <p>The gate is only useful with a client that renders the interrupt and resumes —
 the web component's approval card is the front-end half of this feature; a bespoke
 AG-UI client handles the interrupt itself.</p>
+<h3 id="approval_prompts"><code>APPROVAL_PROMPTS</code><a class="headerlink" href="#approval_prompts" title="Permanent link">&para;</a></h3>
+<p>What a gated tool's approval card <strong>asks</strong>, by tool name. Without one, the
+question is the call spelled out — <code>Approve export_pii({"scope": "all"})?</code> —
+which is accurate and not something to put in front of a person.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-32-2"><a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>    <span class="c1"># …</span>
+</span><span id="__span-32-3"><a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>    <span class="s2">&quot;APPROVAL_PROMPTS&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;export_pii&quot;</span><span class="p">:</span> <span class="s2">&quot;Export every personal record in scope?&quot;</span><span class="p">},</span>
+</span><span id="__span-32-4"><a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>A registry tool's own <code>@tool(confirm=...)</code> is folded in automatically, so this
+only needs entries for tools whose schema carries none — a spec tool reaching the
+agent in-process, or a bridged MCP tool — and an entry here overrides a tool's own
+wording for this endpoint. The phrase rides the interrupt's <code>metadata</code> as
+<code>x-confirm</code>, the same key the web component reads off a tool's schema for a
+browser-side confirmation. See <a href="../tool-approval/#what-the-card-asks">Tool approval</a>.</p>
 
 
 

@@ -456,7 +456,29 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="What the user sees">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-card-asks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the card asks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#after-the-approval-telling-the-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After the approval: telling the page
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="After the approval: telling the page">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -751,7 +773,29 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="What the user sees">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-card-asks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the card asks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#after-the-approval-telling-the-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After the approval: telling the page
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="After the approval: telling the page">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -903,6 +947,56 @@ run.</p>
 <p>Only <code>function</code>-kind tools are gated: a client-registered (frontend) tool is
 already gated in the browser by the web component's confirmation card, and an
 output tool is not executed.</p>
+<h2 id="what-the-card-asks">What the card asks<a class="headerlink" href="#what-the-card-asks" title="Permanent link">&para;</a></h2>
+<p>An interrupt carries the question the client will show, and pydantic-AI generates
+it from the call itself:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Approve delete_project({&quot;project_id&quot;: 7, &quot;cascade&quot;: true})?
+</span></code></pre></div>
+<p>Accurate, and not something to put in front of a person. Two sources replace it,
+in this order:</p>
+<p><strong>1. The tool's own <code>confirm=</code>.</strong> A destructive registry tool already carries a
+human-readable question — the one the web component asks when <em>it</em> gates the call
+in the browser — and the server-side gate now asks the same thing:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nd">@tool</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">destructive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">confirm</span><span class="o">=</span><span class="s2">&quot;Delete this project and everything in it?&quot;</span><span class="p">)</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">delete_project</span><span class="p">(</span><span class="n">project_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Delete a project.&quot;&quot;&quot;</span>
+</span></code></pre></div>
+<p><strong>2. <code>APPROVAL_PROMPTS</code>, for tools whose schema carries none.</strong> A spec tool
+reaching the agent in-process, or a bridged MCP tool, has no <code>confirm=</code> to read.
+Name them per endpoint, which also overrides a tool's own wording:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">service_specs</span><span class="o">=</span><span class="n">spec_registry</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">config</span><span class="o">=</span><span class="n">build_ag_ui_config</span><span class="p">(</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="n">tool_guard</span><span class="o">=</span><span class="n">ToolGuardConfig</span><span class="p">(</span><span class="n">enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">require_approval</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;move_event&quot;</span><span class="p">})),</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="n">approval_prompts</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;move_event&quot;</span><span class="p">:</span> <span class="s2">&quot;Move this event, saving straight away?&quot;</span><span class="p">},</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="p">),</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>or globally in settings:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;APPROVAL_PROMPTS&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;move_event&quot;</span><span class="p">:</span> <span class="s2">&quot;Move this event?&quot;</span><span class="p">}}</span>
+</span></code></pre></div>
+<p>The phrase is stamped onto the interrupt's <code>metadata</code> as <strong><code>x-confirm</code></strong> — the
+same key the web component already reads off a tool's schema for a browser-side
+confirmation, so one concept covers both gates. A tool with neither source keeps
+the generated question, and an interrupt whose tool supplied its own <code>x-confirm</code>
+(by raising <code>ApprovalRequired(metadata=...)</code>) is left alone: it has said something
+more specific than any static mapping can.</p>
+<h2 id="after-the-approval-telling-the-page">After the approval: telling the page<a class="headerlink" href="#after-the-approval-telling-the-page" title="Permanent link">&para;</a></h2>
+<p>An approved call runs a <strong>server-side</strong> tool, which means it can change data the
+host page is showing without the page hearing about it. Approving a booking writes
+the row; a calendar that fetched its events on mount keeps showing the week it
+loaded, and nothing has gone wrong from either end's point of view.</p>
+<p>Two channels close that gap, and they are not interchangeable:</p>
+<ul>
+<li><strong>The client's own signal.</strong> The web component fires <code>ag-ui-run-finished</code> when an
+  interaction ends, listing the tools that ran and which side ran them, so a host
+  can refetch when any of them was a server tool. Needs nothing of the agent.</li>
+<li><strong><a href="../shared-state/">Shared state</a>.</strong> A tool mutates <code>ctx.deps.state</code> and returns
+  a <code>STATE_SNAPSHOT</code>, which the component applies and reports. Richer — the two
+  ends are editing one object — but it needs the <em>agent</em> to emit it, which is not
+  the host page's decision to make.</li>
+</ul>
 <h3 id="ordering-note">Ordering note<a class="headerlink" href="#ordering-note" title="Permanent link">&para;</a></h3>
 <p><code>TOOL_GUARD</code> composes a <code>ToolGuard</code> capability alongside the audit capability.
 <code>build_agent</code> relies on each capability declaring its own ordering
@@ -920,6 +1014,28 @@ component. A bespoke client:</p>
    <code>status: "resolved"</code> (with <code>payload.approved = true</code>) to run the tool or
    <code>status: "cancelled"</code> to deny it.</li>
 </ol>
+<p><strong>The resumed request carries two things, and the second is easy to miss.</strong> The
+<code>resume[]</code> array answers the interrupt; it does not describe the call being
+resumed. That call has to be in <code>messages[]</code> as well — the assistant turn holding
+the pending tool call, with <strong>no tool message beside it</strong>, because nothing has run
+yet:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;messages&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;u1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;user&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;delete project 7&quot;</span><span class="p">},</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;assistant&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">     </span><span class="nt">&quot;toolCalls&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;call-1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;function&quot;</span><span class="p">,</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">                    </span><span class="nt">&quot;function&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;delete_project&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;arguments&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{\&quot;project_id\&quot;: 7}&quot;</span><span class="p">}}]}</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="p">],</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="nt">&quot;resume&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">&quot;interruptId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;int-call-1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;resolved&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;approved&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">}}]</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Send the answer without the call and the run has no deferred request to attach it
+to: it simply starts the turn over. The web component gets this right because it
+keeps the agent's message list; a hand-rolled client has to remember it.</p>
+<p>A denial arrives at the model as an ordinary <strong>tool return</strong> whose
+<code>ToolReturnPart.outcome</code> is <code>"denied"</code> — not an error, and not a stopped run. Read
+the outcome rather than the message text if your model or script reacts to
+refusals.</p>
 <p>The web component does exactly this; see its
 <a href="https://github.com/Artui/ag-ui-web-component#server-side-tool-approval-interrupts">README</a>
 for the client-side hooks (<code>resolveInterrupts</code>, <code>requestApproval</code>) and how to

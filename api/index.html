@@ -1459,6 +1459,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIConfig.approval_prompts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        approval_prompts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.AGUIConfig.tool_failure" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2019,6 +2030,45 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="OpenAITranscriptionBackend">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.base_url" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        base_url
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        timeout
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2964,6 +3014,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIConfig.approval_prompts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        approval_prompts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.AGUIConfig.tool_failure" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3524,6 +3585,45 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="OpenAITranscriptionBackend">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.base_url" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        base_url
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        timeout
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -4307,10 +4407,16 @@ gate execution — that is the <code>destructive</code> flag's job.</p>
 
 
 
-        <p>An ordered, named collection of :class:<code>SkillSpec</code>s.</p>
-<p>State lives on the instance (like :class:<code>~django_pydantic_agent.registry.tool_registry.ToolRegistry</code>).
-:meth:<code>payload</code> produces the JSON-serialisable catalog the frontend consumes
-(camelCase keys, optional fields omitted when default).</p>
+        <p>An ordered, named collection of <a class="autorefs autorefs-internal" title="SkillSpec
+
+
+  
+      dataclass
+  " href="#django_ag_ui.SkillSpec"><code>SkillSpec</code></a>s.</p>
+<p>State lives on the instance (like <a class="autorefs autorefs-internal" title="ToolRegistry" href="#django_ag_ui.ToolRegistry"><code>ToolRegistry</code></a>).
+<a class="autorefs autorefs-internal" title="payload" href="#django_ag_ui.SkillRegistry.payload"><code>payload</code></a> produces the
+JSON-serialisable catalog the frontend consumes (camelCase keys, optional
+fields omitted when default).</p>
 
 
 
@@ -4374,7 +4480,13 @@ gate execution — that is the <code>destructive</code> flag's job.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Construct a :class:<code>SkillSpec</code> and register it (convenience).</p>
+        <p>Construct a <a class="autorefs autorefs-internal" title="SkillSpec
+
+
+  
+      dataclass
+  " href="#django_ag_ui.SkillSpec"><code>SkillSpec</code></a> and register it
+(convenience).</p>
 
 
     </div>
@@ -4433,14 +4545,12 @@ gate execution — that is the <code>destructive</code> flag's job.</p>
 the <code>/</code>-command palette.</p>
 <p><strong>A skill need not ship its prompt to the browser.</strong> With <code>prompt</code> unset
 the catalog advertises only the name and label, and picking the skill sends
-the bare <code>/name</code> token — the agent resolves what that means, from the
-harness <code>Skills</code> capability or from its own instructions. That keeps the
-wording of an internal workflow on the server, where a catalog endpoint
-cannot leak it and a reader of the page source cannot lift it.</p>
-<p>Setting <code>prompt</code> keeps the older behaviour, where the client holds the
-text and fills any <code>{placeholder}</code>s from its skill context before
-sending. Useful for a prompt that is genuinely a user-facing convenience
-rather than an internal one, and for placeholders only the page can fill.</p>
+the bare <code>/name</code> token for the agent to resolve — from the harness
+<code>Skills</code> capability or its own instructions — so the wording of an internal
+workflow never leaves the server. Setting <code>prompt</code> hands the text to the
+client, which fills any <code>{placeholder}</code>s from its skill context before
+sending: right for a prompt that is genuinely a user-facing convenience, and
+for placeholders only the page can fill.</p>
 
 
 
@@ -4637,15 +4747,15 @@ client fills before sending.</p>
 
 
 
-        <p>A read-only endpoint returning a :class:<code>SkillRegistry</code>'s client catalog.</p>
-<p>A callable instance (like :class:<code>~django_ag_ui.agent.agui_view.DjangoAGUIView</code>)
+        <p>A read-only endpoint returning a
+<a class="autorefs autorefs-internal" title="SkillRegistry" href="#django_ag_ui.SkillRegistry"><code>SkillRegistry</code></a>'s client catalog.</p>
+<p>A callable instance (like <a class="autorefs autorefs-internal" title="DjangoAGUIView" href="#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a>)
 so it can hold the registry and a project can mount several. <code>GET</code> returns
 the JSON skill list the frontend fetches via <code>data-skills-url</code>.</p>
-<p>Skill prompts can encode internal workflows — worth gating. The view
+<p>Skill prompts can encode internal workflows — worth gating — so the view
 carries the same authentication seam as <code>DjangoAGUIView</code>
-(<code>require_authenticated</code> / <code>get_user</code>, sync or async hooks), so one
-policy can cover the agent endpoint and its catalogs — and the same closed
-default, so an anonymous <code>GET</code> is a <code>401</code> until you pass
+(<code>require_authenticated</code> / <code>get_user</code>, sync or async) and the same closed
+default: an anonymous <code>GET</code> is a <code>401</code> until you pass
 <code>require_authenticated=False</code>.</p>
 
 
@@ -4697,7 +4807,12 @@ default, so an anonymous <code>GET</code> is a <code>401</code> until you pass
 <p>The Django-idiomatic front door for the package — the <code>admin.site</code> idiom
 and the mirror of drf-mcp's <code>MCPServer</code>. Construct it once with the tool
 registry (plus optional stores / auth), then mount its <strong>namespaced</strong>
-:attr:<code>urls</code> with <code>include()</code>::</p>
+<a class="autorefs autorefs-internal" title="urls
+
+
+  
+      property
+  " href="#django_ag_ui.AGUIServer.urls"><code>urls</code></a> with <code>path()</code>:</p>
 <div class="language-text highlight"><pre><span></span><code>from django_ag_ui import AGUIServer
 
 agent = AGUIServer(registry, csrf_exempt=False)
@@ -4708,130 +4823,108 @@ urlpatterns = [
 # reverse(&quot;ag_ui:endpoint&quot;) · &quot;ag_ui:tools&quot; · &quot;ag_ui:threads&quot; · ...
 </code></pre></div>
 <p>The registry is passed <strong>once</strong>: the object builds the agent view
-(:class:<code>~django_ag_ui.agent.agui_view.DjangoAGUIView</code>) <em>and</em> the read-only
-tool catalog (:class:<code>~django_ag_ui.agent.tools_view.ToolsView</code>) from it — no
-<code>tools=registry</code> echo. The mount point is the consumer's to choose the
-Django way (<code>path("&lt;prefix&gt;", agent.urls)</code>); there is no <code>prefix=</code>.</p>
+(<a class="autorefs autorefs-internal" title="DjangoAGUIView" href="#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a>) <em>and</em> the read-only
+tool catalog (<a class="autorefs autorefs-internal" title="ToolsView" href="#django_ag_ui.ToolsView"><code>ToolsView</code></a>) from it. The
+mount point is the consumer's to choose the Django way, so there is no
+<code>prefix=</code>.</p>
 <p><strong>What gets mounted.</strong> The agent endpoint (<code>endpoint</code>) and its tool catalog
-(<code>tools</code>) always mount. The persistence sub-views mount only when their
-backend is <em>active</em>:</p>
+(<code>tools</code>) always mount. The rest mount only when their backend is <em>active</em>:</p>
 <ul>
-<li><code>skills</code> — when a :class:<code>~django_ag_ui.skills.skill_registry.SkillRegistry</code>
-  is passed (<code>skills/</code>, GET JSON for <code>data-skills-url</code>).</li>
-<li><code>threads</code> / <code>thread</code> — when the conversation store is not a
-  :class:<code>~django_pydantic_agent.persistence.null_conversation_store.NullConversationStore</code>
-  (<code>threads/</code> + <code>threads/&lt;id&gt;/</code> for the history drawer's <code>data-threads-url</code>).</li>
-<li><code>attachments</code> / <code>attachment</code> — when the attachment store is not a
-  :class:<code>~django_pydantic_agent.persistence.null_attachment_store.NullAttachmentStore</code>
-  (<code>attachments/</code> + <code>attachments/&lt;id&gt;/</code> for the composer's <code>data-attachments-url</code>).</li>
-<li><code>transcribe</code> — when the transcription backend is not a
-  :class:<code>~django_ag_ui.persistence.null_transcription_backend.NullTranscriptionBackend</code>
-  (<code>transcribe/</code> for the mic's <code>data-transcribe-url</code>).</li>
-<li><code>resume</code> / <code>fork</code> / <code>runs</code> — when a <code>step_store</code> is configured
-  (<code>resume/&lt;run_id&gt;/</code> + <code>fork/&lt;run_id&gt;/</code> seed a new run from a prior run's
-  last continuable snapshot; <code>runs/</code> indexes what may be resumed).</li>
+<li><code>skills</code> — a <a class="autorefs autorefs-internal" title="SkillRegistry" href="#django_ag_ui.SkillRegistry"><code>SkillRegistry</code></a>
+  was passed (<code>skills/</code>, GET JSON for <code>data-skills-url</code>).</li>
+<li><code>threads</code> / <code>thread</code> — the conversation store is not a
+  <code>NullConversationStore</code> (<code>threads/</code> + <code>threads/&lt;id&gt;/</code>, the history
+  drawer's <code>data-threads-url</code>).</li>
+<li><code>attachments</code> / <code>attachment</code> — the attachment store is not a
+  <code>NullAttachmentStore</code> (<code>attachments/</code> + <code>attachments/&lt;id&gt;/</code>, the
+  composer's <code>data-attachments-url</code>).</li>
+<li><code>transcribe</code> — the transcription backend is not a
+  <code>NullTranscriptionBackend</code> (the mic's <code>data-transcribe-url</code>).</li>
+<li><code>resume</code> / <code>fork</code> / <code>runs</code> — a <code>step_store</code> is configured.</li>
 </ul>
-<p><code>conversation_store</code> / <code>attachment_store</code> / <code>transcription_backend</code>
-are <strong>passed here or absent</strong> — there is no settings fallback, and the
-<code>CONVERSATION_STORE</code> / <code>ATTACHMENT_STORE</code> / <code>TRANSCRIPTION_BACKEND</code>
-keys that once held a dotted path are refused at startup by
-:func:<code>~django_ag_ui.check_removed_settings.check_removed_settings</code> rather
-than ignored. Unpassed, each falls back to its <code>Null*</code> backend, whose only
-effect is that the matching sub-view does not mount — so a bare
+<p>Collaborators are <strong>passed here or absent</strong>: there is no settings fallback,
+and the keys that once held a dotted path are refused at startup by
+<code>check_removed_settings</code> rather
+than ignored. Unpassed, each falls back to its <code>Null*</code> backend, so a bare
 <code>AGUIServer(registry)</code> serves the agent endpoint and its tool catalog and
 nothing else.</p>
 <p><strong>Request policy, closed by default.</strong> <code>require_authenticated</code> /
 <code>get_user</code> / <code>authorize</code> / <code>csrf_exempt</code> are forwarded to <strong>every</strong>
-view this object builds — the agent endpoint and all sub-views — so one
-policy governs the whole mount (<code>401</code> for anonymous when
-<code>require_authenticated</code>, <code>403</code> from an <code>authorize</code> predicate,
-<code>get_user</code> establishing the acting user, and one answer to CSRF rather
-than one per endpoint). <code>require_authenticated</code> defaults to <strong>True</strong>, so a
-bare <code>AGUIServer(registry)</code> serves nobody who is not logged in. Pass
+view this object builds, so one policy governs the whole mount — including
+the write endpoints (attachment upload / delete, thread rename / delete,
+transcribe), which <code>csrf_exempt=True</code> exempts alongside the run endpoint.
+<code>require_authenticated</code> defaults to <strong>True</strong>, so a bare
+<code>AGUIServer(registry)</code> serves nobody who is not logged in; pass
 <code>require_authenticated=False</code> to serve anonymous runs deliberately. The
 agent view's <code>model</code> and <code>instructions</code> fall back to the
 <code>DJANGO_AG_UI</code> settings when not passed.</p>
-<p>⚠ <strong><code>csrf_exempt</code> covers the write endpoints too, and it used to reach
-only the run endpoint.</strong> <code>csrf_exempt=True</code> exempts attachment upload /
-delete, thread rename / delete and transcribe alongside the run endpoint;
-before, those five stayed under <code>CsrfViewMiddleware</code> and answered <code>403</code>
-for precisely the header-authenticated client the exemption exists to serve.
-If you want CSRF enforced, that is <code>csrf_exempt=False</code> — which behaved
-correctly throughout and still does.</p>
 <p><strong>Anonymous scoping caveat.</strong> With <code>require_authenticated=False</code> and a
 model-backed store, an anonymous request has no owner id. The reference
 contrib stores refuse anonymous thread / attachment operations unless built
-with <code>allow_anonymous=True</code> (in which case they bucket per browser session) —
-so leave the default in place (or pass a <code>get_user</code> hook) whenever the
-store persists, rather than relying on owner scoping to isolate anonymous
-visitors from one another.</p>
-<p><strong>Spec tools.</strong> <code>service_specs</code> takes a <code>name -&gt; spec</code> mapping <em>or</em> a
-spec registry — drf-services 0.27's <code>SpecRegistry</code>, the single declaration
-site for a project exposing the same specs over more than one transport, so
-this endpoint reads the same source an MCP server and the HTTP views do::</p>
+with <code>allow_anonymous=True</code> (which buckets per browser session), so leave
+the default in place — or pass a <code>get_user</code> hook — whenever the store
+persists, rather than relying on owner scoping to isolate anonymous visitors
+from one another.</p>
+<p><strong>Spec tools.</strong> <code>service_specs</code> takes a <code>name -&gt; spec</code> mapping, a spec
+registry (drf-services' <code>SpecRegistry</code>, the single declaration site for a
+project exposing the same specs over several transports), or an
+already-built <code>SpecToolset</code> / <code>SpecCapability</code>:</p>
 <div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, service_specs=spec_registry.by_tag(&quot;public&quot;))
+AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
 </code></pre></div>
-<p>Either shape is normalised <strong>once, here</strong>, into a plain dict; a filtered view
-(<code>by_tag</code> / <code>subset</code>) is itself a registry, so two endpoints can be given
-different projections with no shared state. Requires the
-<code>django-ag-ui[spec-tools]</code> extra.</p>
-<p>An <strong>already-built</strong> <code>SpecToolset</code> or <code>SpecCapability</code> is accepted here
-too — the only way to reach a toolset knob (<code>max_page_size</code>, an
+<p>A filtered registry view (<code>by_tag</code> / <code>subset</code>) is itself a registry, so
+two endpoints can be given different projections with no shared state. The
+pre-built form is the only way to reach a toolset knob (<code>max_page_size</code>, an
 <code>exception_map</code>, a <code>build_context</code> override, <code>require_permissions=False</code>
 while migrating) without abandoning <code>service_specs=</code> for <code>capabilities=</code>,
-which the tool catalog never sees::</p>
-<div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
-</code></pre></div>
-<p>Both are attached as themselves and their <code>specs</code> read for the catalog, so
-the powerful form keeps the tool-call card labels. The parameter's type is
-the union of all four shapes — a mapping, a
-:class:<code>~django_pydantic_agent.integrations.types.spec_source.SpecSource</code>, a
-:class:<code>~django_ag_ui.agent.types.spec_toolset_source.SpecToolsetSource</code> and a
-:class:<code>~django_ag_ui.agent.types.spec_capability_source.SpecCapabilitySource</code>
-— the last two matched structurally, since drf-pydantic-ai's own types cannot
-be named from a package that only optionally depends on it.</p>
-<p><strong>One agent, many runs.</strong> The endpoint builds its agent once and reuses it,
-rather than re-deriving every tool's JSON Schema per request. Two narrow
-hooks vary it: <code>model_for_request(request)</code> and
-<code>instructions_for_request(request)</code> — enough for the per-tenant model and
-the per-tenant system prompt, and narrow on purpose. A hook handed the whole
-request could vary the agent on anything it read off one, which is not a set
-the reuse can be reasoned about; these two ride the <em>run</em> instead, through
-pydantic-ai's own per-run <code>model</code> / <code>instructions</code>::</p>
+which the tool catalog never sees; it is attached as itself and its <code>specs</code>
+are read for the catalog, so the powerful form keeps the tool-call card
+labels. The parameter's union covers all four shapes, the last two matched
+structurally because drf-pydantic-ai's own types cannot be named from a
+package that only optionally depends on it. Requires the
+<code>django-ag-ui[spec-tools]</code> extra.</p>
+<p><strong>One agent, many runs.</strong> The endpoint builds its agent once and reuses it
+rather than re-deriving every tool's JSON Schema per request.
+<code>model_for_request(request)</code> and <code>instructions_for_request(request)</code> are
+the two hooks that vary it — the per-tenant model and the per-tenant system
+prompt — and they ride the <em>run</em>, through pydantic-ai's own per-run
+<code>model</code> / <code>instructions</code>:</p>
 <div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, model_for_request=lambda r: r.tenant.model)
 </code></pre></div>
 <p><strong>Rate limiting.</strong> <code>throttle</code> takes a
-:class:<code>~django_ag_ui.agent.types.throttle.Throttle</code> — one <code>consume(request)</code>
+<code>Throttle</code> — one <code>consume(request)</code>
 returning the suggested <code>Retry-After</code> in seconds, or <code>None</code> to allow the
-run — and applies to the <strong>agent endpoint only</strong>, which is the one that costs
-a model call per request. It runs after authentication, so a limiter can key
-on the acting user rather than only an IP::</p>
+run — and applies to the <strong>agent endpoint only</strong>, the one that costs a model
+call per request. It runs after authentication, so a limiter can key on the
+acting user rather than only an IP:</p>
 <div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, throttle=FixedWindowThrottle(max_runs=20, per_seconds=60))
 </code></pre></div>
 <p><strong>Per-run dependencies.</strong> <code>deps_factory</code> is a <code>request -&gt; AgentDeps</code>
-callable replacing the default, which binds only the acting user. Use it to
-carry project-specific per-run context (a tenant, a feature-flag snapshot)
-on an <code>AgentDeps</code> subclass, or to seed <code>AgentDeps.state</code> with a Pydantic
-model — the only way to have AG-UI's inbound shared state <em>validated</em>, since
-pydantic-ai validates it against <code>type(deps.state)</code>. Whatever it returns
-reaches every tool, toolset and capability as <code>ctx.deps</code>.</p>
+callable replacing the default, which binds only the acting user and their
+IP. Use it to carry project-specific per-run context on an <code>AgentDeps</code>
+subclass, or to seed <code>AgentDeps.state</code> with a Pydantic model — the only way
+to have AG-UI's inbound shared state <em>validated</em>, since pydantic-ai validates
+it against <code>type(deps.state)</code>. Whatever it returns reaches every tool,
+toolset and capability as <code>ctx.deps</code>.</p>
 <p><strong>Durable step persistence.</strong> <code>step_store</code> is a <em>factory</em> — a
-<code>request -&gt; StepStore</code> callable, not a shared store instance, because the
-<code>pydantic-ai-harness</code> step-store protocol carries no request, so the store
-binds one and is built per run. When set, every run attaches a
-<code>StepPersistence</code> capability that records an owner-scoped run / event /
-snapshot / tool-effect ledger through that store. Pass
-:class:<code>~django_pydantic_agent.contrib.store.default_step_store.DefaultStepStore</code> (its
-constructor <em>is</em> the <code>request -&gt; StepStore</code> factory) for the reference
-model-backed store, or any such callable. Requires the
-<code>django-ag-ui[harness]</code> extra. Configuring it also mounts three owner-scoped
-endpoints: <code>resume/&lt;run_id&gt;/</code> and <code>fork/&lt;run_id&gt;/</code>, which seed a new run
-with a prior run's last continuable snapshot, and <code>runs/</code>, which indexes the
-user's runs so a client can <em>discover</em> what it may resume. Without that index
-a client can only continue a run whose id it still holds — ruling out
-resuming after a page reload or from another device, which is most of what
-durable persistence is for.</p>
-<p><strong>Namespacing.</strong> :attr:<code>urls</code> returns the <code>(patterns, app_name, namespace)</code>
+<code>request -&gt; StepStore</code> callable rather than a shared store, because the
+<code>pydantic-ai-harness</code> step-store protocol carries no request. When set,
+every run attaches a <code>StepPersistence</code> capability recording an owner-scoped
+run / event / snapshot / tool-effect ledger, and three owner-scoped endpoints
+mount: <code>resume/&lt;run_id&gt;/</code> and <code>fork/&lt;run_id&gt;/</code> seed a new run with a prior
+run's last continuable snapshot, and <code>runs/</code> indexes the user's runs so a
+client can <em>discover</em> what it may resume rather than only continuing a run
+whose id it still holds. Pass
+<code>DefaultStepStore</code>
+(its constructor <em>is</em> the factory) for the reference model-backed store, or
+any such callable. Requires the <code>django-ag-ui[harness]</code> extra.</p>
+<p><strong>Namespacing.</strong> <a class="autorefs autorefs-internal" title="urls
+
+
+  
+      property
+  " href="#django_ag_ui.AGUIServer.urls"><code>urls</code></a> returns the
+<code>(patterns, app_name, namespace)</code>
 triple <code>path()</code> mounts directly (like <code>admin.site.urls</code> — no
 <code>include()</code>), so endpoint names are namespaced (<code>namespace</code>, default
 <code>"ag_ui"</code>) and multiple mounts don't collide — <code>reverse("ag_ui:endpoint")</code>.</p>
@@ -4874,12 +4967,9 @@ triple <code>path()</code> mounts directly (like <code>admin.site.urls</code> �
 
         <p>The namespaced <code>(patterns, app_name, namespace)</code> triple <code>path()</code> mounts.</p>
 <p>Mounts directly at any prefix — <code>path("agent/", server.urls)</code>, no
-<code>include()</code> — exactly like <code>admin.site.urls</code>. Reverse the endpoints
-within the namespace: <code>reverse("&lt;namespace&gt;:endpoint")</code>,
-<code>"&lt;namespace&gt;:tools"</code>, <code>"&lt;namespace&gt;:skills"</code>, <code>"&lt;namespace&gt;:threads"</code>,
-<code>"&lt;namespace&gt;:thread"</code>, <code>"&lt;namespace&gt;:attachments"</code>,
-<code>"&lt;namespace&gt;:attachment"</code>, <code>"&lt;namespace&gt;:transcribe"</code>,
-<code>"&lt;namespace&gt;:resume"</code>, <code>"&lt;namespace&gt;:fork"</code>.</p>
+<code>include()</code> — exactly like <code>admin.site.urls</code>. Every route name listed
+under "What gets mounted" reverses within the namespace, as
+<code>reverse("&lt;namespace&gt;:endpoint")</code> and so on.</p>
 
     </div>
 
@@ -4920,16 +5010,12 @@ tools declared in the request are merged by the adapter automatically.</p>
 <p>The view is a callable instance, so configuration lives on <code>self</code> and a
 project can mount several with independent registries. <code>model</code>,
 <code>instructions</code>, and <code>audit_logger</code> fall back to the <code>DJANGO_AG_UI</code>
-settings when not passed explicitly (tests inject a <code>TestModel</code>).</p>
-<p><strong>The agent is built once and reused by every run</strong> — see :meth:<code>_agent</code>.
-Two narrow hooks vary it per request: <code>model_for_request(request)</code> and
-<code>instructions_for_request(request)</code>, each returning this request's value.
-They are deliberately narrow rather than a request-aware <code>agent_factory</code>:
-everything either can change rides the <em>run</em>, so the reuse stays provable,
-and neither costs the <code>agent_factory=</code> cliff (supplying one turns off the
-drf-mcp bridge, the spec capability, step persistence, the attachment
-toolset, <code>MODEL_SETTINGS</code>, <code>RETRIES</code>, <code>toolsets</code> and <code>capabilities</code>
-in one go).</p>
+settings when not passed explicitly.</p>
+<p>The agent is built once and reused by every run; <code>model_for_request</code> and
+<code>instructions_for_request</code> are the only per-request hooks on it, and
+everything else varies by riding the <em>run</em> instead. <code>agent_factory</code> takes
+over construction wholesale — see <a class="autorefs autorefs-internal" title="AGUIServer" href="#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> for what
+that turns off.</p>
 <p><strong>Authentication is the host's responsibility, and the view fails closed.</strong>
 Tools (and the <code>drf-mcp</code> bridge) act as <code>request.user</code>; if your
 middleware hasn't authenticated the request, that is <code>AnonymousUser</code> — a
@@ -4938,24 +5024,20 @@ data-exposure footgun. <code>require_authenticated</code> therefore defaults to
 <code>require_authenticated=False</code> to serve anonymous runs deliberately, and/or
 a <code>get_user(request)</code> hook to establish the user (e.g. from a token)
 before tools run. <code>get_user</code> may be <strong>sync or async</strong>; a sync hook runs
-off the event loop, so a plain ORM token → <code>User</code> lookup
-(<code>Token.objects.select_related("user").get(key=...).user</code>) is fully
-supported. A hook that raises propagates as an unhandled error (500) —
-return <code>AnonymousUser</code> (or <code>None</code>) for a clean 401 instead.</p>
+off the event loop, so a plain ORM token lookup is fully supported. A hook
+that raises propagates as an unhandled error (500) — return
+<code>AnonymousUser</code> (or <code>None</code>) for a clean 401 instead.</p>
 <p><strong>CSRF:</strong> the view is CSRF-exempt unless told otherwise, because AG-UI
 clients typically authenticate via headers (Bearer / API key), where CSRF
 does not apply. If your deployment authenticates with <strong>session cookies</strong>,
 pass <code>csrf_exempt=False</code> and send the CSRF token from the client — tools
 act as <code>request.user</code>, so a cookie-auth endpoint without CSRF protection
 lets any third-party page drive the agent as the logged-in user (mitigated,
-not eliminated, by Django's default <code>SameSite=Lax</code> cookie).</p>
-<p>⚠ <strong>Leaving <code>csrf_exempt</code> unset while supplying no <code>get_user</code> warns at
-construction.</strong> That combination says nothing about how requests
-authenticate, and the likeliest reading is the dangerous one: the acting
-user arrives from Django's session cookie, with CSRF turned off. Stating
-either half — <code>csrf_exempt=False</code>, <code>csrf_exempt=True</code>, or a <code>get_user</code>
-hook — settles it and silences the warning. See
-:func:<code>_warn_if_csrf_unstated</code>.</p>
+not eliminated, by Django's default <code>SameSite=Lax</code> cookie). Leaving
+<code>csrf_exempt</code> unset while supplying no <code>get_user</code> warns at
+construction: that pairing states nothing about how requests authenticate,
+and the likeliest reading is the dangerous one. Any of the three answers
+silences it.</p>
 
 
 
@@ -5008,10 +5090,11 @@ the response object exists: the <code>AGUIAdapter</code>, the composed event str
 (native → transformed → reasoning-filtered → encoded → disconnect-guarded),
 and persistence on all three of a run's exits — completed, failed and
 cancelled — the last two audited as well.</p>
-<p>Splitting it from :class:<code>~django_ag_ui.agent.agui_view.DjangoAGUIView</code>
+<p>Splitting it from <a class="autorefs autorefs-internal" title="DjangoAGUIView" href="#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a>
 makes the streaming pipeline testable without a <code>StreamingHttpResponse</code>
-(drive :meth:<code>stream</code> directly) and keeps the SSE transport swappable —
-a future WebSocket transport reuses the session unchanged.</p>
+(drive <a class="autorefs autorefs-internal" title="stream" href="#django_ag_ui.AgentSession.stream"><code>stream</code></a> directly) and keeps the
+SSE transport swappable — a future WebSocket transport reuses the session
+unchanged.</p>
 
 
 
@@ -5083,17 +5166,18 @@ persists the partial exchange and audits the cancellation.</p>
 
 
         <p>A read-only endpoint returning the agent's server-tool catalog (GET, JSON).</p>
-<p>A callable instance (like :class:<code>~django_ag_ui.agent.agui_view.DjangoAGUIView</code>)
-holding the same :class:<code>~django_pydantic_agent.registry.tool_registry.ToolRegistry</code>
-the view uses. <code>GET</code> returns the :func:<code>build_tool_catalog</code> list the web
+<p>A callable instance (like <a class="autorefs autorefs-internal" title="DjangoAGUIView" href="#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a>)
+holding the same <a class="autorefs autorefs-internal" title="ToolRegistry" href="#django_ag_ui.ToolRegistry"><code>ToolRegistry</code></a>
+the view uses. <code>GET</code> returns the
+<a class="autorefs autorefs-internal" title="build_tool_catalog" href="#django_pydantic_agent.agent.build_tool_catalog.build_tool_catalog"><code>build_tool_catalog</code></a>
+list the web
 component fetches via <code>data-tools-url</code> to label tool-call cards for
 server-side tools (whose schema never reaches the browser).</p>
-<p>The catalog names every server tool the agent can wield — an inventory
-worth gating. The view carries the same authentication seam as
-<code>DjangoAGUIView</code> (<code>require_authenticated</code> / <code>get_user</code>, sync or
-async hooks), so one policy can cover the agent endpoint and its
-catalogs — and the same closed default, so an anonymous <code>GET</code> is a
-<code>401</code> until you pass <code>require_authenticated=False</code>.</p>
+<p>The catalog names every server tool the agent can wield — an inventory worth
+gating — so the view carries the same authentication seam as
+<code>DjangoAGUIView</code> (<code>require_authenticated</code> / <code>get_user</code>, sync or async)
+and the same closed default: an anonymous <code>GET</code> is a <code>401</code> until you pass
+<code>require_authenticated=False</code>.</p>
 
 
 
@@ -5587,18 +5671,16 @@ agent whose tools see no user.</p>
 
         <p>An endpoint's resolved scalar configuration.</p>
 <p>Every field is <strong>already resolved</strong> — there is no "unset" state and no
-settings lookup left to do. :class:<code>AGUIServer</code> builds one in <code>__init__</code>
-(via :func:<code>~django_ag_ui.config.build_ag_ui_config.build_ag_ui_config</code>,
+settings lookup left to do. <a class="autorefs autorefs-internal" title="AGUIServer" href="#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> builds
+one in <code>__init__</code>
+(via <a class="autorefs autorefs-internal" title="build_ag_ui_config" href="#django_ag_ui.build_ag_ui_config"><code>build_ag_ui_config</code></a>,
 which reads <code>DJANGO_AG_UI</code>) and threads it to the agent view and every
 sub-view.</p>
-<p>That indirection is the point. Read at request time, these values could only
-ever be global, so two AG-UI endpoints in one project could not differ on any
-of them — an <code>/internal/agent</code> and a <code>/public/agent</code> were forced to share
-one tool-guard policy, one retry budget, one upload cap.</p>
-<p>Replaces the old <code>AppSettings</code>, which mixed these scalars with <em>dotted
-paths to collaborators</em>. Those are now constructor arguments taking real
-objects (<code>toolsets=</code>, <code>capabilities=</code>, <code>conversation_store=</code>, …), so
-what remains here is only values.</p>
+<p>Resolving once is what lets two endpoints in one project differ: read at
+request time these values could only ever be global, forcing an
+<code>/internal/agent</code> and a <code>/public/agent</code> to share one tool-guard policy,
+one retry budget, one upload cap. Collaborators are not here at all — they
+are constructor arguments taking real objects.</p>
 <p>Do <strong>not</strong> construct this directly to override a field: a
 partially-specified config would silently discard the project's own
 <code>DJANGO_AG_UI</code> values. Use <code>build_ag_ui_config(retries=3)</code>, which layers
@@ -5694,7 +5776,12 @@ when a <code>provider</code> is passed or <code>model</code> is already a <code>
     <div class="doc doc-contents ">
 
         <p>Override for the agent's default system prompt. <code>None</code> uses
-:data:<code>DEFAULT_SYSTEM_PROMPT</code>.</p>
+<a class="autorefs autorefs-internal" title="DEFAULT_SYSTEM_PROMPT
+
+
+  
+      module-attribute
+  " href="#django_ag_ui.DEFAULT_SYSTEM_PROMPT"><code>DEFAULT_SYSTEM_PROMPT</code></a>.</p>
 
     </div>
 
@@ -5981,6 +6068,36 @@ approval interrupt.</p>
 
 
 
+<h3 id="django_ag_ui.AGUIConfig.approval_prompts" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">approval_prompts</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.AGUIConfig.approval_prompts" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">approval_prompts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Human-readable questions for gated tools, by tool name, stamped onto the
+approval interrupt as <code>x-confirm</code>.</p>
+<p>The question a client would otherwise ask is the call spelled out, which is
+accurate and unreadable. A registry tool's own <code>@tool(confirm=...)</code> is
+folded in here by <code>AGUIServer</code>, so this only needs entries for tools whose
+schema carries none — a spec tool reaching the agent in-process, or a bridged
+MCP tool. A tool with no entry keeps the generated question.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="django_ag_ui.AGUIConfig.tool_failure" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">tool_failure</span>
 
@@ -6060,15 +6177,20 @@ messages, fenced and labelled as data, capped by a character ceiling.</p>
 
 
         <p>What client-supplied context reaches the model, and how much of it.</p>
-<p>An endpoint's answer to a question AG-UI leaves to the consumer: a
-<code>RunAgentInput</code> carries a <code>context</code> list the host page fills in, and
+<p>A <code>RunAgentInput</code> carries a <code>context</code> list the host page fills in, and
 pydantic-ai's adapter deliberately does not read it. This record is where a
 project says whether it wants that text delivered, whether the attachment
-refs the web component posts alongside a message become a manifest the model
-can act on, and what either is allowed to cost.</p>
-<p>Every field is <strong>already resolved</strong>, matching :class:<code>AGUIConfig</code>'s contract
-— there is no unset state here. Build it through
-:func:<code>~django_ag_ui.config.build_ag_ui_config.build_ag_ui_config</code>, which
+refs the web component posts become a manifest the model can act on, and what
+either is allowed to cost.</p>
+<p>Every field is <strong>already resolved</strong>, matching
+<a class="autorefs autorefs-internal" title="AGUIConfig
+
+
+  
+      dataclass
+  " href="#django_ag_ui.AGUIConfig"><code>AGUIConfig</code></a>'s contract — there is no unset state
+here. Build it through
+<a class="autorefs autorefs-internal" title="build_ag_ui_config" href="#django_ag_ui.build_ag_ui_config"><code>build_ag_ui_config</code></a>, which
 layers the <code>RUN_CONTEXT</code> settings dict under any override.</p>
 
 
@@ -6201,23 +6323,37 @@ not dropped in silence.</p>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">transcription_max_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">transcription_allowed_types</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">thread_list_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">tool_guard</span><span class="p">:</span> <span class="n">ToolGuardConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">tool_failure</span><span class="p">:</span> <span class="n">ToolFailureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">run_context</span><span class="p">:</span> <span class="n">RunContextConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AGUIConfig</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">approval_prompts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">tool_guard</span><span class="p">:</span> <span class="n">ToolGuardConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">tool_failure</span><span class="p">:</span> <span class="n">ToolFailureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">run_context</span><span class="p">:</span> <span class="n">RunContextConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AGUIConfig</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>Resolve an :class:<code>AGUIConfig</code> from <code>DJANGO_AG_UI</code>, applying overrides.</p>
-<p>The single place the scalar settings are read. :class:<code>AGUIServer</code> calls this
+        <p>Resolve an <a class="autorefs autorefs-internal" title="AGUIConfig
+
+
+  
+      dataclass
+  " href="#django_ag_ui.AGUIConfig"><code>AGUIConfig</code></a> from <code>DJANGO_AG_UI</code>,
+applying overrides.</p>
+<p>The single place the scalar settings are read.
+<a class="autorefs autorefs-internal" title="AGUIServer" href="#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> calls this
 once in <code>__init__</code>; nothing reads these settings per request, which is what
 lets two endpoints in one project hold different values.</p>
 <p>Every argument is <code>None</code> by default, meaning "take it from settings". Pass
-one to override just that field for this endpoint::</p>
+one to override just that field for this endpoint:</p>
 <div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, config=build_ag_ui_config(retries=3))
 </code></pre></div>
-<p>Use this rather than constructing :class:<code>AGUIConfig</code> directly — it is what
+<p>Use this rather than constructing <a class="autorefs autorefs-internal" title="AGUIConfig
+
+
+  
+      dataclass
+  " href="#django_ag_ui.AGUIConfig"><code>AGUIConfig</code></a>
+directly — it is what
 layers your overrides <em>over</em> the project's settings instead of discarding
 them.</p>
 
@@ -7087,9 +7223,9 @@ define the model, its fields, and the owner relationship.</p>
 
 
         <p>Owner-scoped thread index endpoint for the chat-history drawer (async, JSON).</p>
-<p>Mounted by :class:<code>~django_ag_ui.AGUIServer</code> whenever
+<p>Mounted by <a class="autorefs autorefs-internal" title="AGUIServer" href="#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> whenever
 <code>conversation_store=</code> is a live store, over the same
-:class:<code>~django_ag_ui.ConversationStore</code> the agent view uses:</p>
+<a class="autorefs autorefs-internal" title="ConversationStore" href="#django_ag_ui.ConversationStore"><code>ConversationStore</code></a> the agent view uses:</p>
 <ul>
 <li><code>GET    &lt;prefix&gt;threads/</code>       → the user's threads, <strong>metadata only</strong>
   (<code>{"threads": [...]}</code>);</li>
@@ -7101,10 +7237,9 @@ define the model, its fields, and the owner relationship.</p>
 <p>Every operation is scoped to the acting user: the store filters by owner, so
 a thread owned by another user simply isn't found (<code>404</code>) — never another
 user's history. The view carries the same authentication seam as
-:class:<code>~django_ag_ui.DjangoAGUIView</code> (<code>require_authenticated</code> /
-<code>get_user</code>, sync or async), closed by default like the catalog views — and
-here the default is load-bearing rather than a parity choice: every route is
-owner-scoped, so an anonymous caller has no history to reach.</p>
+<a class="autorefs autorefs-internal" title="DjangoAGUIView" href="#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a> (<code>require_authenticated</code> /
+<code>get_user</code>, sync or async), and the closed default is load-bearing here:
+every route is owner-scoped, so an anonymous caller has no history to reach.</p>
 
 
 
@@ -7592,13 +7727,18 @@ the package ships no concrete model so it forces no migration; the opt-in
 
 
         <p>Owner-scoped file-upload + download endpoint (async, multipart/JSON).</p>
-<p>Mounted by :class:<code>~django_ag_ui.AGUIServer</code> whenever <code>attachment_store=</code>
+<p>Mounted by <a class="autorefs autorefs-internal" title="AGUIServer" href="#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> whenever <code>attachment_store=</code>
 is a live
-:class:<code>~django_pydantic_agent.persistence.types.attachment_store.AttachmentStore</code>:</p>
+<a class="autorefs autorefs-internal" title="AttachmentStore" href="#django_ag_ui.AttachmentStore"><code>AttachmentStore</code></a>:</p>
 <ul>
 <li><code>POST   &lt;prefix&gt;attachments/</code>      → multipart upload under the <code>file</code>
   field; validates size/type from <code>DJANGO_AG_UI</code> settings, persists the
-  bytes, and returns <code>201</code> with the :class:<code>AttachmentRef</code> JSON
+  bytes, and returns <code>201</code> with the <a class="autorefs autorefs-internal" title="AttachmentRef
+
+
+  
+      dataclass
+  " href="#django_ag_ui.AttachmentRef"><code>AttachmentRef</code></a> JSON
   (<code>{"id", "name", "mime", "size", "url"?}</code>) — a durable <em>ref</em>, not bytes.</li>
 <li><code>GET    &lt;prefix&gt;attachments/&lt;id&gt;/</code> → stream the bytes back (owner-checked)
   for preview/download; missing or cross-owner → <code>404</code>.</li>
@@ -7608,13 +7748,13 @@ is a live
 one user's id can never resolve another's file. Downloads are served as an
 <code>attachment</code> with <code>X-Content-Type-Options: nosniff</code> so an uploaded
 <code>text/html</code> can't execute as a same-origin page. The view carries the same
-authentication seam as :class:<code>~django_ag_ui.DjangoAGUIView</code>
-(<code>require_authenticated</code> / <code>get_user</code>), closed by default like the
-catalog views — and here the default is load-bearing rather than a parity
-choice: every route is owner-scoped, so an anonymous caller has no files to
-reach.</p>
-<p>With the default :class:<code>NullAttachmentStore</code> an upload returns <code>410</code> (off):
-mount the view with a real store to enable it.</p>
+authentication seam as <a class="autorefs autorefs-internal" title="DjangoAGUIView" href="#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a>
+(<code>require_authenticated</code> / <code>get_user</code>), and the closed default is
+load-bearing here: every route is owner-scoped, so an anonymous caller has no
+files to reach.</p>
+<p>With the default <a class="autorefs autorefs-internal" title="NullAttachmentStore" href="#django_ag_ui.NullAttachmentStore"><code>NullAttachmentStore</code></a>
+an upload returns <code>410</code> (off): mount the view with a real store to enable
+it.</p>
 
 
 
@@ -7804,18 +7944,17 @@ fills those in.</p>
 
         <p>Pluggable server-side speech-to-text for the composer's voice input.</p>
 <p>Passed as <code>AGUIServer(transcription_backend=...)</code>. The package ships a
-no-op default (:class:<code>~django_ag_ui.NullTranscriptionBackend</code> — voice off)
+no-op default (<a class="autorefs autorefs-internal" title="NullTranscriptionBackend" href="#django_ag_ui.NullTranscriptionBackend"><code>NullTranscriptionBackend</code></a>
+— voice off)
 and an opt-in reference implementation over an OpenAI-compatible
 <code>/audio/transcriptions</code> endpoint
-(:class:<code>~django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend</code>).</p>
+(<a class="autorefs autorefs-internal" title="OpenAITranscriptionBackend" href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend"><code>OpenAITranscriptionBackend</code></a>).</p>
 <p>The single method is async and receives the acting <code>request</code> so a backend
-can scope by user / rate-limit / bill per principal. Unlike
-:class:<code>~django_pydantic_agent.persistence.types.attachment_store.AttachmentStore</code>,
-transcription keeps no durable artifact: the recorded audio is transcribed
-and the text returned in one shot (the composer drops it into the textarea),
-so there is nothing to <code>open</code> or <code>delete</code>. <code>transcribe</code> validates
-nothing about size/type itself (the view does, from settings); it just turns
-audio bytes into text.</p>
+can scope by user, rate-limit, or bill per principal. Unlike an
+<a class="autorefs autorefs-internal" title="AttachmentStore" href="#django_ag_ui.AttachmentStore"><code>AttachmentStore</code></a>,
+transcription keeps no durable artifact — audio in, text out, nothing to
+<code>open</code> or <code>delete</code>. <code>transcribe</code> validates nothing about size or type;
+the view does that from settings.</p>
 
 
 
@@ -7862,13 +8001,11 @@ audio bytes into text.</p>
 
 
         <p>The default transcription backend: voice input disabled.</p>
-<p><code>transcribe</code> is never reached through the endpoint — the
-:class:<code>~django_ag_ui.persistence.transcribe_view.TranscribeView</code> detects
-this backend and returns <code>410 Gone</code> so a misconfigured client gets a clear
-"voice is off" signal instead of a silent failure. <code>transcribe</code> still
-raises if called directly, to fail loudly rather than fabricate a transcript.
-The endpoint is inert until a real backend is passed as
-<code>AGUIServer(transcription_backend=...)</code>.</p>
+<p><a class="autorefs autorefs-internal" title="TranscribeView" href="#django_ag_ui.TranscribeView"><code>TranscribeView</code></a> detects
+this backend and answers <code>410 Gone</code>, so <code>transcribe</code> is never reached
+through the endpoint and a misconfigured client gets a clear "voice is off"
+signal. Called directly it raises, rather than fabricating a transcript. Pass
+<code>AGUIServer(transcription_backend=...)</code> to enable voice.</p>
 
 
 
@@ -7915,23 +8052,24 @@ The endpoint is inert until a real backend is passed as
 
 
         <p>Owner-scoped speech-to-text endpoint (async, multipart in / JSON out).</p>
-<p>Mounted by :class:<code>~django_ag_ui.AGUIServer</code> whenever
+<p>Mounted by <a class="autorefs autorefs-internal" title="AGUIServer" href="#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> whenever
 <code>transcription_backend=</code> is a live
-:class:<code>~django_ag_ui.persistence.types.transcription_backend.TranscriptionBackend</code>:</p>
+<a class="autorefs autorefs-internal" title="TranscriptionBackend" href="#django_ag_ui.TranscriptionBackend"><code>TranscriptionBackend</code></a>:</p>
 <ul>
 <li><code>POST &lt;prefix&gt;transcribe/</code> → multipart audio under the <code>audio</code> field;
   validates size/type from <code>DJANGO_AG_UI</code> settings, runs the backend, and
   returns <code>200</code> with <code>{"text": "&lt;transcript&gt;"}</code>.</li>
 </ul>
 <p>The audio is transcribed and discarded — nothing is stored — so unlike
-:class:<code>~django_ag_ui.persistence.attachments_view.AttachmentsView</code> there is
+<a class="autorefs autorefs-internal" title="AttachmentsView" href="#django_ag_ui.AttachmentsView"><code>AttachmentsView</code></a> there is
 no download/delete route. The view carries the same authentication seam as
-:class:<code>~django_ag_ui.DjangoAGUIView</code> (<code>require_authenticated</code> /
-<code>get_user</code>), closed by default like the other endpoints — which matters
-here beyond consistency: the backend spends money per request, so an open
-route is a bill as well as a leak.</p>
-<p>With the default :class:<code>NullTranscriptionBackend</code> a request returns <code>410</code>
-(off): mount the view with a real backend to enable it.</p>
+<a class="autorefs autorefs-internal" title="DjangoAGUIView" href="#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a> (<code>require_authenticated</code> /
+<code>get_user</code>), closed by default — which matters here beyond consistency:
+the backend spends money per request, so an open route is a bill as well as
+a leak.</p>
+<p>With the default
+<a class="autorefs autorefs-internal" title="NullTranscriptionBackend" href="#django_ag_ui.NullTranscriptionBackend"><code>NullTranscriptionBackend</code></a> a request
+returns <code>410</code> (off): mount the view with a real backend to enable it.</p>
 
 
 
@@ -7987,18 +8125,18 @@ subclass it to change the model or point at another OpenAI-compatible server.</p
 <p>The batteries-included voice backend: it forwards the recorded clip to an
 OpenAI <code>/audio/transcriptions</code> endpoint and returns the text. Enable it by
 installing the <code>[openai]</code> extra and passing an instance to the server,
-which is what mounts <code>transcribe/</code>::</p>
+which is what mounts <code>transcribe/</code>:</p>
 <div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, transcription_backend=OpenAITranscriptionBackend())
 </code></pre></div>
 <p>Constructible with no arguments: the API key comes from the
 <code>OPENAI_API_KEY</code> environment variable (the SDK default). Override the model
 or point at an OpenAI-compatible server (Azure OpenAI, a local Whisper
-server, Groq, …) by subclassing and setting the class attributes::</p>
+server, Groq, …) by subclassing and setting the class attributes:</p>
 <div class="language-text highlight"><pre><span></span><code>class GroqTranscription(OpenAITranscriptionBackend):
     model = &quot;whisper-large-v3&quot;
     base_url = &quot;https://api.groq.com/openai/v1&quot;
 </code></pre></div>
-<p>The <code>openai</code> SDK is imported lazily inside :meth:<code>transcribe</code> so the base
+<p>The <code>openai</code> SDK is imported lazily inside <code>transcribe</code> so the base
 package keeps it an optional dependency (the <code>[openai]</code> extra).</p>
 
 
@@ -8018,6 +8156,83 @@ package keeps it an optional dependency (the <code>[openai]</code> extra).</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.model" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">model</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.model" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;whisper-1&#39;</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The transcription model name passed to the API.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.base_url" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">base_url</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.base_url" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Optional base URL for an OpenAI-compatible endpoint (<code>None</code> → OpenAI).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.timeout" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">timeout</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="mf">60.0</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Per-request timeout (seconds) for the transcription call. The SDK default
+is 10 minutes; a bounded default keeps a stalled upstream from pinning a
+worker. Override on a subclass for slower endpoints.</p>
+
+    </div>
+
+</div>
 
 
 
