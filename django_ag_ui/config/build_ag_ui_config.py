@@ -38,7 +38,7 @@ def build_ag_ui_config(
     lets two endpoints in one project hold different values.
 
     Every argument is ``None`` by default, meaning "take it from settings". Pass
-    one to override just that field for this endpoint::
+    one to override just that field for this endpoint:
 
         AGUIServer(registry, config=build_ag_ui_config(retries=3))
 

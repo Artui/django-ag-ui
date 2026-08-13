@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Three attribute descriptions now reach the page at all.** `OpenAITranscriptionBackend`'s
+  `model`, `base_url` and `timeout` documented themselves with Sphinx `#:` comments,
+  which mkdocstrings reads as ordinary Python comments — so the text was never
+  rendered anywhere. They are attribute docstrings now, and the reference carries
+  them.
+- **The reST literal-block marker no longer reaches the page.** Sphinx reads a
+  trailing `::` as "an indented literal block follows" and prints one colon;
+  Markdown has no such rule, so the second colon rendered verbatim. The indented
+  block was already coming out as a code block either way, so this drops the
+  stray character and nothing else.
+
+  The API page still shows the marker inside symbols re-exported from
+  `django-pydantic-agent`; that is fixed in its repo and clears when it releases.
+
+### Fixed
+
 - **Docstring cross-references now render as links instead of raw markup.** The
   docstrings carried Sphinx roles — ``:class:`~django_ag_ui.AGUIServer` `` — but
   the docs build is mkdocstrings, which renders docstring bodies as Markdown and

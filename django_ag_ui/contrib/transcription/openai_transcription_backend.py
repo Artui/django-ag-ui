@@ -13,14 +13,14 @@ class OpenAITranscriptionBackend:
     The batteries-included voice backend: it forwards the recorded clip to an
     OpenAI ``/audio/transcriptions`` endpoint and returns the text. Enable it by
     installing the ``[openai]`` extra and passing an instance to the server,
-    which is what mounts ``transcribe/``::
+    which is what mounts ``transcribe/``:
 
         AGUIServer(registry, transcription_backend=OpenAITranscriptionBackend())
 
     Constructible with no arguments: the API key comes from the
     ``OPENAI_API_KEY`` environment variable (the SDK default). Override the model
     or point at an OpenAI-compatible server (Azure OpenAI, a local Whisper
-    server, Groq, …) by subclassing and setting the class attributes::
+    server, Groq, …) by subclassing and setting the class attributes:
 
         class GroqTranscription(OpenAITranscriptionBackend):
             model = "whisper-large-v3"
@@ -30,14 +30,14 @@ class OpenAITranscriptionBackend:
     package keeps it an optional dependency (the ``[openai]`` extra).
     """
 
-    #: The transcription model name passed to the API.
     model: str = "whisper-1"
-    #: Optional base URL for an OpenAI-compatible endpoint (``None`` → OpenAI).
+    """The transcription model name passed to the API."""
     base_url: str | None = None
-    #: Per-request timeout (seconds) for the transcription call. The SDK default
-    #: is 10 minutes; a bounded default keeps a stalled upstream from pinning a
-    #: worker. Override on a subclass for slower endpoints.
+    """Optional base URL for an OpenAI-compatible endpoint (``None`` → OpenAI)."""
     timeout: float | None = 60.0
+    """Per-request timeout (seconds) for the transcription call. The SDK default
+    is 10 minutes; a bounded default keeps a stalled upstream from pinning a
+    worker. Override on a subclass for slower endpoints."""
 
     def __init__(self) -> None:
         # The client and its connection pool are cached on the instance (the
