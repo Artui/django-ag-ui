@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -92,6 +93,16 @@ class AGUIConfig:
     """Server-side destructive-tool approval policy. When enabled, a
     ``ToolGuard`` capability flips destructive tools to require the AG-UI
     approval interrupt."""
+
+    approval_prompts: Mapping[str, str]
+    """Human-readable questions for gated tools, by tool name, stamped onto the
+    approval interrupt as ``x-confirm``.
+
+    The question a client would otherwise ask is the call spelled out, which is
+    accurate and unreadable. A registry tool's own ``@tool(confirm=...)`` is
+    folded in here by ``AGUIServer``, so this only needs entries for tools whose
+    schema carries none — a spec tool reaching the agent in-process, or a bridged
+    MCP tool. A tool with no entry keeps the generated question."""
 
     tool_failure: ToolFailureConfig
     """What an unhandled tool exception costs. On by default, so a raising tool

@@ -26,6 +26,7 @@ from django_ag_ui.agent.guarded_stream import guarded_stream
 from django_ag_ui.agent.inject_compaction_events import inject_compaction_events
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_transcript import RunTranscript
+from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.utils import messages_to_jsonable
@@ -124,6 +125,11 @@ class AgentSession:
         # capability list, and a flag would mean a second way to express the
         # same opt-in.
         events = inject_compaction_events(events)
+        # Only when there is something to say: the wrapper has to track tool-call
+        # ids to match an interrupt back to its tool, and an endpoint that gates
+        # nothing should not pay for that on every run.
+        if self._config.approval_prompts:
+            events = stamp_approval_prompts(events, prompts=self._config.approval_prompts)
         # The third exit. ``on_complete`` covers a run that finishes and the
         # guard below covers a client that disconnects; the adapter offers no
         # error callback, so the terminal event is the only hook a *failing* run

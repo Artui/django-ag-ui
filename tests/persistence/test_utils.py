@@ -65,6 +65,32 @@ def test_tool_exchange_is_serialised_under_the_protocol_key_names() -> None:
     assert "tool_call_id" not in raw[1]
 
 
+def test_a_turn_that_called_no_tool_omits_tool_calls_rather_than_nulling_it() -> None:
+    """The two SDKs of this protocol disagree about the wire, and this end yields.
+
+    ``ag_ui.core`` types the field ``list[ToolCall] | None``, so an assistant turn
+    that called nothing serialised as ``"toolCalls": null``. The protocol's
+    TypeScript schema types it optional-and-not-nullable and rejects that null
+    outright, which cost a released version of the web component: its history
+    replay threw on the null and dropped every later turn from the transcript.
+
+    An absent field is valid in both, so the null simply stops being emitted.
+    """
+    raw = messages_to_jsonable([AssistantMessage(id="a1", role="assistant", content="hello")])
+
+    assert "toolCalls" not in raw[0]
+    assert None not in raw[0].values()
+
+
+def test_dropping_nulls_loses_nothing_on_the_way_back() -> None:
+    """Every nullable field on these models is also optional, defaulting to ``None``."""
+    original = AssistantMessage(id="a1", role="assistant", content="hello")
+
+    back = messages_from_jsonable(messages_to_jsonable([original]))
+
+    assert back == [original]
+
+
 def test_stored_records_in_the_old_spelling_come_back_on_the_wire_shape() -> None:
     """Rows written before the fix must still render for a client.
 

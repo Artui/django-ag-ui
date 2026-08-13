@@ -351,6 +351,23 @@ async def test_tool_guard_disabled_lets_the_tool_run() -> None:
     assert calls == ["widget-1"]
 
 
+async def test_a_configured_prompt_reaches_the_interrupt_the_client_reads() -> None:
+    """The generated question is the call itself; this is the readable one.
+
+    End of the chain rather than the transformer in isolation: a guard-gated tool,
+    an interrupt on the wire, and the phrase on it where a client looks.
+    """
+    agent = _guarded_agent([], tool_guard=ToolGuardConfig(enabled=True))
+    config = build_ag_ui_config(
+        tool_guard=ToolGuardConfig(enabled=True),
+        approval_prompts={"delete_thing": "Delete widget-1 for good?"},
+    )
+    joined = await _events(_session(agent, _approval_run_input(), config=config))
+
+    assert '"x-confirm":"Delete widget-1 for good?"' in joined
+    assert '"type":"interrupt"' in joined
+
+
 async def test_tool_guard_exemption_lets_the_tool_run() -> None:
     calls: list[str] = []
     guard = ToolGuardConfig(enabled=True, exempt=frozenset({"delete_thing"}))

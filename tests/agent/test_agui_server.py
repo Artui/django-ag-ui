@@ -10,9 +10,14 @@ from django_pydantic_agent.persistence.null_conversation_store import NullConver
 from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
 
-from django_ag_ui.agent.agui_server import DEFAULT_NAMESPACE, AGUIServer
+from django_ag_ui.agent.agui_server import (
+    DEFAULT_NAMESPACE,
+    AGUIServer,
+    _with_registry_prompts,
+)
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.tools_view import ToolsView
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.skills.skill_registry import SkillRegistry
 
@@ -68,6 +73,51 @@ def test_tools_view_reuses_the_registry() -> None:
     tools = next(p for p in patterns if p.name == "tools")
     assert "tools/" in str(tools.pattern)
     assert isinstance(tools.callback, ToolsView)
+
+
+def test_a_tools_own_confirm_becomes_its_approval_prompt() -> None:
+    """One question, whichever end gates the call.
+
+    A destructive registry tool already carries a human-readable question for the
+    confirmation the *browser* gates. When the server gates the same tool instead,
+    that question should not silently become the serialized call.
+    """
+    from django_pydantic_agent.registry.decorator import tool
+
+    registry = ToolRegistry()
+
+    @tool(registry, destructive=True, confirm="Delete the Basalt room?")
+    def delete_room(name: str) -> str:
+        """Delete a room."""
+        return name
+
+    resolved = _with_registry_prompts(build_ag_ui_config(), registry)
+
+    assert resolved.approval_prompts == {"delete_room": "Delete the Basalt room?"}
+
+
+def test_an_explicit_prompt_overrides_the_tools_own() -> None:
+    from django_pydantic_agent.registry.decorator import tool
+
+    registry = ToolRegistry()
+
+    @tool(registry, destructive=True, confirm="Delete the Basalt room?")
+    def delete_room(name: str) -> str:
+        """Delete a room."""
+        return name
+
+    resolved = _with_registry_prompts(
+        build_ag_ui_config(approval_prompts={"delete_room": "This cannot be undone. Sure?"}),
+        registry,
+    )
+
+    assert resolved.approval_prompts == {"delete_room": "This cannot be undone. Sure?"}
+
+
+def test_a_registry_with_no_confirms_leaves_the_map_alone() -> None:
+    config = build_ag_ui_config()
+
+    assert _with_registry_prompts(config, ToolRegistry()) is config
 
 
 def test_endpoint_view_is_the_built_agent_view() -> None:
