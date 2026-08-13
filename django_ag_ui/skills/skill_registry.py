@@ -7,11 +7,12 @@ from django_ag_ui.skills.types.skill_spec import SkillSpec
 
 
 class SkillRegistry:
-    """An ordered, named collection of :class:`SkillSpec`s.
+    """An ordered, named collection of [`SkillSpec`][django_ag_ui.SkillSpec]s.
 
-    State lives on the instance (like :class:`~django_pydantic_agent.registry.tool_registry.ToolRegistry`).
-    :meth:`payload` produces the JSON-serialisable catalog the frontend consumes
-    (camelCase keys, optional fields omitted when default).
+    State lives on the instance (like [`ToolRegistry`][django_ag_ui.ToolRegistry]).
+    [`payload`][django_ag_ui.SkillRegistry.payload] produces the
+    JSON-serialisable catalog the frontend consumes (camelCase keys, optional
+    fields omitted when default).
     """
 
     def __init__(self) -> None:
@@ -34,7 +35,8 @@ class SkillRegistry:
         send_immediately: bool = False,
         chip: bool = False,
     ) -> SkillSpec:
-        """Construct a :class:`SkillSpec` and register it (convenience)."""
+        """Construct a [`SkillSpec`][django_ag_ui.SkillSpec] and register it
+        (convenience)."""
         return self.register(
             SkillSpec(
                 name=name,

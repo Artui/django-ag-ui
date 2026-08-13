@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Docstring cross-references now render as links instead of raw markup.** The
+  docstrings carried Sphinx roles — ``:class:`~django_ag_ui.AGUIServer` `` — but
+  the docs build is mkdocstrings, which renders docstring bodies as Markdown and
+  has no such syntax, so all 71 reached the published page verbatim, `:class:`
+  prefix and Sphinx's abbreviating `~` included. They are now mkdocstrings
+  autorefs links, matching the syntax the hand-written `docs/*.md` pages already
+  used. References to symbols the reference does not render — private helpers,
+  `CappedUploadHandler`, undocumented members, and third-party symbols — became
+  plain code spans.
+
+  The API page still shows raw roles inside the symbols re-exported from
+  `django-pydantic-agent`; those come from that package's own docstrings and
+  clear when its fix is released and picked up here.
+
 ## [0.42.0] — 2026-08-12
 
 ### Fixed

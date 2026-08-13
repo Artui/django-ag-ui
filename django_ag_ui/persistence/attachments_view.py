@@ -28,13 +28,13 @@ from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 class AttachmentsView:
     """Owner-scoped file-upload + download endpoint (async, multipart/JSON).
 
-    Mounted by :class:`~django_ag_ui.AGUIServer` whenever ``attachment_store=``
+    Mounted by [`AGUIServer`][django_ag_ui.AGUIServer] whenever ``attachment_store=``
     is a live
-    :class:`~django_pydantic_agent.persistence.types.attachment_store.AttachmentStore`:
+    [`AttachmentStore`][django_ag_ui.AttachmentStore]:
 
     - ``POST   <prefix>attachments/``      → multipart upload under the ``file``
       field; validates size/type from ``DJANGO_AG_UI`` settings, persists the
-      bytes, and returns ``201`` with the :class:`AttachmentRef` JSON
+      bytes, and returns ``201`` with the [`AttachmentRef`][django_ag_ui.AttachmentRef] JSON
       (``{"id", "name", "mime", "size", "url"?}``) — a durable *ref*, not bytes.
     - ``GET    <prefix>attachments/<id>/`` → stream the bytes back (owner-checked)
       for preview/download; missing or cross-owner → ``404``.
@@ -44,13 +44,14 @@ class AttachmentsView:
     one user's id can never resolve another's file. Downloads are served as an
     ``attachment`` with ``X-Content-Type-Options: nosniff`` so an uploaded
     ``text/html`` can't execute as a same-origin page. The view carries the same
-    authentication seam as :class:`~django_ag_ui.DjangoAGUIView`
+    authentication seam as [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView]
     (``require_authenticated`` / ``get_user``), and the closed default is
     load-bearing here: every route is owner-scoped, so an anonymous caller has no
     files to reach.
 
-    With the default :class:`NullAttachmentStore` an upload returns ``410`` (off):
-    mount the view with a real store to enable it.
+    With the default [`NullAttachmentStore`][django_ag_ui.NullAttachmentStore]
+    an upload returns ``410`` (off): mount the view with a real store to enable
+    it.
     """
 
     def __init__(
@@ -155,7 +156,7 @@ def _validate_type(upload: UploadedFile, allowed_types: tuple[str, ...]) -> Json
 
     An empty ``allowed_types`` accepts any declared content type. The content
     type is client-declared, so it is a coarse filter — the store decides what to
-    do with the bytes. The size cap lives in :class:`CappedUploadHandler`, which
+    do with the bytes. The size cap lives in ``CappedUploadHandler``, which
     aborts an oversized upload before it is fully parsed.
     """
     if allowed_types and (upload.content_type or "") not in allowed_types:

@@ -26,7 +26,7 @@ class OpenAITranscriptionBackend:
             model = "whisper-large-v3"
             base_url = "https://api.groq.com/openai/v1"
 
-    The ``openai`` SDK is imported lazily inside :meth:`transcribe` so the base
+    The ``openai`` SDK is imported lazily inside ``transcribe`` so the base
     package keeps it an optional dependency (the ``[openai]`` extra).
     """
 

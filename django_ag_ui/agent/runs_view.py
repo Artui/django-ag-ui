@@ -20,7 +20,7 @@ StepStoreFactory = Any
 class RunsView:
     """Owner-scoped run index — what a client may resume or fork (async, JSON).
 
-    Mounted by :class:`~django_ag_ui.AGUIServer` next to ``resume/<run_id>/`` and
+    Mounted by [`AGUIServer`][django_ag_ui.AGUIServer] next to ``resume/<run_id>/`` and
     ``fork/<run_id>/`` whenever a ``step_store`` is configured, the same way
     ``threads/`` mounts with a conversation store:
 
@@ -38,7 +38,7 @@ class RunsView:
 
     Owner-scoped: the store filters by owner, so another user's runs are absent
     rather than a 403 that would confirm the id exists. Carries the same
-    authentication seam as :class:`~django_ag_ui.DjangoAGUIView`, closed by
+    authentication seam as [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView], closed by
     default — load-bearing here, since an anonymous caller has no runs to list.
     """
 

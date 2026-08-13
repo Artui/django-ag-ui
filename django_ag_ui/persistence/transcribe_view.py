@@ -22,24 +22,25 @@ from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 class TranscribeView:
     """Owner-scoped speech-to-text endpoint (async, multipart in / JSON out).
 
-    Mounted by :class:`~django_ag_ui.AGUIServer` whenever
+    Mounted by [`AGUIServer`][django_ag_ui.AGUIServer] whenever
     ``transcription_backend=`` is a live
-    :class:`~django_ag_ui.persistence.types.transcription_backend.TranscriptionBackend`:
+    [`TranscriptionBackend`][django_ag_ui.TranscriptionBackend]:
 
     - ``POST <prefix>transcribe/`` → multipart audio under the ``audio`` field;
       validates size/type from ``DJANGO_AG_UI`` settings, runs the backend, and
       returns ``200`` with ``{"text": "<transcript>"}``.
 
     The audio is transcribed and discarded — nothing is stored — so unlike
-    :class:`~django_ag_ui.persistence.attachments_view.AttachmentsView` there is
+    [`AttachmentsView`][django_ag_ui.AttachmentsView] there is
     no download/delete route. The view carries the same authentication seam as
-    :class:`~django_ag_ui.DjangoAGUIView` (``require_authenticated`` /
+    [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView] (``require_authenticated`` /
     ``get_user``), closed by default — which matters here beyond consistency:
     the backend spends money per request, so an open route is a bill as well as
     a leak.
 
-    With the default :class:`NullTranscriptionBackend` a request returns ``410``
-    (off): mount the view with a real backend to enable it.
+    With the default
+    [`NullTranscriptionBackend`][django_ag_ui.NullTranscriptionBackend] a request
+    returns ``410`` (off): mount the view with a real backend to enable it.
     """
 
     def __init__(

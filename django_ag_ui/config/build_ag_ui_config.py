@@ -29,9 +29,11 @@ def build_ag_ui_config(
     tool_failure: ToolFailureConfig | None = None,
     run_context: RunContextConfig | None = None,
 ) -> AGUIConfig:
-    """Resolve an :class:`AGUIConfig` from ``DJANGO_AG_UI``, applying overrides.
+    """Resolve an [`AGUIConfig`][django_ag_ui.AGUIConfig] from ``DJANGO_AG_UI``,
+    applying overrides.
 
-    The single place the scalar settings are read. :class:`AGUIServer` calls this
+    The single place the scalar settings are read.
+    [`AGUIServer`][django_ag_ui.AGUIServer] calls this
     once in ``__init__``; nothing reads these settings per request, which is what
     lets two endpoints in one project hold different values.
 
@@ -40,7 +42,8 @@ def build_ag_ui_config(
 
         AGUIServer(registry, config=build_ag_ui_config(retries=3))
 
-    Use this rather than constructing :class:`AGUIConfig` directly — it is what
+    Use this rather than constructing [`AGUIConfig`][django_ag_ui.AGUIConfig]
+    directly — it is what
     layers your overrides *over* the project's settings instead of discarding
     them.
     """
@@ -85,7 +88,7 @@ def build_ag_ui_config(
 
 
 def _parse_tool_guard(raw: Any) -> ToolGuardConfig:
-    """Build a :class:`ToolGuardConfig` from the ``TOOL_GUARD`` settings dict.
+    """Build a ``ToolGuardConfig`` from the ``TOOL_GUARD`` settings dict.
 
     Absent / falsy → a disabled config (the default). Names are normalised to
     ``frozenset`` so lookups in the capability are O(1) and order-insensitive.
@@ -99,7 +102,7 @@ def _parse_tool_guard(raw: Any) -> ToolGuardConfig:
 
 
 def _parse_tool_failure(raw: Any) -> ToolFailureConfig:
-    """Build a :class:`ToolFailureConfig` from the ``TOOL_FAILURE`` settings dict.
+    """Build a ``ToolFailureConfig`` from the ``TOOL_FAILURE`` settings dict.
 
     Absent → the record's own defaults, which turn the policy **on**, unlike
     ``TOOL_GUARD`` above where absent means no gate. Reading ``ENABLED`` with a
@@ -114,7 +117,8 @@ def _parse_tool_failure(raw: Any) -> ToolFailureConfig:
 
 
 def _parse_run_context(raw: Any) -> RunContextConfig:
-    """Build a :class:`RunContextConfig` from the ``RUN_CONTEXT`` settings dict.
+    """Build a [`RunContextConfig`][django_ag_ui.RunContextConfig] from the
+    ``RUN_CONTEXT`` settings dict.
 
     Absent or empty → both sources on and the default ceiling, following
     ``TOOL_FAILURE`` rather than ``TOOL_GUARD``. A project that wants nothing a

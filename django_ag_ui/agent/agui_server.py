@@ -44,7 +44,7 @@ class AGUIServer:
     The Django-idiomatic front door for the package — the ``admin.site`` idiom
     and the mirror of drf-mcp's ``MCPServer``. Construct it once with the tool
     registry (plus optional stores / auth), then mount its **namespaced**
-    :attr:`urls` with ``path()``::
+    [`urls`][django_ag_ui.AGUIServer.urls] with ``path()``::
 
         from django_ag_ui import AGUIServer
 
@@ -56,15 +56,15 @@ class AGUIServer:
         # reverse("ag_ui:endpoint") · "ag_ui:tools" · "ag_ui:threads" · ...
 
     The registry is passed **once**: the object builds the agent view
-    (:class:`~django_ag_ui.agent.agui_view.DjangoAGUIView`) *and* the read-only
-    tool catalog (:class:`~django_ag_ui.agent.tools_view.ToolsView`) from it. The
+    ([`DjangoAGUIView`][django_ag_ui.DjangoAGUIView]) *and* the read-only
+    tool catalog ([`ToolsView`][django_ag_ui.ToolsView]) from it. The
     mount point is the consumer's to choose the Django way, so there is no
     ``prefix=``.
 
     **What gets mounted.** The agent endpoint (``endpoint``) and its tool catalog
     (``tools``) always mount. The rest mount only when their backend is *active*:
 
-    - ``skills`` — a :class:`~django_ag_ui.skills.skill_registry.SkillRegistry`
+    - ``skills`` — a [`SkillRegistry`][django_ag_ui.SkillRegistry]
       was passed (``skills/``, GET JSON for ``data-skills-url``).
     - ``threads`` / ``thread`` — the conversation store is not a
       ``NullConversationStore`` (``threads/`` + ``threads/<id>/``, the history
@@ -78,7 +78,7 @@ class AGUIServer:
 
     Collaborators are **passed here or absent**: there is no settings fallback,
     and the keys that once held a dotted path are refused at startup by
-    :func:`~django_ag_ui.check_removed_settings.check_removed_settings` rather
+    ``check_removed_settings`` rather
     than ignored. Unpassed, each falls back to its ``Null*`` backend, so a bare
     ``AGUIServer(registry)`` serves the agent endpoint and its tool catalog and
     nothing else.
@@ -132,7 +132,7 @@ class AGUIServer:
         AGUIServer(registry, model_for_request=lambda r: r.tenant.model)
 
     **Rate limiting.** ``throttle`` takes a
-    :class:`~django_ag_ui.agent.types.throttle.Throttle` — one ``consume(request)``
+    ``Throttle`` — one ``consume(request)``
     returning the suggested ``Retry-After`` in seconds, or ``None`` to allow the
     run — and applies to the **agent endpoint only**, the one that costs a model
     call per request. It runs after authentication, so a limiter can key on the
@@ -157,11 +157,12 @@ class AGUIServer:
     run's last continuable snapshot, and ``runs/`` indexes the user's runs so a
     client can *discover* what it may resume rather than only continuing a run
     whose id it still holds. Pass
-    :class:`~django_pydantic_agent.contrib.store.default_step_store.DefaultStepStore`
+    ``DefaultStepStore``
     (its constructor *is* the factory) for the reference model-backed store, or
     any such callable. Requires the ``django-ag-ui[harness]`` extra.
 
-    **Namespacing.** :attr:`urls` returns the ``(patterns, app_name, namespace)``
+    **Namespacing.** [`urls`][django_ag_ui.AGUIServer.urls] returns the
+    ``(patterns, app_name, namespace)``
     triple ``path()`` mounts directly (like ``admin.site.urls`` — no
     ``include()``), so endpoint names are namespaced (``namespace``, default
     ``"ag_ui"``) and multiple mounts don't collide — ``reverse("ag_ui:endpoint")``.

@@ -16,7 +16,7 @@ class SpecToolsetSource(Protocol):
     tool catalog.
 
     Matched **structurally rather than imported**, like
-    :class:`~django_pydantic_agent.integrations.types.spec_source.SpecSource`:
+    ``SpecSource``:
     drf-pydantic-ai arrives only with the optional ``[spec-tools]`` extra, so
     naming ``SpecToolset`` in a signature would force the dependency on every
     install.

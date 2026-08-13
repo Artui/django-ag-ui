@@ -16,7 +16,7 @@ COMPACTION_ACTIVITY_TYPE = "compaction"
 async def inject_compaction_events(stream: AsyncIterator[BaseEvent]) -> AsyncIterator[BaseEvent]:
     """Forward ``stream``, interleaving an activity event per recorded compaction.
 
-    Establishes the per-run sink that :class:`CompactionObserver` writes into,
+    Establishes the per-run sink that ``CompactionObserver`` writes into,
     then drains it as the stream advances. The agent run happens *inside* this
     iteration, so a compaction surfaces immediately above the turn that ran with
     the shortened history.

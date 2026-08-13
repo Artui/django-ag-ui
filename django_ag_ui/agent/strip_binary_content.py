@@ -22,7 +22,7 @@ def strip_binary_content(messages: Sequence[Message]) -> list[Message]:
     does.
 
     **Only server-generated messages are ever passed through this**, under
-    :class:`~django_ag_ui.agent.agent_session.AgentSession`'s rule that the
+    [`AgentSession`][django_ag_ui.AgentSession]'s rule that the
     server never persists bytes it generated and never discards bytes the client
     sent. An inline image a front end sends reaches both the model and the row
     untouched.

@@ -13,9 +13,10 @@ class RunContextConfig:
     refs the web component posts become a manifest the model can act on, and what
     either is allowed to cost.
 
-    Every field is **already resolved**, matching :class:`AGUIConfig`'s contract
-    — there is no unset state here. Build it through
-    :func:`~django_ag_ui.config.build_ag_ui_config.build_ag_ui_config`, which
+    Every field is **already resolved**, matching
+    [`AGUIConfig`][django_ag_ui.AGUIConfig]'s contract — there is no unset state
+    here. Build it through
+    [`build_ag_ui_config`][django_ag_ui.build_ag_ui_config], which
     layers the ``RUN_CONTEXT`` settings dict under any override.
     """
 

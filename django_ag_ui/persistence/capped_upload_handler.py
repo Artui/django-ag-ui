@@ -9,12 +9,12 @@ class CappedUploadHandler(FileUploadHandler):
     """A monitoring upload handler that aborts once the upload exceeds a cap.
 
     Inserted **first** in ``request.upload_handlers`` so it counts bytes as they
-    stream in and raises :class:`~django.core.files.uploadhandler.StopUpload` the
+    stream in and raises ``StopUpload`` the
     moment the file passes ``max_bytes`` — before Django spools the whole
     (oversized) body to a temp file. It never produces the file itself: chunks
     pass through to the downstream handler (which builds the file for an in-cap
-    upload), and :meth:`file_complete` returns ``None``. After parsing, the view
-    reads :attr:`exceeded` to answer ``413`` rather than a bare "no file".
+    upload), and ``file_complete`` returns ``None``. After parsing, the view
+    reads ``exceeded`` to answer ``413`` rather than a bare "no file".
 
     ``max_bytes`` of ``0`` disables the cap (the handler is a no-op passthrough).
     """
