@@ -44,7 +44,7 @@ class AGUIServer:
     The Django-idiomatic front door for the package — the ``admin.site`` idiom
     and the mirror of drf-mcp's ``MCPServer``. Construct it once with the tool
     registry (plus optional stores / auth), then mount its **namespaced**
-    [`urls`][django_ag_ui.AGUIServer.urls] with ``path()``::
+    [`urls`][django_ag_ui.AGUIServer.urls] with ``path()``:
 
         from django_ag_ui import AGUIServer
 
@@ -105,7 +105,7 @@ class AGUIServer:
     **Spec tools.** ``service_specs`` takes a ``name -> spec`` mapping, a spec
     registry (drf-services' ``SpecRegistry``, the single declaration site for a
     project exposing the same specs over several transports), or an
-    already-built ``SpecToolset`` / ``SpecCapability``::
+    already-built ``SpecToolset`` / ``SpecCapability``:
 
         AGUIServer(registry, service_specs=spec_registry.by_tag("public"))
         AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
@@ -127,7 +127,7 @@ class AGUIServer:
     ``model_for_request(request)`` and ``instructions_for_request(request)`` are
     the two hooks that vary it — the per-tenant model and the per-tenant system
     prompt — and they ride the *run*, through pydantic-ai's own per-run
-    ``model`` / ``instructions``::
+    ``model`` / ``instructions``:
 
         AGUIServer(registry, model_for_request=lambda r: r.tenant.model)
 
@@ -136,7 +136,7 @@ class AGUIServer:
     returning the suggested ``Retry-After`` in seconds, or ``None`` to allow the
     run — and applies to the **agent endpoint only**, the one that costs a model
     call per request. It runs after authentication, so a limiter can key on the
-    acting user rather than only an IP::
+    acting user rather than only an IP:
 
         AGUIServer(registry, throttle=FixedWindowThrottle(max_runs=20, per_seconds=60))
 

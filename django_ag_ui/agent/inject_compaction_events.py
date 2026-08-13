@@ -9,8 +9,8 @@ from ag_ui.core import ActivitySnapshotEvent, BaseEvent
 
 from django_ag_ui.agent.compaction_observer import COMPACTION_SINK, Compaction
 
-#: ``activity_type`` clients match on to render the indicator.
 COMPACTION_ACTIVITY_TYPE = "compaction"
+"""``activity_type`` clients match on to render the indicator."""
 
 
 async def inject_compaction_events(stream: AsyncIterator[BaseEvent]) -> AsyncIterator[BaseEvent]:
