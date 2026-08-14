@@ -7,6 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The run index answers with a `preview`, so a person can tell two runs
+  apart.** `GET runs/` rows carried `run_id`, `thread_id`, `parent_run_id`,
+  `started_at` and `continuable` — nothing a human recognises. Three continuable
+  runs therefore rendered as `1m ago` / `just now` / `just now`, the last two
+  continuing different conversations, and picking between them was picking blind.
+  The new field is the run's first user message, collapsed to one line and
+  truncated to 100 characters.
+
+  It costs no extra query: the view already loads each row's latest snapshot to
+  answer `continuable`, and a snapshot holds the messages. It is `null` exactly
+  where that snapshot is absent — which is where `continuable` is `false` and
+  there was nothing to offer anyway — and where the run opened on something with
+  no words in it (a run seeded from history alone, an image with no caption).
+
+- **Rows arrive newest first.** Both this package's docs and the web component's
+  said so; neither sorted, and a run's most likely target sat at the bottom of the
+  list. The reversal belongs here rather than in the store: a `StepStore` answers
+  oldest-first because the harness protocol documents ascending `started_at` and
+  invites callers to take the newest with `[-1]`, so a store that reversed it
+  would break upstream's own idiom. Presentation order is the view's.
+
+### Changed
+
+- **`[harness]` no longer installs a code sandbox** (breaking, for one
+  combination). It required `pydantic-ai-harness[code-mode]`, so a project wiring
+  *step persistence* also got `pydantic-monty` and its client and runtime — 8 MB
+  of WASM sandbox, measured from cold installs — to show a list of checkpoints.
+  The extra now installs `pydantic-ai-harness` and nothing else, which is what its
+  own docs always said it did, and **CodeMode moves to a new `[code-mode]`
+  extra**:
+
+  ```bash
+  pip install "django-ag-ui[code-mode]"    # was [harness]
+  ```
+
+  Two features shared one dependency and the extra was named after the
+  dependency rather than after either feature, so it grew when the package did.
+  Compaction, subagents and step persistence keep riding `[harness]`; only
+  CodeMode needs a sandbox, and now only CodeMode installs one. A project on
+  `[harness]` that does use CodeMode fails loudly and immediately on the import,
+  with upstream's own message naming the extra to install.
+
+### Fixed
+
+- **A collaborator passed as a dotted path is refused at startup.**
+  `AGUIServer(registry, attachment_store="myapp.stores.MyStore")` constructed
+  without complaint **and mounted both upload endpoints** — the mount test asks
+  only whether the store is a non-null one, and a string passes that — then failed
+  on the first upload as an attribute error on a `str`, in an endpoint the caller
+  believed was configured. There is no `import_string` in this package, so a
+  string can only be a mistake, and it is now rejected when the URL conf is
+  imported, naming every offending argument and its value at once. A list is
+  checked element-wise too: a string in `toolsets=[…]` is the same mistake with a
+  longer fuse, surviving construction *and* the mount before failing where nothing
+  points back at the URL conf. `model=` and `instructions=` take strings by design
+  and are untouched.
+
+### Documentation
+
+- **Five places still described a constructor argument as "a dotted path"**, a
+  month after the collaborators became objects and `import_string` left the
+  package. `attachment_store=` and
+  `transcription_backend=` each carried the stale sentence *immediately followed*
+  by the corrected one, which is what gave the cause away — the conversion pass
+  rewrote the arguments and left the prose. Also `drf_mcp_server=`, the note
+  explaining why the settings keys went away (which now says no argument takes a
+  path and that a string is refused), the subagents page, and the README's audit
+  line, which the original finding had not caught.
+
+- **The resume warning no longer oversells a hazard the harness guards.** It read
+  as though reusing the source `run_id` would corrupt the tool-effect ledger
+  through its `(run_id, tool_call_id)` key. The harness refuses the reuse by name
+  — *"run_id … is already in the store. Explicit `run_id` is single-shot"* — and
+  the source run's records are untouched, so there is nothing to defend against
+  client-side beyond passing a new id.
+
+  Worth more than the correction: **that refusal is a `RUN_ERROR` event, not an
+  HTTP status**, and cannot be otherwise, because `RUN_STARTED` has already
+  committed the response at `200`. That is true of every error a streaming
+  endpoint raises after its first byte, so the page now states the client-side
+  rule it implies — read the event stream, not `response.ok`, or these runs score
+  as successes.
+
 ## [0.43.0] — 2026-08-13
 
 ### Added

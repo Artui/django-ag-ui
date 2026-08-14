@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from django.http import HttpRequest
 from django.test import RequestFactory
 from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
+from pydantic_ai.messages import (
+    BinaryContent,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    UserPromptPart,
+)
 from pydantic_ai_harness.step_persistence import ContinuableSnapshot, RunRecord
 
 from django_ag_ui.agent.runs_view import RunsView
@@ -15,22 +22,37 @@ from tests.authed_request_factory import AuthedRequestFactory
 _STARTED = datetime(2026, 7, 27, 12, 0, tzinfo=timezone.utc)
 
 
-def _record(run_id: str, *, parent: str | None = None, thread: str | None = "t1") -> RunRecord:
+def _record(
+    run_id: str, *, parent: str | None = None, thread: str | None = "t1", minutes: int = 0
+) -> RunRecord:
     return RunRecord(
         run_id=run_id,
         conversation_id=thread,
         parent_run_id=parent,
         agent_name=None,
         metadata={},
-        started_at=_STARTED,
+        started_at=_STARTED + timedelta(minutes=minutes),
     )
 
 
-def _snapshot(run_id: str) -> ContinuableSnapshot:
+def _snapshot(run_id: str, *, said: Any = None) -> ContinuableSnapshot:
+    """A snapshot, optionally holding the user prompt the row previews.
+
+    ``said`` is the ``UserPromptPart`` content verbatim, so a test can hand over
+    the multi-modal sequence form as readily as a string.
+    """
+    messages: list[Any] = []
+    if said is not None:
+        # An assistant turn first, so finding the prompt is a search rather than
+        # reading ``messages[0]``.
+        messages = [
+            ModelResponse(parts=[TextPart(content="working on it")]),
+            ModelRequest(parts=[UserPromptPart(content=said)]),
+        ]
     return ContinuableSnapshot(
         run_id=run_id,
         step_index=0,
-        messages=[],
+        messages=messages,
         conversation_id="t1",
         parent_run_id=None,
         agent_name=None,
@@ -85,7 +107,20 @@ class TestListing:
         response = await RunsView(_factory(store))(_get())
 
         assert response.status_code == 200
-        assert [row["run_id"] for row in (await _body(response))["runs"]] == ["r1", "r2"]
+        assert {row["run_id"] for row in (await _body(response))["runs"]} == {"r1", "r2"}
+
+    async def test_serves_the_newest_run_first(self) -> None:
+        """The store answers oldest-first; a person reads a picker top-down.
+
+        Ascending ``started_at`` is the harness protocol's documented order, so
+        the store is right and this view owns the reading order.
+        """
+        store = _FakeStore(
+            [_record("oldest"), _record("middle", minutes=1), _record("newest", minutes=2)]
+        )
+        rows = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert [row["run_id"] for row in rows] == ["newest", "middle", "oldest"]
 
     async def test_reports_continuable_per_run(self) -> None:
         store = _FakeStore([_record("r1"), _record("r2")], {"r1": _snapshot("r1")})
@@ -107,7 +142,7 @@ class TestListing:
         assert row["parent_run_id"] == "r1"
 
     async def test_row_shape(self) -> None:
-        store = _FakeStore([_record("r1")], {"r1": _snapshot("r1")})
+        store = _FakeStore([_record("r1")], {"r1": _snapshot("r1", said="Move standup to Friday")})
         (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
 
         assert row == {
@@ -116,7 +151,93 @@ class TestListing:
             "parent_run_id": None,
             "started_at": "2026-07-27T12:00:00+00:00",
             "continuable": True,
+            "preview": "Move standup to Friday",
         }
+
+
+class TestPreview:
+    """The row's only human-readable field, from the snapshot already loaded."""
+
+    async def test_previews_the_first_user_message(self) -> None:
+        store = _FakeStore(
+            [_record("r1"), _record("r2", minutes=1)],
+            {
+                "r1": _snapshot("r1", said="What is on the board?"),
+                "r2": _snapshot("r2", said="Import these three events"),
+            },
+        )
+        rows = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert {row["run_id"]: row["preview"] for row in rows} == {
+            "r1": "What is on the board?",
+            "r2": "Import these three events",
+        }
+
+    async def test_costs_no_extra_query(self) -> None:
+        """One snapshot read per row, the one ``continuable`` already needed."""
+        store = _FakeStore([_record("r1")], {"r1": _snapshot("r1", said="hello")})
+        await RunsView(_factory(store))(_get())
+
+        assert store.snapshot_calls == ["r1"]
+
+    async def test_a_run_with_no_snapshot_previews_nothing(self) -> None:
+        """Null exactly where ``continuable`` is false, so no row promises words it lacks."""
+        store = _FakeStore([_record("r1")])
+        (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert (row["continuable"], row["preview"]) == (False, None)
+
+    async def test_a_run_seeded_from_history_alone_previews_nothing(self) -> None:
+        store = _FakeStore([_record("r1")], {"r1": _snapshot("r1")})
+        (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert row["preview"] is None
+
+    async def test_a_multi_modal_prompt_previews_the_words_in_it(self) -> None:
+        """A prompt is a string or a sequence; only the strings were typed."""
+        store = _FakeStore(
+            [_record("r1")],
+            {
+                "r1": _snapshot(
+                    "r1", said=["Read this", BinaryContent(data=b"x", media_type="image/png")]
+                )
+            },
+        )
+        (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert row["preview"] == "Read this"
+
+    async def test_a_prompt_with_no_words_previews_nothing(self) -> None:
+        store = _FakeStore(
+            [_record("r1")],
+            {"r1": _snapshot("r1", said=[BinaryContent(data=b"x", media_type="image/png")])},
+        )
+        (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert row["preview"] is None
+
+    async def test_a_blank_prompt_previews_nothing(self) -> None:
+        store = _FakeStore([_record("r1")], {"r1": _snapshot("r1", said="   \n  ")})
+        (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert row["preview"] is None
+
+    async def test_a_pasted_block_arrives_as_one_line(self) -> None:
+        """The row is one line; a paragraph would be the client's problem to clean."""
+        store = _FakeStore(
+            [_record("r1")], {"r1": _snapshot("r1", said="Import:\n\nMon, 9:00\nTue,  10:00")}
+        )
+        (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert row["preview"] == "Import: Mon, 9:00 Tue, 10:00"
+
+    async def test_a_long_prompt_is_truncated(self) -> None:
+        store = _FakeStore([_record("r1")], {"r1": _snapshot("r1", said="ab " * 60)})
+        (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        preview = row["preview"]
+        assert preview.endswith("…")
+        assert len(preview) <= 101
 
     async def test_owner_scoping_stays_server_side(self) -> None:
         """No owner field on the wire — the store filters, the client isn't told."""
