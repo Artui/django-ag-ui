@@ -852,9 +852,11 @@ process restart and one user can never read another's runs.</p>
 <h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[harness]&quot;</span>
 </span></code></pre></div>
-<p>The <code>[harness]</code> extra pulls <code>pydantic-ai-harness</code>. The core install stays
-<code>django</code> + <code>pydantic-ai-slim</code> — the harness is lazy, only imported when a
-<code>step_store</code> is configured.</p>
+<p>The <code>[harness]</code> extra pulls <code>pydantic-ai-harness</code>, and nothing else: the
+<a href="../code-mode/">CodeMode</a> sandbox lives behind its own <code>[code-mode]</code> extra, so a
+project keeping a ledger does not install a code sandbox to do it. The core
+install stays <code>django</code> + <code>pydantic-ai-slim</code> — the harness is lazy, only imported
+when a <code>step_store</code> is configured.</p>
 <p>Add the reference store app and migrate its tables (the same app the reference
 conversation store uses):</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># settings.py</span>
@@ -970,10 +972,20 @@ pick the verb that matches your intent, and target a new <code>threadId</code> w
 the branch to live in its own conversation.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>Send a <strong>fresh <code>run_id</code></strong> in the resumed request: reusing the source run's id
-collides with the tool-effect ledger's <code>(run_id, tool_call_id)</code> key. And send
-only the <strong>new</strong> turn — the server supplies the prior history from the
-snapshot, so re-sending it duplicates it.</p>
+<p>Send a <strong>fresh <code>run_id</code></strong> in the resumed request, and send only the <strong>new</strong>
+turn — the server supplies the prior history from the snapshot, so re-sending
+it duplicates it. Duplicating history is the one of those two that goes
+through: reusing the source run's id does <strong>not</strong> corrupt its ledger, because
+the harness refuses it by name — <em>"run_id … is already in the store. Explicit
+<code>run_id</code> is single-shot"</em> — and the source's records are untouched. So there
+is nothing to defend against client-side beyond passing a new id.</p>
+<p><strong>That refusal arrives as a <code>RUN_ERROR</code> event, not an HTTP status</strong>, and could
+not be otherwise: <code>RUN_STARTED</code> has already gone out, so the response is
+committed at <code>200</code> before the id is ever validated. This is true of <em>every</em>
+error a streaming endpoint raises after its first byte, which makes it a
+client-side rule rather than a detail of this endpoint: <strong>read the event
+stream, not <code>response.ok</code>.</strong> A client that checks only the status scores these
+runs as successes.</p>
 </div>
 <h2 id="discovering-what-can-be-resumed">Discovering what can be resumed<a class="headerlink" href="#discovering-what-can-be-resumed" title="Permanent link">&para;</a></h2>
 <p><code>resume</code> and <code>fork</code> address a run <strong>by id</strong>, so on their own a client can only
@@ -987,10 +999,11 @@ reload or from another device, most of what durable persistence buys you.
 </span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">      </span><span class="nt">&quot;thread_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;t1&quot;</span><span class="p">,</span>
 </span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">      </span><span class="nt">&quot;parent_run_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
 </span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">      </span><span class="nt">&quot;started_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-07-27T12:00:00+00:00&quot;</span><span class="p">,</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">      </span><span class="nt">&quot;continuable&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">  </span><span class="p">]</span>
-</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="p">}</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">      </span><span class="nt">&quot;continuable&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">      </span><span class="nt">&quot;preview&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Move standup to Friday at 11:00&quot;</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">  </span><span class="p">]</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><strong><code>continuable</code> is the field that matters.</strong> It reports whether the run has a
 saved snapshot to seed from, answered by making the same <code>latest_snapshot</code> call
@@ -998,6 +1011,14 @@ saved snapshot to seed from, answered by making the same <code>latest_snapshot</
 a provider-valid boundary has no snapshot, so resuming it would start from
 nothing: offer the action only where this is <code>true</code>, and treat the other rows as
 informational (a crashed run worth showing, not worth resuming).</p>
+<p><strong><code>preview</code> is the field a person reads.</strong> It is the run's first user message,
+collapsed to one line and truncated, and it comes out of the snapshot the view
+already loaded to answer <code>continuable</code> — so it costs no extra query, and it is
+<code>null</code> exactly where that snapshot is missing. Without it a picker can only offer
+a time and an opaque id, which is not a choice: two runs a minute apart both read
+"just now", and the id is not something a person recognises. Rows arrive <strong>newest
+first</strong>, which is the view's doing rather than the store's — a <code>StepStore</code> answers
+oldest-first because the harness protocol says so.</p>
 <p><code>parent_run_id</code> exposes fork lineage, so a UI can show that a run branched from
 another rather than listing near-identical transcripts side by side.</p>
 <p>Rows are owner-scoped by the store, and nothing on the wire names an owner —

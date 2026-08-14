@@ -4848,6 +4848,10 @@ and the keys that once held a dotted path are refused at startup by
 than ignored. Unpassed, each falls back to its <code>Null*</code> backend, so a bare
 <code>AGUIServer(registry)</code> serves the agent endpoint and its tool catalog and
 nothing else.</p>
+<p>A collaborator handed a <strong>dotted path</strong> is refused here too
+(<code>check_no_dotted_paths</code>): there is no <code>import_string</code> to resolve it, and
+a string otherwise constructs, mounts that collaborator's endpoints, and fails
+on the first request instead.</p>
 <p><strong>Request policy, closed by default.</strong> <code>require_authenticated</code> /
 <code>get_user</code> / <code>authorize</code> / <code>csrf_exempt</code> are forwarded to <strong>every</strong>
 view this object builds, so one policy governs the whole mount — including

@@ -1463,7 +1463,10 @@ values over the settings:</p>
 <code>/internal/agent</code> and a <code>/public/agent</code> were forced to share one tool-guard
 policy, one retry budget, one toolset list. And a dotted path to a
 collaborator only ever existed because <code>settings.py</code> cannot hold a live
-object; <code>urls.py</code> can. That is also why <code>drf_mcp_server=internal_mcp</code> is
+object; <code>urls.py</code> can. <strong>No argument below takes one</strong> — there is no
+<code>import_string</code> in the package, and a collaborator passed as a string is
+refused when the URL conf is imported, rather than mounting an endpoint that
+fails on its first request. That is also why <code>drf_mcp_server=internal_mcp</code> is
 expressible at all — with one global path there was no way to say <em>which</em>
 agent bridges to <em>which</em> MCP server. See
 <a href="#multiple-endpoints">Multiple endpoints</a>.</p>
@@ -1951,8 +1954,7 @@ When an active (non-<code>Null</code>) store is passed, <code>AGUIServer</code> 
 <strong>thread-history drawer</strong> endpoints automatically — see
 <a href="../concepts/#thread-history">Thread history</a>.</p>
 <h2 id="attachment_store"><code>attachment_store=</code><a class="headerlink" href="#attachment_store" title="Permanent link">&para;</a></h2>
-<p>A dotted path to an <a class="autorefs autorefs-internal" title="AttachmentStore" href="../api/#django_ag_ui.AttachmentStore"><code>AttachmentStore</code></a> class,
-An <a class="autorefs autorefs-internal" title="AttachmentStore" href="../api/#django_ag_ui.AttachmentStore"><code>AttachmentStore</code></a> instance. Omitted (the
+<p>An <a class="autorefs autorefs-internal" title="AttachmentStore" href="../api/#django_ag_ui.AttachmentStore"><code>AttachmentStore</code></a> instance. Omitted (the
 default) keeps <strong>uploads disabled</strong> using
 <a class="autorefs autorefs-internal" title="NullAttachmentStore" href="../api/#django_ag_ui.NullAttachmentStore"><code>NullAttachmentStore</code></a> — the upload endpoint
 answers <code>410 Gone</code>.</p>
@@ -2018,8 +2020,7 @@ is a <code>MODEL_SETTINGS</code> concern, not a separate switch. For an Anthropi
 AG-UI reasoning event family, and the server-side transcript ignores them (they
 are ephemeral and never persisted).</p>
 <h2 id="transcription_backend"><code>transcription_backend=</code><a class="headerlink" href="#transcription_backend" title="Permanent link">&para;</a></h2>
-<p>A dotted path to a <a class="autorefs autorefs-internal" title="TranscriptionBackend" href="../api/#django_ag_ui.TranscriptionBackend"><code>TranscriptionBackend</code></a>
-A <a class="autorefs autorefs-internal" title="TranscriptionBackend" href="../api/#django_ag_ui.TranscriptionBackend"><code>TranscriptionBackend</code></a> instance. Omitted
+<p>A <a class="autorefs autorefs-internal" title="TranscriptionBackend" href="../api/#django_ag_ui.TranscriptionBackend"><code>TranscriptionBackend</code></a> instance. Omitted
 (the default) keeps <strong>voice input disabled</strong> using
 <a class="autorefs autorefs-internal" title="NullTranscriptionBackend" href="../api/#django_ag_ui.NullTranscriptionBackend"><code>NullTranscriptionBackend</code></a> — the
 transcribe endpoint answers <code>410 Gone</code>.</p>
@@ -2049,8 +2050,7 @@ disable the cap.</p>
 <code>("audio/webm", "audio/mp4", "audio/mpeg")</code>. Empty (the default) accepts any
 type; otherwise a clip whose <code>Content-Type</code> is not listed is rejected with <code>415</code>.</p>
 <h2 id="drf_mcp_server"><code>drf_mcp_server=</code><a class="headerlink" href="#drf_mcp_server" title="Permanent link">&para;</a></h2>
-<p>A dotted path to a <code>djangorestframework-mcp-server</code> <code>MCPServer</code> instance whose
-tools are exposed to the agent in-process (requires the <code>[drf-mcp]</code> extra).
+<p>A <code>djangorestframework-mcp-server</code> <code>MCPServer</code> instance whose tools are exposed to the agent in-process (requires the <code>[drf-mcp]</code> extra).
 <code>None</code> (the default) disables the bridge. When set, the view builds a per-request
 <a href="../concepts/#the-drf-mcp-toolset-bridge"><code>DRFMCPToolset</code></a> carrying the current
 <code>request</code>, so the agent acts as the logged-in user and drf-mcp's own validation

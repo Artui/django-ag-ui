@@ -795,13 +795,16 @@ round-trip.</p>
 <p>This is a composition of two things django-ag-ui already gives you — the
 in-process <a href="../configuration/#drf_mcp_server">drf-mcp bridge</a> and the
 <a href="../configuration/#capabilities"><code>capabilities=</code></a> seam — plus the optional
-<code>[harness]</code> extra.</p>
+<code>[code-mode]</code> extra.</p>
 <h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[harness]&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[code-mode]&quot;</span>
 </span></code></pre></div>
-<p>The <code>[harness]</code> extra pulls <code>pydantic-ai-harness</code> and its sandbox
-(<code>pydantic-monty</code>). The core install stays <code>django</code> + <code>pydantic-ai-slim</code> — the
-harness is lazy, only imported by the capability you wire in.</p>
+<p><code>[code-mode]</code> is <code>[harness]</code> plus the sandbox <code>run_code</code> executes in
+(<code>pydantic-monty</code>, around 7.5 MB installed) — which is why it is its own extra:
+the other harness capabilities do not need a sandbox, and step persistence
+should not install one to show a list of runs. The core install stays <code>django</code> +
+<code>pydantic-ai-slim</code>; the harness is lazy, only imported by the capability you wire
+in.</p>
 <h2 id="wire-it-in">Wire it in<a class="headerlink" href="#wire-it-in" title="Permanent link">&para;</a></h2>
 <p><code>capabilities=</code> takes capability instances, or zero-argument callables that
 return one. Add one that returns a <code>CodeMode</code>:</p>
@@ -847,7 +850,8 @@ no output serializer advertises no schema and its stub falls back to <code>-&gt;
 <p class="admonition-title">Note</p>
 <p><code>CodeMode</code> is one of several <code>pydantic-ai-harness</code> capabilities that drop
 into the same <code>capabilities=</code> seam (compaction, step-persistence, subagents,
-…). They all ride the <code>[harness]</code> extra.</p>
+…). Those ride <code>[harness]</code>; only this one needs <code>[code-mode]</code>, because only
+this one runs code.</p>
 </div>
 
 
