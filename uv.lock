@@ -573,6 +573,9 @@ dependencies = [
 anthropic = [
     { name = "pydantic-ai-slim", extra = ["anthropic"] },
 ]
+code-mode = [
+    { name = "pydantic-ai-harness", extra = ["code-mode"] },
+]
 drf-mcp = [
     { name = "djangorestframework-mcp-server" },
 ]
@@ -580,7 +583,7 @@ google = [
     { name = "pydantic-ai-slim", extra = ["google"] },
 ]
 harness = [
-    { name = "pydantic-ai-harness", extra = ["code-mode"] },
+    { name = "pydantic-ai-harness" },
 ]
 openai = [
     { name = "pydantic-ai-slim", extra = ["openai"] },
@@ -619,13 +622,14 @@ requires-dist = [
     { name = "django-pydantic-agent", specifier = ">=0.15" },
     { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.30" },
     { name = "djangorestframework-pydantic-ai", marker = "extra == 'spec-tools'", specifier = ">=0.16" },
-    { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.13" },
+    { name = "pydantic-ai-harness", marker = "extra == 'harness'", specifier = ">=0.13" },
+    { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'code-mode'", specifier = ">=0.13" },
     { name = "pydantic-ai-slim", extras = ["ag-ui"], specifier = ">=2,<3" },
     { name = "pydantic-ai-slim", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=2,<3" },
     { name = "pydantic-ai-slim", extras = ["google"], marker = "extra == 'google'", specifier = ">=2,<3" },
     { name = "pydantic-ai-slim", extras = ["openai"], marker = "extra == 'openai'", specifier = ">=2,<3" },
 ]
-provides-extras = ["anthropic", "drf-mcp", "google", "harness", "openai", "spec-tools"]
+provides-extras = ["anthropic", "code-mode", "drf-mcp", "google", "harness", "openai", "spec-tools"]
 
 [package.metadata.requires-dev]
 dev = [

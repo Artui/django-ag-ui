@@ -7,8 +7,12 @@ from django.http import HttpRequest, HttpResponseNotAllowed, JsonResponse
 from django.http.response import HttpResponseBase
 from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
 from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
+from pydantic_ai.messages import UserPromptPart
 
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
+
+# Long enough to tell two requests apart, short enough for one line of a picker.
+_PREVIEW_LIMIT = 100
 
 # The step-store protocol and its records live in ``pydantic-ai-harness``; both
 # this view and the store are only reachable when a ``step_store`` is
@@ -35,6 +39,20 @@ class RunsView:
     seed from — so a client offers the action only where it is ``true``; a run
     that never reached a provider-valid boundary is informational only.
     ``parent_run_id`` exposes fork lineage.
+
+    ``preview`` is the run's first user message, whitespace-collapsed and
+    truncated: the one field in the row a person can actually recognise a
+    conversation by. It comes out of the snapshot this view already loads to
+    answer ``continuable``, so it costs no extra query — and it is ``null``
+    exactly where that snapshot is absent, which is where ``continuable`` is
+    ``false`` and there is nothing to offer anyway. Without it a picker can only
+    show the time and an opaque id, and two runs a minute apart are
+    indistinguishable.
+
+    **Newest first is this view's doing.** A ``StepStore`` answers oldest-first
+    — the harness protocol documents ascending ``started_at`` so a caller can
+    take the newest with ``[-1]`` — and a person scanning a list wants the newest
+    at the top, so the reversal happens here rather than in the store.
 
     Owner-scoped: the store filters by owner, so another user's runs are absent
     rather than a 403 that would confirm the id exists. Carries the same
@@ -92,21 +110,66 @@ class RunsView:
         for record in runs:
             # The same call ``resume`` makes, so ``continuable`` answers exactly
             # "would resuming find a checkpoint" rather than approximating it
-            # from event counts.
+            # from event counts. The row's ``preview`` is read from it too, which
+            # is why the snapshot is passed whole rather than reduced to a bool.
             snapshot = await store.latest_snapshot(run_id=record.run_id)
-            rows.append(_run_to_json(record, continuable=snapshot is not None))
+            rows.append(_run_to_json(record, snapshot=snapshot))
+        # Reversed rather than sorted: the store's order is a documented ascending
+        # one, so this is its exact inverse and needs no answer for a record whose
+        # ``started_at`` is absent.
+        rows.reverse()
         return JsonResponse({"runs": rows})
 
 
-def _run_to_json(record: Any, *, continuable: bool) -> dict[str, Any]:
+def _run_to_json(record: Any, *, snapshot: Any) -> dict[str, Any]:
     """The wire shape for one run row — owner scoping stays server-side."""
     return {
         "run_id": record.run_id,
         "thread_id": record.conversation_id,
         "parent_run_id": record.parent_run_id,
         "started_at": record.started_at.isoformat() if record.started_at is not None else None,
-        "continuable": continuable,
+        "continuable": snapshot is not None,
+        "preview": None if snapshot is None else _preview(snapshot),
     }
+
+
+def _preview(snapshot: Any) -> str | None:
+    """The first thing the user said in this run, or ``None`` if they said nothing.
+
+    A snapshot's messages are the run's own history, so the opening user prompt is
+    what the conversation is *about* — every later turn is an answer to it. ``None``
+    covers the shapes carrying no words to show: a run seeded from history alone,
+    or a first prompt that is an image with no caption.
+    """
+    for message in snapshot.messages:
+        for part in message.parts:
+            if not isinstance(part, UserPromptPart):
+                continue
+            text = _one_line(part.content)
+            if text is not None:
+                return text
+    return None
+
+
+def _one_line(content: Any) -> str | None:
+    """Collapse a user prompt to one short line, or ``None`` if it holds no text.
+
+    A prompt is either a string or a sequence of multi-modal items, of which the
+    strings are the part a person typed. Newlines and runs of spaces collapse
+    because this lands in a single-line row: a pasted block would otherwise arrive
+    as a paragraph for the client to clean up.
+    """
+    text = (
+        content
+        if isinstance(content, str)
+        else " ".join(item for item in content if isinstance(item, str))
+    )
+    collapsed = " ".join(text.split())
+    if collapsed == "":
+        return None
+    if len(collapsed) <= _PREVIEW_LIMIT:
+        return collapsed
+    return f"{collapsed[:_PREVIEW_LIMIT].rstrip()}…"
 
 
 __all__ = ["RunsView"]

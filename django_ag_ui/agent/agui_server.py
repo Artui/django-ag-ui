@@ -25,6 +25,7 @@ from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.spec_capability_source import SpecCapabilitySource
 from django_ag_ui.agent.types.spec_toolset_source import SpecToolsetSource
 from django_ag_ui.agent.types.throttle import Throttle
+from django_ag_ui.check_no_dotted_paths import check_no_dotted_paths
 from django_ag_ui.check_removed_settings import check_removed_settings
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
@@ -83,6 +84,11 @@ class AGUIServer:
     than ignored. Unpassed, each falls back to its ``Null*`` backend, so a bare
     ``AGUIServer(registry)`` serves the agent endpoint and its tool catalog and
     nothing else.
+
+    A collaborator handed a **dotted path** is refused here too
+    (``check_no_dotted_paths``): there is no ``import_string`` to resolve it, and
+    a string otherwise constructs, mounts that collaborator's endpoints, and fails
+    on the first request instead.
 
     **Request policy, closed by default.** ``require_authenticated`` /
     ``get_user`` / ``authorize`` / ``csrf_exempt`` are forwarded to **every**
@@ -203,6 +209,29 @@ class AGUIServer:
         namespace: str = DEFAULT_NAMESPACE,
     ) -> None:
         check_removed_settings()
+        # The same mistake in its constructor-shaped form: a name where an object
+        # belongs. ``model`` and ``instructions`` are strings by design and so
+        # are absent here.
+        check_no_dotted_paths(
+            agent_factory=agent_factory,
+            attachment_store=attachment_store,
+            audit_logger=audit_logger,
+            authorize=authorize,
+            capabilities=capabilities,
+            conversation_store=conversation_store,
+            deps_factory=deps_factory,
+            drf_mcp_server=drf_mcp_server,
+            get_user=get_user,
+            instructions_for_request=instructions_for_request,
+            model_for_request=model_for_request,
+            provider=provider,
+            service_specs=service_specs,
+            skills=skills,
+            step_store=step_store,
+            throttle=throttle,
+            toolsets=toolsets,
+            transcription_backend=transcription_backend,
+        )
         self._registry = registry
         self._skills = skills
         self._namespace = namespace
