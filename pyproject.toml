@@ -64,11 +64,15 @@ drf-mcp = ["djangorestframework-mcp-server>=0.30"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
 # pydantic-ai's SpecCapability — no MCP server in the path (DJANGO_AG_UI["SERVICE_SPECS"]).
 spec-tools = ["djangorestframework-pydantic-ai>=0.16"]
-# pydantic-ai-harness capabilities (lazy-imported; core stays slim). Adds
-# CodeMode — wrap many tools (e.g. the drf-mcp bridge) into one sandboxed
-# `run_code` — and the other graduated harness capabilities. The `[code-mode]`
-# extra pulls the sandbox (`pydantic-monty`). Attach via DJANGO_AG_UI["CAPABILITIES"].
-harness = ["pydantic-ai-harness[code-mode]>=0.13"]
+# pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
+# persistence, compaction, subagents, and the rest of the graduated set. Attach
+# via DJANGO_AG_UI["CAPABILITIES"].
+harness = ["pydantic-ai-harness>=0.13"]
+# CodeMode as well — wrapping many tools (e.g. the drf-mcp bridge) into one
+# sandboxed `run_code`. Separate because the sandbox (`pydantic-monty`) is
+# 7.5 MB installed, which a project wiring step persistence should not pay for
+# a capability it never configures. `[harness]` required it until this split.
+code-mode = ["pydantic-ai-harness[code-mode]>=0.13"]
 
 [project.urls]
 Homepage = "https://github.com/Artui/django-ag-ui"
@@ -191,7 +195,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.43.0"
+current_version = "0.44.0"
 allow_dirty = false
 commit = false
 tag = false

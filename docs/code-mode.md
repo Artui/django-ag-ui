@@ -11,17 +11,20 @@ round-trip.
 This is a composition of two things django-ag-ui already gives you — the
 in-process [drf-mcp bridge](configuration.md#drf_mcp_server) and the
 [`capabilities=`](configuration.md#capabilities) seam — plus the optional
-`[harness]` extra.
+`[code-mode]` extra.
 
 ## Install
 
 ```bash
-pip install "django-ag-ui[harness]"
+pip install "django-ag-ui[code-mode]"
 ```
 
-The `[harness]` extra pulls `pydantic-ai-harness` and its sandbox
-(`pydantic-monty`). The core install stays `django` + `pydantic-ai-slim` — the
-harness is lazy, only imported by the capability you wire in.
+`[code-mode]` is `[harness]` plus the sandbox `run_code` executes in
+(`pydantic-monty`, around 7.5 MB installed) — which is why it is its own extra:
+the other harness capabilities do not need a sandbox, and step persistence
+should not install one to show a list of runs. The core install stays `django` +
+`pydantic-ai-slim`; the harness is lazy, only imported by the capability you wire
+in.
 
 ## Wire it in
 
@@ -83,4 +86,5 @@ no output serializer advertises no schema and its stub falls back to `-> Any`.
 !!! note
     `CodeMode` is one of several `pydantic-ai-harness` capabilities that drop
     into the same `capabilities=` seam (compaction, step-persistence, subagents,
-    …). They all ride the `[harness]` extra.
+    …). Those ride `[harness]`; only this one needs `[code-mode]`, because only
+    this one runs code.

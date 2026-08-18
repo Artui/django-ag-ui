@@ -37,7 +37,10 @@ AGUIServer(registry, config=build_ag_ui_config(retries=5))
     `/internal/agent` and a `/public/agent` were forced to share one tool-guard
     policy, one retry budget, one toolset list. And a dotted path to a
     collaborator only ever existed because `settings.py` cannot hold a live
-    object; `urls.py` can. That is also why `drf_mcp_server=internal_mcp` is
+    object; `urls.py` can. **No argument below takes one** — there is no
+    `import_string` in the package, and a collaborator passed as a string is
+    refused when the URL conf is imported, rather than mounting an endpoint that
+    fails on its first request. That is also why `drf_mcp_server=internal_mcp` is
     expressible at all — with one global path there was no way to say *which*
     agent bridges to *which* MCP server. See
     [Multiple endpoints](#multiple-endpoints).
@@ -436,7 +439,6 @@ When an active (non-`Null`) store is passed, `AGUIServer` mounts the
 
 ## `attachment_store=`
 
-A dotted path to an [`AttachmentStore`][django_ag_ui.AttachmentStore] class,
 An [`AttachmentStore`][django_ag_ui.AttachmentStore] instance. Omitted (the
 default) keeps **uploads disabled** using
 [`NullAttachmentStore`][django_ag_ui.NullAttachmentStore] — the upload endpoint
@@ -523,7 +525,6 @@ are ephemeral and never persisted).
 
 ## `transcription_backend=`
 
-A dotted path to a [`TranscriptionBackend`][django_ag_ui.TranscriptionBackend]
 A [`TranscriptionBackend`][django_ag_ui.TranscriptionBackend] instance. Omitted
 (the default) keeps **voice input disabled** using
 [`NullTranscriptionBackend`][django_ag_ui.NullTranscriptionBackend] — the
@@ -564,8 +565,7 @@ type; otherwise a clip whose `Content-Type` is not listed is rejected with `415`
 
 ## `drf_mcp_server=`
 
-A dotted path to a `djangorestframework-mcp-server` `MCPServer` instance whose
-tools are exposed to the agent in-process (requires the `[drf-mcp]` extra).
+A `djangorestframework-mcp-server` `MCPServer` instance whose tools are exposed to the agent in-process (requires the `[drf-mcp]` extra).
 `None` (the default) disables the bridge. When set, the view builds a per-request
 [`DRFMCPToolset`](concepts.md#the-drf-mcp-toolset-bridge) carrying the current
 `request`, so the agent acts as the logged-in user and drf-mcp's own validation

@@ -18,9 +18,11 @@ process restart and one user can never read another's runs.
 pip install "django-ag-ui[harness]"
 ```
 
-The `[harness]` extra pulls `pydantic-ai-harness`. The core install stays
-`django` + `pydantic-ai-slim` — the harness is lazy, only imported when a
-`step_store` is configured.
+The `[harness]` extra pulls `pydantic-ai-harness`, and nothing else: the
+[CodeMode](code-mode.md) sandbox lives behind its own `[code-mode]` extra, so a
+project keeping a ledger does not install a code sandbox to do it. The core
+install stays `django` + `pydantic-ai-slim` — the harness is lazy, only imported
+when a `step_store` is configured.
 
 Add the reference store app and migrate its tables (the same app the reference
 conversation store uses):
@@ -162,10 +164,21 @@ pick the verb that matches your intent, and target a new `threadId` when you wan
 the branch to live in its own conversation.
 
 !!! warning
-    Send a **fresh `run_id`** in the resumed request: reusing the source run's id
-    collides with the tool-effect ledger's `(run_id, tool_call_id)` key. And send
-    only the **new** turn — the server supplies the prior history from the
-    snapshot, so re-sending it duplicates it.
+    Send a **fresh `run_id`** in the resumed request, and send only the **new**
+    turn — the server supplies the prior history from the snapshot, so re-sending
+    it duplicates it. Duplicating history is the one of those two that goes
+    through: reusing the source run's id does **not** corrupt its ledger, because
+    the harness refuses it by name — *"run_id … is already in the store. Explicit
+    `run_id` is single-shot"* — and the source's records are untouched. So there
+    is nothing to defend against client-side beyond passing a new id.
+
+    **That refusal arrives as a `RUN_ERROR` event, not an HTTP status**, and could
+    not be otherwise: `RUN_STARTED` has already gone out, so the response is
+    committed at `200` before the id is ever validated. This is true of *every*
+    error a streaming endpoint raises after its first byte, which makes it a
+    client-side rule rather than a detail of this endpoint: **read the event
+    stream, not `response.ok`.** A client that checks only the status scores these
+    runs as successes.
 
 ## Discovering what can be resumed
 
@@ -182,7 +195,8 @@ reload or from another device, most of what durable persistence buys you.
       "thread_id": "t1",
       "parent_run_id": null,
       "started_at": "2026-07-27T12:00:00+00:00",
-      "continuable": true
+      "continuable": true,
+      "preview": "Move standup to Friday at 11:00"
     }
   ]
 }
@@ -194,6 +208,15 @@ saved snapshot to seed from, answered by making the same `latest_snapshot` call
 a provider-valid boundary has no snapshot, so resuming it would start from
 nothing: offer the action only where this is `true`, and treat the other rows as
 informational (a crashed run worth showing, not worth resuming).
+
+**`preview` is the field a person reads.** It is the run's first user message,
+collapsed to one line and truncated, and it comes out of the snapshot the view
+already loaded to answer `continuable` — so it costs no extra query, and it is
+`null` exactly where that snapshot is missing. Without it a picker can only offer
+a time and an opaque id, which is not a choice: two runs a minute apart both read
+"just now", and the id is not something a person recognises. Rows arrive **newest
+first**, which is the view's doing rather than the store's — a `StepStore` answers
+oldest-first because the harness protocol says so.
 
 `parent_run_id` exposes fork lineage, so a UI can show that a run branched from
 another rather than listing near-identical transcripts side by side.

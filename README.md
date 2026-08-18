@@ -49,7 +49,7 @@ browser half is
   → `Retry-After` seconds or `None`), with a cache-backed `FixedWindowThrottle`
   shipped; runs after authentication, so a limiter keys on the acting user.
 - **Audit boundary** — an `AuditLogger` Protocol (`Null` / `Logging` shipped,
-  pluggable by dotted path) records every server-side tool call.
+  your own passed as `audit_logger=`) records every server-side tool call.
 - **Opt-in conversation persistence** — a `ConversationStore` Protocol with a
   no-op default, a session-backed store, and an abstract model-backed base.
 - **Thread history** — the store can `list` and `rename` a user's threads, and a

@@ -10,7 +10,8 @@ each child runs as a fresh, isolated run.
 
 Like [CodeMode](code-mode.md), this is pure composition over the
 [`capabilities=`](configuration.md#capabilities) seam plus the optional
-`[harness]` extra — **no django-ag-ui configuration beyond one dotted path.**
+`[harness]` extra — **no django-ag-ui configuration beyond one capability in a
+list.**
 
 ## Install
 
@@ -102,7 +103,8 @@ message as the tool result rather than an exception, so the run continues.
 !!! note
     `SubAgents` is one of several `pydantic-ai-harness` capabilities that drop
     into the same `capabilities=` seam (compaction, step-persistence, CodeMode,
-    …). They all ride the `[harness]` extra.
+    …). They ride the `[harness]` extra, except CodeMode, which needs the
+    sandbox in `[code-mode]`.
 
     Today a delegated child's answer surfaces as the parent's `delegate_task`
     tool result. Streaming a child's *own* turn (its intermediate tool calls and
