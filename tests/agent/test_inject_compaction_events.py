@@ -8,6 +8,7 @@ from typing import Any
 
 from ag_ui.core import BaseEvent, EventType, TextMessageStartEvent
 from opentelemetry.trace import NoOpTracer
+from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 from pydantic_ai.models.test import TestModel
 from pydantic_ai_harness.compaction import SlidingWindowCompaction
@@ -34,6 +35,16 @@ def _request_context(messages: list[Any]) -> ModelRequestContext:
         model_settings=None,
         model_request_parameters=ModelRequestParameters(),
     )
+
+
+def _messages(count: int) -> list[Any]:
+    """Genuine messages — see ``test_compaction_observer`` for why."""
+    return [
+        ModelRequest(parts=[UserPromptPart(content=f"user {index}")])
+        if index % 2 == 0
+        else ModelResponse(parts=[TextPart(content=f"model {index}")])
+        for index in range(count)
+    ]
 
 
 def _text(message_id: str) -> BaseEvent:
@@ -138,13 +149,19 @@ async def test_the_sink_is_reset_when_the_stream_raises() -> None:
 
 async def test_end_to_end_with_a_real_compaction_capability() -> None:
     observer = CompactionObserver(SlidingWindowCompaction(max_messages=4, keep_messages=2))
+    retained: list[int] = []
 
     async def upstream() -> AsyncIterator[BaseEvent]:
         yield _text("a")
-        await observer.before_model_request(_Ctx(), _request_context(["m"] * 10))
+        result = await observer.before_model_request(_Ctx(), _request_context(_messages(10)))
+        retained.append(len(result.messages))
         yield _text("b")
 
     out = await _collect(inject_compaction_events(upstream()))
     activities = [event for event in out if event.type == EventType.ACTIVITY_SNAPSHOT]
     assert len(activities) == 1
-    assert activities[0].content == {"removed": 8, "before": 10, "after": 2}
+    # The payload is what this pins: three keys, and counts that agree with the
+    # trim that actually happened. How deep the window trims is upstream's call.
+    after = retained[0]
+    assert after < 10
+    assert activities[0].content == {"removed": 10 - after, "before": 10, "after": after}
