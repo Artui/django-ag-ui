@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.0] — 2026-08-25
+
 ### Added
 
 - **Charts, pushed from your own code.** `chart_activity(spec)` returns an
@@ -2402,7 +2404,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.46.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.47.0...HEAD
+[0.47.0]: https://github.com/Artui/django-ag-ui/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/Artui/django-ag-ui/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/Artui/django-ag-ui/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/Artui/django-ag-ui/compare/v0.43.0...v0.44.0
