@@ -2134,6 +2134,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.ChartSpec.title" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        title
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.ChartSpec.metadata" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3814,6 +3825,17 @@
   
     <nav class="md-nav" aria-label="ChartSpec">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.ChartSpec.title" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        title
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#django_ag_ui.ChartSpec.metadata" class="md-nav__link">
@@ -8600,7 +8622,13 @@ worker. Override on a subclass for slower endpoints.</p>
 itself. Nothing here is HTML and nothing here is interpreted as HTML: the
 server chooses the numbers and the browser chooses the DOM, which is what
 keeps a pushed visual off the sanitiser's surface entirely.</p>
-<p>Frozen, and <strong>not hashable</strong> -- <code>metadata</code> is part of a spec's value, so
+<p>Frozen at the top level: <code>labels</code>, <code>series</code> and the points inside them
+are copied to tuples and <code>metadata</code> to a read-only mapping, so a list
+handed in cannot be appended to after it has been checked. A <strong>nested</strong>
+structure inside <code>metadata</code> is still shared with the caller, and nothing
+reads it here anyway.</p>
+<p>Frozen, and <strong>not usefully hashable</strong> -- <code>__hash__</code> exists but raises,
+because <code>metadata</code> is part of a spec's value, so
 excluding it to buy a hash would make two specs carrying different payloads
 compare equal. That is the ordinary situation for a record with a mapping
 field; nothing here needs to be a dict key.</p>
@@ -8627,6 +8655,32 @@ the side that can name the offending series.</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.ChartSpec.title" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">title</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.ChartSpec.title" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Shown above the chart. Anything but a string is refused rather than sent:
+the client treats a non-string title as absent, so it would vanish quietly.</p>
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-attribute">
 
@@ -8829,6 +8883,10 @@ saw.</p>
 same one again to <strong>replace</strong> what is on screen -- a chart that redraws as a
 computation advances is one chart moving, and the client swaps it in place
 rather than stacking copies. Omit it and every call draws a new chart.</p>
+<p>It is an AG-UI <code>message_id</code> and shares that namespace, so choose something
+unlikely to collide: a chart sent under an id already used by an assistant
+turn replaces <em>that message</em> in the client's transcript. Prefixing is
+enough, and the generated ids do it (<code>chart-&lt;uuid&gt;</code>).</p>
 
 
     </div>
@@ -8857,10 +8915,16 @@ which is right when a long-running computation is only moving the numbers.</p>
 <p><code>chart_id</code> must name a chart the client has already drawn. A delta for an
 id it does not hold is dropped -- there is nothing to patch -- so send the
 snapshot first and keep the id.</p>
-<p><code>series</code> is the index in the spec's series list, and the caller is
-responsible for it matching what was sent: a patch is applied positionally
-and cannot tell that series 2 is now something else. Send a fresh snapshot
-when the <em>shape</em> changes and reserve this for when it has not.</p>
+<p><code>series</code> is the index in the spec's series list, and <code>points</code> must be
+the <strong>same length</strong> as the series it replaces. Neither can be checked here,
+and both fail the same quiet way: a patch is applied positionally, so it
+cannot tell that series 2 is now something else, and a wrong-length array
+applies cleanly and leaves a chart the client then refuses to redraw --
+stale numbers on screen, and the chart gone entirely on the next reload.</p>
+<p>So: send a fresh snapshot whenever the <em>shape</em> changes, and reserve this for
+when only the values move. An index past the end is refused by the client
+rather than applied, which at least fails visibly in a console; a
+wrong-length array is the one that fails invisibly.</p>
 
 
     </div>
