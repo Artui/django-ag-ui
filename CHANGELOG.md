@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   saw this; ours is the one where the sentence was wrong. 0.17 also stops a text
   attachment over the size cap being returned whole.
 
+### Fixed
+
+- **The floor-resolution CI gate could resolve against a stale package index.**
+  Its purpose is to answer "what would a consumer installing from scratch get",
+  but it read the runner's shared uv cache, so the answer came from whatever
+  listing that cache held rather than from the index. It failed a floor raise as
+  unsatisfiable while the index had been serving the release for some time. Now
+  resolved with `--refresh`, so the gate measures what it claims to.
+
 ### Added
 
 - **`attachment_inline` on `AGUIConfig`**, so how much of an attachment the model
