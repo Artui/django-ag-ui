@@ -110,7 +110,7 @@ jobs:
       - name: Import the package installed alone, at its floors
         run: |
           uv venv --python 3.10 .venv-floor
-          uv pip install --python .venv-floor/bin/python --resolution lowest-direct -e .
+          uv pip install --python .venv-floor/bin/python --resolution lowest-direct --refresh -e .
           uv pip list --python .venv-floor/bin/python
           .venv-floor/bin/python - <<'PY'
           import django

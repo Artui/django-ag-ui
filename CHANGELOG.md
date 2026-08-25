@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The floor gate's second resolution was still reading the runner's cache.**
+  The previous release refreshed the floor *lock* but left the bare-install check
+  — the one that installs the package alone, with no extras, which is the shape
+  that catches a floor a fuller install papers over — resolving against whatever
+  package list the shared uv cache happened to hold. Both now use `--refresh`.
+
 ## [0.46.0] — 2026-08-25
 
 ### Changed
