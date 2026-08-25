@@ -3746,11 +3746,9 @@ is importable directly, e.g. <code>from django_ag_ui import ToolRegistry</code>.
 
 
         <p>An ordered, named collection of server-side tools.</p>
-<p>State lives on the instance: a <code>DjangoAGUIView</code> holds one registry;
-tests build a fresh registry per scenario. The registry derives a
-JSON Schema for each tool at registration (including the
-<code>x-destructive</code> / <code>x-category</code> extensions) and can dispatch sync
-or async callables.</p>
+<p>State lives on the instance — a transport holds one, tests build a fresh one
+per scenario. Each tool's JSON Schema is derived once at registration, and
+either sync or async callables can be dispatched.</p>
 
 
 
@@ -3851,7 +3849,8 @@ or async callables.</p>
 
         <p>Dispatch a sync call to the registered tool.</p>
 <p>Refuses coroutine functions to avoid silently returning an
-un-awaited coroutine. Use :meth:<code>acall</code> for async tools.</p>
+un-awaited coroutine. Use
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/registry/#django_pydantic_agent.ToolRegistry.acall"><code>acall</code></a> for async tools.</p>
 
 
     </div>
@@ -3913,12 +3912,10 @@ un-awaited coroutine. Use :meth:<code>acall</code> for async tools.</p>
     <div class="doc doc-contents first">
 
         <p>Register the decorated callable on <code>registry</code> as a tool.</p>
-<p>The tool's name defaults to the function name; its description
-defaults to the first paragraph of the function's docstring. Both
-can be overridden via the keyword arguments. <code>confirm</code> supplies a
-human-readable confirmation prompt for a destructive tool (surfaced as
-<code>x-confirm</code>); <code>summary</code> a short display label (surfaced as
-<code>x-summary</code>).</p>
+<p><code>name</code> defaults to the function's name and <code>description</code> to the first
+paragraph of its docstring. <code>confirm</code> is the confirmation prompt for a
+destructive tool and <code>summary</code> a short display label; both reach the client
+as the matching <code>x-*</code> schema key.</p>
 
 
     </div>
@@ -3946,16 +3943,12 @@ human-readable confirmation prompt for a destructive tool (surfaced as
     <div class="doc doc-contents first">
 
         <p>Derive a JSON Schema object from <code>fn</code>'s parameters.</p>
-<p>Supports the primitive types used by the built-in tool surface:
-<code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>list[T]</code>, <code>dict[str, Any]</code>,
-and <code>X | None</code> unions. Anything richer falls back to an empty
-schema fragment (no type constraint), which is still wire-valid JSON
-Schema.</p>
-<p>The <code>destructive</code> flag is stamped at the schema root as
-<code>x-destructive</code>; <code>category</code> as <code>x-category</code>; <code>confirm</code> (when
-given) as <code>x-confirm</code>. AG-UI passes these extensions through
-verbatim, and frontends read <code>x-destructive</code> / <code>x-confirm</code> to gate
-execution behind a confirmation step.</p>
+<p>Covers <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>list[T]</code>, <code>dict[str,
+Any]</code> and <code>X | None</code> unions. Anything richer falls back to an empty
+fragment, imposing no type constraint but staying wire-valid.</p>
+<p><code>destructive</code> / <code>category</code> / <code>confirm</code> / <code>summary</code> are stamped at the
+schema root as the matching <code>x-*</code> extension keys, which AG-UI passes
+through verbatim to the client.</p>
 
 
     </div>
@@ -3982,10 +3975,8 @@ execution behind a confirmation step.</p>
 
 
         <p>Canonical declaration of a server-side tool.</p>
-<p>A <code>ToolSpec</code> bundles the callable with the metadata the registry
-needs to expose it to a Pydantic-AI agent and to a frontend: a
-stable name, a human-facing description, a <code>destructive</code> risk
-flag, and a coarse <code>category</code>.</p>
+<p>Bundles the callable with the metadata the registry needs to expose it to a
+Pydantic-AI agent and to a frontend.</p>
 
 
 
@@ -4023,8 +4014,8 @@ flag, and a coarse <code>category</code>.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Stable identifier exposed to the agent. Must be unique within a
-:class:<code>~django_pydantic_agent.registry.tool_registry.ToolRegistry</code>.</p>
+        <p>Stable identifier exposed to the agent, unique within a
+<a class="autorefs autorefs-internal" title="ToolRegistry" href="#django_ag_ui.ToolRegistry"><code>ToolRegistry</code></a>.</p>
 
     </div>
 
@@ -4048,8 +4039,8 @@ flag, and a coarse <code>category</code>.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The Python callable that implements the tool. Must have typed
-parameters; the registry derives a JSON Schema from the signature.</p>
+        <p>The callable implementing the tool. Its parameters must be typed; the
+registry derives a JSON Schema from the signature.</p>
 
     </div>
 
@@ -4073,8 +4064,7 @@ parameters; the registry derives a JSON Schema from the signature.</p>
 
     <div class="doc doc-contents ">
 
-        <p>User-facing summary shown to the agent. The first line is what
-most clients display.</p>
+        <p>Summary shown to the agent. Most clients display the first line.</p>
 
     </div>
 
@@ -4099,9 +4089,8 @@ most clients display.</p>
 
     <div class="doc doc-contents ">
 
-        <p>If <code>True</code>, calling this tool may mutate state. The registry
-stamps <code>x-destructive: true</code> into the tool's JSON Schema so
-frontends can gate it behind a confirmation step.</p>
+        <p>Whether calling this tool may mutate state. Stamped as
+<code>x-destructive</code> so a frontend can gate it behind a confirmation step.</p>
 
     </div>
 
@@ -4126,8 +4115,7 @@ frontends can gate it behind a confirmation step.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Coarse capability grouping. Surfaced as <code>x-category</code> in the
-JSON Schema.</p>
+        <p>Coarse capability grouping, stamped as <code>x-category</code>.</p>
 
     </div>
 
@@ -4152,9 +4140,8 @@ JSON Schema.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Optional human-readable confirmation prompt for a destructive tool
-(e.g. "Activate this project?"). Stamped as <code>x-confirm</code> so the frontend
-can show it instead of a generic "Run <tool>?".</p>
+        <p>A confirmation prompt for a destructive tool, stamped as <code>x-confirm</code>,
+shown instead of a generic "Run <tool>?".</p>
 
     </div>
 
@@ -4179,9 +4166,8 @@ can show it instead of a generic "Run <tool>?".</p>
 
     <div class="doc doc-contents ">
 
-        <p>Optional short label for the tool (e.g. "Query orders"). Stamped as
-<code>x-summary</code> so the frontend shows it on the tool-call card instead of the
-raw tool name.</p>
+        <p>A short label, stamped as <code>x-summary</code>, shown on the tool-call card
+instead of the raw tool name.</p>
 
     </div>
 
@@ -4218,9 +4204,8 @@ raw tool name.</p>
 
 
         <p>A registered tool plus the JSON Schema derived from its signature.</p>
-<p>The schema is computed once at registration (including the
-<code>x-destructive</code> / <code>x-category</code> extensions) and carried alongside
-the spec so tool listings don't re-introspect on every request.</p>
+<p>The schema is computed once at registration and carried alongside the spec,
+so a tool listing does not re-introspect on every request.</p>
 
 
 
@@ -4269,10 +4254,9 @@ the spec so tool listings don't re-introspect on every request.</p>
 
 
         <p>Coarse grouping for a tool, surfaced to the agent and the UI.</p>
-<p>Categories are advisory metadata: they let a frontend group tools,
-let a system prompt reason about capability classes, and let a
-project apply category-wide policy. They do <strong>not</strong> by themselves
-gate execution — that is the <code>destructive</code> flag's job.</p>
+<p>Advisory metadata: it lets a frontend group tools, a system prompt reason
+about capability classes, and a project apply category-wide policy. It does
+<strong>not</strong> gate execution; that is the <code>destructive</code> flag's job.</p>
 
 
 
@@ -5225,27 +5209,29 @@ and the same closed default: an anonymous <code>GET</code> is a <code>401</code>
 
     <div class="doc doc-contents first">
 
-        <p>Build a Pydantic-AI <code>Agent</code> from a registry and an :class:<code>AgentConfig</code>.</p>
-<p>Each registry tool is registered as a plain Pydantic-AI tool. When
-<code>config.audit_logger</code> is set, an :class:<code>AuditCapability</code> on the
-<code>wrap_tool_execute</code> lifecycle hook times and records <strong>every</strong> tool the
-agent runs — registry tools and composed toolsets (drf-mcp / spec /
-attachment / skill tools) alike. Frontend tools declared in the AG-UI
-<code>RunAgentInput</code> are merged automatically by the adapter and are not
-registered here.</p>
-<p><code>model_settings</code> / <code>retries</code> tune the model; <code>toolsets</code> and
-<code>capabilities</code> compose external Pydantic-AI toolsets/capabilities (e.g. an
-MCP-client toolset) alongside the registry tools, so the agent can reach
-beyond the registered set. <code>tool_guard</code>, when enabled, adds a
-:class:<code>ToolGuard</code> that flips destructive tools to require approval, and
-<code>tool_failure</code> (on unless turned off) adds a :class:<code>ToolFailurePolicy</code>
-so a raising tool fails its own call instead of the whole run.</p>
-<p>The agent is typed <code>Agent[AgentDeps, ...]</code>, so a run must be given
-:class:<code>AgentDeps</code> (the transport builds one per run and passes <code>deps=</code>).</p>
-<p>Capabilities are composed <strong>order-independently</strong>: each declares its
-position via <code>get_ordering</code> (audit is outermost, the guard is orthogonal),
-and pydantic-ai's <code>CombinedCapability</code> topologically sorts them — so the
-list built here needn't be pre-ordered.</p>
+        <p>Build a Pydantic-AI <code>Agent</code> from a registry and an
+<a class="autorefs autorefs-internal" title="AgentConfig
+
+
+  
+      dataclass
+  " href="#django_ag_ui.AgentConfig"><code>AgentConfig</code></a>.</p>
+<p>Each registry tool is registered as a plain Pydantic-AI tool, and <code>config</code>
+supplies the model, the toolsets and capabilities composed alongside them,
+and the policies below. Frontend tools declared in the AG-UI
+<code>RunAgentInput</code> are merged by the adapter, not registered here.</p>
+<p>Three capabilities are added from <code>config</code> on request: an
+<a class="autorefs autorefs-internal" title="AuditCapability" href="#django_ag_ui.AuditCapability"><code>AuditCapability</code></a> that times and
+records <strong>every</strong> tool the agent runs — registry tools and composed toolsets
+alike — a <a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/policy/#django_pydantic_agent.ToolGuard"><code>ToolGuard</code></a> that flips
+destructive tools to require approval, and a
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/policy/#django_pydantic_agent.ToolFailurePolicy"><code>ToolFailurePolicy</code></a>, on unless
+turned off, so a raising tool fails its own call rather than the whole run.
+Each declares its position through
+<code>get_ordering</code> and pydantic-ai sorts them, so the list needs no
+pre-ordering.</p>
+<p>The agent is typed <code>Agent[AgentDeps, ...]</code>, so every run must be given
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/agent/#django_pydantic_agent.AgentDeps"><code>AgentDeps</code></a> through <code>deps=</code>.</p>
 
 
     </div>
@@ -5272,7 +5258,7 @@ list built here needn't be pre-ordered.</p>
 
 
         <p>Resolved construction parameters for a Pydantic-AI <code>Agent</code>.</p>
-<p>Bundles everything :func:<code>~django_pydantic_agent.agent.agent_factory.build_agent</code>
+<p>Bundles everything <a class="autorefs autorefs-internal" title="build_agent" href="#django_ag_ui.build_agent"><code>build_agent</code></a>
 needs so the call site passes one record instead of a long keyword list.
 A transport resolves these from its own configuration and hands the record
 down; <code>toolsets</code> and <code>capabilities</code> arrive already resolved to instances
@@ -5364,8 +5350,8 @@ down; <code>toolsets</code> and <code>capabilities</code> arrive already resolve
 
     <div class="doc doc-contents ">
 
-        <p>Wraps every server-side tool call for timing + success/failure
-records. <code>None</code> means no auditing (a no-op logger).</p>
+        <p>Wraps every server-side tool call for timing and success/failure
+records. <code>None</code> means no auditing.</p>
 
     </div>
 
@@ -5516,11 +5502,11 @@ fills it from the driving request). <code>None</code> leaves the field unset.</p
 
     <div class="doc doc-contents ">
 
-        <p>Server-side destructive-tool approval policy. When set and
-<code>enabled</code>, :func:<code>~django_pydantic_agent.agent.agent_factory.build_agent</code> composes
-a :class:<code>~django_pydantic_agent.policy.guard.tool_guard.ToolGuard</code> capability built
-from the registry's destructive tools. <code>None</code> (or disabled) leaves the
-agent ungated.</p>
+        <p>Server-side destructive-tool approval policy. When set and <code>enabled</code>,
+<code>build_agent</code> composes a
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/policy/#django_pydantic_agent.ToolGuard"><code>ToolGuard</code></a> built from
+the registry's destructive tools; <code>None</code> or disabled leaves the agent
+ungated.</p>
 
     </div>
 
@@ -5545,12 +5531,11 @@ agent ungated.</p>
 
     <div class="doc doc-contents ">
 
-        <p>What an unhandled tool exception costs. Defaults to on, so a raising
-tool fails its own call and the run carries on; the exception still reaches
+        <p>What an unhandled tool exception costs. On by default, so a raising tool
+fails its own call and the run carries on, with the exception still reaching
 the audit logger and the Python logger. A plain record rather than
-<code>… | None</code> because there is no third state: the policy is either composed
-or it isn't, and <code>None</code> would have to mean "on" to keep the default,
-which reads backwards next to <code>tool_guard</code> above.</p>
+<code>... | None</code> because there is no third state, and <code>None</code> would have to
+mean "on" to keep that default — backwards next to <code>tool_guard</code>.</p>
 
     </div>
 
@@ -5585,22 +5570,18 @@ which reads backwards next to <code>tool_guard</code> above.</p>
 
 
         <p>The escape-hatch signature for a transport's <code>agent_factory=</code> argument.</p>
-<p>A callable matching this shape fully replaces the built-in
-:func:<code>~django_pydantic_agent.agent.agent_factory.build_agent</code>, giving a project
-complete control over Pydantic-AI <code>Agent</code> construction (custom model
-providers, output types, toolsets, instrumentation, …). It receives the
-server-side tool registry and <strong>that transport's resolved config object</strong>.</p>
-<p><code>config</code> is deliberately untyped here: this substrate reads no settings and
-owns no settings namespace, so the second argument is whatever configuration
-record the calling transport resolved — <code>AGUIConfig</code> for the AG-UI
-transport, its own equivalent for another. Each transport documents the
-concrete type its users receive.</p>
-<p><strong>The returned agent must be typed</strong> <code>Agent[AgentDeps, ...]</code> — build it
-with <code>deps_type=AgentDeps</code>. Transports hand every run an
-:class:<code>~django_pydantic_agent.agent.types.agent_deps.AgentDeps</code>, and that
-is how the acting user reaches spec tools (<code>ctx.deps.user</code>) and how AG-UI
-state reaches <code>deps.state</code>. A factory that omits <code>deps_type</code> produces an
-agent whose tools see no user.</p>
+<p>A callable of this shape fully replaces
+<a class="autorefs autorefs-internal" title="build_agent" href="#django_ag_ui.build_agent"><code>build_agent</code></a>, giving a
+project complete control over <code>Agent</code> construction. It receives the
+server-side tool registry and the calling transport's own resolved config
+record, which is untyped here because this substrate owns no settings
+namespace; each transport documents the concrete type its users receive.</p>
+<p><strong>The returned agent must be built with</strong> <code>deps_type=AgentDeps</code>. Transports
+hand every run an
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/agent/#django_pydantic_agent.AgentDeps"><code>AgentDeps</code></a>, and that is
+how the acting user reaches spec tools and how AG-UI state reaches
+<code>deps.state</code>. A factory that omits it produces an agent whose tools see no
+user.</p>
 
 
 
@@ -6385,11 +6366,9 @@ them.</p>
 
 
         <p>Sink for tool-invocation records.</p>
-<p>Implementations are free to drop, sample, or forward events. The
-package ships a no-op default (<code>NullAuditLogger</code>) and a
-<code>logging</code>-backed implementation (<code>LoggingAuditLogger</code>); projects
-supply their own by passing it to their transport's <code>audit_logger=</code>
-argument.</p>
+<p>An implementation may drop, sample or forward events. The package ships
+<code>NullAuditLogger</code> and <code>LoggingAuditLogger</code>; a project passes its own to
+its transport's <code>audit_logger=</code>.</p>
 
 
 
@@ -6437,26 +6416,88 @@ argument.</p>
 
 
 
-        <p>Records every tool execution to an :class:<code>AuditLogger</code> sink.</p>
+        <p>Records every tool execution to an
+<a class="autorefs autorefs-internal" title="AuditLogger" href="#django_ag_ui.AuditLogger"><code>AuditLogger</code></a> sink.</p>
 <p>A Pydantic-AI capability on the <code>wrap_tool_execute</code> lifecycle hook, so it
-times and records <strong>every</strong> tool the agent runs — registry tools, drf-mcp /
-spec-toolset bridges, attachment and skill tools alike — where the old
-per-tool wrapper saw only the registry.</p>
-<p>Recording is <strong>non-raising</strong>: a sink that throws is caught and logged to the
-<code>django_pydantic_agent.audit</code> Python logger, so a broken audit backend degrades to
-lost audit records, never a broken agent run.</p>
-<p><code>ip_address</code> / <code>organization_id</code> pre-fill the matching
-:class:<code>AuditEvent</code> fields for every event this capability records — a
-multi-tenant host can pass its org scope.</p>
-<p>⭐ <strong>The IP is read from the run's <code>deps</code> first, and only then from the
-constructor.</strong> <code>AgentDeps.ip_address</code> is per-run; a constructor argument
-is per-agent. Taking the IP only from the constructor is what forced a
-transport to build a fresh agent for every request — the exact closure
-<code>AgentDeps</code> exists to replace — and the failure it produces if you build
-once anyway is silent: every audit record carries the IP of whoever
-happened to arrive first. Deps that carry no <code>ip_address</code> (a project's own
-deps type, or a run that leaves it unset) fall back to the constructor
-value, so nothing that already worked changes.</p>
+times and records <strong>every</strong> tool the agent runs: registry tools, the drf-mcp
+and spec bridges, attachment and skill tools alike.</p>
+<p>Recording is <strong>non-raising</strong>. A sink that throws is caught and logged to the
+<code>django_pydantic_agent.audit</code> Python logger, so a broken audit backend
+costs audit records rather than the run.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>logger</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="AuditLogger (django_pydantic_agent.policy.audit.types.audit_logger.AuditLogger)" href="#django_ag_ui.AuditLogger">AuditLogger</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The sink each <a class="autorefs autorefs-internal" title="AuditEvent
+
+
+  
+      dataclass
+  " href="#django_ag_ui.AuditEvent"><code>AuditEvent</code></a>
+is recorded to.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>ip_address</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Fallback client IP, used only when the run's deps carry no
+<code>ip_address</code>. Per-run deps come first because a constructor
+argument is per-agent: taking the IP from it alone forces a fresh
+agent per request, and building once anyway fails silently, with
+every record carrying the IP of whoever arrived first.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>organization_id</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Org scope stamped onto every event, for a multi-tenant
+host.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -6493,14 +6534,11 @@ value, so nothing that already worked changes.</p>
     <div class="doc doc-contents ">
 
         <p>Pin audit as the <strong>outermost</strong> capability in the chain.</p>
-<p>Audit is the observability layer: its <code>wrap_tool_execute</code> should
-surround every other capability's execution hooks so it records the tool
-regardless of what else composes the run. Declaring the position here
-(rather than relying on list order at the <code>build_agent</code> call site)
-makes composition deterministic once a second capability — e.g.
-:class:<code>~django_pydantic_agent.policy.guard.tool_guard.ToolGuard</code> — joins the
-chain: pydantic-ai's <code>CombinedCapability</code> topologically sorts by these
-constraints, so audit stays outermost no matter the insertion order.</p>
+<p>Its <code>wrap_tool_execute</code> has to surround every other capability's
+execution hooks so the tool is recorded whatever else composes the run.
+Declaring it here rather than relying on list order at the
+<code>build_agent</code> call site keeps that true however the capabilities are
+inserted, since pydantic-ai sorts by these constraints.</p>
 
 
     </div>
@@ -6535,14 +6573,12 @@ constraints, so audit stays outermost no matter the insertion order.</p>
 
 
         <p>A single tool invocation as seen by the audit logger.</p>
-<p>Arguments are stored as a string (typically JSON-encoded) to keep
-audit records cheap to serialize and to discourage retention of
-sensitive raw values.</p>
-<p>One run-level record rides this shape: when a client disconnects
-mid-run (cancel/stop), the view records <code>tool_name="agent.run"</code> with
-<code>success=False</code> and an <code>error</code> starting with <code>"cancelled:"</code>, so
-cancelled runs are distinguishable in audit sinks without widening the
-<code>AuditLogger</code> protocol.</p>
+<p>Arguments are stored as a string, typically JSON, to keep records cheap to
+serialize and to discourage retaining sensitive raw values.</p>
+<p>One run-level record rides this shape: a client disconnecting mid-run is
+recorded as <code>tool_name="agent.run"</code>, <code>success=False</code> and an <code>error</code>
+starting <code>"cancelled:"</code>, so a sink can tell cancelled runs apart without
+widening the <a class="autorefs autorefs-internal" title="AuditLogger" href="#django_ag_ui.AuditLogger"><code>AuditLogger</code></a> protocol.</p>
 
 
 
@@ -6581,9 +6617,9 @@ cancelled runs are distinguishable in audit sinks without widening the
 
     <div class="doc doc-contents ">
 
-        <p>Multi-tenant scope of the acting user, when the sink can derive one.
-<code>None</code> at this layer — a custom :class:<code>AuditLogger</code> fills it from its
-own tenancy model.</p>
+        <p>Multi-tenant scope of the acting user. <code>None</code> at this layer; a custom
+<a class="autorefs autorefs-internal" title="AuditLogger" href="#django_ag_ui.AuditLogger"><code>AuditLogger</code></a> fills it from its own
+tenancy model.</p>
 
     </div>
 
@@ -6608,9 +6644,9 @@ own tenancy model.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Kind of domain object the call acted on (<code>"order"</code>, <code>"user"</code>, …).
-<code>None</code> at this layer — tool args are domain-opaque here; a custom sink
-that knows its tools can classify them.</p>
+        <p>Kind of domain object the call acted on. <code>None</code> at this layer, where
+tool arguments are domain-opaque; a sink that knows its tools can
+classify them.</p>
 
     </div>
 
@@ -6790,21 +6826,20 @@ with the error message included.</p>
 
 
         <p>Pluggable server-side persistence for AG-UI conversations.</p>
-<p>Passed to <code>AGUIServer(conversation_store=...)</code>. The package ships a no-op
-default (<code>NullConversationStore</code> — the server stays stateless) and a
-session-backed implementation; projects supply their own (a DB model, Redis,
-…). All methods are async so an implementation can use the async ORM or a
-network backend.</p>
+<p>Handed to a transport. The package ships <code>NullConversationStore</code> (the
+server stays stateless) and a session-backed implementation; projects supply
+their own. All methods are async so an implementation can use the async ORM
+or a network backend.</p>
 <p>Threads key by <code>(owner_id, thread_id)</code>, so two endpoints sharing a store
 share one user's thread list. Wrap with
-:class:<code>~django_pydantic_agent.persistence.scoped_conversation_store.ScopedConversationStore</code>
+<a class="autorefs autorefs-internal" title="ScopedConversationStore" href="#django_ag_ui.ScopedConversationStore"><code>ScopedConversationStore</code></a>
 to partition them.</p>
-<p><code>list</code> returns owner-scoped <em>metadata only</em> (no message bodies) for the
-thread drawer, capped at <code>limit</code> rows (<code>None</code> = the store's own default);
-a store that can't enumerate (the stateless default) returns an empty list.
-<code>exists</code> is a cheap owner-scoped presence check — no message body loaded —
-so a rename / probe doesn't deserialize a whole thread just to 404. <code>rename</code>
-sets a thread's display title (a store that can't persist one is a no-op).</p>
+<p><code>list</code> returns owner-scoped metadata only, no message bodies, capped at
+<code>limit</code> rows (<code>None</code> for the store's own default); a store that cannot
+enumerate returns an empty list. <code>exists</code> is a presence check that loads no
+message body, so a rename or probe does not deserialize a whole thread just
+to 404. <code>rename</code> sets a display title, and is a no-op in a store that
+cannot persist one.</p>
 
 
 
@@ -6855,13 +6890,11 @@ sets a thread's display title (a store that can't persist one is a no-op).</p>
 
 
         <p>A persisted conversation, keyed by <code>thread_id</code>.</p>
-<p><code>messages</code> are <strong>JSON-serialisable message records whose shape the calling
-transport owns</strong> — this substrate persists and returns them verbatim and
-never interprets them. The AG-UI transport stores its own wire <code>Message</code>
-shape (so client message ids survive a round trip untouched); another
-transport stores its own. That is what keeps the storage contract neutral:
-the core supplies owner scoping, async plumbing and the models, while the
-message vocabulary stays with whoever speaks it.</p>
+<p><code>messages</code> are <strong>JSON-serialisable records whose shape the calling
+transport owns</strong>: this substrate persists and returns them verbatim and never
+interprets them, which is what keeps the storage contract neutral. The AG-UI
+transport stores its own wire <code>Message</code> shape, so client message ids
+survive a round trip untouched; another transport stores its own.</p>
 <p><code>owner_id</code> scopes the conversation to a user for authorization.</p>
 
 
@@ -6912,14 +6945,13 @@ message vocabulary stays with whoever speaks it.</p>
 
 
 
-        <p>Lightweight metadata for one conversation — the thread-drawer row shape.</p>
-<p>Returned by :meth:<code>ConversationStore.list &lt;django_pydantic_agent.ConversationStore&gt;</code>
-so a thread list stays cheap: it carries <strong>no message bodies</strong>. <code>title</code>
-defaults to a truncation of the first user message (unless a store records an
-explicit rename); <code>preview</code> is a one-line excerpt of the latest message;
-<code>updated_at</code> is when the conversation last changed, or <code>None</code> when the
-store doesn't track it. <code>owner_id</code> scopes the conversation to a user and is
-not surfaced on the wire.</p>
+        <p>Lightweight metadata for one conversation: the thread-drawer row shape.</p>
+<p>Returned by <code>ConversationStore.list</code>, and carrying <strong>no message bodies</strong>,
+which is what keeps a thread list cheap. <code>title</code> defaults to a truncation
+of the first user message unless a store records a rename, <code>preview</code> is a
+one-line excerpt of the latest message, and <code>updated_at</code> is <code>None</code> in a
+store that does not track it. <code>owner_id</code> scopes the conversation to a user
+and is not surfaced on the wire.</p>
 
 
 
@@ -6966,9 +6998,9 @@ not surfaced on the wire.</p>
 
 
         <p>The default store: no-op, keeping the server stateless.</p>
-<p><code>load</code> always returns <code>None</code> and <code>save</code> / <code>delete</code> do nothing, so
-the conversation lives entirely in the client's posted history (today's
-behaviour). The view treats this store as "persistence off".</p>
+<p><code>load</code> returns <code>None</code> and <code>save</code> / <code>delete</code> do nothing, so the
+conversation lives entirely in the client's posted history. A transport
+treats this store as "persistence off".</p>
 
 
 
@@ -7014,12 +7046,14 @@ behaviour). The view treats this store as "persistence off".</p>
 
 
 
-        <p>Partition another :class:<code>ConversationStore</code> by a scope name.</p>
+        <p>Partition another
+<a class="autorefs autorefs-internal" title="ConversationStore" href="#django_ag_ui.ConversationStore"><code>ConversationStore</code></a> by a scope
+name.</p>
 <p>Stores key threads by <code>(owner_id, thread_id)</code>. Two AG-UI endpoints sharing
 one store therefore share one user's thread list: a conversation started at
 <code>/internal/agent</code> appears in <code>/public/agent</code>'s history drawer and can be
 resumed there — under the <em>public</em> agent's model, tools and guard policy.</p>
-<p>Wrapping fixes that without a migration::</p>
+<p>Wrapping fixes that without a migration:</p>
 <div class="language-text highlight"><pre><span></span><code>internal = AGUIServer(
     registry,
     conversation_store=ScopedConversationStore(store, scope=&quot;internal&quot;),
@@ -7029,16 +7063,15 @@ public = AGUIServer(
     conversation_store=ScopedConversationStore(store, scope=&quot;public&quot;),
 )
 </code></pre></div>
-<p>Prefixing the thread id is deliberate. A <code>scope</code> column would mean a
-migration <em>and</em> a breaking change to the
-:class:<code>~django_pydantic_agent.persistence.types.conversation_store.ConversationStore</code>
-protocol — which every custom store implements — for a partition the id space
-already expresses. This composes with any implementation, third-party ones
-included.</p>
-<p><strong>Opt in explicitly.</strong> :class:<code>AGUIServer</code> deliberately does not wrap by
-itself: doing so from its <code>namespace</code> would silently orphan the whole
-thread history of an existing single-endpoint project the moment it set one.</p>
-<p>The scope is invisible on the wire — thread ids are echoed back to the client
+<p>The partition is a thread-id prefix, so this composes with any
+implementation, third-party ones included, where a <code>scope</code> column would
+mean a migration and a breaking change to the
+<a class="autorefs autorefs-internal" title="ConversationStore" href="#django_ag_ui.ConversationStore"><code>ConversationStore</code></a>
+protocol every custom store implements.</p>
+<p><strong>Opt in explicitly.</strong> A transport does not wrap by itself: doing so from its
+namespace would silently orphan the whole thread history of an existing
+single-endpoint project the moment it set one.</p>
+<p>The scope is invisible on the wire. Thread ids are echoed back to the client
 unchanged; only the storage key carries the prefix.</p>
 
 
@@ -7081,9 +7114,8 @@ unchanged; only the storage key carries the prefix.</p>
 
         <p>This scope's threads only, with storage keys translated back.</p>
 <p><code>limit</code> is applied by the inner store <em>before</em> this filter, so a busy
-sibling scope can crowd out rows. Acceptable for a drawer that is capped
-anyway; a store that needs exact per-scope paging should partition at the
-query, not by wrapping.</p>
+sibling scope can crowd out rows. A store needing exact per-scope paging
+should partition at the query rather than by wrapping.</p>
 
 
     </div>
@@ -7113,11 +7145,10 @@ query, not by wrapping.</p>
 
 
 
-        <p>Conversation persistence in the Django session (no migration).</p>
-<p>Conversations are namespaced by <code>thread_id</code> within the logged-in user's
-session, so scoping to the user is implicit and durability spans that
-user's browser session. The batteries-included server-side store; for
-cross-device or audited persistence, supply a model-backed store instead.</p>
+        <p>Conversation persistence in the Django session, needing no migration.</p>
+<p>Conversations are namespaced by <code>thread_id</code> inside the user's own session,
+so owner scoping is implicit and durability lasts as long as that browser
+session. For cross-device or audited persistence, use a model-backed store.</p>
 
 
 
@@ -7168,10 +7199,14 @@ cross-device or audited persistence, supply a model-backed store instead.</p>
         <p>Abstract base for a model-backed (or any sync) <code>ConversationStore</code>.</p>
 <p>Provides the async wrapping and per-request owner scoping; a subclass
 implements the three <em>synchronous</em> row operations against its own Django
-model (cross-device, auditable persistence). Kept model-agnostic on purpose
-— the package ships no concrete model so it forces no migration; consumers
-define the model, its fields, and the owner relationship.</p>
-<p>Example::</p>
+model. Model-agnostic on purpose — the package ships no concrete model, so it
+forces no migration and consumers define the fields and the owner relation.</p>
+<p><code>allow_anonymous</code> governs whether anonymous requests are served. <code>False</code>
+refuses them rather than collapsing every anonymous visitor into one shared
+owner bucket where they could read and delete each other's data. It is a
+<em>store</em> policy, so two endpoints sharing a store necessarily agree on it.
+Pass it explicitly: this substrate reads no Django settings.</p>
+<p>Example:</p>
 <div class="language-text highlight"><pre><span></span><code>class MyStore(ModelConversationStore):
     def _fetch(self, thread_id, owner_id):
         row = MyConversation.objects.filter(
@@ -7297,25 +7332,20 @@ Projects that don't opt in get no model and no migration.</p>
 
 
 
-        <p>A ready-to-use model-backed store over :class:<code>StoredConversation</code>.</p>
-<p>The batteries-included durable store: cross-device, per-user history with a
-cheap thread list. Enable it by adding <code>"django_pydantic_agent.contrib.store"</code> to
-<code>INSTALLED_APPS</code>, running <code>migrate</code>, and passing an instance to your
-transport's <code>conversation_store=</code> argument. For a bespoke schema, subclass
-:class:<code>ModelConversationStore</code> instead.</p>
-<p>Owner scoping: every query filters by the <code>owner_id</code> the
-<code>ModelConversationStore</code> base resolves — the authenticated user's pk, or a
-per-browser <code>anon:&lt;session_key&gt;</code> bucket when
-the store is built with <code>allow_anonymous=True</code> (otherwise anonymous requests are
-refused rather than sharing one <code>""</code> bucket). The unique
-<code>(owner_id, thread_id)</code> constraint holds regardless. Titles are derived
-from the first user message at first save and then left alone except by
-:meth:<code>_rename</code>; <code>preview</code> re-derives on every save.</p>
+        <p>A ready-to-use model-backed store over <code>StoredConversation</code>.</p>
+<p>Cross-device, per-user history with a cheap thread list. Add
+<code>"django_pydantic_agent.contrib.store"</code> to <code>INSTALLED_APPS</code>, run
+<code>migrate</code>, and pass an instance to your transport's
+<code>conversation_store=</code>. For a bespoke schema, subclass
+<a class="autorefs autorefs-internal" title="ModelConversationStore" href="#django_ag_ui.ModelConversationStore"><code>ModelConversationStore</code></a> instead.</p>
+<p>Every query filters by the <code>owner_id</code> the base resolves. A title is derived
+from the first user message at first save and then left alone except by a
+rename; the preview re-derives on every save.</p>
 <p>Saving also reconciles which attachments the thread refers to, and deleting
-it drops the ones nothing else refers to. Attachments therefore have a
-lifetime tied to the conversations that quote them rather than living
-forever; uploads that were never sent belong to no conversation at all and
-are collected by the <code>agent_store_prune_attachments</code> command instead.</p>
+it drops the ones nothing else refers to, so an attachment's lifetime is tied
+to the conversations quoting it. An upload that was never sent belongs to no
+conversation, and the <code>agent_store_prune_attachments</code> command collects
+those instead.</p>
 
 
 
@@ -7363,22 +7393,13 @@ are collected by the <code>agent_store_prune_attachments</code> command instead.
 
 
 
-        <p>The reference durable conversation row for a model-backed store.</p>
-<p>One row per <code>(owner_id, thread_id)</code>. <code>messages</code> holds the AG-UI message
-list as JSON (the same shape every store round-trips); <code>title</code> and
-<code>preview</code> are denormalised so the thread drawer's list query never loads
-message bodies, and <code>updated_at</code> orders it. <code>owner_id</code> is the resolved
-owner (the user's pk, or an <code>anon:&lt;session_key&gt;</code> bucket under
-<code>ALLOW_ANONYMOUS</code>) — the store always filters by it, the security boundary.</p>
-<p><code>attachments</code> is the reconciled set of files this conversation refers to,
-derived from <code>messages</code> on every save (see
-:func:<code>~django_pydantic_agent.contrib.store.reconcile_conversation_attachments.reconcile_conversation_attachments</code>)
-and authoritative for attachment lifecycle: deleting the conversation drops
-the attachments nothing else still points at.</p>
-<p>Used by
-:class:<code>~django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore</code>.
-Run lineage (<code>run_id</code> / step ledger) is intentionally out of scope here;
-a future durability layer can extend the schema.</p>
+        <p>The reference durable conversation row, one per <code>(owner_id, thread_id)</code>.</p>
+<p><code>owner_id</code> is the resolved owner (the user's pk, or an
+<code>anon:&lt;session_key&gt;</code> bucket) and every query filters by it: it is the
+security boundary. <code>title</code> / <code>preview</code> are denormalised so the thread
+drawer's list query never loads message bodies. <code>attachments</code> is derived
+from <code>messages</code> on every save and is what attachment lifecycle runs on.</p>
+<p>Used by <code>DefaultConversationStore</code>.</p>
 
 
 
@@ -7428,24 +7449,29 @@ a future durability layer can extend the schema.</p>
 
 
         <p>Pluggable server-side storage for files a user attaches to a conversation.</p>
-<p>Passed to <code>AGUIServer(attachment_store=...)</code>. The package ships a
-no-op default (:class:<code>~django_pydantic_agent.NullAttachmentStore</code> — uploads off) and
-an abstract model-backed base
-(:class:<code>~django_pydantic_agent.ModelAttachmentStore</code>); the opt-in
-<code>django_pydantic_agent.contrib.store</code> app provides a ready
-:class:<code>~django_pydantic_agent.contrib.store.default_attachment_store.DefaultAttachmentStore</code>
-that keeps bytes in Django <code>Storage</code> (so S3 etc. come free via
-<code>STORAGES</code>/<code>DEFAULT_FILE_STORAGE</code>) and metadata in a row.</p>
+<p>Handed to a transport. The package ships
+<a class="autorefs autorefs-internal" title="NullAttachmentStore" href="#django_ag_ui.NullAttachmentStore"><code>NullAttachmentStore</code></a> (uploads
+off) and the abstract
+<a class="autorefs autorefs-internal" title="ModelAttachmentStore" href="#django_ag_ui.ModelAttachmentStore"><code>ModelAttachmentStore</code></a>; the
+opt-in <code>django_pydantic_agent.contrib.store</code> app adds a ready
+<code>DefaultAttachmentStore</code> keeping bytes in Django <code>Storage</code> and metadata
+in a row.</p>
 <p>Every method is async and <strong>owner-scoped</strong>: a store filters by the acting
-user so one user can never read or delete another's files — the security
-boundary for the whole feature. <code>save</code> validates nothing about size/type
-itself (the view does, from its config); it just persists the bytes and
-returns a durable :class:<code>AttachmentRef</code>. <code>open</code> returns <code>None</code> for a
-missing or cross-owner id rather than raising, so callers map it to a 404.</p>
-<p>Unlike conversations there is <strong>no scoped wrapper</strong> for attachments, and none
-is needed: they are id-referenced with no enumeration, and already
-owner-scoped, so two endpoints sharing a store expose nothing across the
-user boundary. Thread <em>lists</em> are the case that leaks.</p>
+user so one user can never read or delete another's files, the security
+boundary for the whole feature. <code>save</code> validates nothing about size or type
+— the view does that from its own config — and just persists the bytes,
+returning a durable <a class="autorefs autorefs-internal" title="AttachmentRef
+
+
+  
+      dataclass
+  " href="#django_ag_ui.AttachmentRef"><code>AttachmentRef</code></a>.
+<code>open</code> returns <code>None</code> for a missing <em>or cross-owner</em> id rather than
+raising, so a caller maps both to a 404 and the two stay indistinguishable.</p>
+<p>Attachments need no scoped wrapper of the kind conversations have: they are
+id-referenced with no enumeration and already owner-scoped, so two endpoints
+sharing a store expose nothing across the user boundary. Thread lists are the
+case that leaks.</p>
 
 
 
@@ -7496,18 +7522,13 @@ user boundary. Thread <em>lists</em> are the case that leaks.</p>
 
 
         <p>A durable, lightweight reference to one uploaded file.</p>
-<p>What an upload returns and what travels on the wire — never the bytes.
-A user drops a file into the composer, it is uploaded out-of-band to the
-:class:<code>~django_pydantic_agent.persistence.attachments_view.AttachmentsView</code>, and the
-server hands back this ref; the client holds it on the message and the agent
-reads the actual bytes server-side via the <code>read_attachment</code> tool. Keeping
-the AG-UI message stream free of base64 mirrors how the tool catalog keeps
-schemas off the wire.</p>
-<p><code>id</code> is the opaque, owner-scoped handle the store resolves back to bytes;
-<code>mime</code> is the declared content type (client-supplied, so treat it as a
-hint); <code>size</code> is the byte count; <code>url</code> is an optional direct fetch URL
-(e.g. the owner-checked download endpoint) and stays <code>None</code> unless a store
-fills it in.</p>
+<p>What an upload returns and what travels on the wire — never the bytes. The
+file is uploaded out of band, the client holds this ref on the message, and
+the agent reads the bytes server-side through the <code>read_attachment</code> tool.</p>
+<p><code>id</code> is the opaque, owner-scoped handle the store resolves back to bytes.
+<code>mime</code> is client-declared, so treat it as a hint. <code>url</code> is an optional
+direct fetch URL, such as an owner-checked download endpoint, and stays
+<code>None</code> unless a store fills it in.</p>
 
 
 
@@ -7558,15 +7579,18 @@ fills it in.</p>
 
 
         <p>An attachment's metadata paired with a readable byte stream.</p>
-<p>Returned by :meth:<code>AttachmentStore.open
-&lt;django_pydantic_agent.persistence.types.attachment_store.AttachmentStore&gt;</code> so the
-download view and the <code>read_attachment</code> tool both get the content <em>and</em> the
-:class:<code>AttachmentRef</code> (name / mime / size) in a single owner-scoped call.</p>
-<p><code>content</code> is an <strong>open, readable binary stream</strong> (a file handle), not the
-whole bytes — so a large attachment streams out via <code>FileResponse</code> rather
-than being buffered in memory. The consumer owns it: the download view
-hands it to <code>FileResponse</code> (which closes it) and the tool reads it under a
-<code>with</code> block. Read it exactly once.</p>
+<p>Returned by <code>AttachmentStore.open</code>, so a download view and the
+<code>read_attachment</code> tool both get the content <em>and</em> the
+<a class="autorefs autorefs-internal" title="AttachmentRef
+
+
+  
+      dataclass
+  " href="#django_ag_ui.AttachmentRef"><code>AttachmentRef</code></a> in one owner-scoped call.</p>
+<p><code>content</code> is an open binary stream rather than the bytes, so a large
+attachment streams out instead of being buffered. <strong>The consumer owns it and
+must read it exactly once</strong> — hand it to <code>FileResponse</code>, which closes it,
+or read it under a <code>with</code> block.</p>
 
 
 
@@ -7613,13 +7637,12 @@ hands it to <code>FileResponse</code> (which closes it) and the tool reads it un
 
 
         <p>The default attachment store: uploads disabled, server stays stateless.</p>
-<p><code>save</code> is never reached — the
-A transport's attachments view detects this store and returns <code>410 Gone</code> so a
-misconfigured client gets a clear "uploads are off" signal instead of a
-silent success. <code>open</code> returns <code>None</code> (every fetch is a 404) and
-<code>delete</code> is a no-op, so the endpoint is inert until a real store is
-configured. <code>save</code> still raises if called directly, to fail loudly rather
-than fabricate a ref.</p>
+<p>A transport's attachments view detects this store and answers <code>410 Gone</code>,
+so a misconfigured client gets a clear "uploads are off" signal rather than a
+silent success, and <code>save</code> is never reached. Called directly it raises,
+rather than fabricating a ref. <code>open</code> returns <code>None</code> so every fetch is a
+404, and <code>delete</code> is a no-op: the endpoint is inert until a real store is
+configured.</p>
 
 
 
@@ -7668,15 +7691,16 @@ than fabricate a ref.</p>
 
 
         <p>Abstract base for a model-backed (or any sync) <code>AttachmentStore</code>.</p>
-<p>Provides the async wrapping and per-request owner scoping — the same shape as
-:class:<code>~django_pydantic_agent.ModelConversationStore</code> — so a subclass implements
-three <em>synchronous</em> operations against its own storage (a Django <code>Storage</code>
-for the bytes, a model row for the metadata). Kept model-agnostic on purpose:
-the package ships no concrete model so it forces no migration; the opt-in
-<code>django_pydantic_agent.contrib.store</code> app supplies one.</p>
+<p>The attachment twin of
+<a class="autorefs autorefs-internal" title="ModelConversationStore" href="#django_ag_ui.ModelConversationStore"><code>ModelConversationStore</code></a>
+— same async wrapping, same per-request owner scoping, same
+<code>allow_anonymous</code> policy — over a subclass's own storage: a Django
+<code>Storage</code> for the bytes, a model row for the metadata. The opt-in
+<code>django_pydantic_agent.contrib.store</code> app supplies a concrete pair.</p>
 <p>Each <code>_save</code> / <code>_open</code> / <code>_remove</code> receives the resolved <code>owner_id</code>
-(<code>None</code> for anonymous) and must filter by it so files never cross users.</p>
-<p>Example::</p>
+(<code>None</code> for anonymous) and <strong>must</strong> filter by it, so files never cross
+users.</p>
+<p>Example:</p>
 <div class="language-text highlight"><pre><span></span><code>class MyStore(ModelAttachmentStore):
     def _save(self, upload, owner_id):
         row = MyAttachment.objects.create(owner_id=owner_id or &quot;&quot;, ...)
@@ -7813,25 +7837,21 @@ projects that don't opt in get no model and no migration.</p>
 
 
 
-        <p>A ready-to-use model-backed store over :class:<code>StoredAttachment</code>.</p>
-<p>The batteries-included durable file store: bytes live in Django <code>Storage</code>
-(filesystem by default, S3/GCS via <code>STORAGES</code>), metadata in a row. Enable
-it by adding <code>"django_pydantic_agent.contrib.store"</code> to <code>INSTALLED_APPS</code>, running
-<code>migrate</code>, and passing an instance to your transport's
-<code>attachment_store=</code> argument. For a bespoke schema, subclass
-:class:<code>ModelAttachmentStore</code>.</p>
-<p>Owner scoping: every query filters by the <code>owner_id</code> the
-<code>ModelAttachmentStore</code> base resolves — the authenticated user's pk, or a
-per-browser <code>anon:&lt;session_key&gt;</code> bucket when
-the store is built with <code>allow_anonymous=True</code> (otherwise anonymous requests are
-refused rather than sharing one <code>""</code> bucket) — so one user's id never
-resolves another's file. The unique <code>(owner_id, attachment_id)</code> constraint
-holds regardless. The public <code>attachment_id</code> is an opaque UUID, kept
-separate from the storage filename.</p>
-<p>Uploads are <strong>deduplicated by content hash, within one owner</strong>. The same file
-sent into five threads is written to storage once and pointed at five times;
-see :meth:<code>_save</code> for why the row is still new every time, and why the scope
-is one owner rather than the whole table.</p>
+        <p>A ready-to-use model-backed store over <code>StoredAttachment</code>.</p>
+<p>Bytes live in Django <code>Storage</code> (filesystem by default, S3 or GCS through
+<code>STORAGES</code>), metadata in a row. Add
+<code>"django_pydantic_agent.contrib.store"</code> to <code>INSTALLED_APPS</code>, run
+<code>migrate</code>, and pass an instance to your transport's <code>attachment_store=</code>.
+For a bespoke schema, subclass
+<a class="autorefs autorefs-internal" title="ModelAttachmentStore" href="#django_ag_ui.ModelAttachmentStore"><code>ModelAttachmentStore</code></a>
+instead.</p>
+<p>Every query filters by the <code>owner_id</code> the base resolves, so one user's id
+never reaches another's file, and the public <code>attachment_id</code> is an opaque
+UUID kept separate from the storage filename.</p>
+<p>Uploads are <strong>deduplicated by content hash, within one owner</strong>: the same file
+sent into five threads is written to storage once and pointed at five times,
+while still getting a row of its own each time so it keeps the name the
+composer showed. The blob goes when the last row pointing at it does.</p>
 
 
 
@@ -7880,24 +7900,17 @@ is one owner rather than the whole table.</p>
 
 
         <p>The reference durable attachment row for a model-backed store.</p>
-<p>The opaque <code>attachment_id</code> is the handle the wire ref carries; <code>file</code>
-holds the bytes via Django <code>Storage</code> (so S3 etc. come free through
-<code>STORAGES</code>/<code>DEFAULT_FILE_STORAGE</code>), while <code>name</code> / <code>mime</code> / <code>size</code>
-are the denormalised metadata returned without reading the file back.
-<code>owner_id</code> is the resolved owner (the user's pk, or an <code>anon:&lt;session_key&gt;</code>
-bucket under <code>ALLOW_ANONYMOUS</code>) — the store always filters by it, the
-security boundary. <code>thread_id</code> is a loose label a subclass or a project may
-set to tie an attachment to one conversation; the reference store leaves it
-blank, and it is <em>not</em> what lifecycle runs on — the
-:class:<code>ConversationAttachment</code> relation is. It is kept because projects read
-it.</p>
-<p><code>sha256</code> is the hex digest of the file's bytes, computed chunked at upload.
-It is what makes a re-upload of the same bytes reuse the blob already in
-storage instead of writing a second copy. It is blank on rows written before
-the column existed; the <code>agent_store_backfill_hashes</code> management command
-fills those in.</p>
-<p>Used by
-:class:<code>~django_pydantic_agent.contrib.store.default_attachment_store.DefaultAttachmentStore</code>.</p>
+<p><code>attachment_id</code> is the opaque handle the wire ref carries; <code>file</code> holds
+the bytes via Django <code>Storage</code>; <code>name</code> / <code>mime</code> / <code>size</code> are
+denormalised so metadata is returned without reading the file back.
+<code>owner_id</code> is the resolved owner and every query filters by it: it is the
+security boundary. <code>sha256</code> is the chunked digest that lets a re-upload of
+the same bytes reuse the blob already in storage, blank on rows predating the
+column until <code>agent_store_backfill_hashes</code> fills them in.</p>
+<p><code>thread_id</code> is a loose label a project may set; the reference store leaves
+it blank. Lifecycle runs on the <code>ConversationAttachment</code> relation, not
+on this column, which is kept only because projects read it.</p>
+<p>Used by <code>DefaultAttachmentStore</code>.</p>
 
 
 
@@ -8265,23 +8278,14 @@ guides.</p>
 
     <div class="doc doc-contents first">
 
-        <p>Build a Pydantic-AI model from a <code>"provider:name"</code> string + explicit key.</p>
-<p>Delegates the <code>provider:</code> prefix → Model-class resolution to Pydantic-AI's
-own :func:<code>infer_model</code>, supplying a <code>provider_factory</code> that injects the
-credentials instead of letting Pydantic-AI read them from the environment:</p>
-<ul>
-<li><code>provider</code> (a <code>Provider</code> instance) takes precedence — used as-is, so
-  it can carry a custom <code>base_url</code> / client.</li>
-<li>otherwise <code>api_key</code> is passed to the prefix's default <code>Provider</code> class
-  (resolved via :func:<code>infer_provider_class</code>).</li>
-</ul>
-<p>Because the prefix map lives in Pydantic-AI, every provider it knows works
-automatically (<code>anthropic</code>, <code>openai</code>, <code>openai-responses</code>, <code>google</code>,
-<code>groq</code>, <code>bedrock</code>, …) — there is no hand-maintained table to drift out
-of date.</p>
-<p>A bare model name Pydantic-AI can map to a provider (e.g. <code>claude-…</code> →
-anthropic) is accepted too; only when the provider can't be resolved at all
-is an error raised.</p>
+        <p>Build a Pydantic-AI model from a <code>"provider:name"</code> string and explicit key.</p>
+<p>Prefix resolution is delegated to Pydantic-AI's <code>infer_model</code>, with a
+<code>provider_factory</code> that injects credentials rather than letting it read the
+environment. A <code>provider</code> instance takes precedence and is used as-is, so
+it may carry a custom <code>base_url</code> or client; otherwise <code>api_key</code> goes to
+the prefix's default <code>Provider</code> class. Every provider Pydantic-AI knows
+therefore works with no table to maintain here, and a bare model name it can
+map to a provider is accepted too.</p>
 
 
 <p><span class="doc-section-title">Raises:</span></p>
@@ -8299,10 +8303,9 @@ is an error raised.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>when the model's provider can't be resolved — an
-unknown / uninferable prefix, or the matching provider extra not
-installed. Pass <code>provider=</code> a <code>Provider</code> instance for anything
-Pydantic-AI can't infer.</p>
+                <p>The provider could not be resolved — an unknown or
+uninferable prefix, or its extra is not installed. Pass a
+<code>Provider</code> instance for anything Pydantic-AI cannot infer.</p>
               </div>
             </td>
           </tr>
@@ -8333,40 +8336,107 @@ Pydantic-AI can't infer.</p>
     <div class="doc doc-contents first">
 
         <p>The agent's server-tool catalog for the frontend to label tool-call cards.</p>
-<p>Server-side tools (the <code>@tool</code> registry, and drf-mcp tools when a
-<code>drf_mcp_server</code> is passed) execute server-side, so their
-JSON Schema never reaches the browser — the web component can't read an
-<code>x-summary</code> off it. This catalog is the channel for those labels: the
-component fetches it via <code>data-tools-url</code> and maps tool name → label.</p>
+<p>Server-side tools execute server-side, so their JSON Schema never reaches the
+browser and a web component cannot read an <code>x-summary</code> off it. This catalog
+is that channel: the component fetches it and maps tool name to label.</p>
 <p>Each entry is <code>{"name", "summary", "description"?}</code>. <code>summary</code> is always
-present, resolved from the single source of truth with a fallback chain:</p>
-<ul>
-<li>registry tools → <code>@tool(summary=…)</code> → a prettified name;</li>
-<li>drf-mcp tools → <code>display_name</code> → <code>title</code> → a prettified name.</li>
-</ul>
-<p><code>description</code> (a longer blurb for tooltips) is included when available
-(<code>ToolSpec.description</code> / drf-mcp <code>display_description</code> → <code>description</code>).
-Registry tools win on name collisions.</p>
-<p>⚠ <strong>The catalog covers the sources named here, and no others.</strong> Tools
-reaching the agent through a transport's <code>capabilities=</code> / <code>toolsets=</code>
-— an arbitrary <code>AbstractToolset</code> a project attaches directly — are <strong>not</strong>
-listed, and their cards fall back to a prettified name in the frontend.</p>
-<p>⛔ <strong>That boundary is deliberate, and enumerating them is not a missing
-feature.</strong> Pydantic-AI's enumeration is <code>AbstractToolset.get_tools</code>, which
-is <code>async</code> and takes a <code>RunContext</code>; this function runs at configuration
-time, from a view, with no run in sight. No common surface exposes tool
-names before a run, so any attempt here would work for the toolsets we
-happen to recognise and silently skip the rest — a catalog that <em>looks</em>
-complete and is not, which is the exact failure mode this stack keeps
-fixing everywhere else.</p>
-<p>⭐ <strong>Prefer routing spec tools through the source that is covered.</strong> A
-<code>SpecToolset</code> / <code>SpecCapability</code> handed to django-ag-ui's
-<code>service_specs=</code> (0.30+) is attached as itself <em>and</em> enumerated here, so
-the powerful form keeps its labels; only a toolset with no such route stays
-unlabelled.</p>
-<p>⚠ Unlabelled is a <strong>degraded label, not a broken call</strong> — the frontend
-prettifies the tool name and the tool works normally. That is why the
-boundary is documented rather than closed with a partial guess.</p>
+present, resolved from <code>@tool(summary=...)</code> for registry tools and from
+<code>display_name</code> then <code>title</code> for drf-mcp ones, falling back to a
+prettified name. <code>description</code> is carried through when the source has one.</p>
+<p><strong>The catalog covers these sources and no others.</strong> A tool attached through
+a transport's <code>capabilities=</code> / <code>toolsets=</code> is not listed and its card
+falls back to a prettified name — a degraded label, not a broken call.
+Enumerating those is not possible here: pydantic-ai exposes tool names only
+through <code>AbstractToolset.get_tools</code>, which is async and needs a
+<code>RunContext</code>, while this runs at configuration time with no run in sight.
+Route spec tools through a transport's <code>service_specs=</code> to keep labels.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>registry</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="ToolRegistry (django_pydantic_agent.registry.tool_registry.ToolRegistry)" href="#django_ag_ui.ToolRegistry">ToolRegistry</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The <code>@tool</code> registry, listed first; it wins name collisions.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>drf_mcp_server</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A drf-mcp server whose registered tools are appended.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>service_specs</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A <code>name -&gt; spec</code> mapping whose tools are appended, each
+described by its service or selector callable's docstring.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>One entry per tool, in that source order.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -8391,22 +8461,108 @@ boundary is documented rather than closed with a partial guess.</p>
 
 
         <p>Exposes a drf-mcp <code>MCPServer</code>'s tools as a Pydantic-AI toolset.</p>
-<p>Built per request so the acting user is the current AG-UI user. Tool
-schemas and execution both route through drf-mcp's public in-process
-surface (<code>MCPServer.list_tools</code> / <code>acall_tool</code>), so the advertised
-parameters, serializer validation, and permissions match the HTTP transport
-exactly. Tool definitions carry the default <code>kind="function"</code> — the
-in-process kind the run loop routes into <code>call_tool</code>, which then emits a
-<code>TOOL_CALL_RESULT</code> and lets the model continue (an <code>external</code> tool
-would instead be deferred to the client and never run).</p>
-<p><code>exclude_names</code> carries the <code>@tool</code> registry's names: on a collision
-the registry tool wins (the same rule <code>build_tool_catalog</code> applies) and
-the drf-mcp twin is skipped — otherwise pydantic-ai raises <code>UserError</code>
-for the duplicate name at run time.</p>
-<p><code>max_retries</code> is each tool's retry budget: how many times a
-:class:<code>pydantic_ai.ModelRetry</code> (malformed arguments, a service-raised
-validation error) is fed back to the model before the run aborts. Defaults
-to <code>1</code>, matching pydantic-ai's own function-tool default.</p>
+<p>Built per request, so the agent acts as the request's logged-in user. Both
+schemas and execution route through drf-mcp's public in-process surface
+(<code>MCPServer.list_tools</code> / <code>acall_tool</code>, drf-mcp 0.9+), so the advertised
+parameters, serializer validation and permissions match the HTTP transport
+exactly — without the network hop. Tool definitions carry the default
+<code>kind="function"</code>, the in-process kind the run loop calls itself; an
+<code>external</code> tool would instead be deferred to the client and never run.</p>
+<p>Failures split three ways, along MCP's protocol-vs-tool boundary:</p>
+<ul>
+<li>JSON-RPC <code>-32602</code> and tool-level <code>validation_error</code> results raise
+  <code>pydantic_ai.ModelRetry</code>, so the model retries with the field
+  errors instead of the run dying;</li>
+<li>other tool-level failures (<code>service_error</code> / <code>not_found</code>) are returned
+  as the tool's content, for the model to read;</li>
+<li>protocol faults (auth, rate limits, an internal error) raise
+  <code>RuntimeError</code> and abort the run.</li>
+</ul>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>server</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The drf-mcp <code>MCPServer</code> whose registry is bridged.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>request</code>
+            </td>
+            <td>
+                  <code><span title="django.http.HttpRequest">HttpRequest</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The request carried into every call; its <code>user</code> is the
+acting user.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>exclude_names</code>
+            </td>
+            <td>
+                  <code><span title="frozenset">frozenset</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Names the <code>@tool</code> registry has already claimed. A
+colliding drf-mcp tool is skipped, so the registry wins — the rule
+<code>build_tool_catalog</code> applies — because pydantic-ai raises
+<code>UserError</code> for a duplicate name at run time.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="frozenset">frozenset</span>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_retries</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-tool retry budget: how many times a <code>ModelRetry</code> is
+fed back to the model before the run aborts. The default matches
+pydantic-ai's own function-tool default.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -8447,9 +8603,6 @@ to <code>1</code>, matching pydantic-ai's own function-tool default.</p>
     <div class="doc doc-contents ">
 
         <p>Load tool defs from drf-mcp's <code>tools/list</code> once, then wrap them.</p>
-<p>Loading runs in a thread (<code>sync_to_async</code>) because the sync
-<code>list_tools</code> may evaluate per-user listing permissions against the DB,
-which Django forbids on the async event loop.</p>
 
 
     </div>
@@ -8483,18 +8636,15 @@ which Django forbids on the async event loop.</p>
     <div class="doc doc-contents first">
 
         <p>Build a per-request toolset exposing <code>read_attachment</code> over <code>store</code>.</p>
-<p>Mirrors the per-request <code>drf-mcp</code> bridge: the request is captured in a
-closure so <code>store.open</code> is owner-scoped to the acting user — the model can
-only read files that user uploaded, never another's by id. Wired in by a
-transport's agent build when an attachment store is configured, so the wire
-stays protocol-vanilla: attachments travel as lightweight refs and the bytes
-are reached here, server-side, only when the model asks.</p>
-<p><code>inline</code> decides which binary types come back as file content the model
-can actually look at, and how large a file may be before it is described
-rather than attached; <code>None</code> takes the
-:class:<code>~django_pydantic_agent.agent.types.attachment_inline_config.AttachmentInlineConfig</code>
-defaults. Read its docstring before widening either — inlined bytes go to
-the provider on every model request left in the run.</p>
+<p>The request is captured in a closure so <code>store.open</code> stays owner-scoped to
+the acting user: the model can only read files that user uploaded, never
+another's by id. Attachments therefore travel the wire as lightweight refs
+and the bytes are reached here, server-side, only when the model asks.</p>
+<p><code>inline</code> decides which binary types come back as file content and how large
+a file may be before it is described rather than attached; <code>None</code> takes the
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/agent/#django_pydantic_agent.AttachmentInlineConfig"><code>AttachmentInlineConfig</code></a>
+defaults. Read its docstring before widening either — inlined bytes go to the
+provider on every model request left in the run.</p>
 
 
     </div>
