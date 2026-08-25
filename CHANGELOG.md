@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`attachment_inline` on `AGUIConfig`**, so how much of an attachment the model
+  is handed can be set alongside what may be uploaded. The toolset was built
+  without it, so the substrate's defaults always won and no consumer could reach
+  them. That left a **6 MiB band** on the defaults — files between the 4 MiB
+  read-back limit and the 10 MiB upload cap uploaded successfully, rendered a
+  chip, and came back as a description however often the model asked, with
+  nothing on screen to distinguish that from success. Every raise of
+  `ATTACHMENT_MAX_BYTES`, the documented knob for upload limits, widened it.
+
+  The same gap made inlining impossible to switch off, so a consumer preferring
+  its own extraction, or bounding the bytes re-sent on every model request, had
+  no lever. Passed as an object rather than read from settings: it is a
+  dataclass, and collaborators arrive as objects here rather than dotted paths.
+
+  Defaults to `None`, which takes the substrate's own defaults — unchanged
+  behaviour for anyone not setting it, and no second copy of those values to
+  drift out of sync.
+
 ## [0.45.0] — 2026-08-25
 
 ### Changed

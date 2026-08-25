@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import warnings
 from types import SimpleNamespace
@@ -10,12 +11,14 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.http import StreamingHttpResponse
 from django.test import RequestFactory, override_settings
+from django_pydantic_agent import AttachmentInlineConfig
 from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
 from django_pydantic_agent.registry.decorator import tool
 from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.authed_request_factory import AuthedRequestFactory
 
 
@@ -493,6 +496,29 @@ async def test_attachment_toolset_built_per_request_when_configured() -> None:
     )
     assert len(toolsets) == 1
     assert toolsets[0].id == "django-pydantic-agent-attachments"
+
+
+async def test_the_configured_inline_budget_reaches_the_toolset() -> None:
+    """Not merely stored on the config -- actually handed to the toolset.
+
+    Built without ``inline=``, the substrate's defaults always won and no
+    consumer could alter them: a file above the read-back limit and below this
+    package's own upload cap uploaded, rendered a chip, and came back as a
+    description however often the model asked.
+    """
+    inline = AttachmentInlineConfig(max_bytes=99, media_types=frozenset({"application/pdf"}))
+    view = DjangoAGUIView(
+        _registry(), model=TestModel(), config=build_ag_ui_config(attachment_inline=inline)
+    )
+
+    toolsets = view._attachment_toolsets(
+        _DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/"), set()
+    )
+
+    # The config is captured in the tool's closure, so read it back through the
+    # only thing that observes it: what the tool does with an over-cap file.
+    read = toolsets[0].tools["read_attachment"].function
+    assert inspect.getclosurevars(read).nonlocals["resolved"] is inline
 
 
 async def test_no_attachment_toolset_without_the_setting() -> None:

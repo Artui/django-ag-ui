@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from django_pydantic_agent import AttachmentInlineConfig
 from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 
@@ -62,6 +63,17 @@ class AGUIConfig:
 
     attachment_allowed_types: tuple[str, ...]
     """Allowed (client-declared) content types for uploads. Empty accepts any."""
+
+    attachment_inline: AttachmentInlineConfig | None
+    """How much of an attachment ``read_attachment`` hands the model, or ``None``
+    for the substrate's defaults.
+
+    A separate budget from the two above, and deliberately a smaller one: those
+    bound what may be *stored*, this bounds what rides in every model request for
+    the rest of the run. But the two must be set together, because a file above
+    this limit and below ``attachment_max_bytes`` uploads, shows a chip, and can
+    never be read -- indistinguishable from success on screen. Raising the upload
+    cap without raising this one widens that band."""
 
     manage_system_prompt: str
     """Who owns the system prompt on the wire: ``"server"`` (the agent's prompt
