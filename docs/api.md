@@ -150,6 +150,20 @@ subclass it to change the model or point at another OpenAI-compatible server.
 
 ::: django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend
 
+## Charts
+
+::: django_ag_ui.ChartSpec
+
+::: django_ag_ui.ChartSeries
+
+::: django_ag_ui.ChartKind
+
+::: django_ag_ui.chart_activity
+
+::: django_ag_ui.chart_points_delta
+
+::: django_ag_ui.CHART_ACTIVITY_TYPE
+
 ## Internal helpers
 
 These are not part of the public re-export surface but are referenced from the

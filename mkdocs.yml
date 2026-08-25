@@ -104,5 +104,6 @@ nav:
   - Compaction & skills: compaction.md
   - Durable step persistence: step-persistence.md
   - Shared state: shared-state.md
+  - Charts: charts.md
   - Key concepts: concepts.md
   - API reference: api.md
