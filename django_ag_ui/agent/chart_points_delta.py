@@ -7,6 +7,7 @@ from typing import Any
 from ag_ui.core import ActivityDeltaEvent
 
 from django_ag_ui.agent.chart_activity import CHART_ACTIVITY_TYPE
+from django_ag_ui.agent.types.chart_spec import validate_point
 
 
 def chart_points_delta(
@@ -30,6 +31,13 @@ def chart_points_delta(
     and cannot tell that series 2 is now something else. Send a fresh snapshot
     when the *shape* changes and reserve this for when it has not.
     """
+    if series < 0:
+        # The client resolves this path positionally and a negative index never
+        # resolves: it warns and the chart does not move, so the mistake is
+        # invisible on both sides unless it is caught here.
+        raise ValueError(f"series index must not be negative; got {series}")
+    for point in points:
+        validate_point(f"delta for {chart_id!r}", point)
     patch: list[dict[str, Any]] = [
         {"op": "replace", "path": f"/series/{series}/points", "value": list(points)}
     ]

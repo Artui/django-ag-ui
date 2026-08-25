@@ -25,7 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   call the client-side `render_chart` tool instead.
 
   No setting turns this on. Pushing a chart is an act rather than a mode, and a
-  flag would imply the framework emits one on your behalf, which it cannot.
+  flag would imply the framework emits one on your behalf, which it cannot. The
+  event reaches the stream as a tool return's `metadata`, which Pydantic-AI
+  forwards verbatim — so the model reads one sentence while the browser gets the
+  data.
+
+  `ChartSpec` refuses what the client would silently drop, including the mistake
+  a Django app makes first: a `Sum` over a `DecimalField` returns `Decimal`,
+  which serialises as a JSON *string*, and the client reads only numbers. It is
+  refused rather than coerced — rounding somebody's money to a float on their
+  behalf is the wrong favour.
 
 - **Charts that update in place.** Reuse a `chart_id` and the client redraws
   that chart rather than stacking a copy — one chart moving, not two

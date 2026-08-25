@@ -47,7 +47,9 @@ from django_ag_ui.agent.fixed_window_throttle import FixedWindowThrottle
 from django_ag_ui.agent.inject_compaction_events import COMPACTION_ACTIVITY_TYPE
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.tools_view import ToolsView
-from django_ag_ui.agent.types.chart_spec import ChartKind, ChartSeries, ChartSpec
+from django_ag_ui.agent.types.chart_kind import ChartKind
+from django_ag_ui.agent.types.chart_series import ChartSeries
+from django_ag_ui.agent.types.chart_spec import ChartSpec
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig

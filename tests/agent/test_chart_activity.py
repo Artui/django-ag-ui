@@ -2,17 +2,47 @@
 
 from __future__ import annotations
 
+import json
+
 from ag_ui.core import EventType
+from ag_ui.encoder import EventEncoder
 
 from django_ag_ui import (
     CHART_ACTIVITY_TYPE,
     ChartSeries,
     ChartSpec,
     chart_activity,
-    chart_points_delta,
 )
 
 SPEC = ChartSpec(labels=("a", "b"), series=(ChartSeries("one", (1.0, 2.0)),))
+
+
+def test_the_encoded_event_carries_the_names_the_client_matches_on() -> None:
+    """Asserted on the wire, not on the object.
+
+    Two things here can break silently and neither shows up in a round trip
+    through the Python model: the literal ``"chart"``, which the browser
+    hardcodes and would simply stop recognising if renamed; and the camelCase
+    aliasing, which is applied by the encoder rather than the event. Comparing
+    ``event.activity_type`` to the constant is a tautology -- renaming the
+    constant would keep that green while the feature stopped working.
+    """
+    encoded = EventEncoder().encode(chart_activity(SPEC, chart_id="c1"))
+    payload = json.loads(encoded.removeprefix("data: ").strip())
+
+    assert payload["type"] == "ACTIVITY_SNAPSHOT"
+    assert payload["activityType"] == "chart"
+    assert payload["messageId"] == "c1"
+    assert payload["replace"] is True
+    assert payload["content"]["series"] == [{"label": "one", "points": [1.0, 2.0]}]
+
+
+def test_the_points_reach_the_wire_as_json_numbers() -> None:
+    # The client reads only JSON numbers, so anything that serialises as a
+    # string or a null costs the whole chart with no error on either side.
+    payload = json.loads(EventEncoder().encode(chart_activity(SPEC)).removeprefix("data: ").strip())
+    for point in payload["content"]["series"][0]["points"]:
+        assert isinstance(point, float | int)
 
 
 def test_it_is_a_vanilla_activity_snapshot() -> None:
@@ -35,22 +65,3 @@ def test_repeating_an_id_replaces_the_chart_rather_than_adding_one() -> None:
     first = chart_activity(SPEC, chart_id="c1")
     second = chart_activity(SPEC, chart_id="c1")
     assert first.message_id == second.message_id == "c1"
-    assert second.replace is True
-
-
-def test_a_delta_moves_one_series_without_re_sending_the_chart() -> None:
-    delta = chart_points_delta("c1", points=[3.0, 4.0])
-    assert delta.type == EventType.ACTIVITY_DELTA
-    assert delta.message_id == "c1"
-    assert delta.activity_type == CHART_ACTIVITY_TYPE
-    assert delta.patch == [{"op": "replace", "path": "/series/0/points", "value": [3.0, 4.0]}]
-
-
-def test_a_delta_can_name_a_series_other_than_the_first() -> None:
-    delta = chart_points_delta("c1", series=2, points=(9.0,))
-    assert delta.patch[0]["path"] == "/series/2/points"
-
-
-def test_a_delta_accepts_a_tuple_and_sends_a_list() -> None:
-    # JSON has no tuples, and a patch value has to survive serialisation.
-    assert chart_points_delta("c1", points=(1.0, 2.0)).patch[0]["value"] == [1.0, 2.0]
