@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.46.0] — 2026-08-25
 
+### Changed
+
+- **Requires `django-pydantic-agent>=0.17`**, up from `>=0.16`, and this
+  transport is the reason rather than a bystander. An attached file's tool result
+  has two halves with different lifetimes: the sentence is streamed and kept in
+  the client transcript, while the bytes never travel the event stream at all.
+  This transport seeds later turns from that transcript — `message_history` stays
+  `None` unless a run is resumed — so below the new floor it replayed *"its
+  contents are attached"* with nothing attached, and the model answered
+  confidently about a document it had never read, with no error surfaced
+  anywhere. A transport persisting full `ModelMessages` keeps the bytes and never
+  saw this; ours is the one where the sentence was wrong. 0.17 also stops a text
+  attachment over the size cap being returned whole.
+
 ### Added
 
 - **`attachment_inline` on `AGUIConfig`**, so how much of an attachment the model
