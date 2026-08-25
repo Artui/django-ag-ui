@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.0] — 2026-08-25
+
+### Changed
+
+- **The `anthropic` extra now requires `pydantic-ai-slim>=2.33`**, up from
+  `>=2`. The `anthropic` SDK 1.0.0 reached PyPI on 2026-08-20 rebuilt on
+  `httpx2`, with legacy `httpx` support removed, and every pydantic-ai before
+  2.33 hands `AnthropicProvider` an `httpx.AsyncClient` that the 1.x SDK
+  rejects — permitted without being supported, so a fresh install at the old
+  floor resolved a combination that failed at runtime. The `openai` and `google`
+  extras and the core `pydantic-ai-slim` floor are unaffected.
+- **Requires `django-pydantic-agent>=0.16`**, up from `>=0.15`, so this
+  package's attachment surface carries that release's two fixes rather than
+  leaving them to chance. Below the new floor, an attachment whose bytes had
+  left storage raised where the store contract says it returns `None` — the
+  attachment tool has a sentence ready for an unavailable file and got an opaque
+  failure instead, so the agent described a file it could not read and was told
+  not to retry — and the content-hash dedup adopted a missing blob without
+  checking, which meant re-uploading the same file could never repair it.
+
+### Fixed
+
+- **The documentation build no longer aborts on the substrate's own
+  cross-references.** This package re-exports `django_pydantic_agent` symbols and
+  renders their docstrings, and those docstrings carry autorefs links to targets
+  that exist only in the substrate's own site — so a strict build here failed on
+  seven of them. Its published inventory is now imported, pointing those links at
+  the upstream page rather than nowhere. Latent since the substrate added the
+  links; it surfaced when the floor above moved the resolved version past them.
+
 ## [0.44.0] — 2026-08-14
 
 ### Added
@@ -2289,7 +2319,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.44.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.45.0...HEAD
+[0.45.0]: https://github.com/Artui/django-ag-ui/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/Artui/django-ag-ui/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/Artui/django-ag-ui/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/Artui/django-ag-ui/compare/v0.41.0...v0.42.0

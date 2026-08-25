@@ -52,6 +52,13 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
+          # The substrate's own docstrings carry autorefs links to its symbols,
+          # and this build renders those docstrings through the re-exports below.
+          # Without its published inventory those links resolve to nothing here
+          # and --strict aborts -- a link that is fine in its own docs and fatal
+          # in ours. Importing the inventory points them at the upstream page.
+          inventories:
+            - https://artui.github.io/django-pydantic-agent/objects.inv
           options:
             # The agent-host substrate. Its symbols are re-exported from
             # ``django_ag_ui`` (permanently), so griffe has to load it to
