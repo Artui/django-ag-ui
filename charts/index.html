@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/django-ag-ui/code-mode/">
+        <link rel="canonical" href="https://artui.github.io/django-ag-ui/charts/">
       
       
-        <link rel="prev" href="../tool-approval/">
+        <link rel="prev" href="../shared-state/">
       
       
-        <link rel="next" href="../subagents/">
+        <link rel="next" href="../concepts/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Batching tool calls (CodeMode) - django-ag-ui</title>
+        <title>Charts - django-ag-ui</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#batching-tool-calls-with-codemode" class="md-skip">
+        <a href="#charts" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Batching tool calls (CodeMode)
+              Charts
             
           </span>
         </div>
@@ -401,37 +401,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Batching tool calls (CodeMode)
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../code-mode/" class="md-nav__link">
         
   
   
@@ -447,76 +420,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#install" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Install
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#wire-it-in" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Wire it in
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Wire it in">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#wrapping-only-some-tools" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Wrapping only some tools
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#typed-stubs-keep-drf-mcps-output-schema-on" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Typed stubs — keep drf-mcp's output schema on
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -633,10 +536,37 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../charts/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Charts
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -652,6 +582,98 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pushing-a-chart-from-your-own-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pushing a chart from your own code
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pushing a chart from your own code">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#updating-a-chart-in-place" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Updating a chart in place
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#letting-the-agent-ask-for-a-chart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Letting the agent ask for a chart
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#which-to-reach-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which to reach for
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-client-will-refuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the client will refuse
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#on-the-wire" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On the wire
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -737,33 +759,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#install" class="md-nav__link">
+  <a href="#pushing-a-chart-from-your-own-code" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Install
+        Pushing a chart from your own code
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#wire-it-in" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Wire it in
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Wire it in">
+    <nav class="md-nav" aria-label="Pushing a chart from your own code">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#wrapping-only-some-tools" class="md-nav__link">
+  <a href="#updating-a-chart-in-place" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Wrapping only some tools
+        Updating a chart in place
       
     </span>
   </a>
@@ -776,10 +787,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#typed-stubs-keep-drf-mcps-output-schema-on" class="md-nav__link">
+  <a href="#letting-the-agent-ask-for-a-chart" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Typed stubs — keep drf-mcp's output schema on
+        Letting the agent ask for a chart
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#which-to-reach-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which to reach for
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-client-will-refuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the client will refuse
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#on-the-wire" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On the wire
       
     </span>
   </a>
@@ -803,7 +847,7 @@
 
 
   
-    <a href="https://github.com/Artui/django-ag-ui/edit/main/docs/code-mode.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/django-ag-ui/edit/main/docs/charts.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -811,75 +855,151 @@
   
 
 
-<h1 id="batching-tool-calls-with-codemode">Batching tool calls with CodeMode<a class="headerlink" href="#batching-tool-calls-with-codemode" title="Permanent link">&para;</a></h1>
-<p>When the agent has many tools — especially a large drf-mcp bridge — each call is
-its own model round-trip, and every tool's schema bloats the prompt.
-<a href="https://github.com/pydantic/pydantic-ai-harness"><code>pydantic-ai-harness</code></a>'s
-<strong><code>CodeMode</code></strong> capability collapses them into a single sandboxed <code>run_code</code> tool:
-the model writes Python that calls the tools as functions (with loops,
-<code>asyncio.gather</code>, intermediate variables) and gets the result in <strong>one</strong>
-round-trip.</p>
-<p>This is a composition of two things django-ag-ui already gives you — the
-in-process <a href="../configuration/#drf_mcp_server">drf-mcp bridge</a> and the
-<a href="../configuration/#capabilities"><code>capabilities=</code></a> seam — plus the optional
-<code>[code-mode]</code> extra.</p>
-<h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[code-mode]&quot;</span>
-</span></code></pre></div>
-<p><code>[code-mode]</code> is <code>[harness]</code> plus the sandbox <code>run_code</code> executes in
-(<code>pydantic-monty</code>, around 7.5 MB installed) — which is why it is its own extra:
-the other harness capabilities do not need a sandbox, and step persistence
-should not install one to show a list of runs. The core install stays <code>django</code> +
-<code>pydantic-ai-slim</code>; the harness is lazy, only imported by the capability you wire
-in.</p>
-<h2 id="wire-it-in">Wire it in<a class="headerlink" href="#wire-it-in" title="Permanent link">&para;</a></h2>
-<p><code>capabilities=</code> takes capability instances, or zero-argument callables that
-return one. Add one that returns a <code>CodeMode</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># myproject/agent.py</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness</span><span class="w"> </span><span class="kn">import</span> <span class="n">CodeMode</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">code_mode</span><span class="p">():</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="k">return</span> <span class="n">CodeMode</span><span class="p">()</span>  <span class="c1"># wraps every tool the agent has into `run_code`</span>
-</span></code></pre></div>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># settings.py</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">}</span>
-</span></code></pre></div>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># urls.py</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">code_mode</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">server</span> <span class="k">as</span> <span class="n">mcp_server</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">drf_mcp_server</span><span class="o">=</span><span class="n">mcp_server</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">code_mode</span><span class="p">])</span>
-</span></code></pre></div>
-<p>Now the agent exposes one <code>run_code</code> tool instead of the individual DRF tools;
-the model batches its DRF work into a single sandboxed script.</p>
-<h3 id="wrapping-only-some-tools">Wrapping only some tools<a class="headerlink" href="#wrapping-only-some-tools" title="Permanent link">&para;</a></h3>
-<p>Pass a name list or a predicate to <code>tools=</code> to split the toolset — matching
-tools go behind <code>run_code</code>, the rest stay as direct tool calls. This is useful
-to keep, say, a destructive tool a <a href="../tool-approval/"><code>ToolGuard</code></a> gates as a
-<em>direct</em> call (so its approval interrupt still fires) while batching the
-read-only ones:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">code_mode</span><span class="p">():</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="c1"># Batch everything except the approval-gated delete.</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="k">return</span> <span class="n">CodeMode</span><span class="p">(</span><span class="n">tools</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">td</span><span class="p">:</span> <span class="n">td</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;projects.delete&quot;</span><span class="p">)</span>
-</span></code></pre></div>
-<h2 id="typed-stubs-keep-drf-mcps-output-schema-on">Typed stubs — keep drf-mcp's output schema on<a class="headerlink" href="#typed-stubs-keep-drf-mcps-output-schema-on" title="Permanent link">&para;</a></h2>
-<p>CodeMode renders each wrapped tool as a <strong>typed</strong> Python stub so the model knows
-what each call returns. A tool with <strong>no return schema</strong> renders <code>-&gt; Any</code> and
-CodeMode emits a warning — the model loses that type information.</p>
-<p>django-ag-ui's drf-mcp bridge carries drf-mcp's <code>outputSchema</code> onto the tool's
-<code>return_schema</code>, so bridged tools render typed <strong>as long as drf-mcp advertises
-the output schema</strong> — which it does by default
-(<code>REST_FRAMEWORK_MCP["INCLUDE_OUTPUT_SCHEMA"] = True</code>). Keep it on (and give your
-services an output serializer) for the best CodeMode experience; a service with
-no output serializer advertises no schema and its stub falls back to <code>-&gt; Any</code>.</p>
+<h1 id="charts">Charts<a class="headerlink" href="#charts" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
-<p class="admonition-title">Note</p>
-<p><code>CodeMode</code> is one of several <code>pydantic-ai-harness</code> capabilities that drop
-into the same <code>capabilities=</code> seam (compaction, step-persistence, subagents,
-…). Those ride <code>[harness]</code>; only this one needs <code>[code-mode]</code>, because only
-this one runs code.</p>
+<p class="admonition-title">Needs a recent web component</p>
+<p>The browser half of this ships in <code>@artooi/ag-ui-web-component</code> <strong>0.26.0</strong>
+and later. <code>enableCharts</code> does not exist before it, and a pushed chart
+activity is ignored by an older bundle.</p>
 </div>
+<p>The chat surface renders markdown through a deliberately narrow sanitiser, and
+images are off by default — a model-controlled image URL is fetched with no user
+interaction, which turns prompt-injected page data into a zero-click
+exfiltration channel. So a chart cannot arrive as markup.</p>
+<p>It arrives as <strong>data</strong>. The server (or the agent) sends numbers; the web
+component builds the SVG itself. Nothing chart-shaped is ever parsed as HTML,
+which is what lets a visual be safe on a surface where an <code>&lt;img&gt;</code> is not.</p>
+<p>There are two ways to get one on screen, and they differ in <strong>where the data
+lives</strong> rather than in how the chart looks.</p>
+<h2 id="pushing-a-chart-from-your-own-code">Pushing a chart from your own code<a class="headerlink" href="#pushing-a-chart-from-your-own-code" title="Permanent link">&para;</a></h2>
+<p>Use this when the data should not go to the model: a large result set, or one
+you would rather not send to a provider at all. There is no round trip and no
+tokens spent on the numbers.</p>
+<p><code>chart_activity</code> returns an ordinary <code>ActivitySnapshotEvent</code>. The way onto the
+stream is a <strong>tool that returns it as metadata</strong> — Pydantic-AI forwards AG-UI
+events attached to a tool return, verbatim, ahead of the tool result:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai.messages</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolReturn</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChartSeries</span><span class="p">,</span> <span class="n">ChartSpec</span><span class="p">,</span> <span class="n">chart_activity</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nd">@agent</span><span class="o">.</span><span class="n">tool_plain</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">show_signups</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">ToolReturn</span><span class="p">:</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">rows</span> <span class="o">=</span> <span class="n">Signup</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">weekly</span><span class="p">()</span>  <span class="c1"># your data, server-side</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ChartSpec</span><span class="p">(</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        <span class="n">kind</span><span class="o">=</span><span class="s2">&quot;bar&quot;</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>        <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Signups this week&quot;</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>        <span class="n">labels</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">day</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">),</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>        <span class="n">series</span><span class="o">=</span><span class="p">(</span><span class="n">ChartSeries</span><span class="p">(</span><span class="s2">&quot;new&quot;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">count</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">)),),</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="p">)</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="k">return</span> <span class="n">ToolReturn</span><span class="p">(</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        <span class="n">return_value</span><span class="o">=</span><span class="s2">&quot;Signups chart shown.&quot;</span><span class="p">,</span>  <span class="c1"># what the model reads</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>        <span class="n">metadata</span><span class="o">=</span><span class="n">chart_activity</span><span class="p">(</span><span class="n">spec</span><span class="p">),</span>  <span class="c1"># what the browser draws</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="p">)</span>
+</span></code></pre></div>
+<p>The model sees only <code>return_value</code>. The numbers ride past it to the browser, so
+a large or sensitive result set is charted without being sent to a provider.</p>
+<p>Attach a list of events to <code>metadata</code> to send several at once.</p>
+<p>The browser has to opt in as well — nothing renders a chart unless a host asks:</p>
+<div class="language-js highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">&quot;ag-ui-chat&quot;</span><span class="p">).</span><span class="nx">enableCharts</span><span class="p">([</span><span class="s2">&quot;activity&quot;</span><span class="p">]);</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1">// or [&quot;tool&quot;, &quot;activity&quot;] to allow both routes</span>
+</span></code></pre></div>
+<p><strong>There is no server setting that turns this on.</strong> Pushing a chart is an act
+rather than a mode, and a flag would suggest the framework emits one on your
+behalf — it cannot, because it has no idea what you want charted.</p>
+<p><strong>The model does not see it.</strong> That is the point, and the cost: the agent cannot
+discuss a chart it never received. If you want it to reason about the numbers,
+use the tool route below instead.</p>
+<h3 id="updating-a-chart-in-place">Updating a chart in place<a class="headerlink" href="#updating-a-chart-in-place" title="Permanent link">&para;</a></h3>
+<p>Pass the same <code>chart_id</code> again and the client replaces what is on screen rather
+than stacking a second copy — one chart moving, not two measurements.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">yield</span> <span class="n">chart_activity</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">chart_id</span><span class="o">=</span><span class="s2">&quot;throughput&quot;</span><span class="p">)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="o">...</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">yield</span> <span class="n">chart_activity</span><span class="p">(</span><span class="n">revised</span><span class="p">,</span> <span class="n">chart_id</span><span class="o">=</span><span class="s2">&quot;throughput&quot;</span><span class="p">)</span>  <span class="c1"># redraws in place</span>
+</span></code></pre></div>
+<p>When only the numbers move, a patch is cheaper than re-sending the whole spec:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">chart_points_delta</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">yield</span> <span class="n">chart_points_delta</span><span class="p">(</span><span class="s2">&quot;throughput&quot;</span><span class="p">,</span> <span class="n">points</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">21</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">26</span><span class="p">,</span> <span class="mi">20</span><span class="p">))</span>
+</span></code></pre></div>
+<p>A delta is applied <strong>positionally</strong>, so it cannot tell that series 2 is now
+something else, and it cannot tell that you sent the wrong number of points —
+a wrong-length patch applies cleanly and then leaves the previous chart on
+screen, with the stale numbers still showing. Send a fresh snapshot when the
+<em>shape</em> changes and reserve the delta for when it has not. A delta naming a
+chart the client has not drawn is dropped — send the snapshot first and keep
+its id.</p>
+<h2 id="letting-the-agent-ask-for-a-chart">Letting the agent ask for a chart<a class="headerlink" href="#letting-the-agent-ask-for-a-chart" title="Permanent link">&para;</a></h2>
+<p>Use this when the agent should be able to talk about what it drew. The numbers
+are in its context, so it can summarise them in the same turn.</p>
+<p>The tool is client-side and opt-in — the browser registers it:</p>
+<div class="language-js highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">&quot;ag-ui-chat&quot;</span><span class="p">).</span><span class="nx">enableCharts</span><span class="p">([</span><span class="s2">&quot;tool&quot;</span><span class="p">]);</span>
+</span></code></pre></div>
+<p>The agent then calls <code>render_chart</code> with the same shape as <code>ChartSpec</code>, and the
+page draws it. It costs one model round, and the data passes through the
+provider.</p>
+<h2 id="which-to-reach-for">Which to reach for<a class="headerlink" href="#which-to-reach-for" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Agent calls the tool</th>
+<th>You push an activity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data reaches the model</td>
+<td>yes</td>
+<td><strong>no</strong></td>
+</tr>
+<tr>
+<td>Agent can discuss it</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Updates in place</td>
+<td>no</td>
+<td><strong>yes</strong></td>
+</tr>
+<tr>
+<td>Needs a tool call</td>
+<td>yes</td>
+<td>yes, but one the agent was calling anyway</td>
+</tr>
+</tbody>
+</table>
+<p>Both routes involve a tool call — the difference is what crosses it. The agent
+route sends the numbers <em>through</em> the model; the push route attaches them to a
+tool the agent called for its own reasons, so the model reads one sentence while
+the browser gets the data.</p>
+<h2 id="what-the-client-will-refuse">What the client will refuse<a class="headerlink" href="#what-the-client-will-refuse" title="Permanent link">&para;</a></h2>
+<p>The browser drops a spec it cannot draw honestly, silently — so <code>ChartSpec</code>
+checks the same rules at construction, where an error can name the offending
+series:</p>
+<ul>
+<li>every series needs exactly one point per label, because a shorter one
+  misaligns every value after the gap, and a chart that is subtly wrong still
+  reads as authoritative;</li>
+<li>at least one label and one series;</li>
+<li>labels are strings, and every point is a <strong>finite <code>int</code> or <code>float</code></strong>.</li>
+</ul>
+<p>That last one catches the mistake a Django app makes first. A <code>Sum</code> over a
+<code>DecimalField</code> returns <code>Decimal</code>, which serialises as a JSON <em>string</em> — the
+client reads only numbers and drops the whole chart, with nothing reported on
+either side. <code>ChartSpec</code> refuses it rather than coercing, because rounding
+somebody's money to a float on their behalf is the wrong favour: call <code>float()</code>
+where you can see the precision you are giving up.</p>
+<p>An unrecognised <code>kind</code> is drawn as a bar rather than refused: the data is still
+worth showing.</p>
+<h2 id="on-the-wire">On the wire<a class="headerlink" href="#on-the-wire" title="Permanent link">&para;</a></h2>
+<p><code>activity_type</code> is <code>"chart"</code> on an ordinary <code>ACTIVITY_SNAPSHOT</code> — a convention
+inside an extension point AG-UI already provides, not an extension to the
+protocol. The envelope is standard and <code>activity_type</code> is an open string, so a
+client that does not know this name ignores the event, which is the graceful
+outcome. It is the same choice compaction makes, for the same reason: the wire
+stays vanilla AG-UI and ours is not a privileged client.</p>
 
 
 
