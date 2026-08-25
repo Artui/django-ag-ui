@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.0] — 2026-08-25
+
+### Added
+
+- **`MAX_MAGNITUDE` and `MAX_POINTS`**, the bounds a chart payload has to satisfy
+  on both sides of the wire, exported so a caller building specs by hand can
+  check against the same numbers rather than discovering them by having charts
+  disappear.
+
 ### Fixed
 
 - **A chart the client silently discarded now fails where it is built.** The two
@@ -2450,7 +2459,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.47.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.48.0...HEAD
+[0.48.0]: https://github.com/Artui/django-ag-ui/compare/v0.47.0...v0.48.0
 [0.47.0]: https://github.com/Artui/django-ag-ui/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/Artui/django-ag-ui/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/Artui/django-ag-ui/compare/v0.44.0...v0.45.0
