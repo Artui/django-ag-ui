@@ -130,6 +130,26 @@ provider.
 | Agent can discuss it | yes | no |
 | Updates in place | no | **yes** |
 | Needs a tool call | yes | yes, but one the agent was calling anyway |
+| **Survives a reload** | **yes** | only with a client-side store |
+
+### A pushed chart does not survive a reload on the server
+
+Worth knowing before you choose, because it is the one difference you cannot
+work around from the browser.
+
+When a run **succeeds**, what gets stored as the thread is the *model's* message
+history. A pushed chart never enters that history — which is the whole reason to
+push it — so it is not in the stored thread, and a reload has nothing to redraw.
+The chart is there for the rest of the session and gone on refresh.
+
+A chart the **agent** asked for survives, because the spec travels as the tool
+call's arguments, and tool calls are part of the model's history. The browser
+redraws it from those arguments without re-running anything.
+
+If a chart has to outlive a refresh and its data must not reach the model, the
+options today are to store the data yourself and re-push it when the thread is
+opened, or to keep the conversation in a client-side store, which does persist
+activities. Teaching the server to persist them is on the roadmap.
 
 Both routes involve a tool call — the difference is what crosses it. The agent
 route sends the numbers *through* the model; the push route attaches them to a

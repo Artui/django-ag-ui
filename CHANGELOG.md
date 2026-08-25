@@ -44,6 +44,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **A pushed chart does not survive a reload, and now the docs say so.** When a
+  run succeeds, the stored thread is the *model's* message history — and a
+  pushed chart never enters that history, which is the whole reason to push it.
+  So it is absent from the stored thread and a reload has nothing to redraw. A
+  chart the agent asked for does survive, because its spec travels as the tool
+  call's arguments. Found by driving the real stack; both suites pass either
+  way, because the client-side store does persist activities.
 - **The chart docs still showed a mechanism that does not exist.** The
   "Updating a chart in place" section — and the only example
   `chart_points_delta` had — told you to `yield chart_activity(...)` into a
