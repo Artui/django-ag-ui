@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Requires `django-pydantic-agent>=0.16`**, up from `>=0.15`, so this
+  package's attachment surface carries that release's two fixes rather than
+  leaving them to chance. Below the new floor, an attachment whose bytes had
+  left storage raised where the store contract says it returns `None` — the
+  attachment tool has a sentence ready for an unavailable file and got an opaque
+  failure instead, so the agent described a file it could not read and was told
+  not to retry — and the content-hash dedup adopted a missing blob without
+  checking, which meant re-uploading the same file could never repair it.
+
 ## [0.44.0] — 2026-08-14
 
 ### Added

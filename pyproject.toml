@@ -40,7 +40,12 @@ dependencies = [
     # The settings-agnostic agent-host substrate this transport builds on:
     # agent construction, the tool registry, toolset/capability composition,
     # audit, user resolution, and the storage contracts.
-    "django-pydantic-agent>=0.15",
+    # Floored at 0.16 for the attachment store: below it, a row whose blob had
+    # left storage raised where the contract says it returns ``None`` (an opaque
+    # tool failure rather than a sentence the agent can relay), and the dedup
+    # adopted a missing blob so re-uploading the file could never repair it.
+    # Both reach this package's attachment surface directly.
+    "django-pydantic-agent>=0.16",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
