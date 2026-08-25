@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Charts, pushed from your own code.** `chart_activity(spec)` returns an
+  ordinary `ActivitySnapshotEvent` that the web component draws as a chart —
+  `ChartSpec` / `ChartSeries` carry the data, and the browser builds the SVG.
+  Nothing chart-shaped is parsed as HTML, which is what lets a visual be safe on
+  a surface that keeps images off by default, a model-controlled URL being a
+  zero-click exfiltration channel.
+
+  **The data never reaches the model.** No round trip, no tokens spent on the
+  numbers, and a large or sensitive result set is drawn for the user without
+  going to a provider. The cost is the other side of the same coin: the agent
+  cannot discuss a chart it never received. When it should be able to, let it
+  call the client-side `render_chart` tool instead.
+
+  No setting turns this on. Pushing a chart is an act rather than a mode, and a
+  flag would imply the framework emits one on your behalf, which it cannot.
+
+- **Charts that update in place.** Reuse a `chart_id` and the client redraws
+  that chart rather than stacking a copy — one chart moving, not two
+  measurements. When only the numbers change, `chart_points_delta` sends a JSON
+  Patch touching one series instead of the whole spec. A delta is applied
+  positionally, so it is for when the shape has not changed; send a snapshot
+  when it has.
+
+  `ACTIVITY_SNAPSHOT` and `ACTIVITY_DELTA` are used as the protocol defines
+  them, with `activity_type` set to `"chart"` — a convention inside an extension
+  point AG-UI already provides, the same choice compaction makes. A client that
+  does not know the name ignores the event.
+
 ### Fixed
 
 - **The floor gate's second resolution was still reading the runner's cache.**

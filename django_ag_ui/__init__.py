@@ -40,11 +40,14 @@ from django_pydantic_agent import (
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.agent.chart_activity import CHART_ACTIVITY_TYPE, chart_activity
+from django_ag_ui.agent.chart_points_delta import chart_points_delta
 from django_ag_ui.agent.compaction_observer import CompactionObserver
 from django_ag_ui.agent.fixed_window_throttle import FixedWindowThrottle
 from django_ag_ui.agent.inject_compaction_events import COMPACTION_ACTIVITY_TYPE
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.tools_view import ToolsView
+from django_ag_ui.agent.types.chart_spec import ChartKind, ChartSeries, ChartSpec
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
@@ -64,7 +67,13 @@ from django_ag_ui.version import __version__
 # so downstream projects never have to chase the move. The public surface below
 # is unchanged from before the extraction.
 __all__ = [
+    "CHART_ACTIVITY_TYPE",
     "COMPACTION_ACTIVITY_TYPE",
+    "ChartKind",
+    "ChartSeries",
+    "ChartSpec",
+    "chart_activity",
+    "chart_points_delta",
     "CompactionObserver",
     "AGUIConfig",
     "DEFAULT_SYSTEM_PROMPT",
