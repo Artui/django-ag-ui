@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0] — 2026-08-25
+
+### Changed
+
+- **Requires `django-pydantic-agent>=0.17`**, up from `>=0.16`, and this
+  transport is the reason rather than a bystander. An attached file's tool result
+  has two halves with different lifetimes: the sentence is streamed and kept in
+  the client transcript, while the bytes never travel the event stream at all.
+  This transport seeds later turns from that transcript — `message_history` stays
+  `None` unless a run is resumed — so below the new floor it replayed *"its
+  contents are attached"* with nothing attached, and the model answered
+  confidently about a document it had never read, with no error surfaced
+  anywhere. A transport persisting full `ModelMessages` keeps the bytes and never
+  saw this; ours is the one where the sentence was wrong. 0.17 also stops a text
+  attachment over the size cap being returned whole.
+
+### Fixed
+
+- **The floor-resolution CI gate could resolve against a stale package index.**
+  Its purpose is to answer "what would a consumer installing from scratch get",
+  but it read the runner's shared uv cache, so the answer came from whatever
+  listing that cache held rather than from the index. It failed a floor raise as
+  unsatisfiable while the index had been serving the release for some time. Now
+  resolved with `--refresh`, so the gate measures what it claims to.
+
+### Added
+
+- **`attachment_inline` on `AGUIConfig`**, so how much of an attachment the model
+  is handed can be set alongside what may be uploaded. The toolset was built
+  without it, so the substrate's defaults always won and no consumer could reach
+  them. That left a **6 MiB band** on the defaults — files between the 4 MiB
+  read-back limit and the 10 MiB upload cap uploaded successfully, rendered a
+  chip, and came back as a description however often the model asked, with
+  nothing on screen to distinguish that from success. Every raise of
+  `ATTACHMENT_MAX_BYTES`, the documented knob for upload limits, widened it.
+
+  The same gap made inlining impossible to switch off, so a consumer preferring
+  its own extraction, or bounding the bytes re-sent on every model request, had
+  no lever. Passed as an object rather than read from settings: it is a
+  dataclass, and collaborators arrive as objects here rather than dotted paths.
+
+  Defaults to `None`, which takes the substrate's own defaults — unchanged
+  behaviour for anyone not setting it, and no second copy of those values to
+  drift out of sync.
+
 ## [0.45.0] — 2026-08-25
 
 ### Changed
@@ -2319,7 +2364,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.45.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.46.0...HEAD
+[0.46.0]: https://github.com/Artui/django-ag-ui/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/Artui/django-ag-ui/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/Artui/django-ag-ui/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/Artui/django-ag-ui/compare/v0.42.0...v0.43.0

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from django_pydantic_agent import AttachmentInlineConfig
 from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 
@@ -20,6 +21,7 @@ def build_ag_ui_config(
     retries: int | None = None,
     attachment_max_bytes: int | None = None,
     attachment_allowed_types: tuple[str, ...] | list[str] | None = None,
+    attachment_inline: AttachmentInlineConfig | None = None,
     manage_system_prompt: str | None = None,
     allow_uploaded_files: bool | None = None,
     forward_reasoning: bool | None = None,
@@ -67,6 +69,10 @@ def build_ag_ui_config(
         attachment_allowed_types=tuple(
             pick(attachment_allowed_types, "ATTACHMENT_ALLOWED_TYPES", ()) or ()
         ),
+        # Not read from settings: it is a dataclass rather than a scalar, and the
+        # ecosystem's rule is that collaborators arrive as objects rather than
+        # dotted paths. Pass one to ``build_ag_ui_config`` to change it.
+        attachment_inline=attachment_inline,
         manage_system_prompt=str(pick(manage_system_prompt, "MANAGE_SYSTEM_PROMPT", "server")),
         allow_uploaded_files=bool(pick(allow_uploaded_files, "ALLOW_UPLOADED_FILES", False)),
         forward_reasoning=bool(pick(forward_reasoning, "FORWARD_REASONING", True)),

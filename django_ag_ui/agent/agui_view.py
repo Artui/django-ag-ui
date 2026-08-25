@@ -445,7 +445,13 @@ class DjangoAGUIView:
         if store is None or isinstance(store, NullAttachmentStore) or "read_attachment" in seen:
             return []
         seen.add("read_attachment")
-        return [build_attachment_toolset(store, request)]
+        # ``inline=`` passed explicitly rather than left to the substrate's
+        # defaults. Left off, the two budgets in this package's own config -- what
+        # may be uploaded, and what may be read back -- could not be set together,
+        # and a file between them uploaded, showed a chip, and came back as a
+        # description no matter how often the model asked, with nothing on screen
+        # to distinguish that from success.
+        return [build_attachment_toolset(store, request, inline=self._config.attachment_inline)]
 
     async def _throttled(self, request: HttpRequest) -> HttpResponseBase | None:
         """Apply the ``throttle`` hook, or ``None`` when the run may proceed.

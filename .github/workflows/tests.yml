@@ -73,8 +73,16 @@ jobs:
       # likely to use something a newer Python removed.
       - name: Use the floor Python
         run: uv python install 3.10
+      # `--refresh` because this job's whole claim is "what a consumer resolving
+      # from scratch would get", and the runner's uv cache is shared across runs:
+      # without it the resolution is made against whatever package list that
+      # cache happens to hold, which can be hours behind the index. That is not a
+      # hypothetical -- this job failed a floor raise as unsatisfiable while the
+      # index had served the release for some time, and a cacheless resolve of
+      # the same requirement succeeded. A stale listing makes this gate report
+      # the past, in whichever direction happens to be wrong.
       - name: Resolve every declared dependency at its floor
-        run: uv lock --resolution lowest-direct --python 3.10
+        run: uv lock --resolution lowest-direct --python 3.10 --refresh
       # --frozen and --no-sync are load-bearing, not tidiness. uv records the
       # resolution mode in the lockfile and silently discards a lock resolved
       # in a different one -- a plain `uv sync` here prints "Ignoring existing

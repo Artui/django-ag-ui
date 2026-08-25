@@ -40,12 +40,18 @@ dependencies = [
     # The settings-agnostic agent-host substrate this transport builds on:
     # agent construction, the tool registry, toolset/capability composition,
     # audit, user resolution, and the storage contracts.
-    # Floored at 0.16 for the attachment store: below it, a row whose blob had
-    # left storage raised where the contract says it returns ``None`` (an opaque
-    # tool failure rather than a sentence the agent can relay), and the dedup
-    # adopted a missing blob so re-uploading the file could never repair it.
-    # Both reach this package's attachment surface directly.
-    "django-pydantic-agent>=0.16",
+    # Floored at 0.17, and this transport is the reason rather than a bystander.
+    # An attached file's tool result has two halves with different lifetimes: the
+    # sentence is streamed and kept in the client transcript, the bytes never
+    # travel the event stream at all. This transport seeds later turns from that
+    # transcript -- ``message_history`` stays ``None`` unless a run is resumed --
+    # so before 0.17 it replayed "its contents are attached" with nothing
+    # attached, and the model answered confidently about a document it had never
+    # read. A transport that persists full ``ModelMessages`` keeps the bytes and
+    # never saw it. 0.16 also matters here: below it a row whose blob had left
+    # storage raised where the contract says it returns ``None``, and dedup
+    # adopted a missing blob so re-uploading could never repair it.
+    "django-pydantic-agent>=0.17",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
@@ -207,7 +213,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.45.0"
+current_version = "0.46.0"
 allow_dirty = false
 commit = false
 tag = false

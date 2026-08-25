@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.test import override_settings
+from django_pydantic_agent import AttachmentInlineConfig
 from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 
@@ -135,3 +136,37 @@ def test_an_explicit_run_context_wins() -> None:
         )
     assert config.run_context.client_context is False
     assert config.run_context.max_chars == 5
+
+
+def test_attachment_inline_defaults_to_the_substrates_own() -> None:
+    # ``None`` rather than a copy of the substrate's defaults: the default is
+    # whatever that package decides, so it cannot drift out of sync here.
+    with override_settings(DJANGO_AG_UI={}):
+        assert build_ag_ui_config().attachment_inline is None
+
+
+def test_attachment_inline_is_configurable_alongside_the_upload_cap() -> None:
+    """The two budgets must be settable together.
+
+    Left unreachable, a file above the read-back limit and below the upload cap
+    uploaded, rendered a chip, and came back as a description no matter how often
+    the model asked -- indistinguishable from success on screen, and every raise
+    of the upload cap widened the band.
+    """
+    inline = AttachmentInlineConfig(max_bytes=8 * 1024 * 1024)
+    with override_settings(DJANGO_AG_UI={"ATTACHMENT_MAX_BYTES": 8 * 1024 * 1024}):
+        config = build_ag_ui_config(attachment_inline=inline)
+
+    assert config.attachment_inline is inline
+    # No band left between what may be uploaded and what may be read.
+    assert config.attachment_max_bytes <= config.attachment_inline.max_bytes
+
+
+def test_attachment_inlining_can_be_switched_off() -> None:
+    # A consumer preferring its own extraction, or bounding the bytes re-sent on
+    # every request, needs the lever the substrate documents.
+    off = AttachmentInlineConfig(media_types=frozenset())
+    with override_settings(DJANGO_AG_UI={}):
+        config = build_ag_ui_config(attachment_inline=off)
+    assert config.attachment_inline is not None
+    assert config.attachment_inline.media_types == frozenset()
