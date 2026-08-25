@@ -76,17 +76,27 @@ Pass the same `chart_id` again and the client replaces what is on screen rather
 than stacking a second copy — one chart moving, not two measurements.
 
 ```python
-yield chart_activity(spec, chart_id="throughput")
-...
-yield chart_activity(revised, chart_id="throughput")  # redraws in place
+@agent.tool_plain
+def watch_throughput() -> ToolReturn:
+    return ToolReturn(
+        return_value="Throughput chart shown.",
+        metadata=[
+            chart_activity(first, chart_id="throughput"),
+            chart_activity(revised, chart_id="throughput"),  # redraws in place
+        ],
+    )
 ```
 
-When only the numbers move, a patch is cheaper than re-sending the whole spec:
+`metadata` takes a list, so several events go out from one tool call. When only
+the numbers move, a patch is cheaper than re-sending the whole spec:
 
 ```python
 from django_ag_ui import chart_points_delta
 
-yield chart_points_delta("throughput", points=(14, 21, 11, 26, 20))
+return ToolReturn(
+    return_value="Throughput updated.",
+    metadata=chart_points_delta("throughput", points=(14, 21, 11, 26, 20)),
+)
 ```
 
 A delta is applied **positionally**, so it cannot tell that series 2 is now
@@ -120,6 +130,26 @@ provider.
 | Agent can discuss it | yes | no |
 | Updates in place | no | **yes** |
 | Needs a tool call | yes | yes, but one the agent was calling anyway |
+| **Survives a reload** | **yes** | only with a client-side store |
+
+### A pushed chart does not survive a reload on the server
+
+Worth knowing before you choose, because it is the one difference you cannot
+work around from the browser.
+
+When a run **succeeds**, what gets stored as the thread is the *model's* message
+history. A pushed chart never enters that history — which is the whole reason to
+push it — so it is not in the stored thread, and a reload has nothing to redraw.
+The chart is there for the rest of the session and gone on refresh.
+
+A chart the **agent** asked for survives, because the spec travels as the tool
+call's arguments, and tool calls are part of the model's history. The browser
+redraws it from those arguments without re-running anything.
+
+If a chart has to outlive a refresh and its data must not reach the model, the
+options today are to store the data yourself and re-push it when the thread is
+opened, or to keep the conversation in a client-side store, which does persist
+activities. Teaching the server to persist them is on the roadmap.
 
 Both routes involve a tool call — the difference is what crosses it. The agent
 route sends the numbers *through* the model; the push route attaches them to a
@@ -136,7 +166,13 @@ series:
   misaligns every value after the gap, and a chart that is subtly wrong still
   reads as authoritative;
 - at least one label and one series;
-- labels are strings, and every point is a **finite `int` or `float`**.
+- labels — both the axis labels and each series' name — are strings, and the
+  title is a string or `None`;
+- every point is a **finite `int` or `float`** no larger than `1e15`. Two finite
+  extremes still give an infinite *range*, and the client divides by that range
+  to scale, so an unbounded value yields nothing drawable;
+- **at most 20,000 points** across all series. Drawing more blocks the browser's
+  main thread, and does so again on every reload of a stored conversation.
 
 That last one catches the mistake a Django app makes first. A `Sum` over a
 `DecimalField` returns `Decimal`, which serialises as a JSON *string* — the

@@ -7,7 +7,7 @@ from typing import Any
 from ag_ui.core import ActivityDeltaEvent
 
 from django_ag_ui.agent.chart_activity import CHART_ACTIVITY_TYPE
-from django_ag_ui.agent.types.chart_spec import validate_point
+from django_ag_ui.agent.chart_limits import validate_point
 
 
 def chart_points_delta(
@@ -26,16 +26,34 @@ def chart_points_delta(
     id it does not hold is dropped -- there is nothing to patch -- so send the
     snapshot first and keep the id.
 
-    ``series`` is the index in the spec's series list, and the caller is
-    responsible for it matching what was sent: a patch is applied positionally
-    and cannot tell that series 2 is now something else. Send a fresh snapshot
-    when the *shape* changes and reserve this for when it has not.
+    ``series`` is the index in the spec's series list, and ``points`` must be
+    the **same length** as the series it replaces. Neither can be checked here,
+    and both fail the same quiet way: a patch is applied positionally, so it
+    cannot tell that series 2 is now something else, and a wrong-length array
+    applies cleanly and leaves a chart the client then refuses to redraw --
+    stale numbers on screen, and the chart gone entirely on the next reload.
+
+    So: send a fresh snapshot whenever the *shape* changes, and reserve this for
+    when only the values move. An index past the end is refused by the client
+    rather than applied, which at least fails visibly in a console; a
+    wrong-length array is the one that fails invisibly.
     """
+    # Everything below is refused here because the client cannot report any of
+    # it. A patch it cannot apply is caught, warned about in a console nobody is
+    # watching, and the chart simply does not move -- leaving the *previous*
+    # numbers on screen, which reads as a chart that is up to date rather than
+    # one that failed. Silence is the failure mode this whole helper has to
+    # design against.
     if series < 0:
-        # The client resolves this path positionally and a negative index never
-        # resolves: it warns and the chart does not move, so the mistake is
-        # invisible on both sides unless it is caught here.
-        raise ValueError(f"series index must not be negative; got {series}")
+        raise ValueError(
+            f"series index must not be negative; got {series}. The patch path would "
+            f"never resolve and the chart would keep its old numbers."
+        )
+    if not points:
+        raise ValueError(
+            "a delta needs at least one point; an empty array patches the chart into a "
+            "shape ChartSpec itself refuses, and the client then drops it"
+        )
     for point in points:
         validate_point(f"delta for {chart_id!r}", point)
     patch: list[dict[str, Any]] = [

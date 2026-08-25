@@ -38,6 +38,11 @@ def chart_activity(spec: ChartSpec, *, chart_id: str | None = None) -> ActivityS
     same one again to **replace** what is on screen -- a chart that redraws as a
     computation advances is one chart moving, and the client swaps it in place
     rather than stacking copies. Omit it and every call draws a new chart.
+
+    It is an AG-UI ``message_id`` and shares that namespace, so choose something
+    unlikely to collide: a chart sent under an id already used by an assistant
+    turn replaces *that message* in the client's transcript. Prefixing is
+    enough, and the generated ids do it (``chart-<uuid>``).
     """
     return ActivitySnapshotEvent(
         message_id=chart_id if chart_id is not None else f"chart-{uuid.uuid4()}",

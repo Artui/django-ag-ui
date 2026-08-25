@@ -41,6 +41,7 @@ from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.chart_activity import CHART_ACTIVITY_TYPE, chart_activity
+from django_ag_ui.agent.chart_limits import MAX_MAGNITUDE, MAX_POINTS
 from django_ag_ui.agent.chart_points_delta import chart_points_delta
 from django_ag_ui.agent.compaction_observer import CompactionObserver
 from django_ag_ui.agent.fixed_window_throttle import FixedWindowThrottle
@@ -70,6 +71,8 @@ from django_ag_ui.version import __version__
 # is unchanged from before the extraction.
 __all__ = [
     "CHART_ACTIVITY_TYPE",
+    "MAX_MAGNITUDE",
+    "MAX_POINTS",
     "COMPACTION_ACTIVITY_TYPE",
     "ChartKind",
     "ChartSeries",

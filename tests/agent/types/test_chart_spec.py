@@ -121,3 +121,37 @@ def test_metadata_cannot_supply_a_title_the_spec_does_not_have() -> None:
     # would otherwise slip through on a spec that has no title of its own.
     assert "title" not in _spec(metadata={"title": "sneaky"}).as_content()
     assert _spec(title="real", metadata={"title": "sneaky"}).as_content()["title"] == "real"
+
+
+def test_a_spec_over_the_clients_point_ceiling_is_refused() -> None:
+    """Refused rather than sent and discarded.
+
+    The client bounds total points because drawing a spec that large blocks the
+    browser's main thread -- and, once it is in a stored transcript, does so
+    again on every reload. Sending one costs the bandwidth and buys nothing.
+    """
+    labels = tuple(str(i) for i in range(10_001))
+    two_series = (ChartSeries("a", (1.0,) * 10_001), ChartSeries("b", (1.0,) * 10_001))
+    with pytest.raises(ValueError, match="over the client's 20000 limit"):
+        ChartSpec(labels=labels, series=two_series)
+
+
+def test_a_lazy_translation_as_a_series_label_is_refused() -> None:
+    """The failure this prevents happens at the worst possible moment.
+
+    A lazy string is not a ``str``, and Pydantic cannot serialise it -- so the
+    event raises at *encode* time, mid-stream, after the response headers have
+    already gone out. Refused at construction, where the traceback points at the
+    code that built the spec.
+    """
+    from django.utils.translation import gettext_lazy as _
+
+    with pytest.raises(ValueError, match="is not a string"):
+        _spec(series=(ChartSeries(_("Signups"), (1.0, 2.0)),))
+
+
+def test_a_non_string_title_is_refused_rather_than_silently_dropped() -> None:
+    # The client reads a non-string title as no title at all, so sending one
+    # loses the heading with nothing reported.
+    with pytest.raises(ValueError, match="title must be a string"):
+        _spec(title=42)

@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.0] — 2026-08-25
+
+### Added
+
+- **`MAX_MAGNITUDE` and `MAX_POINTS`**, the bounds a chart payload has to satisfy
+  on both sides of the wire, exported so a caller building specs by hand can
+  check against the same numbers rather than discovering them by having charts
+  disappear.
+
+### Fixed
+
+- **A chart the client silently discarded now fails where it is built.** The two
+  sides of this contract had drifted: the web component bounds point magnitude
+  at `1e15` and total points at `20000`, and this package enforced neither — so
+  a spec past either limit was serialised, streamed, and dropped on arrival with
+  **nothing reported on either side**. The limits now live in one module,
+  `chart_limits`, with the component's own values pinned by a test, because a
+  mismatch is invisible in both suites: each passes its own, and only a payload
+  crossing the gap between them fails.
+
+- **A lazy translation as a series name killed the response mid-stream.**
+  `ChartSeries("…")` accepted anything, and a `gettext_lazy` label — an entirely
+  ordinary thing to want — is not serialisable, so it raised at *encode* time,
+  after the response headers had gone out. It is refused at construction now,
+  alongside the axis labels it sits beside. A non-string `title` is refused too:
+  the client reads one as no title at all, so it vanished quietly.
+
+- **`chart_points_delta` accepted patches that break a chart in silence.** An
+  empty points array applies cleanly and leaves the client holding a spec it
+  will not draw — so the *previous* numbers stay on screen reading as current,
+  and the chart disappears entirely on the next reload. Empty arrays and
+  out-of-range magnitudes are now refused, and the docstring says plainly which
+  remaining mistake (a wrong-length array) still fails invisibly and why a
+  snapshot is the right tool when the shape changes.
+
+### Documentation
+
+- **A pushed chart does not survive a reload, and now the docs say so.** When a
+  run succeeds, the stored thread is the *model's* message history — and a
+  pushed chart never enters that history, which is the whole reason to push it.
+  So it is absent from the stored thread and a reload has nothing to redraw. A
+  chart the agent asked for does survive, because its spec travels as the tool
+  call's arguments. Found by driving the real stack; both suites pass either
+  way, because the client-side store does persist activities.
+- **The chart docs still showed a mechanism that does not exist.** The
+  "Updating a chart in place" section — and the only example
+  `chart_points_delta` had — told you to `yield chart_activity(...)` into a
+  stream with no injection point. Rewritten around the tool-return route that
+  actually works.
+- **"What the client will refuse" listed three rules and omitted the two that
+  drop a chart without a word.** Magnitude and total-point bounds are now
+  documented with the reason each exists.
+
 ## [0.47.0] — 2026-08-25
 
 ### Added
@@ -2413,7 +2466,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.47.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.48.0...HEAD
+[0.48.0]: https://github.com/Artui/django-ag-ui/compare/v0.47.0...v0.48.0
 [0.47.0]: https://github.com/Artui/django-ag-ui/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/Artui/django-ag-ui/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/Artui/django-ag-ui/compare/v0.44.0...v0.45.0

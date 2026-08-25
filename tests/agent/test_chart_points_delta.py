@@ -40,3 +40,21 @@ def test_points_are_checked_the_way_a_snapshot_checks_them() -> None:
 
     with pytest.raises(ValueError, match="reads only JSON numbers"):
         chart_points_delta("c1", points=(Decimal("1.5"),))
+
+
+def test_an_empty_points_array_is_refused() -> None:
+    """It applies cleanly and then breaks the chart, which is the worst shape.
+
+    The patch succeeds, so the client updates its stored content; the spec is
+    then unreadable, so the chart is not redrawn -- leaving the *previous*
+    numbers on screen, reading as current, and vanishing entirely on reload.
+    """
+    with pytest.raises(ValueError, match="at least one point"):
+        chart_points_delta("c1", points=())
+
+
+def test_a_magnitude_the_client_refuses_is_caught_here_too() -> None:
+    # The snapshot path and the delta path have to agree; a bound enforced on
+    # only one of them is a gap a caller finds by accident.
+    with pytest.raises(ValueError, match="over the client's"):
+        chart_points_delta("c1", points=(1e300,))
