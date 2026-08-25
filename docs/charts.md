@@ -76,17 +76,27 @@ Pass the same `chart_id` again and the client replaces what is on screen rather
 than stacking a second copy — one chart moving, not two measurements.
 
 ```python
-yield chart_activity(spec, chart_id="throughput")
-...
-yield chart_activity(revised, chart_id="throughput")  # redraws in place
+@agent.tool_plain
+def watch_throughput() -> ToolReturn:
+    return ToolReturn(
+        return_value="Throughput chart shown.",
+        metadata=[
+            chart_activity(first, chart_id="throughput"),
+            chart_activity(revised, chart_id="throughput"),  # redraws in place
+        ],
+    )
 ```
 
-When only the numbers move, a patch is cheaper than re-sending the whole spec:
+`metadata` takes a list, so several events go out from one tool call. When only
+the numbers move, a patch is cheaper than re-sending the whole spec:
 
 ```python
 from django_ag_ui import chart_points_delta
 
-yield chart_points_delta("throughput", points=(14, 21, 11, 26, 20))
+return ToolReturn(
+    return_value="Throughput updated.",
+    metadata=chart_points_delta("throughput", points=(14, 21, 11, 26, 20)),
+)
 ```
 
 A delta is applied **positionally**, so it cannot tell that series 2 is now
@@ -136,7 +146,13 @@ series:
   misaligns every value after the gap, and a chart that is subtly wrong still
   reads as authoritative;
 - at least one label and one series;
-- labels are strings, and every point is a **finite `int` or `float`**.
+- labels — both the axis labels and each series' name — are strings, and the
+  title is a string or `None`;
+- every point is a **finite `int` or `float`** no larger than `1e15`. Two finite
+  extremes still give an infinite *range*, and the client divides by that range
+  to scale, so an unbounded value yields nothing drawable;
+- **at most 20,000 points** across all series. Drawing more blocks the browser's
+  main thread, and does so again on every reload of a stored conversation.
 
 That last one catches the mistake a Django app makes first. A `Sum` over a
 `DecimalField` returns `Decimal`, which serialises as a JSON *string* — the

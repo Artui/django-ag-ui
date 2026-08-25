@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
 
+from django_ag_ui.agent.chart_limits import MAX_POINTS, validate_point
 from django_ag_ui.agent.types.chart_kind import ChartKind
 from django_ag_ui.agent.types.chart_series import ChartSeries
 
@@ -21,7 +21,14 @@ class ChartSpec:
     server chooses the numbers and the browser chooses the DOM, which is what
     keeps a pushed visual off the sanitiser's surface entirely.
 
-    Frozen, and **not hashable** -- ``metadata`` is part of a spec's value, so
+    Frozen at the top level: ``labels``, ``series`` and the points inside them
+    are copied to tuples and ``metadata`` to a read-only mapping, so a list
+    handed in cannot be appended to after it has been checked. A **nested**
+    structure inside ``metadata`` is still shared with the caller, and nothing
+    reads it here anyway.
+
+    Frozen, and **not usefully hashable** -- ``__hash__`` exists but raises,
+    because ``metadata`` is part of a spec's value, so
     excluding it to buy a hash would make two specs carrying different payloads
     compare equal. That is the ordinary situation for a record with a mapping
     field; nothing here needs to be a dict key.
@@ -37,6 +44,8 @@ class ChartSpec:
     series: tuple[ChartSeries, ...]
     kind: ChartKind = "bar"
     title: str | None = None
+    """Shown above the chart. Anything but a string is refused rather than sent:
+    the client treats a non-string title as absent, so it would vanish quietly."""
     metadata: Mapping[str, Any] = field(default_factory=dict)
     """Extra keys merged into the payload, for a client that reads more than this
     package knows about.
@@ -72,17 +81,39 @@ class ChartSpec:
             raise ValueError("a chart needs at least one label")
         if not self.series:
             raise ValueError("a chart needs at least one series")
+        if self.title is not None and not isinstance(self.title, str):
+            raise ValueError(
+                f"title must be a string or None; got {type(self.title).__name__}, which "
+                f"the client reads as no title at all"
+            )
         for label in self.labels:
             if not isinstance(label, str):
                 raise ValueError(f"label {label!r} is not a string; the client refuses the spec")
+        total = len(self.labels) * len(self.series)
+        if total > MAX_POINTS:
+            raise ValueError(
+                f"this chart carries {total} points, over the client's {MAX_POINTS} limit; "
+                f"it would be refused on arrival, and drawing one that large would block "
+                f"the browser on every reload of the conversation"
+            )
         for entry in self.series:
+            if not isinstance(entry.label, str):
+                # Checked here rather than on ``ChartSeries`` so it is refused
+                # alongside the labels it sits beside; a lazy translation object
+                # is the likely culprit and it does not fail until encode time,
+                # which is mid-stream with the headers already sent.
+                raise ValueError(
+                    f"series label {entry.label!r} is not a string (got "
+                    f"{type(entry.label).__name__}); wrap a lazy translation in str() "
+                    f"before charting, or it fails when the event is serialised"
+                )
             if len(entry.points) != len(self.labels):
                 raise ValueError(
                     f"series {entry.label!r} has {len(entry.points)} points for "
                     f"{len(self.labels)} labels; every series needs one point per label"
                 )
             for point in entry.points:
-                validate_point(entry.label, point)
+                validate_point(f"series {entry.label!r}", point)
 
     def as_content(self) -> dict[str, Any]:
         """The activity payload the client reads."""
@@ -107,30 +138,4 @@ class ChartSpec:
         return content
 
 
-def validate_point(series: str, point: object) -> None:
-    """Refuse a number the client will not read as one.
-
-    ``Decimal`` is the case worth naming: a Django ``Sum`` over a
-    ``DecimalField`` is the likeliest source of chart numbers in this ecosystem,
-    and Pydantic serialises it as a JSON *string*. The client requires an actual
-    number and drops the whole chart -- with no error on either side. Refused
-    here rather than coerced, because rounding somebody's money to a float
-    behind their back is the wrong favour to do them; call ``float()`` on it
-    where you can see the precision you are giving up.
-
-    ``bool`` is excluded for the usual reason it is a surprise: it is an ``int``
-    to Python and would plot as 0 or 1 rather than announcing the mistake.
-    """
-    if isinstance(point, bool) or not isinstance(point, int | float):
-        raise ValueError(
-            f"series {series!r} has a point of type {type(point).__name__}; the client "
-            f"reads only JSON numbers, so convert it (float(...)) before charting"
-        )
-    if not math.isfinite(point):
-        raise ValueError(
-            f"series {series!r} has a non-finite point ({point!r}); it serialises as null "
-            f"and the client refuses the whole spec"
-        )
-
-
-__all__ = ["ChartSpec", "validate_point"]
+__all__ = ["ChartSpec"]
