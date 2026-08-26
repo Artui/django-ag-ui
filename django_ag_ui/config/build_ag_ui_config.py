@@ -28,6 +28,7 @@ def build_ag_ui_config(
     transcription_max_bytes: int | None = None,
     transcription_allowed_types: tuple[str, ...] | list[str] | None = None,
     thread_list_limit: int | None = None,
+    run_list_limit: int | None = None,
     approval_prompts: Mapping[str, str] | None = None,
     tool_guard: ToolGuardConfig | None = None,
     tool_failure: ToolFailureConfig | None = None,
@@ -83,6 +84,7 @@ def build_ag_ui_config(
             pick(transcription_allowed_types, "TRANSCRIPTION_ALLOWED_TYPES", ()) or ()
         ),
         thread_list_limit=int(pick(thread_list_limit, "THREAD_LIST_LIMIT", 200)),
+        run_list_limit=int(pick(run_list_limit, "RUN_LIST_LIMIT", 50)),
         approval_prompts=dict(pick(approval_prompts, "APPROVAL_PROMPTS", {}) or {}),
         tool_guard=tool_guard
         if tool_guard is not None

@@ -51,8 +51,9 @@ async def test_transcribes_via_the_openai_client(monkeypatch: pytest.MonkeyPatch
 
     assert text == "the transcript"
     # Default model + no base_url + the bounded default timeout; the audio rides
-    # as a (name, bytes, mime) tuple.
-    assert _FakeClient.init_kwargs == {"base_url": None, "timeout": 60.0}
+    # as a (name, bytes, mime) tuple. ``api_key=None`` is the SDK's own default,
+    # so an unconfigured backend still reads OPENAI_API_KEY from the environment.
+    assert _FakeClient.init_kwargs == {"api_key": None, "base_url": None, "timeout": 60.0}
     (call,) = _FakeClient.calls
     assert call["model"] == "whisper-1"
     assert call["file"] == ("clip.webm", b"audio-bytes", "audio/webm")
@@ -65,14 +66,42 @@ async def test_subclass_overrides_model_and_base_url(monkeypatch: pytest.MonkeyP
     class GroqTranscription(OpenAITranscriptionBackend):
         model = "whisper-large-v3"
         base_url = "https://api.groq.com/openai/v1"
+        api_key = "gsk-that-vendors-own-key"
 
     await GroqTranscription().transcribe(_audio(), request=_request())
 
     assert _FakeClient.init_kwargs == {
+        "api_key": "gsk-that-vendors-own-key",
         "base_url": "https://api.groq.com/openai/v1",
         "timeout": 60.0,
     }
     assert _FakeClient.calls[0]["model"] == "whisper-large-v3"
+
+
+async def test_a_third_party_endpoint_can_be_given_its_own_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``base_url`` and the key have to be settable together, or the key leaks.
+
+    Without an ``api_key`` seam the SDK sends ``OPENAI_API_KEY`` as the bearer
+    token to whatever host ``base_url`` names — so the documented recipe for
+    pointing at another vendor handed that vendor the OpenAI credential on every
+    clip, and showed a 401 for it. The only escapes were overriding
+    ``transcribe()`` or clobbering the environment variable process-wide, which
+    breaks the agent's own model.
+    """
+    _FakeClient.calls = []
+    monkeypatch.setattr("openai.AsyncOpenAI", _FakeClient)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-the-openai-one")
+
+    class OtherVendor(OpenAITranscriptionBackend):
+        base_url = "https://api.example.test/openai/v1"
+        api_key = "vendor-key"
+
+    await OtherVendor().transcribe(_audio(), request=_request())
+
+    assert _FakeClient.init_kwargs["api_key"] == "vendor-key"
+    assert "sk-the-openai-one" not in str(_FakeClient.init_kwargs)
 
 
 async def test_client_is_cached_across_calls(monkeypatch: pytest.MonkeyPatch) -> None:

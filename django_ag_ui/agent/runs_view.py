@@ -9,6 +9,8 @@ from django_pydantic_agent.persistence.anonymous_operation_error import Anonymou
 from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 from pydantic_ai.messages import UserPromptPart
 
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 
 # Long enough to tell two requests apart, short enough for one line of a picker.
@@ -49,6 +51,15 @@ class RunsView:
     show the time and an opaque id, and two runs a minute apart are
     indistinguishable.
 
+    **Bounded by ``RUN_LIST_LIMIT``, newest first.** A row is not cheap: each one
+    loads that run's last snapshot and holds its whole message list resident
+    while the response is built, so an account with a long history would
+    otherwise cost one query and one full transcript *per recorded run* on a
+    single GET. The newest ``run_list_limit`` runs are the ones expanded; the
+    rest are dropped before any snapshot is read. There is no ``?limit`` here,
+    unlike ``threads/``: the step-store protocol offers no offset, so a smaller
+    page would be a client asking for less of a list it cannot page through.
+
     **Newest first is this view's doing.** A ``StepStore`` answers oldest-first
     — the harness protocol documents ascending ``started_at`` so a caller can
     take the newest with ``[-1]`` — and a person scanning a list wants the newest
@@ -68,10 +79,12 @@ class RunsView:
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
         csrf_exempt: bool | None = None,
+        config: AGUIConfig | None = None,
     ) -> None:
         # A ``request -> StepStore`` factory, not a store: the harness protocol's
         # methods carry no request, so the store binds one and is built per call.
         self._step_store = step_store
+        self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
@@ -105,7 +118,7 @@ class RunsView:
 
     async def _list(self, request: HttpRequest) -> HttpResponseBase:
         store = self._step_store(request)
-        runs = await store.list_runs()
+        runs = _newest(await store.list_runs(), self._config.run_list_limit)
         rows = []
         for record in runs:
             # The same call ``resume`` makes, so ``continuable`` answers exactly
@@ -119,6 +132,22 @@ class RunsView:
         # ``started_at`` is absent.
         rows.reverse()
         return JsonResponse({"runs": rows})
+
+
+def _newest(runs: list[Any], limit: int) -> list[Any]:
+    """The last ``limit`` records of a store's ascending list, still ascending.
+
+    Applied *before* the per-run snapshot loads, which is the point: the cap
+    bounds the expensive half rather than trimming rows already paid for. A
+    ``limit`` of ``0`` disables it.
+
+    The store's own ``list_runs`` takes no limit — the harness protocol has none
+    to pass — so the metadata query itself stays unbounded. What this bounds is
+    the N snapshot loads and the N message lists held resident behind them.
+    """
+    if not limit:
+        return runs
+    return runs[-limit:]
 
 
 def _run_to_json(record: Any, *, snapshot: Any) -> dict[str, Any]:

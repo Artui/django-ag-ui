@@ -163,6 +163,29 @@ mechanism — the harness's `continue_run` and `fork_run` are data-identical —
 pick the verb that matches your intent, and target a new `threadId` when you want
 the branch to live in its own conversation.
 
+!!! warning "A branch may not land on top of an existing conversation"
+    A saved conversation is stored as a whole row, so seeding a thread from
+    another thread's run **replaces** what that thread held. `runs/` indexes
+    every run the owner has across all their threads, while a client resumes the
+    one it picked into whatever thread is open — which is how a user reading
+    thread B could pick a run from thread A and lose B's turns entirely.
+
+    So when a `conversation_store` is configured and the `threadId` you post
+    already has a stored conversation that the source run does not belong to,
+    the endpoint answers **`409`** and streams nothing:
+
+    ```json
+    {"error": "resuming that run would overwrite this thread",
+     "run_id": "abc", "thread_id": "t2"}
+    ```
+
+    Continuing a run in its own thread is unaffected, and so is branching one
+    into a `threadId` that holds nothing yet — the refusal is about overwriting,
+    not about crossing threads. A client that offers cross-thread checkpoints
+    should switch to the row's own `thread_id` (`runs/` reports it) or open a
+    new thread before resuming. Endpoints with no conversation store have
+    nothing to overwrite and are never refused.
+
 !!! warning
     Send a **fresh `run_id`** in the resumed request, and send only the **new**
     turn — the server supplies the prior history from the snapshot, so re-sending
@@ -224,3 +247,46 @@ another rather than listing near-identical transcripts side by side.
 Rows are owner-scoped by the store, and nothing on the wire names an owner —
 another user's runs are simply absent rather than a `403` that would confirm the
 id exists.
+
+**The response is capped at `RUN_LIST_LIMIT`** (default `50`, newest first),
+because a row is not cheap: each one loads that run's snapshot and holds its
+whole message list resident while the response is built. The cap is applied
+before those loads, so the runs it drops cost nothing. There is no `?limit=` on
+this route — the step-store protocol offers no offset, so a smaller page would
+only be a client asking for less of a list it cannot page through. Raise or
+disable it per endpoint with `build_ag_ui_config(run_list_limit=…)`.
+
+## Scoping two endpoints
+
+The ledger keys by `(owner_id, run_id)` and nothing else, so **two mounts handed
+the same `step_store` share one user's runs**. A run recorded at
+`/internal/agent` is listed by `/public/agent/runs/`, and since
+`resume/<run_id>/` addresses a run by id, the same user can continue that
+transcript under the public agent's model, tools and guard policy. Owner scoping
+cannot catch it: it is the same user on both mounts.
+
+[`ScopedStepStore`][django_ag_ui.ScopedStepStore] partitions the ledger by a
+scope name, the way `ScopedConversationStore` partitions thread history:
+
+```python
+internal = AGUIServer(
+    internal_registry,
+    namespace="internal-agent",
+    step_store=ScopedStepStore(DefaultStepStore, scope="internal"),
+)
+public = AGUIServer(
+    public_registry,
+    namespace="public-agent",
+    step_store=ScopedStepStore(DefaultStepStore, scope="public"),
+)
+```
+
+It wraps the **factory**, not a store, because that is what `step_store=` takes.
+The partition is a run-id prefix, so it composes with any implementation and
+needs no migration; a run belonging to another scope is simply not found, so a
+probe cannot confirm the id exists either. Run ids on the wire are unchanged —
+only the storage key carries the prefix.
+
+**Opt in explicitly.** Adding a scope to a mount that has been running hides
+that mount's earlier runs from `runs/` rather than migrating them, which is
+exactly why wrapping does not happen by itself.

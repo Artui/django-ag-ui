@@ -22,10 +22,10 @@ from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.authed_request_factory import AuthedRequestFactory
 
 
-def _run_input(content: str, run_id: str = "r1") -> bytes:
+def _run_input(content: str, run_id: str = "r1", thread_id: str = "t1") -> bytes:
     return json.dumps(
         {
-            "threadId": "t1",
+            "threadId": thread_id,
             "runId": run_id,
             "state": {},
             "messages": [{"id": "u1", "role": "user", "content": content}],
@@ -117,9 +117,19 @@ def test_view_is_marked_as_a_coroutine_function() -> None:
 
 async def test_non_post_is_rejected() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
-    request = RequestFactory().get("/agent/")
+    request = AuthedRequestFactory().get("/agent/")
     response = await view(request)
     assert response.status_code == 405
+
+
+async def test_an_unauthenticated_non_post_is_401_not_405() -> None:
+    # Otherwise an unauthenticated caller learns the route exists before
+    # presenting a credential, while the sibling views answer 401 — and which
+    # routes exist is exactly what says whether a deployment configured a
+    # conversation store, attachments, transcription, skills or step persistence.
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    response = await view(RequestFactory().get("/agent/"))
+    assert response.status_code == 401
 
 
 async def test_invalid_body_returns_400() -> None:
@@ -243,7 +253,7 @@ async def test_does_not_warn_under_asgi() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
     with warnings.catch_warnings():
         warnings.simplefilter("error")  # any RuntimeWarning would raise
-        # GET → 405, but the ASGIRequest path must not warn.
+        # GET → refused, but the ASGIRequest path must not warn.
         await view(AsyncRequestFactory().get("/agent/"))
 
 
@@ -569,6 +579,42 @@ async def test_seen_set_guards_three_way_name_collisions() -> None:
     # So the run gets the drf-mcp toolset and no attachment toolset — the spec
     # already owns ``read_attachment``.
     assert [type(t).__name__ for t in view._run_toolsets(request)] == ["DRFMCPToolset"]
+
+
+async def test_the_drf_mcp_bridge_exposes_the_servers_own_tools() -> None:
+    # The bridge excluded the names it was built to expose: the per-run toolset
+    # was handed the *claimed* set, which already folds in the server's whole
+    # registry, so every bridged tool was filtered out of its own toolset and
+    # the model saw none of them — silently, while GET tools/ went on
+    # advertising them.
+    from tests.integrations.drf_server import server as drf_server
+
+    view = DjangoAGUIView(_registry(), model=TestModel(), drf_mcp_server=drf_server)
+
+    (toolset,) = view._run_toolsets(AuthedRequestFactory().post("/agent/"))
+    tools = await toolset.get_tools(None)
+
+    assert set(tools) == {"add", "invalid", "denied"}
+
+
+async def test_a_registry_tool_still_beats_a_bridged_tool_of_the_same_name() -> None:
+    # The exclusion the bridge *does* owe: the registry wins a collision, or
+    # pydantic-ai raises UserError for the duplicate name mid-run.
+    from tests.integrations.drf_server import server as drf_server
+
+    registry = ToolRegistry()
+
+    @tool(registry)
+    def add(a: int, b: int) -> int:
+        """A registry tool shadowing the bridged one."""
+        return a + b
+
+    view = DjangoAGUIView(registry, model=TestModel(), drf_mcp_server=drf_server)
+
+    (toolset,) = view._run_toolsets(AuthedRequestFactory().post("/agent/"))
+    tools = await toolset.get_tools(None)
+
+    assert set(tools) == {"invalid", "denied"}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -923,6 +969,148 @@ async def test_resume_cannot_reach_another_owners_run() -> None:
     )
     response = await view_b(_post(_run_input("double 9", run_id="r2")), resume_from="r1")
     assert response.status_code == 404
+
+
+class _ThreadStore:
+    """A conversation store holding one row per thread id."""
+
+    def __init__(self) -> None:
+        self.rows: dict[str, Any] = {}
+
+    async def save(self, conversation: Any, *, request: Any) -> None:
+        self.rows[conversation.thread_id] = conversation
+
+    async def load(self, thread_id: str, *, request: Any) -> Any:
+        return self.rows.get(thread_id)
+
+    async def delete(self, thread_id: str, *, request: Any) -> None:
+        self.rows.pop(thread_id, None)
+
+    async def list(self, *, request: Any, limit: int | None = None) -> list[Any]:
+        return []
+
+    async def exists(self, thread_id: str, *, request: Any) -> bool:
+        return thread_id in self.rows
+
+    async def rename(self, thread_id: str, title: str, *, request: Any) -> None:
+        return None
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_resuming_another_threads_run_cannot_overwrite_the_open_thread() -> None:
+    """The data-loss case: the run index spans threads, the client does not.
+
+    ``runs/`` lists every run the owner has, in any thread, but a client
+    resumes the picked run into whatever thread is currently open — and the
+    save is a whole-row replace. Before the refusal, the open thread's own
+    turns were gone and it held the source thread's conversation instead:
+    silent, irreversible, and invisible until the user reopened it.
+    """
+    from asgiref.sync import sync_to_async
+    from django.contrib.auth import get_user_model
+
+    user = await sync_to_async(get_user_model().objects.create)(username="switcher")
+    store = _ThreadStore()
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        step_store=DefaultStepStore,
+        conversation_store=store,
+        get_user=lambda _r: user,
+    )
+
+    # Thread A holds the run the checkpoint drawer will offer.
+    await _drain(await view(_post(_run_input("double 5", run_id="r1", thread_id="tA"))))
+    # Thread B is what the user is actually looking at.
+    await _drain(await view(_post(_run_input("double 7", run_id="r2", thread_id="tB"))))
+    before = store.rows["tB"].messages
+
+    response = await view(
+        _post(_run_input("and now sort them", run_id="r3", thread_id="tB")), resume_from="r1"
+    )
+
+    assert response.status_code == 409
+    payload = json.loads(response.content)
+    assert payload["run_id"] == "r1"
+    assert payload["thread_id"] == "tB"
+    # Thread B is untouched, and never adopted thread A's conversation.
+    assert store.rows["tB"].messages == before
+    assert "double 5" not in json.dumps(store.rows["tB"].messages)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_resuming_into_a_thread_that_holds_nothing_still_branches() -> None:
+    # Branching a run into its own conversation is the documented way to fork,
+    # so the refusal has to be about *overwriting*, not about crossing threads.
+    from asgiref.sync import sync_to_async
+    from django.contrib.auth import get_user_model
+
+    user = await sync_to_async(get_user_model().objects.create)(username="brancher")
+    store = _ThreadStore()
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        step_store=DefaultStepStore,
+        conversation_store=store,
+        get_user=lambda _r: user,
+    )
+    await _drain(await view(_post(_run_input("double 5", run_id="r1", thread_id="tA"))))
+
+    body = await _drain(
+        await view(_post(_run_input("double 9", run_id="r2", thread_id="tNew")), resume_from="r1")
+    )
+
+    assert "RUN_FINISHED" in body
+    assert "double 5" in json.dumps(store.rows["tNew"].messages)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_stateless_endpoint_never_refuses_a_cross_thread_resume() -> None:
+    # With the default NullConversationStore there is no stored thread to
+    # overwrite, so the refusal must not reach a stateless mount at all.
+    from asgiref.sync import sync_to_async
+    from django.contrib.auth import get_user_model
+
+    user = await sync_to_async(get_user_model().objects.create)(username="stateless")
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        step_store=DefaultStepStore,
+        get_user=lambda _r: user,
+    )
+    await _drain(await view(_post(_run_input("double 5", run_id="r1", thread_id="tA"))))
+
+    body = await _drain(
+        await view(_post(_run_input("double 9", run_id="r2", thread_id="tB")), resume_from="r1")
+    )
+
+    assert "RUN_FINISHED" in body
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_resuming_the_same_thread_is_never_refused() -> None:
+    from asgiref.sync import sync_to_async
+    from django.contrib.auth import get_user_model
+
+    user = await sync_to_async(get_user_model().objects.create)(username="continuer")
+    store = _ThreadStore()
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        step_store=DefaultStepStore,
+        conversation_store=store,
+        get_user=lambda _r: user,
+    )
+    await _drain(await view(_post(_run_input("double 5", run_id="r1", thread_id="tA"))))
+
+    body = await _drain(
+        await view(_post(_run_input("double 9", run_id="r2", thread_id="tA")), resume_from="r1")
+    )
+
+    assert "RUN_FINISHED" in body
+    stored = json.dumps(store.rows["tA"].messages)
+    assert "double 5" in stored
+    assert "double 9" in stored
 
 
 class TestTheThrottleHook:

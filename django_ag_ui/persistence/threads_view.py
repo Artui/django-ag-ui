@@ -20,6 +20,7 @@ from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.utils import stored_messages_to_wire
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
+from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 
 # The model stores back ``title`` with ``CharField(max_length=255)``; cap the
 # rename here (truncate — a title is cosmetic) so an over-long PATCH is a clean
@@ -67,6 +68,7 @@ class ThreadsView:
         # Load-bearing here, unlike on the read-only catalogs: rename is PATCH
         # and delete is DELETE, so CsrfViewMiddleware checks both. Listing and
         # reading a thread are GET and are never affected.
+        warn_if_csrf_unstated(csrf_exempt, get_user)
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
         # Mark this callable instance async so Django awaits ``__call__``.
         markcoroutinefunction(cast("Any", self))

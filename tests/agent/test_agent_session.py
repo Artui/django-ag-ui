@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from types import SimpleNamespace
 from typing import Any
 
 from django.test import RequestFactory, override_settings
@@ -18,6 +19,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.render_untrusted_context import SENTINEL
+from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 
@@ -58,7 +60,7 @@ def _session(
         agent if agent is not None else Agent(TestModel()),
         run_input if run_input is not None else _run_input(),
         RequestFactory().post("/agent/"),
-        deps=deps if deps is not None else AgentDeps(),
+        deps=deps if deps is not None else AgentDeps(user=None),
         audit_logger=NullAuditLogger(),
         config=config if config is not None else build_ag_ui_config(),
         conversation_store=(
@@ -466,7 +468,7 @@ async def test_a_run_that_errors_is_audited_at_the_run_level() -> None:
         _failing_agent(),
         _run_input(),
         RequestFactory().post("/agent/"),
-        deps=AgentDeps(),
+        deps=AgentDeps(user=None),
         audit_logger=audit,
         config=build_ag_ui_config(),
         conversation_store=NullConversationStore(),
@@ -866,3 +868,187 @@ async def test_a_resumed_runs_server_history_is_dumped_without_its_bytes() -> No
     assert PDF_B64 not in json.dumps(conversation.messages)
     contents = [message["content"] for message in conversation.messages]
     assert contents[:3] == ["older question", "older answer", "hi"]
+
+
+# --- what a run pays for when nothing reads it back ------------------------------
+
+
+class _CountingTranscript(RunTranscript):
+    """A transcript that records whether anything was ever handed to it."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.observed: list[Any] = []
+
+    def add(self, event: Any) -> None:
+        self.observed.append(event)
+        super().add(event)
+
+
+def _counting_transcripts(monkeypatch: Any) -> list[_CountingTranscript]:
+    built: list[_CountingTranscript] = []
+
+    def _build() -> _CountingTranscript:
+        transcript = _CountingTranscript()
+        built.append(transcript)
+        return transcript
+
+    monkeypatch.setattr("django_ag_ui.agent.agent_session.RunTranscript", _build)
+    return built
+
+
+async def test_nothing_is_buffered_when_there_is_no_store_to_persist_it(
+    monkeypatch: Any,
+) -> None:
+    # The transcript exists so a *cancelled or failed* run can still be
+    # persisted. With the default NullConversationStore nothing reads it back,
+    # and buffering every text and tool-argument delta of every concurrent run
+    # for the length of the stream is a cost with no reader.
+    built = _counting_transcripts(monkeypatch)
+
+    await _events(_session())
+
+    (transcript,) = built
+    assert transcript.observed == []
+
+
+async def test_the_transcript_is_buffered_when_a_store_will_read_it(
+    monkeypatch: Any,
+) -> None:
+    built = _counting_transcripts(monkeypatch)
+
+    await _events(_session(_failing_agent(), conversation_store=_RecordingStore()))
+
+    (transcript,) = built
+    assert transcript.observed != []
+
+
+async def test_the_prior_conversation_is_not_dumped_when_nothing_persists(
+    monkeypatch: Any,
+) -> None:
+    # Both non-completing exits eagerly built the prior message list and closed
+    # over it while composing the stream, so a resumed run held two independent
+    # copies of the whole conversation for the stream's lifetime — computed
+    # even with persistence off, where the finalizer can never use them.
+    calls: list[int] = []
+    original = AgentSession._prior_messages
+
+    def _counting(self: AgentSession) -> Any:
+        calls.append(1)
+        return original(self)
+
+    monkeypatch.setattr(AgentSession, "_prior_messages", _counting)
+
+    await _events(_session(_failing_agent(), message_history=_server_history()))
+
+    assert calls == []
+
+
+async def test_the_prior_conversation_is_dumped_at_most_once_per_run() -> None:
+    session = _session(conversation_store=_RecordingStore(), message_history=_server_history())
+
+    first = session._prior_messages()
+
+    assert session._prior_messages() is first
+
+
+# --- what a failing run tells the browser ----------------------------------------
+
+
+async def test_a_run_error_does_not_stream_the_exception_text() -> None:
+    # RUN_ERROR carried str(exception) straight to the browser — an ORM error's
+    # SQL and connection target, an OSError's server path, a provider 401
+    # echoing a masked key — which is the disclosure INCLUDE_DETAIL exists to
+    # withhold at the tool level.
+    joined = await _events(_session(_failing_agent()))
+
+    assert "RUN_ERROR" in joined
+    assert "kaboom" not in joined
+
+
+@override_settings(DJANGO_AG_UI={"TOOL_FAILURE": {"INCLUDE_DETAIL": True}})
+async def test_include_detail_opts_the_run_level_error_in_too() -> None:
+    joined = await _events(_session(_failing_agent()))
+
+    assert "kaboom" in joined
+
+
+async def test_the_operators_copy_of_a_run_error_keeps_the_detail() -> None:
+    # Redaction is client-side only: the audit record is the operator's copy.
+    audit = _RecordingAudit()
+    session = AgentSession(
+        _failing_agent(),
+        _run_input(),
+        RequestFactory().post("/agent/"),
+        deps=AgentDeps(user=None),
+        audit_logger=audit,
+        config=build_ag_ui_config(),
+        conversation_store=NullConversationStore(),
+    )
+
+    await _events(session)
+
+    (run_event,) = [e for e in audit.events if e.tool_name == "agent.run"]
+    assert "kaboom" in (run_event.error or "")
+
+
+# --- who a stored conversation belongs to ----------------------------------------
+
+
+def _session_for(request: Any, store: Any) -> AgentSession:
+    return AgentSession(
+        Agent(TestModel()),
+        _run_input(),
+        request,
+        deps=AgentDeps(user=None),
+        audit_logger=NullAuditLogger(),
+        config=build_ag_ui_config(),
+        conversation_store=store,
+    )
+
+
+async def test_an_anonymous_run_scopes_the_conversation_to_the_browser_session() -> None:
+    # ``Conversation.owner_id`` is documented as the authorization scope, so
+    # handing every anonymous visitor the same ``None`` collapses them into one
+    # partition in any store that keys on the field as invited.
+    request = RequestFactory().post("/agent/")
+    request.session = SimpleNamespace(session_key="sess-abc")
+    store = _RecordingStore()
+
+    await _events(_session_for(request, store))
+
+    (conversation,) = store.saved
+    assert conversation.owner_id == "anon:sess-abc"
+
+
+async def test_two_anonymous_browsers_do_not_share_one_owner_scope() -> None:
+    owners = []
+    for key in ("sess-a", "sess-b"):
+        request = RequestFactory().post("/agent/")
+        request.session = SimpleNamespace(session_key=key)
+        store = _RecordingStore()
+        await _events(_session_for(request, store))
+        owners.append(store.saved[0].owner_id)
+
+    assert owners[0] != owners[1]
+
+
+async def test_an_authenticated_run_still_scopes_to_the_user() -> None:
+    request = RequestFactory().post("/agent/")
+    request.user = SimpleNamespace(is_authenticated=True, pk=7)
+    request.session = SimpleNamespace(session_key="sess-abc")
+    store = _RecordingStore()
+
+    await _events(_session_for(request, store))
+
+    assert store.saved[0].owner_id == "7"
+
+
+async def test_a_request_without_a_session_still_saves() -> None:
+    # No session middleware: there is no per-visitor key to be had, so the
+    # scope stays unset rather than inventing one.
+    store = _RecordingStore()
+
+    await _events(_session_for(RequestFactory().post("/agent/"), store))
+
+    assert store.saved[0].owner_id is None
