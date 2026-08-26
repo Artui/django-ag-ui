@@ -7,6 +7,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Resuming a checkpoint from one thread could destroy another thread's stored
+  conversation, and may already have.** A saved conversation is written as a
+  whole row, `runs/` indexes every run an owner has across *all* their threads,
+  and a client resumes the run it picked into whatever thread is currently open.
+  A user reading thread B who picked a run belonging to thread A therefore ended
+  up with A's conversation stored under B and B's own turns gone — silently,
+  irreversibly, and invisibly until they reopened B. **If you run a
+  `conversation_store` together with a `step_store`, assume this can have
+  happened and check your backups before upgrading changes anything.** The
+  endpoint now answers `409` and streams nothing when seeding the posted
+  `threadId` from that run would replace a conversation the run does not belong
+  to. Continuing a run in its own thread is unaffected; so is branching one into
+  a thread that holds nothing yet, and so is any endpoint with no conversation
+  store. See [Resume and fork](https://artui.github.io/django-ag-ui/step-persistence/).
+
+- **`drf_mcp_server=` exposed no tools at all.** The per-request bridge was
+  handed the set of *already claimed* names, which by construction contains
+  every tool the drf-mcp server registers — so the toolset excluded the whole
+  registry it exists to expose and returned nothing, on every request, while
+  `GET tools/` went on advertising those same tools. Any endpoint configured
+  with a drf-mcp server has been running with none of its bridged tools
+  reachable by the model, with no error anywhere. The bridge now excludes only
+  the `@tool` registry's names, which is the collision it actually owes.
+
+- **A failing run streamed the raw exception text to the browser.** `RUN_ERROR`
+  carried `str(exception)` verbatim — an ORM error's SQL and connection target,
+  an `OSError`'s server path, a provider `401` echoing a masked key — the
+  disclosure `TOOL_FAILURE["INCLUDE_DETAIL"]` exists to withhold one level down,
+  and one that no failure policy covered: errors raised by the store, the
+  adapter or the model client take this path whatever the policy is doing. The
+  same setting now governs both. Operator copies are unchanged: the full
+  exception still reaches the audit record and the Python logger.
+
+- **The agent endpoint answered `405` before authenticating.** An
+  unauthenticated caller learned the route existed, while every sibling view
+  answers `401` — and since optional routes are mounted only when their backend
+  is configured, the difference let an unauthenticated caller enumerate which
+  backends a deployment had enabled. It authenticates first now, as the sibling
+  views do.
+
+- **Anonymous runs handed every conversation store the same `owner_id`.**
+  `Conversation.owner_id` is documented as the authorization scope, so `None`
+  for every anonymous visitor collapses them into one partition in a store that
+  keys on the field as invited — one visitor's thread list answering another's.
+  An anonymous run is now scoped to its browser session, the same bucket the
+  reference stores derive for themselves. An existing session key is used and
+  never created, so a deployment without session middleware still answers
+  `None`: there is no per-visitor key to be had.
+
+- **A client disconnect could park a worker in teardown, or lose the run's
+  record entirely.** The cancelled-run finalisation — a conversation save plus
+  an audit write — ran inline in the disconnected request's own task with no
+  time bound, so repeated cheap aborts against a slow store turned into workers
+  stuck in teardown. It is shielded and time-bounded now: past the bound the
+  write is left to land on its own and the wait ends. The guard around it also
+  caught `Exception` only, which does not cover `CancelledError`, so a store
+  torn down mid-write lost both the partial conversation and the cancellation
+  audit record with nothing logged — leaving the run reading as neither
+  completed nor cancelled. A failing stream teardown no longer costs the
+  finalisation either.
+
+### Changed
+
+- **The default system prompt no longer promises a confirmation step the
+  deployment may not have.** It told the model the interface shows an explicit
+  confirmation before a destructive action runs, and in the same breath told it
+  not to ask in text — but the only server-side gate is opt-in and off by
+  default, so on stock settings the prompt removed the last check rather than
+  describing one. It now says the application decides which actions need a
+  confirmation and may interrupt the call to collect one, and asks the model to
+  check for itself before a destructive or irreversible action the user did not
+  clearly ask for. Set `DJANGO_AG_UI["SYSTEM_PROMPT"]` to keep your own wording.
+
+### Performance
+
+- **A run with persistence off no longer buffers what nothing will read.** The
+  transcript that lets a cancelled or failed run be persisted was recorded
+  unconditionally — every text and tool-argument delta held as its own object
+  for the length of the stream — including under the default
+  `NullConversationStore`, where it is discarded at the end. It is now recorded
+  only where a store will read it back.
+
+- **The prior conversation is dumped once per run, and not at all when nothing
+  persists.** Both non-completing exits eagerly dumped and stripped the whole
+  prior conversation while the stream was being composed, and each closure held
+  its own copy for the run's lifetime — so a resumed or forked run carried two
+  to three independent copies of its history on top of what the run itself
+  needed, computed even with persistence off, where they could never be used.
+
 ## [0.48.0] — 2026-08-25
 
 ### Added

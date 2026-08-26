@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
+import django_ag_ui.agent.guarded_stream as guarded_stream_module
 from django_ag_ui.agent.guarded_stream import guarded_stream
 
 
@@ -149,4 +150,99 @@ async def test_native_stream_without_aclose_is_tolerated() -> None:
     )
     assert await anext(stream) == "a"
     await stream.aclose()
+    assert calls == ["cancelled"]
+
+
+async def test_a_second_cancellation_during_finalisation_is_logged_not_lost(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # ``CancelledError`` has inherited from ``BaseException`` since 3.8, so an
+    # ``except Exception`` around the finalisation never saw it: a store torn
+    # down mid-write lost both the partial conversation and the cancellation
+    # audit record, with nothing logged and the run reading as neither
+    # completed nor cancelled.
+    async def _recancelled() -> None:
+        raise asyncio.CancelledError
+
+    recorder = _Recorder()
+    stream = guarded_stream(
+        _blocking_after("a"),
+        native_events=recorder.native(),
+        on_cancel=_recancelled,
+    )
+    assert await anext(stream) == "a"
+
+    with caplog.at_level(logging.ERROR, logger="django_ag_ui.agent"):
+        await stream.aclose()
+
+    assert "finalizing a cancelled run" in caplog.text
+
+
+async def test_a_slow_store_does_not_park_the_disconnected_request(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # An aborted connection is cheap for the client and used to be open-ended
+    # for the server: the conversation save and the audit write ran inline in
+    # the disconnected request's task with no time bound, so a contended store
+    # turned cheap aborts into workers parked in teardown.
+    monkeypatch.setattr(guarded_stream_module, "_FINALIZE_TIMEOUT_SECONDS", 0.01)
+    started = asyncio.Event()
+    finished: list[str] = []
+
+    async def _slow_cancel() -> None:
+        started.set()
+        await asyncio.sleep(0.2)
+        finished.append("saved")
+
+    recorder = _Recorder()
+    stream = guarded_stream(
+        _blocking_after("a"),
+        native_events=recorder.native(),
+        on_cancel=_slow_cancel,
+    )
+    assert await anext(stream) == "a"
+
+    with caplog.at_level(logging.WARNING, logger="django_ag_ui.agent"):
+        await asyncio.wait_for(stream.aclose(), timeout=0.1)
+
+    assert "continues in the background" in caplog.text
+    # Shielded rather than abandoned: the write is still allowed to land.
+    assert started.is_set()
+    await asyncio.sleep(0.25)
+    assert finished == ["saved"]
+
+
+async def test_a_failing_teardown_does_not_cost_the_finalisation(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # Closing the provider's stream and recording what the run did are two
+    # separate obligations; sharing one handler meant a teardown that blew up
+    # took the conversation save and the audit record with it.
+    class _BrokenNative:
+        def __aiter__(self) -> _BrokenNative:
+            return self
+
+        async def __anext__(self) -> str:
+            raise StopAsyncIteration
+
+        async def aclose(self) -> None:
+            raise RuntimeError("provider teardown failed")
+
+    calls: list[str] = []
+
+    async def _on_cancel() -> None:
+        calls.append("cancelled")
+
+    stream = guarded_stream(
+        _blocking_after("a"),
+        native_events=_BrokenNative(),
+        on_cancel=_on_cancel,
+    )
+    assert await anext(stream) == "a"
+
+    with caplog.at_level(logging.ERROR, logger="django_ag_ui.agent"):
+        await stream.aclose()
+
+    assert "provider teardown failed" in caplog.text
     assert calls == ["cancelled"]

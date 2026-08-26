@@ -14,7 +14,7 @@ from django_pydantic_agent.persistence.anonymous_operation_error import Anonymou
 from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
 from django_pydantic_agent.persistence.types.conversation import Conversation
 from django_pydantic_agent.persistence.types.conversation_store import ConversationStore
-from django_pydantic_agent.persistence.utils import owner_id_for
+from django_pydantic_agent.persistence.utils import owner_id_for, resolve_owner_id
 from django_pydantic_agent.policy.audit.types.audit_event import AuditEvent
 from django_pydantic_agent.policy.audit.types.audit_logger import AuditLogger
 from pydantic_ai import Agent
@@ -88,6 +88,10 @@ class AgentSession:
         # run loads it from the step store). ``None`` for a normal run, where the
         # client owns the prior turns and sends them in ``run_input``.
         self._message_history = message_history
+        # Memoised on first use rather than built here: dumping the prior
+        # conversation is proportional to its whole length, and a run with
+        # nothing to persist to never needs it at all.
+        self._prior: list[Message] | None = None
         self._forward_reasoning = config.forward_reasoning
         self._adapter = AGUIAdapter(
             agent,
@@ -130,11 +134,18 @@ class AgentSession:
         # nothing should not pay for that on every run.
         if self._config.approval_prompts:
             events = stamp_approval_prompts(events, prompts=self._config.approval_prompts)
+        # Recording costs the run's whole output — every text and tool-argument
+        # delta held as its own object for the length of the stream — so it is
+        # paid for only where something reads it back. The transcript exists to
+        # persist a run that never completes, and with the default
+        # ``NullConversationStore`` there is nowhere to persist it to.
+        if self._persists():
+            events = transcript.observe(events)
         # The third exit. ``on_complete`` covers a run that finishes and the
         # guard below covers a client that disconnects; the adapter offers no
         # error callback, so the terminal event is the only hook a *failing* run
         # can be persisted from.
-        observed = self._persist_on_error(transcript.observe(events), transcript)
+        observed = self._persist_on_error(events, transcript)
         return guarded_stream(
             self._adapter.encode_stream(observed),
             native_events=native,
@@ -174,12 +185,40 @@ class AgentSession:
         ``RUN_ERROR`` arrives the transcript already holds the closing tool
         results the adapter emits for interrupted calls. Persisting any earlier
         would store a truncated exchange.
+
+        The event's own text is redacted on its way out — see
+        ``_client_facing_error``. The operator's copies are taken first, from
+        the unredacted message.
         """
         finalize = self._on_error(transcript)
         async for event in events:
             if isinstance(event, RunErrorEvent):
                 await finalize(event.message)
+                event = self._client_facing_error(event)
             yield event
+
+    def _client_facing_error(self, event: RunErrorEvent) -> RunErrorEvent:
+        """``event`` with its exception text withheld, unless detail is opted in.
+
+        Pydantic-AI builds ``RUN_ERROR`` as ``str(error)``, so an unhandled
+        exception's own words reach the browser and are rendered in the
+        transcript: an ORM error carrying SQL and a connection target, an
+        ``OSError`` carrying a server path, a provider ``401`` echoing a masked
+        key. That is the disclosure ``TOOL_FAILURE["INCLUDE_DETAIL"]`` exists to
+        withhold one level down, and it is the same question, so it is the same
+        answer — an exception message is written for an operator, not for a
+        browser. The operator's copies keep the detail either way: the audit
+        record is taken from the unredacted message above.
+
+        Errors raised *outside* a tool — the store, the adapter, the model
+        client — take this path whatever the failure policy is doing, which is
+        why the redaction lives here rather than in the policy.
+        """
+        if self._config.tool_failure.include_detail:
+            return event
+        return event.model_copy(
+            update={"message": "The run failed. The failure has been recorded."}
+        )
 
     def _prior_messages(self) -> list[Message]:
         """Everything before this run's own output, in the client's own shape.
@@ -205,11 +244,19 @@ class AgentSession:
         types, where a prior run's ``read_attachment`` return still holds the
         file, so dumping it unstripped would write that file back into the row as
         base64. What the client posted is not this server's to edit.
+
+        Memoised, because the answer cannot change during a run and up to three
+        exits ask for it: a resumed run would otherwise dump, strip and retain
+        an independent copy of the whole prior conversation for each. Callers
+        splat the result rather than holding it, so the one list is shared
+        safely.
         """
-        return [
-            *strip_binary_content(AGUIAdapter.dump_messages(self._message_history or [])),
-            *self._run_input.messages,
-        ]
+        if self._prior is None:
+            self._prior = [
+                *strip_binary_content(AGUIAdapter.dump_messages(self._message_history or [])),
+                *self._run_input.messages,
+            ]
+        return self._prior
 
     def _on_complete(self) -> Callable[[Any], Awaitable[None]] | None:
         """The adapter's ``on_complete`` callback persisting the conversation.
@@ -236,6 +283,40 @@ class AgentSession:
 
         return _on_complete
 
+    def _persists(self) -> bool:
+        """Whether this run has anywhere to store what it produces.
+
+        The default is ``NullConversationStore``, and the stateless path should
+        pay for none of the machinery persistence needs — neither the buffered
+        transcript nor the dumped prior conversation.
+        """
+        return not isinstance(self._conversation_store, NullConversationStore)
+
+    def _owner_id(self) -> str | None:
+        """The owner scope stamped onto the stored conversation.
+
+        ``Conversation.owner_id`` is documented as the authorization scope, so
+        handing every anonymous visitor the same ``None`` collapses them into
+        one partition in any store that keys on the field as invited — visitor
+        B's thread list would be visitor A's. An anonymous request is therefore
+        scoped to the browser session instead, the same ``anon:<session_key>``
+        bucket the reference stores derive for themselves.
+
+        An existing session key is *used*, never created: this runs on the event
+        loop, where creating one is a database write, and a store that refuses
+        anonymous writes (the default) would have made that row for nothing. So
+        a deployment with no session middleware still answers ``None`` — there
+        is no per-visitor key to be had, and inventing one would be worse than
+        saying so.
+        """
+        owner_id = owner_id_for(self._request)
+        if owner_id is not None:
+            return owner_id
+        session = getattr(self._request, "session", None)
+        if getattr(session, "session_key", None) is None:
+            return None
+        return resolve_owner_id(self._request, allow_anonymous=True)
+
     def _message_saver(self) -> Callable[[list[Message]], Awaitable[None]] | None:
         """A closure persisting AG-UI messages to the configured store.
 
@@ -244,10 +325,10 @@ class AgentSession:
         two persist with identical thread/owner scoping.
         """
         store: ConversationStore = self._conversation_store
-        if isinstance(store, NullConversationStore):
+        if not self._persists():
             return None
         thread_id: str = self._run_input.thread_id
-        owner_id = owner_id_for(self._request)
+        owner_id = self._owner_id()
         request = self._request
 
         async def _save(messages: list[Message]) -> None:
@@ -288,11 +369,17 @@ class AgentSession:
         messages out of AG-UI *events*, and inlined file bytes never travel the
         event stream — they exist only in dumped messages, which are stripped
         where they are dumped.
+
+        The prior conversation is read **inside** ``_finalize`` rather than
+        closed over: this runs once while the stream is composed and again on
+        the generator's first step, so computing it here dumped and retained a
+        second copy of the whole thread before a single token had streamed —
+        and did it even with persistence off, where ``save`` is ``None`` and it
+        can never be used.
         """
         save = self._message_saver()
         audit = self._audit_logger
         started = time.perf_counter()
-        prior = self._prior_messages()
         run_ref = json.dumps(
             {"run_id": self._run_input.run_id, "thread_id": self._run_input.thread_id},
             sort_keys=True,
@@ -301,7 +388,7 @@ class AgentSession:
 
         async def _finalize(error: str) -> None:
             if save is not None:
-                await save([*prior, *transcript.messages()])
+                await save([*self._prior_messages(), *transcript.messages()])
             audit.record(
                 AuditEvent(
                     tool_name="agent.run",

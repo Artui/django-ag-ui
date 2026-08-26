@@ -835,6 +835,15 @@ The operator's copy is never redacted. The full exception reaches your
 `AuditLogger` and the `django_pydantic_agent.failure` Python logger either way,
 recorded against the tool that raised it.
 
+**`INCLUDE_DETAIL` governs the run-level `RUN_ERROR` event as well**, not just
+the model-facing tool result. Pydantic-AI builds that event out of
+`str(exception)`, so a failure the policy never sees — one raised by the store,
+the adapter or the model client, or any failure at all with `ENABLED: False` —
+used to deliver its own words to the browser. It is the same disclosure
+question, so it gets the same answer: with `INCLUDE_DETAIL` off the client is
+told the run failed and that the failure was recorded, and the exception stays
+in the audit record and the server log.
+
 Note it spends no retry budget, so a model may call a persistently broken tool
 again. Bound that with run-level `UsageLimits`, not with this.
 

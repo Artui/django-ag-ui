@@ -173,11 +173,17 @@ class DjangoAGUIView:
         new turn.
         """
         self._warn_if_not_asgi(request)
-        if request.method != "POST":
-            return HttpResponseNotAllowed(["POST"])
+        # Authenticate before answering *anything* about the route, including
+        # which methods it takes. The sibling views already do, and the
+        # asymmetry was itself the disclosure: a mount only carries threads/,
+        # attachments/, transcribe/, skills/ and runs/ when their backend is
+        # configured, so a 405 here against a 404 there told an unauthenticated
+        # caller which optional backends a deployment had enabled.
         deny = await self._authorize(request)
         if deny is not None:
             return auth_error_response(deny)
+        if request.method != "POST":
+            return HttpResponseNotAllowed(["POST"])
         throttled = await self._throttled(request)
         if throttled is not None:
             return throttled
@@ -192,10 +198,22 @@ class DjangoAGUIView:
             )
         message_history: list[Any] | None = None
         if resume_from is not None:
-            message_history = await self._load_resume_history(request, resume_from)
-            if message_history is None:
+            loaded = await self._load_resume_history(request, resume_from)
+            if loaded is None:
                 return JsonResponse(
                     {"error": "no resumable run", "run_id": resume_from}, status=404
+                )
+            message_history, source_thread_id = loaded
+            if await self._would_overwrite_another_thread(
+                request, source_thread_id, run_input.thread_id
+            ):
+                return JsonResponse(
+                    {
+                        "error": "resuming that run would overwrite this thread",
+                        "run_id": resume_from,
+                        "thread_id": run_input.thread_id,
+                    },
+                    status=409,
                 )
         # The transport ends here: the run's orchestration (adapter, stream
         # composition, persistence, cancel handling) lives on AgentSession.
@@ -286,6 +304,14 @@ class DjangoAGUIView:
             ),
         )
 
+    def _registry_names(self) -> set[str]:
+        """The ``@tool`` registry's own names — the first claim in the precedence.
+
+        Computed fresh per call rather than cached, because callers mutate the
+        set they are handed.
+        """
+        return {binding.spec.name for binding in self._registry}
+
     def _claimed_names(self) -> set[str]:
         """Tool names already spoken for, in ``build_tool_catalog``'s precedence.
 
@@ -293,10 +319,13 @@ class DjangoAGUIView:
         earlier one claimed, so a name exposed by two of them cannot reach
         pydantic-ai as a duplicate and raise ``UserError`` mid-run while the
         catalog looks clean. Every name here is fixed at construction — only the
-        *objects* are request-bound. Computed fresh per call rather than cached,
-        because callers mutate the set they are handed.
+        *objects* are request-bound.
+
+        **This is what a later source excludes, so it is not what the drf-mcp
+        bridge starts from** — it already contains the bridge's own names. See
+        ``_run_toolsets``.
         """
-        seen: set[str] = {binding.spec.name for binding in self._registry}
+        seen = self._registry_names()
         if self._drf_mcp_server is not None:
             seen.update(binding.name for binding in self._drf_mcp_server.tools.all())
         return seen
@@ -308,8 +337,16 @@ class DjangoAGUIView:
         acts as the logged-in user, the attachment toolset so the model reads
         only that user's files — so neither may live on the reused agent.
         Pydantic-AI takes them as *additional* toolsets for the run.
+
+        The bridge is handed the **registry's** names, not the claimed set: the
+        claimed set already folds in the bridge's own registry, so starting
+        there made the bridge exclude every tool it exists to expose — a
+        ``DRFMCPToolset`` yielding nothing, on every request, with no error
+        anywhere while ``GET tools/`` went on advertising them.
+        ``_drf_mcp_toolsets`` adds the server's names afterwards, which is what
+        the spec and attachment sources below must exclude.
         """
-        seen = self._claimed_names()
+        seen = self._registry_names()
         toolsets = self._drf_mcp_toolsets(self._drf_mcp_server, request, seen)
         # Reserve the spec names between the two, exactly as the catalog's
         # precedence has it, so an attachment tool can't shadow a spec tool.
@@ -413,23 +450,65 @@ class DjangoAGUIView:
 
     async def _load_resume_history(
         self, request: HttpRequest, resume_from: str
-    ) -> list[Any] | None:
-        """Load a prior run's last continuable snapshot as a message history.
+    ) -> tuple[list[Any], str | None] | None:
+        """Load a prior run's snapshot, and the thread that run belonged to.
 
         Returns ``None`` — a 404 at the caller — when no step store is configured
         or the source run has no continuable snapshot for this owner (unknown run
         id, another user's run, or a crash before any provider-valid boundary).
         The store is built per request, so ``continue_run`` is owner-scoped and a
         guessed ``run_id`` reads nothing.
+
+        The source thread rides along because the client does not send it and
+        the caller cannot do without it — see
+        ``_would_overwrite_another_thread``. It is read only after
+        ``continue_run`` has already established that the run is this caller's,
+        and never reaches the wire.
         """
         if self._step_store is None:
             return None
         from pydantic_ai_harness.step_persistence import continue_run
 
+        store = self._step_store(request)
         try:
-            return list(await continue_run(self._step_store(request), run_id=resume_from))
+            history = list(await continue_run(store, run_id=resume_from))
         except LookupError:
             return None
+        return history, await self._source_thread_id(store, resume_from)
+
+    async def _source_thread_id(self, store: Any, resume_from: str) -> str | None:
+        """The thread the source run belonged to, or ``None`` where it cannot matter.
+
+        Only an endpoint that persists conversations has anything a resume could
+        overwrite, so a stateless one is not charged the lookup at all. ``None``
+        also covers a run recorded without a thread — a run this transport did
+        not start — which cannot be attributed either way.
+        """
+        if isinstance(self._conversation_store, NullConversationStore):
+            return None
+        record = await store.get_run(run_id=resume_from)
+        return None if record is None else record.conversation_id
+
+    async def _would_overwrite_another_thread(
+        self, request: HttpRequest, source_thread_id: str | None, thread_id: str
+    ) -> bool:
+        """Whether seeding ``thread_id`` from that run would destroy what it holds.
+
+        ``runs/`` indexes every run the owner has, across all their threads, but
+        a client resumes the one it picked into whatever thread is currently
+        open — and a save is a whole-row replace, not an append. So a user
+        reading thread B who picks a run belonging to thread A used to end up
+        with A's conversation stored under B and B's own turns gone: silent,
+        irreversible, and invisible until they reopened B.
+
+        Branching a run into a conversation of its own stays supported, because
+        it destroys nothing — the refusal is about *overwriting*, not about
+        crossing threads, so it needs both an attributable source thread that
+        differs and a target that already holds something.
+        """
+        if source_thread_id is None or source_thread_id == thread_id:
+            return False
+        return await self._conversation_store.exists(thread_id, request=request)
 
     def _attachment_toolsets(
         self, store: AttachmentStore | None, request: HttpRequest, seen: set[str]

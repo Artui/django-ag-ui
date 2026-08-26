@@ -163,6 +163,29 @@ mechanism — the harness's `continue_run` and `fork_run` are data-identical —
 pick the verb that matches your intent, and target a new `threadId` when you want
 the branch to live in its own conversation.
 
+!!! warning "A branch may not land on top of an existing conversation"
+    A saved conversation is stored as a whole row, so seeding a thread from
+    another thread's run **replaces** what that thread held. `runs/` indexes
+    every run the owner has across all their threads, while a client resumes the
+    one it picked into whatever thread is open — which is how a user reading
+    thread B could pick a run from thread A and lose B's turns entirely.
+
+    So when a `conversation_store` is configured and the `threadId` you post
+    already has a stored conversation that the source run does not belong to,
+    the endpoint answers **`409`** and streams nothing:
+
+    ```json
+    {"error": "resuming that run would overwrite this thread",
+     "run_id": "abc", "thread_id": "t2"}
+    ```
+
+    Continuing a run in its own thread is unaffected, and so is branching one
+    into a `threadId` that holds nothing yet — the refusal is about overwriting,
+    not about crossing threads. A client that offers cross-thread checkpoints
+    should switch to the row's own `thread_id` (`runs/` reports it) or open a
+    new thread before resuming. Endpoints with no conversation store have
+    nothing to overwrite and are never refused.
+
 !!! warning
     Send a **fresh `run_id`** in the resumed request, and send only the **new**
     turn — the server supplies the prior history from the snapshot, so re-sending
