@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from inspect import iscoroutinefunction
 from typing import Any, cast
 
 from asgiref.sync import markcoroutinefunction, sync_to_async
-from django.core.exceptions import ImproperlyConfigured
 from django.core.files.uploadedfile import UploadedFile
 from django.http import (
     HttpRequest,
@@ -20,7 +18,9 @@ from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.capped_upload_handler import CappedUploadHandler
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
+from django_ag_ui.reject_async_throttle import reject_async_throttle
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
+from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 
 
 class TranscribeView:
@@ -77,11 +77,12 @@ class TranscribeView:
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
-        _reject_async_throttle(throttle)
+        reject_async_throttle(throttle, allows="clip")
         self._throttle = throttle
         # Load-bearing here, unlike on the read-only catalogs: the only route is
         # POST, so CsrfViewMiddleware checks every request this view serves and a
         # token-less client could not reach the backend at all.
+        warn_if_csrf_unstated(csrf_exempt, get_user)
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
         # Mark this callable instance async so Django awaits ``__call__``.
         markcoroutinefunction(cast("Any", self))
@@ -169,25 +170,6 @@ def _validate_type(audio: UploadedFile, allowed_types: tuple[str, ...]) -> JsonR
             {"error": f"content type {audio.content_type!r} is not allowed"}, status=415
         )
     return None
-
-
-def _reject_async_throttle(throttle: Throttle | None) -> None:
-    """Refuse an ``async def consume`` at construction, not at request time.
-
-    The return value feeds an ``is not None`` check, and a coroutine is neither
-    ``None`` nor an integer: accepting one would make every request a 429
-    carrying a coroutine as its ``Retry-After``, so the endpoint would look rate
-    limited rather than misconfigured.
-    """
-    if throttle is None or not iscoroutinefunction(throttle.consume):
-        return
-    raise ImproperlyConfigured(
-        f"{type(throttle).__name__}.consume is declared 'async def', but the "
-        "throttle hook is synchronous. django-ag-ui runs it off the event "
-        "loop, so it may touch the cache or the ORM directly — declare it "
-        "'def consume(self, request)' and return the Retry-After seconds, or "
-        "None to allow the clip."
-    )
 
 
 __all__ = ["TranscribeView"]

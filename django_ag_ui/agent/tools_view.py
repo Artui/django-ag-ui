@@ -62,8 +62,9 @@ class ToolsView:
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
 
     def __call__(self, request: HttpRequest) -> HttpResponseBase:
-        if request.method != "GET":
-            return HttpResponseNotAllowed(["GET"])
+        # Authorize before the method check, so an unauthenticated caller cannot
+        # tell a mounted endpoint from an absent one: a 405 here against a 404
+        # elsewhere fingerprints which optional backends are enabled.
         deny = authorize(
             request,
             get_user=self._get_user,
@@ -72,6 +73,8 @@ class ToolsView:
         )
         if deny is not None:
             return auth_error_response(deny)
+        if request.method != "GET":
+            return HttpResponseNotAllowed(["GET"])
         catalog = build_tool_catalog(
             self._registry,
             drf_mcp_server=self._drf_mcp_server,

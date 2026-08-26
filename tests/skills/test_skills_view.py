@@ -53,3 +53,13 @@ def test_async_get_user_hook_opens_the_catalog() -> None:
     view = SkillsView(_registry(), require_authenticated=True, get_user=get_user)
     response = view(AuthedRequestFactory().get("/agent/skills/"))
     assert response.status_code == 200
+
+
+def test_an_unauthenticated_non_get_is_401_not_405() -> None:
+    """Authorization comes before the method check, as on the agent endpoint.
+
+    A 405 here against a 404 for an unmounted backend told an unauthenticated
+    caller which optional endpoints a deployment had enabled.
+    """
+    response = SkillsView(_registry())(RequestFactory().post("/agent/skills/"))
+    assert response.status_code == 401

@@ -23,6 +23,7 @@ from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.capped_upload_handler import CappedUploadHandler
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
+from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 
 
 class AttachmentsView:
@@ -73,6 +74,7 @@ class AttachmentsView:
         # delete is DELETE, so CsrfViewMiddleware checks both, and a client that
         # cannot produce a token (a Bearer-authenticated SPA, or any project on
         # ``CSRF_USE_SESSIONS``, which mints no readable cookie) gets a hard 403.
+        warn_if_csrf_unstated(csrf_exempt, get_user)
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
         # Mark this callable instance async so Django awaits ``__call__``.
         markcoroutinefunction(cast("Any", self))

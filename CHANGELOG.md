@@ -68,6 +68,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Every directly-mountable endpoint now warns when nothing says how it
+  authenticates.** The warning fired on the agent endpoint alone, so a project
+  mounting the attachment, thread or transcription views directly -- which the docs
+  describe -- got silence for the one configuration the warning exists for:
+  cookie-authenticated callers on a CSRF-exempt endpoint, where any third-party page
+  can drive the agent as whoever is logged in.
+
+- **The tool-catalog and skills endpoints authorize before checking the method.** An
+  unauthenticated caller got 405 where an unmounted backend answers 404, which
+  fingerprints the optional backends a deployment has enabled. The agent endpoint was
+  corrected for this; its two read-only siblings kept the old order.
+
 - **Resuming a checkpoint from one thread could destroy another thread's stored
   conversation, and may already have.** A saved conversation is written as a
   whole row, `runs/` indexes every run an owner has across *all* their threads,
@@ -150,6 +162,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   error names which one claimed the name.
 
 ### Changed
+
+- **A custom step store must provide `get_run`.** Refusing a cross-thread resume
+  reads the source run's `conversation_id`, so a duck-typed store that omits `get_run`
+  now raises on a resume where it previously did not. `get_run` is part of the
+  `StepStore` Protocol, so this is a contractual requirement made load-bearing rather
+  than a new one.
 
 - **The default system prompt no longer promises a confirmation step the
   deployment may not have.** It told the model the interface shows an explicit

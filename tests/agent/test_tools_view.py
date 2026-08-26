@@ -60,3 +60,14 @@ def test_get_user_hook_opens_the_catalog() -> None:
     )
     response = view(RequestFactory().get("/agent/tools/"))
     assert response.status_code == 200
+
+
+def test_an_unauthenticated_non_get_is_401_not_405() -> None:
+    """Authorization comes before the method check, as on the agent endpoint.
+
+    A 405 here against a 404 for an unmounted backend told an unauthenticated
+    caller which optional endpoints a deployment had enabled. The agent view was
+    corrected for this; its two read-only siblings kept the old order.
+    """
+    response = ToolsView(_registry())(RequestFactory().post("/agent/tools/"))
+    assert response.status_code == 401

@@ -4,7 +4,7 @@ import warnings
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
-from asgiref.sync import iscoroutinefunction, markcoroutinefunction, sync_to_async
+from asgiref.sync import markcoroutinefunction, sync_to_async
 from django.core.exceptions import ImproperlyConfigured
 from django.core.handlers.asgi import ASGIRequest
 from django.http import (
@@ -37,7 +37,9 @@ from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.reject_async_throttle import reject_async_throttle
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
+from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 
 
 class DjangoAGUIView:
@@ -139,7 +141,7 @@ class DjangoAGUIView:
         # per run.
         self._step_store = step_store
         self._deps_factory = deps_factory
-        _reject_async_throttle(throttle)
+        reject_async_throttle(throttle, allows="run")
         self._throttle = throttle
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
         self._require_authenticated = require_authenticated
@@ -151,7 +153,7 @@ class DjangoAGUIView:
         # same flag through the same helper, but this is the view a consumer
         # always mounts — the sub-views would raise the identical concern up to
         # six more times.
-        _warn_if_csrf_unstated(csrf_exempt, get_user)
+        warn_if_csrf_unstated(csrf_exempt, get_user)
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
         # Mark this callable instance as a coroutine function so Django's
         # request handler awaits ``__call__`` when the view is mounted. Without
@@ -619,52 +621,6 @@ class DjangoAGUIView:
 
     def _resolve_audit_logger(self) -> AuditLogger:
         return self._audit_logger if self._audit_logger is not None else NullAuditLogger()
-
-
-def _reject_async_throttle(throttle: Throttle | None) -> None:
-    """Refuse an ``async def consume`` at construction, not at request time.
-
-    The return value feeds an ``is not None`` check, and a coroutine is neither
-    ``None`` nor an integer: accepting one would make every request a 429
-    carrying a coroutine as its ``Retry-After``, so the endpoint would look rate
-    limited rather than misconfigured.
-    """
-    if throttle is None or not iscoroutinefunction(throttle.consume):
-        return
-    raise ImproperlyConfigured(
-        f"{type(throttle).__name__}.consume is declared 'async def', but the "
-        "throttle hook is synchronous. django-ag-ui runs it off the event "
-        "loop, so it may touch the cache or the ORM directly — declare it "
-        "'def consume(self, request)' and return the Retry-After seconds, or "
-        "None to allow the run."
-    )
-
-
-def _warn_if_csrf_unstated(csrf_exempt: bool | None, get_user: Any) -> None:
-    """Warn when nothing in the configuration says how requests authenticate.
-
-    Unstated is the signal, not ``True`` — ``csrf_exempt=True`` is the right
-    answer for Bearer / API-key clients, so warning on the value would fire on a
-    correct configuration and teach projects to filter the warning. Only ``None``
-    means the question was never asked.
-
-    It lives on the view rather than on ``AGUIServer`` because both are
-    import-time paths, so one implementation covers a server-composed endpoint
-    and a directly-constructed view with one warning.
-    """
-    if csrf_exempt is not None or get_user is not None:
-        return
-    warnings.warn(
-        "django-ag-ui: this AG-UI endpoint is CSRF-exempt (the default) and has "
-        "no get_user hook, so the acting user can only be coming from Django's "
-        "session cookie — and tools act as that user, which lets any "
-        "third-party page drive the agent as whoever is logged in. Pass "
-        "csrf_exempt=False (and send the CSRF token from the client) for "
-        "cookie authentication, or csrf_exempt=True to confirm your clients "
-        "authenticate by header (Bearer / API key), where CSRF does not apply.",
-        RuntimeWarning,
-        stacklevel=3,
-    )
 
 
 __all__ = ["DjangoAGUIView"]
