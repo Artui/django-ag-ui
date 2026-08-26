@@ -7,6 +7,172 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ScopedStepStore`** — partitions the step ledger between endpoints, the way
+  `ScopedConversationStore` already partitions thread history:
+
+  ```python
+  internal = AGUIServer(registry, step_store=ScopedStepStore(DefaultStepStore, scope="internal"))
+  public = AGUIServer(registry, step_store=ScopedStepStore(DefaultStepStore, scope="public"))
+  ```
+
+  A ledger keys by `(owner_id, run_id)` and nothing else, so two mounts handed
+  the same `step_store` shared one user's runs: a run recorded at
+  `/internal/agent` was listed by `/public/agent/runs/`, and since
+  `resume/<run_id>/` addresses a run **by id**, the same user could continue that
+  transcript under the public agent's model, tools and guard policy. Owner
+  scoping cannot catch it — it is the same user on both mounts, and the
+  documented two-endpoint recipe told projects to scope conversations while
+  saying nothing about runs.
+
+  It wraps the **factory**, not a store, because that is what `step_store=`
+  takes. The partition is a run-id prefix, so it needs no migration and no break
+  to a protocol that is upstream's; a run in another scope is simply *not found*
+  rather than refused, so a probe cannot confirm the id exists. Run ids on the
+  wire are unchanged. Opt-in and explicit, for the same reason as the
+  conversation wrapper: wrapping a mount that has been running hides its earlier
+  runs from `runs/` rather than migrating them.
+
+- **`transcribe_throttle=`** on `AGUIServer` — the rate-limit seam that only the
+  agent endpoint had, on the other route that spends provider money. The shipped
+  transcription backend is a paid API call per clip, and authentication says
+  *who* may call it, not how often, so an authenticated caller looping small
+  valid clips was a bill with no limiter available to it.
+
+  ```python
+  AGUIServer(
+      registry,
+      transcription_backend=OpenAITranscriptionBackend(),
+      transcribe_throttle=FixedWindowThrottle(max_runs=60, per_seconds=60, namespace="transcribe"),
+  )
+  ```
+
+  A **separate** argument rather than a second use of `throttle=`: one limiter
+  instance is one counter, so sharing would let voice clips consume the run
+  budget. `TranscribeView(throttle=…)` takes the same `Throttle`, runs it at the
+  same point (after authentication, before the body is parsed) and answers the
+  same `429`.
+
+- **`MAX_LABELS`** in `chart_limits`, exported alongside `MAX_MAGNITUDE` and
+  `MAX_POINTS`.
+
+- **`OpenAITranscriptionBackend.api_key`** — a class attribute passed to
+  `AsyncOpenAI`, so a subclass pointing `base_url` at another vendor can send
+  that vendor's key. Unset it behaves exactly as before (the SDK reads
+  `OPENAI_API_KEY`).
+
+- **`RUN_LIST_LIMIT`** (default `50`, `0` disables) — the run index's ceiling,
+  also a `build_ag_ui_config(run_list_limit=…)` keyword, so two endpoints can
+  differ.
+
+### Security
+
+- **The provider API key no longer prints into tracebacks.** `AGUIConfig` is a
+  dataclass with `api_key: str | None` and the generated `repr`, and the record
+  is bound to a plainly-named local on every path that builds an agent — so a bad
+  model string, a provider import error or a provider `401` put
+  `config=AGUIConfig(model=…, api_key='sk-…', …)` in the frame locals of a
+  technical-500 page or an error-reporting event. Name-based scrubbing misses it
+  there, because the secret is nested inside another object's `repr` rather than
+  sitting in a field called `api_key`. The field is now `repr=False`; reading the
+  attribute is unchanged.
+
+- **The documented recipe for a non-OpenAI transcription endpoint sent
+  `OPENAI_API_KEY` to that third-party host.** `OpenAITranscriptionBackend`
+  exposed `base_url` as an overridable class attribute but no key seam, so
+  following its own example — `class GroqTranscription(...): base_url = "…"` —
+  sent the OpenAI credential as the bearer token to `api.groq.com` on every
+  clip, and showed only a `401` for it. The only escapes were overriding
+  `transcribe()` or clobbering the environment variable process-wide, which
+  breaks the agent's own model. `base_url` and `api_key` now travel together, in
+  the docstring and in the recipe.
+
+### Fixed
+
+- **A wide chart was accepted server-side and silently dropped in the browser.**
+  `chart_limits` exists to keep the producer's bounds in step with the
+  consumer's, and it mirrored two of the client's three: the web component also
+  refuses more than **2,000 labels**, a bound independent of the point budget
+  because it bounds the *DOM* rather than the data. A single-series spec of 2,500
+  points is far inside `MAX_POINTS`, so it passed `ChartSpec.validate()`,
+  serialised, streamed, and was discarded on arrival with **nothing reported on
+  either side** — the exact failure the module was written to prevent. Refused at
+  construction now, and the pinning test asserts the *count* of bounds as well as
+  their values, so a fourth one appearing in the component fails here.
+
+- **`AGUIServer(service_specs=<pre-built toolset>)` checked its tool names
+  against the `@tool` registry only, not against `drf_mcp_server=`.** The mapping
+  path already excluded both, so the two shapes of `service_specs=` disagreed
+  about what counted as a collision — and the drf-mcp half surfaced as a
+  pydantic-ai `UserError` **mid-run**, which is exactly the failure this guard
+  exists to move to construction time. Both sources are checked now, and the
+  error names which one claimed the name.
+
+### Changed
+
+- **`transcribe/` refuses an oversized clip while the body is still arriving**,
+  instead of measuring it afterwards. The view parsed `request.FILES` and *then*
+  checked `TRANSCRIPTION_MAX_BYTES`, so Django had already written the whole part
+  out — to `FILE_UPLOAD_TEMP_DIR` once it outgrew memory — and the cap bounded
+  what reached the backend rather than what reached the disk. No Django-level
+  ceiling covered it either: `DATA_UPLOAD_MAX_MEMORY_SIZE` excludes file uploads
+  and `FILE_UPLOAD_MAX_MEMORY_SIZE` only chooses memory over a temp file. It now
+  installs the same `CappedUploadHandler` the attachment upload route has used
+  all along.
+
+  **Upgrading.** Same setting, same `413`, same body — but an oversized upload is
+  now cut off mid-stream (`StopUpload(connection_reset=True)`), so a client that
+  was still sending may surface a connection error instead of reading the `413`.
+  That is the tradeoff the attachment route already made. Nothing changes for
+  in-cap clips, and `TRANSCRIPTION_MAX_BYTES = 0` still disables the cap
+  entirely.
+
+- **`runs/` is capped at `RUN_LIST_LIMIT` (default `50`), newest first.** It
+  listed *every* recorded run and issued one `latest_snapshot` call per run,
+  holding each run's whole message list resident while the rows were built — so a
+  single `GET` on an account with a long history was `1 + N` queries and `N`
+  transcripts in memory, with nothing clamping `N`. The cap is applied **before**
+  those snapshot loads, so the runs it drops cost nothing; the store's own
+  `list_runs` is still unbounded, because the step-store protocol has no limit to
+  pass.
+
+  **Upgrading.** A deployment whose users have more than 50 recorded runs will
+  see `runs/` return the newest 50 rather than all of them. Raise it with
+  `DJANGO_AG_UI["RUN_LIST_LIMIT"]`, per endpoint with
+  `build_ag_ui_config(run_list_limit=…)`, or set `0` to restore the old
+  unbounded behaviour. There is deliberately no `?limit=` on this route, unlike
+  `threads/`: the protocol offers no offset, so a smaller page would only be a
+  client asking for less of a list it cannot page through.
+
+- **Every `DJANGO_AG_UI` key the package does not read is refused at startup**,
+  not just the ten removed in 0.19.0. `ALLOW_ANONYMOUS` was the case worth
+  naming: it was never a setting of this package, it reads like a switch, it is a
+  store constructor argument, and a project that set it got the `False` default
+  and no indication otherwise — the only explanation lived in a warning box in
+  the docs. Naming keys one at a time only ever covered the mistakes already
+  made; rejecting the complement is what makes the list exhaustive, and it
+  catches a typo (`TRANSCRIPTION_MAX_BYTE`) with the same silent failure one
+  letter away.
+
+  **Upgrading.** A settings dict carrying an unrecognised key now raises
+  `ImproperlyConfigured` when the URL conf is imported, naming every offender at
+  once with what to do about each. Move project-specific values out of
+  `DJANGO_AG_UI`; the accepted keys are the settings table in the configuration
+  guide, and a test reads `build_ag_ui_config`'s own source so the guard cannot
+  drift from it.
+
+### Documentation
+
+- The configuration guide gains an **Unknown keys** section, a `RUN_LIST_LIMIT`
+  section and a `transcribe_throttle=` section; the multi-endpoint recipe now
+  scopes the step store alongside the conversation store, which it had been
+  silent about.
+- The step-persistence guide gains a **Scoping two endpoints** section and states
+  the run index's ceiling.
+- "What the client will refuse" in the chart guide lists the label bound.
+- The API reference gains `Throttle`, `FixedWindowThrottle` and `ScopedStepStore`.
+
 ## [0.48.0] — 2026-08-25
 
 ### Added

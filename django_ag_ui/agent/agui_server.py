@@ -147,6 +147,20 @@ class AGUIServer:
 
         AGUIServer(registry, throttle=FixedWindowThrottle(max_runs=20, per_seconds=60))
 
+    ``transcribe_throttle`` is the same seam on ``transcribe/``, the other route
+    that spends provider money per request — authentication bounds *who* may call
+    it, not how often. It is a **separate** argument rather than a second use of
+    ``throttle`` because one limiter instance is one counter: sharing would let
+    voice clips eat the run budget, and the two want different numbers anyway.
+
+        AGUIServer(
+            registry,
+            throttle=FixedWindowThrottle(max_runs=20, per_seconds=60),
+            transcribe_throttle=FixedWindowThrottle(
+                max_runs=60, per_seconds=60, namespace="transcribe"
+            ),
+        )
+
     **Per-run dependencies.** ``deps_factory`` is a ``request -> AgentDeps``
     callable replacing the default, which binds only the acting user and their
     IP. Use it to carry project-specific per-run context on an ``AgentDeps``
@@ -167,6 +181,13 @@ class AGUIServer:
     ``DefaultStepStore``
     (its constructor *is* the factory) for the reference model-backed store, or
     any such callable. Requires the ``django-ag-ui[harness]`` extra.
+
+    The ledger is scoped by **owner**, not by endpoint, so two mounts handed the
+    same factory share one user's run list: a run recorded at ``/internal/agent``
+    is listed at ``/public/agent/runs/`` and can be resumed there, under the
+    public agent's model, tools and guard policy. Wrap the factory in a
+    [`ScopedStepStore`][django_ag_ui.ScopedStepStore] to keep them apart, exactly
+    as ``ScopedConversationStore`` does for thread history.
 
     **Namespacing.** [`urls`][django_ag_ui.AGUIServer.urls] returns the
     ``(patterns, app_name, namespace)``
@@ -193,6 +214,7 @@ class AGUIServer:
         step_store: Callable[[HttpRequest], Any] | None = None,
         deps_factory: Callable[[HttpRequest], AgentDeps] | None = None,
         throttle: Throttle | None = None,
+        transcribe_throttle: Throttle | None = None,
         attachment_store: AttachmentStore | None = None,
         transcription_backend: TranscriptionBackend | None = None,
         toolsets: list[Any] | None = None,
@@ -230,6 +252,7 @@ class AGUIServer:
             step_store=step_store,
             throttle=throttle,
             toolsets=toolsets,
+            transcribe_throttle=transcribe_throttle,
             transcription_backend=transcription_backend,
         )
         self._registry = registry
@@ -264,6 +287,7 @@ class AGUIServer:
             else NullTranscriptionBackend()
         )
         self._drf_mcp_server = drf_mcp_server
+        self._transcribe_throttle = transcribe_throttle
         # Normalised once, here, so the spec capability, the tool catalog and the
         # view's tool-name reservation all see a plain mapping. A registry
         # reaching those unresolved breaks both: ``build_tool_catalog`` calls
@@ -278,7 +302,7 @@ class AGUIServer:
         if self._spec_capability is None and self._service_specs:
             _reject_unguarded_specs(self._service_specs)
         if self._spec_capability is not None:
-            _reject_spec_name_collisions(self._service_specs or {}, registry)
+            _reject_spec_name_collisions(self._service_specs or {}, registry, drf_mcp_server)
         self._step_store = step_store
         self._deps_factory = deps_factory
         self._view = DjangoAGUIView(
@@ -342,7 +366,11 @@ class AGUIServer:
                 path("fork/<str:resume_from>/", self._view, name="fork"),
             )
             patterns.append(
-                path("runs/", RunsView(self._step_store, **self._policy), name="runs"),
+                path(
+                    "runs/",
+                    RunsView(self._step_store, config=self._config, **self._policy),
+                    name="runs",
+                ),
             )
         if self._skills is not None:
             patterns.append(
@@ -364,7 +392,10 @@ class AGUIServer:
             )
         if not isinstance(self._transcription_backend, NullTranscriptionBackend):
             transcribe_view = TranscribeView(
-                self._transcription_backend, config=self._config, **self._policy
+                self._transcription_backend,
+                config=self._config,
+                throttle=self._transcribe_throttle,
+                **self._policy,
             )
             patterns.append(path("transcribe/", transcribe_view, name="transcribe"))
         return patterns
@@ -407,22 +438,36 @@ def _resolve_spec_source(
     return dict(specs), SpecCapability.from_toolset(service_specs)
 
 
-def _reject_spec_name_collisions(specs: Mapping[str, Any], registry: ToolRegistry) -> None:
-    """Refuse a pre-built toolset whose tool names the registry already owns.
+def _reject_spec_name_collisions(
+    specs: Mapping[str, Any], registry: ToolRegistry, drf_mcp_server: Any
+) -> None:
+    """Refuse a pre-built toolset whose tool names this endpoint already owns.
 
-    For a mapping the endpoint drops colliding names and lets the registry win;
-    a pre-built toolset is the consumer's and cannot be filtered, so the
+    For a mapping the endpoint drops colliding names and lets the earlier source
+    win; a pre-built toolset is the consumer's and cannot be filtered, so the
     collision has to fail loudly here. Left alone, pydantic-ai raises
     ``UserError`` for the duplicate **mid-run**, long after the catalog looked
     clean.
+
+    **Both** claiming sources are checked, in the view's own precedence order:
+    the ``@tool`` registry and the bridged drf-mcp server. Checking the registry
+    alone was the narrower half of the same guard, and the half that fails later
+    — the mapping path already excludes both, so the two shapes of
+    ``service_specs=`` disagreed about what counted as a collision, and the
+    drf-mcp one surfaced only once the bridge actually yielded its tools.
     """
-    clashing = sorted(set(specs) & {binding.spec.name for binding in registry})
+    claimed: dict[str, str] = {binding.spec.name: "the @tool registry" for binding in registry}
+    if drf_mcp_server is not None:
+        for binding in drf_mcp_server.tools.all():
+            claimed.setdefault(binding.name, "the bridged drf-mcp server")
+    clashing = sorted(set(specs) & set(claimed))
     if not clashing:
         return
+    named = ", ".join(f"{name!r} ({claimed[name]})" for name in clashing)
     raise ImproperlyConfigured(
         f"AGUIServer(service_specs=...) was given a pre-built spec toolset whose "
-        f"tool name(s) the @tool registry already defines: {', '.join(repr(n) for n in clashing)}. "
-        "A mapping would have had the colliding names dropped in the registry's "
+        f"tool name(s) this endpoint already defines: {named}. "
+        "A mapping would have had the colliding names dropped in that source's "
         "favour, but a pre-built toolset is yours and is attached as-is. Rename "
         "on one side, or pass the specs as a mapping to get the old precedence."
     )

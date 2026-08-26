@@ -15,6 +15,7 @@ def test_defaults_when_unconfigured() -> None:
     assert config.model is None
     assert config.retries is None
     assert config.thread_list_limit == 200
+    assert config.run_list_limit == 50
     assert config.forward_reasoning is True
     assert config.manage_system_prompt == "server"
     assert config.tool_guard.enabled is False
@@ -170,3 +171,15 @@ def test_attachment_inlining_can_be_switched_off() -> None:
         config = build_ag_ui_config(attachment_inline=off)
     assert config.attachment_inline is not None
     assert config.attachment_inline.media_types == frozenset()
+
+
+def test_the_run_list_ceiling_is_configurable() -> None:
+    """A per-endpoint ceiling, like every other limit here.
+
+    Tighter than ``THREAD_LIST_LIMIT`` by default because the rows cost more: a
+    thread row is metadata, a run row is a snapshot load and a whole message
+    list held resident while the response is built.
+    """
+    with override_settings(DJANGO_AG_UI={"RUN_LIST_LIMIT": 5}):
+        assert build_ag_ui_config().run_list_limit == 5
+    assert build_ag_ui_config(run_list_limit=7).run_list_limit == 7

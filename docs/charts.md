@@ -172,7 +172,12 @@ series:
   extremes still give an infinite *range*, and the client divides by that range
   to scale, so an unbounded value yields nothing drawable;
 - **at most 20,000 points** across all series. Drawing more blocks the browser's
-  main thread, and does so again on every reload of a stored conversation.
+  main thread, and does so again on every reload of a stored conversation;
+- **at most 2,000 labels**, whatever the series count. A separate bound because
+  it answers a different question: the one above bounds the *data*, this one
+  bounds the *DOM*. Every label emits an axis text node, so a single-series spec
+  well inside the point budget can still ask the browser for tens of thousands
+  of nodes.
 
 That last one catches the mistake a Django app makes first. A `Sum` over a
 `DecimalField` returns `Decimal`, which serialises as a JSON *string* — the

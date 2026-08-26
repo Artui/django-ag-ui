@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
 
-from django_ag_ui.agent.chart_limits import MAX_POINTS, validate_point
+from django_ag_ui.agent.chart_limits import MAX_LABELS, MAX_POINTS, validate_point
 from django_ag_ui.agent.types.chart_kind import ChartKind
 from django_ag_ui.agent.types.chart_series import ChartSeries
 
@@ -89,6 +89,17 @@ class ChartSpec:
         for label in self.labels:
             if not isinstance(label, str):
                 raise ValueError(f"label {label!r} is not a string; the client refuses the spec")
+        if len(self.labels) > MAX_LABELS:
+            # Checked separately from the point budget below, because the two
+            # bounds are independent: a one-series spec of 3000 labels carries
+            # 3000 points -- far inside MAX_POINTS -- and is still refused on
+            # arrival, with nothing reported on either side.
+            raise ValueError(
+                f"this chart carries {len(self.labels)} labels, over the client's "
+                f"{MAX_LABELS} limit; it would be refused on arrival, and drawing one "
+                f"axis label per entry would block the browser on every reload of the "
+                f"conversation"
+            )
         total = len(self.labels) * len(self.series)
         if total > MAX_POINTS:
             raise ValueError(
