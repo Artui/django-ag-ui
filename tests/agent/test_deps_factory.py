@@ -105,7 +105,7 @@ class TestACustomFactory:
         view = DjangoAGUIView(
             ToolRegistry(),
             model=TestModel(),
-            deps_factory=lambda request: received.append(request) or AgentDeps(),  # type: ignore[func-returns-value]
+            deps_factory=lambda request: received.append(request) or AgentDeps(user=None),  # type: ignore[func-returns-value]
         )
 
         await _drain(await view(_post()))
@@ -120,7 +120,7 @@ class TestACustomFactory:
         view = DjangoAGUIView(
             _recording_registry(seen),
             model=TestModel(),
-            deps_factory=lambda _request: AgentDeps(state=_Doc()),
+            deps_factory=lambda _request: AgentDeps(user=None, state=_Doc()),
         )
 
         await _drain(await view(_post(state={"document": "from the client"})))
