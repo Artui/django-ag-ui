@@ -1486,6 +1486,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIConfig.run_list_limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_list_limit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.AGUIConfig.tool_guard" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1729,6 +1740,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rate-limiting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate limiting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.Throttle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Throttle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.FixedWindowThrottle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FixedWindowThrottle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#conversation-persistence" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1877,6 +1921,28 @@
     <span class="md-ellipsis">
       
         StoredConversation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step persistence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.ScopedStepStore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScopedStepStore
       
     </span>
   </a>
@@ -2088,6 +2154,17 @@
     <span class="md-ellipsis">
       
         base_url
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.api_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        api_key
       
     </span>
   </a>
@@ -3179,6 +3256,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIConfig.run_list_limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_list_limit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.AGUIConfig.tool_guard" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3422,6 +3510,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rate-limiting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate limiting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.Throttle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Throttle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.FixedWindowThrottle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FixedWindowThrottle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#conversation-persistence" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3570,6 +3691,28 @@
     <span class="md-ellipsis">
       
         StoredConversation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step persistence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.ScopedStepStore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScopedStepStore
       
     </span>
   </a>
@@ -3781,6 +3924,17 @@
     <span class="md-ellipsis">
       
         base_url
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.api_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        api_key
       
     </span>
   </a>
@@ -5190,6 +5344,19 @@ call per request. It runs after authentication, so a limiter can key on the
 acting user rather than only an IP:</p>
 <div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, throttle=FixedWindowThrottle(max_runs=20, per_seconds=60))
 </code></pre></div>
+<p><code>transcribe_throttle</code> is the same seam on <code>transcribe/</code>, the other route
+that spends provider money per request — authentication bounds <em>who</em> may call
+it, not how often. It is a <strong>separate</strong> argument rather than a second use of
+<code>throttle</code> because one limiter instance is one counter: sharing would let
+voice clips eat the run budget, and the two want different numbers anyway.</p>
+<div class="language-text highlight"><pre><span></span><code>AGUIServer(
+    registry,
+    throttle=FixedWindowThrottle(max_runs=20, per_seconds=60),
+    transcribe_throttle=FixedWindowThrottle(
+        max_runs=60, per_seconds=60, namespace=&quot;transcribe&quot;
+    ),
+)
+</code></pre></div>
 <p><strong>Per-run dependencies.</strong> <code>deps_factory</code> is a <code>request -&gt; AgentDeps</code>
 callable replacing the default, which binds only the acting user and their
 IP. Use it to carry project-specific per-run context on an <code>AgentDeps</code>
@@ -5209,6 +5376,12 @@ whose id it still holds. Pass
 <code>DefaultStepStore</code>
 (its constructor <em>is</em> the factory) for the reference model-backed store, or
 any such callable. Requires the <code>django-ag-ui[harness]</code> extra.</p>
+<p>The ledger is scoped by <strong>owner</strong>, not by endpoint, so two mounts handed the
+same factory share one user's run list: a run recorded at <code>/internal/agent</code>
+is listed at <code>/public/agent/runs/</code> and can be resumed there, under the
+public agent's model, tools and guard policy. Wrap the factory in a
+<a class="autorefs autorefs-internal" title="ScopedStepStore" href="#django_ag_ui.ScopedStepStore"><code>ScopedStepStore</code></a> to keep them apart, exactly
+as <code>ScopedConversationStore</code> does for thread history.</p>
 <p><strong>Namespacing.</strong> <a class="autorefs autorefs-internal" title="urls
 
 
@@ -5928,7 +6101,7 @@ user.</p>
   </span>
 
 <a href="#django_ag_ui.DEFAULT_SYSTEM_PROMPT" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DEFAULT_SYSTEM_PROMPT</span> <span class="o">=</span> <span class="s2">&quot;You are an assistant embedded in a web application. You can call tools to read data and to drive the user interface on the user&#39;s behalf. Prefer the most specific tool available. For a destructive action, call the tool directly with the right arguments — the interface shows the user an explicit confirmation before it runs, so do NOT ask for confirmation in text or wait for the user to say yes. Briefly state what you are doing. When the user refers to something by name, use a listing or search tool&#39;s arguments to find it and then act on the result — don&#39;t stop after the lookup. Treat &#39;open&#39;, &#39;go to&#39;, or &#39;show me&#39; as a request to navigate. Always finish your turn with a short reply or a completed action — never an empty turn. Keep replies concise.&quot;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DEFAULT_SYSTEM_PROMPT</span> <span class="o">=</span> <span class="s2">&quot;You are an assistant embedded in a web application. You can call tools to read data and to drive the user interface on the user&#39;s behalf. Prefer the most specific tool available. The application, not you, decides which actions need an explicit confirmation from the user: where one is needed it interrupts the call and comes back to you with the answer, so treat a tool call as a request the application may still refuse rather than as something you have already done. Do not re-ask in text for an action the user has clearly asked for. When a destructive or irreversible action is NOT clearly covered by what the user asked for, say what you are about to do and wait for them to agree before calling the tool. Briefly state what you are doing. When the user refers to something by name, use a listing or search tool&#39;s arguments to find it and then act on the result — don&#39;t stop after the lookup. Treat &#39;open&#39;, &#39;go to&#39;, or &#39;show me&#39; as a request to navigate. Always finish your turn with a short reply or a completed action — never an empty turn. Keep replies concise.&quot;</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -6028,11 +6201,12 @@ when an agent is actually built.</p>
 
 
   <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
 <a href="#django_ag_ui.AGUIConfig.api_key" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">api_key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">api_key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="nb">repr</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -6040,6 +6214,12 @@ when an agent is actually built.</p>
         <p>API key handed to the provider when <code>model</code> is a <code>"provider:name"</code>
 string, so the key comes from settings rather than the environment. Ignored
 when a <code>provider</code> is passed or <code>model</code> is already a <code>Model</code>.</p>
+<p><code>repr=False</code> because this record is bound to a plainly-named local on every
+path that builds an agent, so the generated <code>repr</code> would print the provider
+secret into the frame locals of a technical-500 page or an error-reporting
+event. Name-based scrubbing does not catch it there: the key is nested inside
+another object's <code>repr</code> rather than sitting in a field called <code>api_key</code>.
+Read the attribute to use it -- only the rendering is suppressed.</p>
 
     </div>
 
@@ -6361,6 +6541,35 @@ any.</p>
 
 
 
+<h3 id="django_ag_ui.AGUIConfig.run_list_limit" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">run_list_limit</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.AGUIConfig.run_list_limit" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">run_list_limit</span><span class="p">:</span> <span class="nb">int</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Maximum runs the run index returns in one call, newest first.</p>
+<p>A much tighter ceiling than <code>thread_list_limit</code> because the rows cost far
+more: the thread index answers from metadata alone, while every run row loads
+that run's last snapshot and holds its whole message list resident while the
+response is built. <code>0</code> disables the cap and restores the unbounded
+behaviour.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="django_ag_ui.AGUIConfig.tool_guard" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">tool_guard</span>
 
@@ -6643,11 +6852,12 @@ not dropped in silence.</p>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">transcription_max_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">transcription_allowed_types</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">thread_list_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">approval_prompts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">tool_guard</span><span class="p">:</span> <span class="n">ToolGuardConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">tool_failure</span><span class="p">:</span> <span class="n">ToolFailureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">run_context</span><span class="p">:</span> <span class="n">RunContextConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AGUIConfig</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">run_list_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">approval_prompts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">tool_guard</span><span class="p">:</span> <span class="n">ToolGuardConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">tool_failure</span><span class="p">:</span> <span class="n">ToolFailureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>    <span class="n">run_context</span><span class="p">:</span> <span class="n">RunContextConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AGUIConfig</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -7112,6 +7322,137 @@ classify them.</p>
         <p>Writes audit events to the Python <code>logging</code> framework.</p>
 <p>Successful invocations log at <code>INFO</code>; failures log at <code>WARNING</code>
 with the error message included.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="rate-limiting">Rate limiting<a class="headerlink" href="#rate-limiting" title="Permanent link">&para;</a></h2>
+<p>The seam both spending routes take — the agent endpoint via <code>throttle=</code> and
+<code>transcribe/</code> via <code>transcribe_throttle=</code>. See
+<a href="../configuration/#throttle"><code>throttle=</code></a> for the contract and its ordering.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.Throttle" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">Throttle</span>
+
+
+<a href="#django_ag_ui.Throttle" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
+
+
+
+        <p>Rate limiter for the agent run endpoint, evaluated after authentication.</p>
+<p>A single <code>consume</code> call is the gate <strong>and</strong> the bookkeeping update — there
+is deliberately no separate "check, then commit", a shape that races under
+exactly the concurrency an agent endpoint sees. Implementations decrement
+quotas atomically in shared storage and return the suggested <code>Retry-After</code>
+in seconds, or <code>None</code> to allow the run. <code>0</code> is allowed (denied, but the
+window resets immediately); most implementations return a positive integer.</p>
+<p>Running after authentication is what lets a limiter key on the acting user
+rather than only on an IP: <code>request.user</code> is resolved by the time this is
+called, including through a <code>get_user</code> hook.</p>
+<p><code>consume</code> is <strong>synchronous</strong> and is run off the event loop, so it may
+safely touch the Django cache or the ORM. An <code>async def consume</code> is refused
+at construction rather than awaited, because a coroutine returned into an
+<code>is not None</code> check would throttle every request on a bogus
+<code>Retry-After</code>.</p>
+<p>State that crosses requests must live in shared storage (the Django cache,
+Redis), never on the instance — an endpoint is constructed once per process,
+so instance counters would enforce a per-worker limit while reading like a
+global one.</p>
+<p>Mirrors <code>djangorestframework-mcp-server</code>'s <code>MCPRateLimit</code>, so a project
+protecting both transports writes one kind of limiter.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.FixedWindowThrottle" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">FixedWindowThrottle</span>
+
+
+<a href="#django_ag_ui.FixedWindowThrottle" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A fixed-window run limiter backed by <code>django.core.cache</code>.</p>
+<p>The window is bucketed by absolute time: every integer multiple of
+<code>per_seconds</code> since the epoch starts a fresh counter. Simpler than a
+sliding window and sufficient for the thing this protects against — one
+client starting runs faster than a human could read them, on an endpoint
+where each run costs a model call.</p>
+<p><code>namespace</code> separates counters so two throttles on one endpoint (a burst
+limit and a steady-state limit) do not share a bucket. <code>key</code> chooses the
+bucket dimension; the default is per-user, falling back to per-IP.</p>
+<p>The cache <strong>must</strong> be a shared backend in a multi-process deployment.
+Django's <code>locmem</code> cache is fine in tests but enforces a per-worker limit
+that reads like a global one.</p>
+<p>Mirrors <code>djangorestframework-mcp-server</code>'s <code>FixedWindowRateLimit</code>, so the
+two transports behave the same way under the same configuration.</p>
 
 
 
@@ -7735,6 +8076,95 @@ security boundary. <code>title</code> / <code>preview</code> are denormalised so
 drawer's list query never loads message bodies. <code>attachments</code> is derived
 from <code>messages</code> on every save and is what attachment lifecycle runs on.</p>
 <p>Used by <code>DefaultConversationStore</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="step-persistence">Step persistence<a class="headerlink" href="#step-persistence" title="Permanent link">&para;</a></h2>
+<p>The durable run / event / snapshot ledger behind <code>resume/</code>, <code>fork/</code> and <code>runs/</code>.
+The store itself is a <code>request -&gt; StepStore</code> factory from
+<code>pydantic-ai-harness</code> (the reference one is
+<code>django_pydantic_agent.contrib.store.default_step_store.DefaultStepStore</code>); this
+is the wrapper that keeps two endpoints' ledgers apart, the way
+<a class="autorefs autorefs-internal" title="ScopedConversationStore" href="#django_ag_ui.ScopedConversationStore"><code>ScopedConversationStore</code></a> does for
+thread history.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.ScopedStepStore" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ScopedStepStore</span>
+
+
+<a href="#django_ag_ui.ScopedStepStore" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Partition a step-store <strong>factory</strong> by a scope name.</p>
+<p>A step ledger is keyed by <code>(owner_id, run_id)</code>. Two AG-UI endpoints handed
+the same <code>step_store</code> therefore share one user's runs: a run recorded at
+<code>/internal/agent</code> is listed by <code>/public/agent/runs/</code> and, because
+<code>resume/&lt;run_id&gt;/</code> addresses a run by id, can be continued there — under
+the <em>public</em> agent's model, tools and guard policy. Owner scoping does not
+catch it: it is the same user on both mounts.</p>
+<p>Wrapping fixes that without a migration:</p>
+<div class="language-text highlight"><pre><span></span><code>internal = AGUIServer(
+    registry,
+    step_store=ScopedStepStore(DefaultStepStore, scope=&quot;internal&quot;),
+    config=build_ag_ui_config(tool_guard=ToolGuardConfig(enabled=True)),
+)
+public = AGUIServer(
+    registry,
+    step_store=ScopedStepStore(DefaultStepStore, scope=&quot;public&quot;),
+)
+</code></pre></div>
+<p><strong>A factory in, a factory out</strong>, unlike
+<a class="autorefs autorefs-internal" title="ScopedConversationStore" href="#django_ag_ui.ScopedConversationStore"><code>ScopedConversationStore</code></a>, which
+wraps a store: the harness protocol's methods carry no request, so
+<code>step_store=</code> takes a <code>request -&gt; StepStore</code> callable and the store is
+built per call. This is that callable, and calling it wraps whatever the
+inner factory returned.</p>
+<p>The partition is a <strong>run-id prefix</strong>, so it composes with any implementation,
+third-party ones included, where a <code>scope</code> column would mean a migration
+and a breaking change to a protocol that is upstream's, not ours. A run
+belonging to another scope is not <em>refused</em> on <code>resume/</code> — it is simply not
+found, so a probe cannot confirm the id exists either.</p>
+<p>The scope is invisible on the wire. Run ids are handed back to the client
+unchanged; only the storage key carries the prefix.</p>
+<p><strong>Opt in explicitly.</strong> A transport does not wrap by itself: doing so from its
+namespace would orphan every run an existing single-endpoint project had
+already recorded, the moment it set one. For the same reason, adding a scope
+to a mount that has been running hides that mount's earlier runs from
+<code>runs/</code> rather than migrating them.</p>
 
 
 
@@ -8419,6 +8849,18 @@ no download/delete route. The view carries the same authentication seam as
 <code>get_user</code>), closed by default — which matters here beyond consistency:
 the backend spends money per request, so an open route is a bill as well as
 a leak.</p>
+<p><strong>Authentication is not a spend limit</strong>, which is why <code>throttle</code> is here
+too: an authenticated caller looping small valid clips reaches the provider
+on every request. It takes the same <a class="autorefs autorefs-internal" title="Throttle" href="#django_ag_ui.Throttle"><code>Throttle</code></a> the
+agent endpoint takes and runs at the same point — after authentication, so a
+limiter can key on the acting user, and before the body is parsed. Give it
+its <em>own</em> limiter rather than sharing the agent's: one instance is one
+counter, so a shared one would let voice input consume the run budget.</p>
+<p><strong>The size cap aborts the upload rather than measuring it afterwards.</strong> A
+<code>CappedUploadHandler</code> is inserted before the multipart body is parsed, so a
+clip over <code>TRANSCRIPTION_MAX_BYTES</code> is refused mid-stream instead of being
+spooled to a temp file in full and answered <code>413</code> once it is already on
+disk.</p>
 <p>With the default
 <a class="autorefs autorefs-internal" title="NullTranscriptionBackend" href="#django_ag_ui.NullTranscriptionBackend"><code>NullTranscriptionBackend</code></a> a request
 returns <code>410</code> (off): mount the view with a real backend to enable it.</p>
@@ -8487,7 +8929,14 @@ server, Groq, …) by subclassing and setting the class attributes:</p>
 <div class="language-text highlight"><pre><span></span><code>class GroqTranscription(OpenAITranscriptionBackend):
     model = &quot;whisper-large-v3&quot;
     base_url = &quot;https://api.groq.com/openai/v1&quot;
+    api_key = os.environ[&quot;GROQ_API_KEY&quot;]
 </code></pre></div>
+<p><strong><code>base_url</code> and <code>api_key</code> travel together.</strong> The SDK sends whatever key
+it holds as the bearer token to whatever host <code>base_url</code> names, and with
+<code>api_key</code> left unset that key is <code>OPENAI_API_KEY</code> from the environment —
+so pointing at a third-party endpoint without setting one hands that vendor
+the OpenAI credential, on every clip, and shows only a <code>401</code> for it. Set
+both, or neither.</p>
 <p>The <code>openai</code> SDK is imported lazily inside <code>transcribe</code> so the base
 package keeps it an optional dependency (the <code>[openai]</code> extra).</p>
 
@@ -8554,6 +9003,34 @@ package keeps it an optional dependency (the <code>[openai]</code> extra).</p>
     <div class="doc doc-contents ">
 
         <p>Optional base URL for an OpenAI-compatible endpoint (<code>None</code> → OpenAI).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.api_key" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">api_key</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.api_key" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">api_key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Key sent to <code>base_url</code> as the bearer token. <code>None</code> falls back to the
+SDK's own default, the <code>OPENAI_API_KEY</code> environment variable — correct for
+OpenAI itself and wrong for anywhere else, so set this whenever <code>base_url</code>
+is set.</p>
 
     </div>
 

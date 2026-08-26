@@ -621,6 +621,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#scoping-two-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scoping two endpoints
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -840,6 +851,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#scoping-two-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scoping two endpoints
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -998,6 +1020,26 @@ mechanism — the harness's <code>continue_run</code> and <code>fork_run</code> 
 pick the verb that matches your intent, and target a new <code>threadId</code> when you want
 the branch to live in its own conversation.</p>
 <div class="admonition warning">
+<p class="admonition-title">A branch may not land on top of an existing conversation</p>
+<p>A saved conversation is stored as a whole row, so seeding a thread from
+another thread's run <strong>replaces</strong> what that thread held. <code>runs/</code> indexes
+every run the owner has across all their threads, while a client resumes the
+one it picked into whatever thread is open — which is how a user reading
+thread B could pick a run from thread A and lose B's turns entirely.</p>
+<p>So when a <code>conversation_store</code> is configured and the <code>threadId</code> you post
+already has a stored conversation that the source run does not belong to,
+the endpoint answers <strong><code>409</code></strong> and streams nothing:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;resuming that run would overwrite this thread&quot;</span><span class="p">,</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w"> </span><span class="nt">&quot;run_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;thread_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;t2&quot;</span><span class="p">}</span>
+</span></code></pre></div>
+<p>Continuing a run in its own thread is unaffected, and so is branching one
+into a <code>threadId</code> that holds nothing yet — the refusal is about overwriting,
+not about crossing threads. A client that offers cross-thread checkpoints
+should switch to the row's own <code>thread_id</code> (<code>runs/</code> reports it) or open a
+new thread before resuming. Endpoints with no conversation store have
+nothing to overwrite and are never refused.</p>
+</div>
+<div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>Send a <strong>fresh <code>run_id</code></strong> in the resumed request, and send only the <strong>new</strong>
 turn — the server supplies the prior history from the snapshot, so re-sending
@@ -1019,18 +1061,18 @@ runs as successes.</p>
 continue a run whose id it still holds — which rules out resuming after a page
 reload or from another device, most of what durable persistence buys you.
 <code>GET runs/</code> is the index:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;runs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="p">{</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">      </span><span class="nt">&quot;run_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc&quot;</span><span class="p">,</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">      </span><span class="nt">&quot;thread_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;t1&quot;</span><span class="p">,</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">      </span><span class="nt">&quot;parent_run_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">      </span><span class="nt">&quot;started_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-07-27T12:00:00+00:00&quot;</span><span class="p">,</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">      </span><span class="nt">&quot;continuable&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">      </span><span class="nt">&quot;preview&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Move standup to Friday at 11:00&quot;</span>
-</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">  </span><span class="p">]</span>
-</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">&quot;runs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="p">{</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">      </span><span class="nt">&quot;run_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc&quot;</span><span class="p">,</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">      </span><span class="nt">&quot;thread_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;t1&quot;</span><span class="p">,</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">      </span><span class="nt">&quot;parent_run_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">      </span><span class="nt">&quot;started_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-07-27T12:00:00+00:00&quot;</span><span class="p">,</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">      </span><span class="nt">&quot;continuable&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">      </span><span class="nt">&quot;preview&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Move standup to Friday at 11:00&quot;</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">  </span><span class="p">]</span>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><strong><code>continuable</code> is the field that matters.</strong> It reports whether the run has a
 saved snapshot to seed from, answered by making the same <code>latest_snapshot</code> call
@@ -1051,6 +1093,41 @@ another rather than listing near-identical transcripts side by side.</p>
 <p>Rows are owner-scoped by the store, and nothing on the wire names an owner —
 another user's runs are simply absent rather than a <code>403</code> that would confirm the
 id exists.</p>
+<p><strong>The response is capped at <code>RUN_LIST_LIMIT</code></strong> (default <code>50</code>, newest first),
+because a row is not cheap: each one loads that run's snapshot and holds its
+whole message list resident while the response is built. The cap is applied
+before those loads, so the runs it drops cost nothing. There is no <code>?limit=</code> on
+this route — the step-store protocol offers no offset, so a smaller page would
+only be a client asking for less of a list it cannot page through. Raise or
+disable it per endpoint with <code>build_ag_ui_config(run_list_limit=…)</code>.</p>
+<h2 id="scoping-two-endpoints">Scoping two endpoints<a class="headerlink" href="#scoping-two-endpoints" title="Permanent link">&para;</a></h2>
+<p>The ledger keys by <code>(owner_id, run_id)</code> and nothing else, so <strong>two mounts handed
+the same <code>step_store</code> share one user's runs</strong>. A run recorded at
+<code>/internal/agent</code> is listed by <code>/public/agent/runs/</code>, and since
+<code>resume/&lt;run_id&gt;/</code> addresses a run by id, the same user can continue that
+transcript under the public agent's model, tools and guard policy. Owner scoping
+cannot catch it: it is the same user on both mounts.</p>
+<p><a class="autorefs autorefs-internal" title="ScopedStepStore" href="../api/#django_ag_ui.ScopedStepStore"><code>ScopedStepStore</code></a> partitions the ledger by a
+scope name, the way <code>ScopedConversationStore</code> partitions thread history:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">internal</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">internal_registry</span><span class="p">,</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">namespace</span><span class="o">=</span><span class="s2">&quot;internal-agent&quot;</span><span class="p">,</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">step_store</span><span class="o">=</span><span class="n">ScopedStepStore</span><span class="p">(</span><span class="n">DefaultStepStore</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">&quot;internal&quot;</span><span class="p">),</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">)</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">public</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="n">public_registry</span><span class="p">,</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="n">namespace</span><span class="o">=</span><span class="s2">&quot;public-agent&quot;</span><span class="p">,</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>    <span class="n">step_store</span><span class="o">=</span><span class="n">ScopedStepStore</span><span class="p">(</span><span class="n">DefaultStepStore</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">&quot;public&quot;</span><span class="p">),</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>It wraps the <strong>factory</strong>, not a store, because that is what <code>step_store=</code> takes.
+The partition is a run-id prefix, so it composes with any implementation and
+needs no migration; a run belonging to another scope is simply not found, so a
+probe cannot confirm the id exists either. Run ids on the wire are unchanged —
+only the storage key carries the prefix.</p>
+<p><strong>Opt in explicitly.</strong> Adding a scope to a mount that has been running hides
+that mount's earlier runs from <code>runs/</code> rather than migrating them, which is
+exactly why wrapping does not happen by itself.</p>
 
 
 
