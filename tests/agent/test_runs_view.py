@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from django.http import HttpRequest
-from django.test import RequestFactory
+from django.test import RequestFactory, override_settings
 from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
 from pydantic_ai.messages import (
     BinaryContent,
@@ -17,6 +17,7 @@ from pydantic_ai.messages import (
 from pydantic_ai_harness.step_persistence import ContinuableSnapshot, RunRecord
 
 from django_ag_ui.agent.runs_view import RunsView
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.authed_request_factory import AuthedRequestFactory
 
 _STARTED = datetime(2026, 7, 27, 12, 0, tzinfo=timezone.utc)
@@ -312,3 +313,63 @@ class TestMethodAndAuth:
 
         assert response.status_code == 403
         assert built == []
+
+
+class TestBounding:
+    """``RUN_LIST_LIMIT`` bounds the expensive half of the response.
+
+    Every row costs a ``latest_snapshot`` call and holds that run's whole message
+    list resident while the rows are built, so an account with a long history
+    turned one GET into ``1 + N`` queries and ``N`` transcripts in memory. The
+    store's own ``list_runs`` still answers unbounded -- the harness protocol has
+    no limit to pass -- so the cap is applied here, before any snapshot is read.
+    """
+
+    @override_settings(DJANGO_AG_UI={"RUN_LIST_LIMIT": 2})
+    async def test_the_response_is_capped(self) -> None:
+        store = _FakeStore([_record(f"r{i}", minutes=i) for i in range(10)])
+        rows = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert len(rows) == 2
+
+    @override_settings(DJANGO_AG_UI={"RUN_LIST_LIMIT": 2})
+    async def test_the_cap_keeps_the_newest_runs(self) -> None:
+        """A picker showing the *oldest* two would be worse than showing none."""
+        store = _FakeStore([_record(f"r{i}", minutes=i) for i in range(5)])
+        rows = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert [row["run_id"] for row in rows] == ["r4", "r3"]
+
+    @override_settings(DJANGO_AG_UI={"RUN_LIST_LIMIT": 2})
+    async def test_the_dropped_runs_cost_no_snapshot_load(self) -> None:
+        """The point of the cap: it bounds the queries, not just the JSON.
+
+        Trimming after the loop would still pay for every run in the ledger --
+        which is the whole cost this finds.
+        """
+        store = _FakeStore([_record(f"r{i}", minutes=i) for i in range(10)])
+        await RunsView(_factory(store))(_get())
+
+        assert store.snapshot_calls == ["r8", "r9"]
+
+    @override_settings(DJANGO_AG_UI={"RUN_LIST_LIMIT": 0})
+    async def test_zero_disables_the_cap(self) -> None:
+        store = _FakeStore([_record(f"r{i}", minutes=i) for i in range(10)])
+        rows = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert len(rows) == 10
+
+    async def test_a_shorter_ledger_than_the_cap_is_served_whole(self) -> None:
+        store = _FakeStore([_record("r1"), _record("r2", minutes=1)])
+        rows = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert len(rows) == 2
+
+    async def test_the_ceiling_is_per_endpoint(self) -> None:
+        """Two mounts, two ceilings — the reason it rides the config record."""
+        store = _FakeStore([_record(f"r{i}", minutes=i) for i in range(6)])
+        strict = RunsView(_factory(store), config=build_ag_ui_config(run_list_limit=1))
+        loose = RunsView(_factory(store), config=build_ag_ui_config(run_list_limit=4))
+
+        assert len((await _body(await strict(_get())))["runs"]) == 1
+        assert len((await _body(await loose(_get())))["runs"]) == 4

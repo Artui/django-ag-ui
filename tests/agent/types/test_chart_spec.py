@@ -129,11 +129,36 @@ def test_a_spec_over_the_clients_point_ceiling_is_refused() -> None:
     The client bounds total points because drawing a spec that large blocks the
     browser's main thread -- and, once it is in a stored transcript, does so
     again on every reload. Sending one costs the bandwidth and buys nothing.
+
+    Deliberately **narrow and deep** -- 1000 labels across 21 series -- so it is
+    over the point budget while staying inside the separate label budget, and
+    the message proves which of the two refused it.
     """
-    labels = tuple(str(i) for i in range(10_001))
-    two_series = (ChartSeries("a", (1.0,) * 10_001), ChartSeries("b", (1.0,) * 10_001))
+    labels = tuple(str(i) for i in range(1_000))
+    series = tuple(ChartSeries(f"s{i}", (1.0,) * 1_000) for i in range(21))
     with pytest.raises(ValueError, match="over the client's 20000 limit"):
-        ChartSpec(labels=labels, series=two_series)
+        ChartSpec(labels=labels, series=series)
+
+
+def test_a_spec_over_the_clients_label_ceiling_is_refused() -> None:
+    """The bound the server used to be missing, and the one nothing reported.
+
+    A single series of 2500 points is far inside ``MAX_POINTS``, so it passed
+    validation, serialised, streamed, and was then dropped by the client's own
+    ``labels.length > MAX_LABELS`` check -- which has no channel to complain on.
+    The user saw no chart and the server logged no error.
+    """
+    labels = tuple(str(i) for i in range(2_500))
+    series = (ChartSeries("count", tuple(float(i) for i in range(2_500))),)
+    with pytest.raises(ValueError, match="over the client's 2000 limit"):
+        ChartSpec(labels=labels, series=series)
+
+
+def test_a_spec_at_the_label_ceiling_is_accepted() -> None:
+    # The bound is inclusive on both sides of the wire: the client refuses
+    # *more* than MAX_LABELS, so exactly MAX_LABELS has to pass here too.
+    labels = tuple(str(i) for i in range(2_000))
+    ChartSpec(labels=labels, series=(ChartSeries("count", (1.0,) * 2_000),))
 
 
 def test_a_lazy_translation_as_a_series_label_is_refused() -> None:

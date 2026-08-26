@@ -25,6 +25,14 @@ class OpenAITranscriptionBackend:
         class GroqTranscription(OpenAITranscriptionBackend):
             model = "whisper-large-v3"
             base_url = "https://api.groq.com/openai/v1"
+            api_key = os.environ["GROQ_API_KEY"]
+
+    **``base_url`` and ``api_key`` travel together.** The SDK sends whatever key
+    it holds as the bearer token to whatever host ``base_url`` names, and with
+    ``api_key`` left unset that key is ``OPENAI_API_KEY`` from the environment —
+    so pointing at a third-party endpoint without setting one hands that vendor
+    the OpenAI credential, on every clip, and shows only a ``401`` for it. Set
+    both, or neither.
 
     The ``openai`` SDK is imported lazily inside ``transcribe`` so the base
     package keeps it an optional dependency (the ``[openai]`` extra).
@@ -34,6 +42,11 @@ class OpenAITranscriptionBackend:
     """The transcription model name passed to the API."""
     base_url: str | None = None
     """Optional base URL for an OpenAI-compatible endpoint (``None`` → OpenAI)."""
+    api_key: str | None = None
+    """Key sent to ``base_url`` as the bearer token. ``None`` falls back to the
+    SDK's own default, the ``OPENAI_API_KEY`` environment variable — correct for
+    OpenAI itself and wrong for anywhere else, so set this whenever ``base_url``
+    is set."""
     timeout: float | None = 60.0
     """Per-request timeout (seconds) for the transcription call. The SDK default
     is 10 minutes; a bounded default keeps a stalled upstream from pinning a
@@ -57,7 +70,9 @@ class OpenAITranscriptionBackend:
         # making the read blocking I/O.
         data = await sync_to_async(audio.read)()
         if self._client is None:
-            self._client = AsyncOpenAI(base_url=self.base_url, timeout=self.timeout)
+            self._client = AsyncOpenAI(
+                api_key=self.api_key, base_url=self.base_url, timeout=self.timeout
+            )
         result = await self._client.audio.transcriptions.create(
             model=self.model,
             file=(audio.name or "audio", data, audio.content_type or "application/octet-stream"),

@@ -413,3 +413,66 @@ def test_no_throttle_by_default() -> None:
     patterns, _, _ = _server().urls
     endpoint = next(p for p in patterns if p.name == "endpoint")
     assert endpoint.callback._throttle is None
+
+
+class _NoThrottle:
+    def consume(self, request: Any) -> int | None:
+        return None
+
+
+def test_transcribe_throttle_reaches_the_transcribe_view() -> None:
+    """The other route that spends provider money per request.
+
+    Authentication says who may call it, not how often, and the shipped backend
+    is a paid API call per clip — so without a seam here the only defence is
+    whatever the project bolts on in middleware.
+    """
+    throttle = _NoThrottle()
+    server = _server(
+        transcription_backend=_DummyTranscriptionBackend(), transcribe_throttle=throttle
+    )
+    patterns, _, _ = server.urls
+
+    transcribe = next(p for p in patterns if p.name == "transcribe")
+    assert transcribe.callback._throttle is throttle
+
+
+def test_the_two_throttles_stay_separate() -> None:
+    """One limiter instance is one counter, so sharing would let clips eat runs."""
+    runs, clips = _NoThrottle(), _NoThrottle()
+    server = _server(
+        transcription_backend=_DummyTranscriptionBackend(),
+        throttle=runs,
+        transcribe_throttle=clips,
+    )
+    patterns, _, _ = server.urls
+
+    assert next(p for p in patterns if p.name == "endpoint").callback._throttle is runs
+    assert next(p for p in patterns if p.name == "transcribe").callback._throttle is clips
+
+
+def test_transcribe_is_unthrottled_by_default() -> None:
+    patterns, _, _ = _server(transcription_backend=_DummyTranscriptionBackend()).urls
+    transcribe = next(p for p in patterns if p.name == "transcribe")
+    assert transcribe.callback._throttle is None
+
+
+def test_the_agent_throttle_does_not_reach_transcribe() -> None:
+    """Passing ``throttle=`` alone must not silently start limiting voice input."""
+    patterns, _, _ = _server(
+        transcription_backend=_DummyTranscriptionBackend(), throttle=_NoThrottle()
+    ).urls
+    assert next(p for p in patterns if p.name == "transcribe").callback._throttle is None
+
+
+def test_the_runs_view_gets_the_endpoints_own_config() -> None:
+    """Its list ceiling is per-endpoint, like every other limit on this mount."""
+    from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+
+    config = build_ag_ui_config(run_list_limit=3)
+    server = AGUIServer(
+        ToolRegistry(), model=TestModel(), step_store=DefaultStepStore, config=config
+    )
+    patterns, _, _ = server.urls
+
+    assert next(p for p in patterns if p.name == "runs").callback._config.run_list_limit == 3

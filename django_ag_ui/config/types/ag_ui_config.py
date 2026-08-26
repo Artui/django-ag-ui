@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from django_pydantic_agent import AttachmentInlineConfig
@@ -40,10 +40,17 @@ class AGUIConfig:
     ``None`` here; the agent factory raises a clear error if it is still unset
     when an agent is actually built."""
 
-    api_key: str | None
+    api_key: str | None = field(repr=False)
     """API key handed to the provider when ``model`` is a ``"provider:name"``
     string, so the key comes from settings rather than the environment. Ignored
-    when a ``provider`` is passed or ``model`` is already a ``Model``."""
+    when a ``provider`` is passed or ``model`` is already a ``Model``.
+
+    ``repr=False`` because this record is bound to a plainly-named local on every
+    path that builds an agent, so the generated ``repr`` would print the provider
+    secret into the frame locals of a technical-500 page or an error-reporting
+    event. Name-based scrubbing does not catch it there: the key is nested inside
+    another object's ``repr`` rather than sitting in a field called ``api_key``.
+    Read the attribute to use it -- only the rendering is suppressed."""
 
     system_prompt: str | None
     """Override for the agent's default system prompt. ``None`` uses
@@ -100,6 +107,15 @@ class AGUIConfig:
     thread_list_limit: int
     """Maximum threads the index endpoint returns in one call. A larger
     ``?limit`` is clamped to this ceiling."""
+
+    run_list_limit: int
+    """Maximum runs the run index returns in one call, newest first.
+
+    A much tighter ceiling than ``thread_list_limit`` because the rows cost far
+    more: the thread index answers from metadata alone, while every run row loads
+    that run's last snapshot and holds its whole message list resident while the
+    response is built. ``0`` disables the cap and restores the unbounded
+    behaviour."""
 
     tool_guard: ToolGuardConfig
     """Server-side destructive-tool approval policy. When enabled, a

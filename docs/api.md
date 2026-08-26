@@ -72,6 +72,16 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 ::: django_ag_ui.LoggingAuditLogger
 
 
+## Rate limiting
+
+The seam both spending routes take — the agent endpoint via `throttle=` and
+`transcribe/` via `transcribe_throttle=`. See
+[`throttle=`](configuration.md#throttle) for the contract and its ordering.
+
+::: django_ag_ui.Throttle
+
+::: django_ag_ui.FixedWindowThrottle
+
 ## Conversation persistence
 
 ::: django_ag_ui.ConversationStore
@@ -102,6 +112,18 @@ Projects that don't opt in get no model and no migration.
 ::: django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore
 
 ::: django_pydantic_agent.contrib.store.models.StoredConversation
+
+## Step persistence
+
+The durable run / event / snapshot ledger behind `resume/`, `fork/` and `runs/`.
+The store itself is a `request -> StepStore` factory from
+`pydantic-ai-harness` (the reference one is
+`django_pydantic_agent.contrib.store.default_step_store.DefaultStepStore`); this
+is the wrapper that keeps two endpoints' ledgers apart, the way
+[`ScopedConversationStore`][django_ag_ui.ScopedConversationStore] does for
+thread history.
+
+::: django_ag_ui.ScopedStepStore
 
 ## File uploads
 

@@ -53,6 +53,7 @@ AGUIServer(registry, config=build_ag_ui_config(retries=5))
 | `MODEL_SETTINGS` | `dict` | `None` | Pydantic-AI `ModelSettings`. |
 | `RETRIES` | `int` | `None` | Tool/output retry budget. |
 | `THREAD_LIST_LIMIT` | `int` | `200` | Max threads the index endpoint returns per call; `?limit=N` requests fewer, a larger value is clamped down. |
+| `RUN_LIST_LIMIT` | `int` | `50` | Max runs the run index returns per call, newest first (`0` disables the cap). See [`RUN_LIST_LIMIT`](#run_list_limit). |
 | `ATTACHMENT_MAX_BYTES` | `int` | `10485760` | Max accepted upload size in bytes (`0` disables the cap). |
 | `ATTACHMENT_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed upload content types (empty = any). |
 | `MANAGE_SYSTEM_PROMPT` | `str` | `"server"` | Who owns the system prompt on the wire. |
@@ -67,6 +68,25 @@ AGUIServer(registry, config=build_ag_ui_config(retries=5))
 
 Every one of these is also a `build_ag_ui_config(...)` keyword.
 
+### Unknown keys
+
+**Any `DJANGO_AG_UI` key not in the table above is refused when the URL conf is
+imported**, with an `ImproperlyConfigured` naming every offender at once. A key
+this package does not read is a key that does nothing, and doing nothing quietly
+is the failure worth preventing: an agent silently loses a policy the project
+believes it configured, and a warning would scroll past in a deploy log.
+
+Three kinds get their own answer:
+
+- the collaborator keys **removed in 0.19.0** (`TOOLSETS`, `CONVERSATION_STORE`,
+  `DRF_MCP_SERVER`, …) are told which constructor argument replaced them;
+- `ALLOW_ANONYMOUS`, which was never a setting of this package, is pointed at
+  [`allow_anonymous=`](#allow_anonymous) on the store;
+- anything else is reported as a name to check against the table — which is
+  usually a typo, or a key meant for another package.
+
+Nest project-specific values somewhere else, not in `DJANGO_AG_UI`.
+
 ### Collaborators (constructor arguments)
 
 | Argument | Purpose |
@@ -74,6 +94,7 @@ Every one of these is also a `build_ag_ui_config(...)` keyword.
 | `toolsets=[...]` | Extra Pydantic-AI toolsets. |
 | `capabilities=[...]` | Pydantic-AI capabilities. |
 | `throttle=...` | Rate limiter for the agent endpoint (see [`throttle=`](#throttle)). |
+| `transcribe_throttle=...` | Rate limiter for `transcribe/`, the other route that spends provider money (see [`throttle=`](#throttle)). |
 | `model_for_request=fn` | `(request) -> model` for this run (per-tenant models). |
 | `instructions_for_request=fn` | `(request) -> str` for this run (per-tenant prompts). |
 | `agent_factory=fn` | Escape hatch replacing `build_agent`. |
@@ -96,12 +117,14 @@ internal = AGUIServer(
     namespace="internal-agent",
     drf_mcp_server=internal_mcp,
     conversation_store=ScopedConversationStore(store, scope="internal"),
+    step_store=ScopedStepStore(DefaultStepStore, scope="internal"),
     config=build_ag_ui_config(tool_guard=ToolGuardConfig(enabled=True)),
 )
 public = AGUIServer(
     public_registry,
     namespace="public-agent",
     conversation_store=ScopedConversationStore(store, scope="public"),
+    step_store=ScopedStepStore(DefaultStepStore, scope="public"),
 )
 
 urlpatterns = [
@@ -116,6 +139,15 @@ it a conversation started at `/internal/agent` shows up in `/public/agent`'s
 drawer — and resumes there under the *public* agent's model and tools. It is
 opt-in on purpose: wrapping automatically would silently orphan an existing
 project's history.
+
+[`ScopedStepStore`][django_ag_ui.ScopedStepStore] does the same job for the
+**step ledger**, and it is a separate wrapper because it is a separate store: a
+ledger keys by `(owner_id, run_id)`, so two mounts sharing one `step_store`
+share one user's runs. Without it the same user lists an internal run at
+`/public/agent/runs/` and POSTs it back to `/public/agent/resume/<run_id>/`,
+continuing that transcript under the public agent's model, tools and guard
+policy. Owner scoping cannot catch it — it is the same user on both mounts. It
+wraps the *factory*, not a store, because that is what `step_store=` takes.
 
 ## `MODEL`
 
@@ -255,6 +287,27 @@ rate-limited rather than misconfigured.
 
 The contract mirrors `djangorestframework-mcp-server`'s `MCPRateLimit`, so a
 project protecting both transports writes one kind of limiter.
+
+### `transcribe_throttle=`
+
+The same seam on `transcribe/` — the other route that spends provider money per
+request, since the shipped backend is a paid API call per clip. Authentication
+says *who* may call it, not how often, so an authenticated caller looping small
+valid clips is a bill.
+
+```python
+AGUIServer(
+    registry,
+    transcription_backend=OpenAITranscriptionBackend(),
+    transcribe_throttle=FixedWindowThrottle(max_runs=60, per_seconds=60, namespace="transcribe"),
+)
+```
+
+It takes the same `Throttle` and answers the same `429`, and it is a **separate
+argument** rather than a second use of `throttle=` on purpose: one limiter
+instance is one counter, so sharing would let voice clips consume the run budget
+— and the two want different numbers anyway. Both default to `None`, so neither
+route is limited until you say so.
 
 ## `agent_factory=`
 
@@ -545,6 +598,24 @@ from django_ag_ui.contrib.transcription.openai_transcription_backend import (
 AGUIServer(registry, transcription_backend=OpenAITranscriptionBackend())
 ```
 
+!!! warning "`base_url` and `api_key` travel together"
+    The SDK sends whatever key it holds as the bearer token to whatever host
+    `base_url` names, and with `api_key` unset that key is `OPENAI_API_KEY` from
+    the environment. Pointing a subclass at another vendor without setting a key
+    hands that vendor the OpenAI credential on every clip — and shows only a
+    `401` for it, which is not a hint that a secret has already left.
+
+    ```python
+    class GroqTranscription(OpenAITranscriptionBackend):
+        model = "whisper-large-v3"
+        base_url = "https://api.groq.com/openai/v1"
+        api_key = os.environ["GROQ_API_KEY"]
+    ```
+
+Guard the endpoint's cost with
+[`transcribe_throttle=`](#transcribe_throttle): the backend is a paid API call
+per clip, and authentication says who may call it, not how often.
+
 When this setting resolves to an active (non-`Null`) backend, `AGUIServer` mounts
 the voice endpoint automatically: `POST <prefix>transcribe/` accepts a multipart
 `audio` clip and returns `{"text": "<transcript>"}` for the web component's
@@ -556,6 +627,27 @@ The maximum accepted audio-clip size in bytes, enforced **server-side** by
 [`TranscribeView`][django_ag_ui.TranscribeView] (an oversize clip → `413`).
 Defaults to `26214400` (25 MiB, the OpenAI transcription limit); set `0` to
 disable the cap.
+
+## `RUN_LIST_LIMIT`
+
+The maximum number of runs `runs/` returns in one call, newest first. Defaults to
+`50`; set `0` to disable the cap.
+
+Much tighter than `THREAD_LIST_LIMIT` because the rows cost far more. A thread
+row is metadata the store already has; a run row is a `latest_snapshot` call —
+one query per run — whose whole message list stays resident while the response
+is built, since the row's `continuable` flag and its `preview` are both read
+from it. Left unbounded, one `GET runs/` on an account with a long history is
+`1 + N` queries and `N` transcripts in memory.
+
+The cap is applied **before** those snapshot loads, so the runs it drops cost
+nothing. The store's own `list_runs` is still unbounded — the `pydantic-ai-harness`
+step-store protocol has no limit to pass — so what this bounds is the expensive
+half.
+
+Unlike `threads/` there is no `?limit=` on this route: the protocol offers no
+offset either, so a smaller page would only be a client asking for less of a
+list it cannot page through.
 
 ## `TRANSCRIPTION_ALLOWED_TYPES`
 
@@ -800,6 +892,10 @@ AGUIServer(registry, conversation_store=DefaultConversationStore(allow_anonymous
     there is no point at which django-ag-ui could apply a settings value to it.
     A project that set the key got the `False` default and no indication
     otherwise. Pass the argument to the store instead.
+
+    `DJANGO_AG_UI["ALLOW_ANONYMOUS"]` is now **refused at startup** rather than
+    ignored, and so is every other key this package does not read — see
+    [Unknown keys](#unknown-keys).
 
 Whenever a store persists, prefer authenticated endpoints (the default, or a
 `get_user` hook) over relying on `allow_anonymous=True`.
