@@ -101,6 +101,10 @@ The seam both spending routes take — the agent endpoint via `throttle=` and
 
 ::: django_ag_ui.ThreadsView
 
+::: django_ag_ui.ThreadActivitySource
+
+::: django_ag_ui.ThreadActivity
+
 ### Reference store (opt-in)
 
 The `django_pydantic_agent.contrib.store` app ships a ready-to-use durable store. Add it
