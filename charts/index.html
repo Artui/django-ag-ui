@@ -650,10 +650,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#a-pushed-chart-does-not-survive-a-reload-on-the-server" class="md-nav__link">
+  <a href="#a-pushed-chart-is-not-in-the-stored-thread" class="md-nav__link">
     <span class="md-ellipsis">
       
-        A pushed chart does not survive a reload on the server
+        A pushed chart is not in the stored thread
       
     </span>
   </a>
@@ -662,6 +662,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#putting-a-pushed-chart-back-on-reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Putting a pushed chart back on reload
+      
+    </span>
+  </a>
   
 </li>
       
@@ -827,10 +838,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#a-pushed-chart-does-not-survive-a-reload-on-the-server" class="md-nav__link">
+  <a href="#a-pushed-chart-is-not-in-the-stored-thread" class="md-nav__link">
     <span class="md-ellipsis">
       
-        A pushed chart does not survive a reload on the server
+        A pushed chart is not in the stored thread
       
     </span>
   </a>
@@ -839,6 +850,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#putting-a-pushed-chart-back-on-reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Putting a pushed chart back on reload
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1015,24 +1037,64 @@ provider.</p>
 <tr>
 <td><strong>Survives a reload</strong></td>
 <td><strong>yes</strong></td>
-<td>only with a client-side store</td>
+<td>with a client-side store, or a <code>thread_activity_source</code></td>
 </tr>
 </tbody>
 </table>
-<h3 id="a-pushed-chart-does-not-survive-a-reload-on-the-server">A pushed chart does not survive a reload on the server<a class="headerlink" href="#a-pushed-chart-does-not-survive-a-reload-on-the-server" title="Permanent link">&para;</a></h3>
+<h3 id="a-pushed-chart-is-not-in-the-stored-thread">A pushed chart is not in the stored thread<a class="headerlink" href="#a-pushed-chart-is-not-in-the-stored-thread" title="Permanent link">&para;</a></h3>
 <p>Worth knowing before you choose, because it is the one difference you cannot
 work around from the browser.</p>
 <p>When a run <strong>succeeds</strong>, what gets stored as the thread is the <em>model's</em> message
 history. A pushed chart never enters that history — which is the whole reason to
-push it — so it is not in the stored thread, and a reload has nothing to redraw.
-The chart is there for the rest of the session and gone on refresh.</p>
-<p>A chart the <strong>agent</strong> asked for survives, because the spec travels as the tool
-call's arguments, and tool calls are part of the model's history. The browser
-redraws it from those arguments without re-running anything.</p>
-<p>If a chart has to outlive a refresh and its data must not reach the model, the
-options today are to store the data yourself and re-push it when the thread is
-opened, or to keep the conversation in a client-side store, which does persist
-activities. Teaching the server to persist them is on the roadmap.</p>
+push it — so it is not in the stored thread, and a reload has nothing to redraw.</p>
+<p>A chart the <strong>agent</strong> asked for survives on its own, because the spec travels as
+the tool call's arguments, and tool calls are part of the model's history. The
+browser redraws it from those arguments without re-running anything.</p>
+<p>A <strong>client-side store</strong> persists activities and needs nothing from you. On a
+server-side store — the recommended setup — a pushed chart comes back only if
+you put it back, which is what the next section is for.</p>
+<h2 id="putting-a-pushed-chart-back-on-reload">Putting a pushed chart back on reload<a class="headerlink" href="#putting-a-pushed-chart-back-on-reload" title="Permanent link">&para;</a></h2>
+<p><code>thread_activity_source=</code> is asked, on every thread read, which pushed
+activities belong to that thread. It hands back
+<a class="autorefs autorefs-internal" title="chart_activity" href="../api/#django_ag_ui.chart_activity"><code>chart_activity</code></a> events — the same ones the run
+pushed — and the endpoint merges them into the messages it serves, where the
+browser redraws them like any other restored turn.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGUIServer</span><span class="p">,</span> <span class="n">ThreadActivity</span><span class="p">,</span> <span class="n">chart_activity</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">StoredCharts</span><span class="p">:</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">activities_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">messages</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="n">rows</span> <span class="o">=</span> <span class="n">Chart</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">thread_id</span><span class="o">=</span><span class="n">thread_id</span><span class="p">,</span> <span class="n">owner</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="k">return</span> <span class="p">[</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>            <span class="n">ThreadActivity</span><span class="p">(</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>                <span class="n">chart_activity</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">spec</span><span class="p">(),</span> <span class="n">chart_id</span><span class="o">=</span><span class="n">row</span><span class="o">.</span><span class="n">chart_id</span><span class="p">),</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>                <span class="n">after_message_id</span><span class="o">=</span><span class="n">row</span><span class="o">.</span><span class="n">after_message_id</span><span class="p">,</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>            <span class="p">)</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>            <span class="k">async</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>        <span class="p">]</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">conversation_store</span><span class="o">=</span><span class="n">store</span><span class="p">,</span> <span class="n">thread_activity_source</span><span class="o">=</span><span class="n">StoredCharts</span><span class="p">())</span>
+</span></code></pre></div>
+<p>It runs on the event loop next to the store's own reads, so reach for the
+<code>a</code>-prefixed queryset methods or <code>sync_to_async</code>, as anywhere else in this
+package.</p>
+<p><strong>Why you store the data and not the framework.</strong> The server has nothing to
+persist on your behalf: the numbers never entered the model's history, and
+keeping a second record beside the conversation means owning its ordering, its
+identity and its behaviour on a resumed run — decisions only the project that
+holds the data can make. The stored thread stays exactly the model's history,
+which is what keeps a resume, a fork and a snapshot meaning what they meant
+before.</p>
+<p><strong><code>after_message_id</code> is where the chart goes.</strong> Name the stored message it
+followed and it lands there; leave it out and it lands at the end. The stored
+messages are handed to <code>activities_for</code> for exactly this reason — the tool
+result the chart accompanied is among them. An anchor the thread no longer has
+falls back to the end rather than dropping the chart.</p>
+<p><strong>Send a chart id you can reproduce.</strong> <code>chart_id</code> is the chart's identity across
+both the run and the restore, so store it with the row rather than minting a new
+one on read. Two entries under one id collapse into one — first position, last
+content — which is what the browser does with the pair anyway.</p>
 <p>Both routes involve a tool call — the difference is what crosses it. The agent
 route sends the numbers <em>through</em> the model; the push route attaches them to a
 tool the agent called for its own reasons, so the model reads one sentence while

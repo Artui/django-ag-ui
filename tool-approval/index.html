@@ -933,9 +933,27 @@ when:</p>
 <li>it is a drf-mcp bridged tool whose MCP <code>readOnlyHint</code> annotation is <code>False</code>
   (selectors are read-only, services mutate — the bridge maps this automatically,
   and a project can override it per registration); <strong>or</strong></li>
+<li>it is an <strong>in-process</strong> drf-services spec attached through
+  <a href="../configuration/#service_specs"><code>service_specs=</code></a> whose MCP annotations say
+  <code>readOnlyHint</code> is <code>False</code> — the same <code>ServiceSpec</code>, reached without the MCP
+  hop; <strong>or</strong></li>
+<li>its JSON Schema carries the <code>x-destructive</code> stamp at the root, which is what
+  <a class="autorefs autorefs-internal" title="build_input_schema" href="../api/#django_ag_ui.build_input_schema"><code>build_input_schema</code></a> writes — so a tool you
+  attach through <code>toolsets=</code> with a schema derived by that helper is gated
+  without being in the registry; <strong>or</strong></li>
 <li>its name is listed in <code>TOOL_GUARD["REQUIRE_APPROVAL"]</code> (force-gate a tool that
   isn't flagged destructive).</li>
 </ul>
+<p>A hint has to <strong>say</strong> the tool mutates. An absent <code>readOnlyHint</code>, a missing stamp
+or metadata of another shape leaves the tool alone — silence is not a claim, and
+<code>REQUIRE_APPROVAL</code> is the answer for a tool whose source declares nothing.</p>
+<div class="admonition note">
+<p class="admonition-title">Requires django-pydantic-agent 0.18</p>
+<p>The last two vocabularies arrived in the substrate's <code>ToolGuard</code> in 0.18.0.
+Below that floor the guard read only the drf-mcp metadata key, so the <em>same</em>
+spec was gated over the bridge and ungated in process — a transport swap
+silently removed the gate. This package floors at <code>&gt;=0.18</code> for that reason.</p>
+</div>
 <p><code>TOOL_GUARD["EXEMPT"]</code> un-gates a name even if it is destructive (<code>EXEMPT</code> wins).</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolRegistry</span><span class="p">,</span> <span class="n">tool</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>

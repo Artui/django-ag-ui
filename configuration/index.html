@@ -2529,11 +2529,22 @@ end-to-end flow (what the user sees, custom clients, <code>ask_user</code>), see
 </tr>
 </tbody>
 </table>
-<p><strong>What counts as destructive:</strong> a registry <code>@tool(destructive=True)</code>, or a
-drf-mcp tool whose MCP <code>readOnlyHint</code> annotation is <code>False</code> (selectors are
-read-only, services mutate; a project can override per registration). A tool is
-gated when it is destructive <strong>or</strong> named in <code>REQUIRE_APPROVAL</code>, <strong>unless</strong> it is
-named in <code>EXEMPT</code>.</p>
+<p><strong>What counts as destructive</strong> — every vocabulary a toolset might declare a
+mutation in, so one setting covers the tools wherever they came from:</p>
+<ul>
+<li>a registry <code>@tool(destructive=True)</code>;</li>
+<li>a drf-mcp tool whose MCP <code>readOnlyHint</code> annotation is <code>False</code> (selectors are
+  read-only, services mutate; a project can override per registration);</li>
+<li>an in-process drf-services spec attached through
+  <a href="#service_specs"><code>service_specs=</code></a> declaring the same annotation — the same
+  <code>ServiceSpec</code> without the MCP hop;</li>
+<li>an <code>x-destructive</code> stamp at the root of the tool's JSON Schema, which is what
+  <a class="autorefs autorefs-internal" title="build_input_schema" href="../api/#django_ag_ui.build_input_schema"><code>build_input_schema</code></a> writes.</li>
+</ul>
+<p>A tool is gated when it is destructive <strong>or</strong> named in <code>REQUIRE_APPROVAL</code>,
+<strong>unless</strong> it is named in <code>EXEMPT</code>. Silence is not a claim: a tool declaring
+nothing is left alone, and <code>REQUIRE_APPROVAL</code> is the answer for it. The last two
+vocabularies need django-pydantic-agent 0.18, this package's floor.</p>
 <p>The gate is only useful with a client that renders the interrupt and resumes —
 the web component's approval card is the front-end half of this feature; a bespoke
 AG-UI client handles the interrupt itself.</p>

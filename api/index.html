@@ -1886,7 +1886,29 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="ThreadsView">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.ThreadActivitySource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ThreadActivitySource
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.ThreadActivity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ThreadActivity
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ThreadActivity">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -3656,7 +3678,29 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="ThreadsView">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.ThreadActivitySource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ThreadActivitySource
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.ThreadActivity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ThreadActivity
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ThreadActivity">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -4299,15 +4343,43 @@ either sync or async callables can be dispatched.</p>
 
 
 <a href="#django_ag_ui.ToolRegistry.call" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">call</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">arguments</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">call</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">arguments</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>Dispatch a sync call to the registered tool.</p>
+<p><code>arguments</code> is the model's payload and nothing else. A tool declaring a
+leading <code>ctx: RunContext[...]</code> gets it from <code>ctx</code> here, the way
+pydantic-ai would supply it from the run; passing one to a tool that
+takes none is harmless.</p>
 <p>Refuses coroutine functions to avoid silently returning an
 un-awaited coroutine. Use
 <a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/registry/#django_pydantic_agent.ToolRegistry.acall"><code>acall</code></a> for async tools.</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>when the tool is async, or declares a <code>RunContext</code>
+parameter and no <code>ctx</code> was given.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -4326,12 +4398,14 @@ un-awaited coroutine. Use
   </span>
 
 <a href="#django_ag_ui.ToolRegistry.acall" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">acall</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">arguments</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">acall</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">arguments</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>Dispatch an async call; transparently awaits sync callables.</p>
+<p><code>ctx</code> is bound exactly as in
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/registry/#django_pydantic_agent.ToolRegistry.call"><code>call</code></a>.</p>
 
 
     </div>
@@ -4406,6 +4480,10 @@ fragment, imposing no type constraint but staying wire-valid.</p>
 <p><code>destructive</code> / <code>category</code> / <code>confirm</code> / <code>summary</code> are stamped at the
 schema root as the matching <code>x-*</code> extension keys, which AG-UI passes
 through verbatim to the client.</p>
+<p>A leading <code>ctx: RunContext[...]</code> parameter is <strong>not</strong> an argument and is
+left out. Pydantic-AI fills it from the run — it is how a tool reaches the
+acting user — so advertising it would ask the model to invent a value for
+something it cannot supply.</p>
 
 
     </div>
@@ -5275,7 +5353,11 @@ mount point is the consumer's to choose the Django way, so there is no
   was passed (<code>skills/</code>, GET JSON for <code>data-skills-url</code>).</li>
 <li><code>threads</code> / <code>thread</code> — the conversation store is not a
   <code>NullConversationStore</code> (<code>threads/</code> + <code>threads/&lt;id&gt;/</code>, the history
-  drawer's <code>data-threads-url</code>).</li>
+  drawer's <code>data-threads-url</code>). A <code>thread_activity_source=</code> puts pushed
+  activities back into what that route serves; without one, a restored
+  thread is the model's message history and nothing else, which is where a
+  pushed chart is missing from. See
+  <a class="autorefs autorefs-internal" title="ThreadActivitySource" href="#django_ag_ui.ThreadActivitySource"><code>ThreadActivitySource</code></a>.</li>
 <li><code>attachments</code> / <code>attachment</code> — the attachment store is not a
   <code>NullAttachmentStore</code> (<code>attachments/</code> + <code>attachments/&lt;id&gt;/</code>, the
   composer's <code>data-attachments-url</code>).</li>
@@ -5706,6 +5788,16 @@ turned off, so a raising tool fails its own call rather than the whole run.
 Each declares its position through
 <code>get_ordering</code> and pydantic-ai sorts them, so the list needs no
 pre-ordering.</p>
+<p><strong>A destructive tool is not confirmed unless a config asks for it.</strong> The
+approval interrupt exists only when <code>config.tool_guard</code> is enabled, and
+even then it reaches a tool only if that tool's source declares the mutation
+— a registry <code>@tool(destructive=True)</code>, an MCP <code>readOnlyHint</code> of
+<code>False</code>, an <code>x-destructive</code> schema stamp, or an explicit
+<code>require_approval</code> name. With no <code>tool_guard</code>, every server-side tool
+here runs the moment the model calls it. The browser's own confirmation card
+is no substitute: it is driven by a client-registered tool's schema and never
+sees a tool that executes server-side. A transport describing this agent to
+the model should say which of the two it configured.</p>
 <p>The agent is typed <code>Agent[AgentDeps, ...]</code>, so every run must be given
 <a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/agent/#django_pydantic_agent.AgentDeps"><code>AgentDeps</code></a> through <code>deps=</code>.</p>
 
@@ -7749,6 +7841,16 @@ namespace would silently orphan the whole thread history of an existing
 single-endpoint project the moment it set one.</p>
 <p>The scope is invisible on the wire. Thread ids are echoed back to the client
 unchanged; only the storage key carries the prefix.</p>
+<p><strong><code>:</code> is reserved and a scope containing one is refused.</strong> The prefix is
+the whole partition, so an ambiguous prefix is an ambiguous partition: with
+scopes <code>admin</code> and <code>admin:readonly</code>, the readonly mount's thread keys to
+<code>admin:readonly:t1</code>, which the admin mount's own prefix filter matches. It
+would list that thread as <code>readonly:t1</code>, and load, rename and delete would
+all resolve there — silently, in both directions, since thread ids come from
+the client. Refused at construction rather than escaped at the key, because
+escaping would rewrite the storage key of every thread already saved.
+Scopes that merely share a prefix (<code>admin</code> / <code>administrators</code>) are
+unaffected: the separator ends the scope.</p>
 
 
 
@@ -7955,6 +8057,147 @@ user's history. The view carries the same authentication seam as
 <a class="autorefs autorefs-internal" title="DjangoAGUIView" href="#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a> (<code>require_authenticated</code> /
 <code>get_user</code>, sync or async), and the closed default is load-bearing here:
 every route is owner-scoped, so an anonymous caller has no history to reach.</p>
+<p>A <code>thread_activity_source=</code> merges pushed activities back into the read
+thread — see
+<a class="autorefs autorefs-internal" title="ThreadActivitySource" href="#django_ag_ui.ThreadActivitySource"><code>ThreadActivitySource</code></a> for why they are
+not in the stored history to begin with.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.ThreadActivitySource" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ThreadActivitySource</span>
+
+
+<a href="#django_ag_ui.ThreadActivitySource" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
+
+
+
+        <p>Where a restored thread's pushed activities come back from.</p>
+<p>Passed as <code>AGUIServer(thread_activity_source=...)</code>; consulted by
+<a class="autorefs autorefs-internal" title="ThreadsView" href="#django_ag_ui.ThreadsView"><code>ThreadsView</code></a> on
+<code>GET &lt;prefix&gt;threads/&lt;id&gt;/</code>, whose <code>messages</code> then carry the returned
+activities alongside the stored turns. Off unless supplied.</p>
+<p><strong>Why this is a hook and not a setting.</strong> A pushed activity deliberately
+never enters the model's message history -- that is the entire reason to
+push one rather than let the agent call a tool -- and the stored thread <em>is</em>
+that history. So the server has nothing to redraw from, and cannot get it
+without keeping a second record beside the conversation, with its own
+ordering, its own identity rules and its own answer for what a resumed run
+does with a snapshot. The project already holds the data (it charted it), so
+the smaller, more honest seam is to ask.</p>
+<p>The stored <code>messages</code> are handed over so an implementation can work out
+where each activity belongs -- the tool result it accompanied is in there,
+and its id is what
+<a class="autorefs autorefs-internal" title="ThreadActivity
+
+
+  
+      dataclass
+  " href="#django_ag_ui.ThreadActivity"><code>ThreadActivity.after_message_id</code></a> wants. They
+are the thread as stored; editing them changes nothing, since only the
+returned activities are merged in.</p>
+<p>Async because it runs on the event loop, next to the store's own reads: a
+Django ORM lookup here needs the <code>a</code>-prefixed queryset methods or
+<code>sync_to_async</code>, the same as any other view code in this package.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.ThreadActivity" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ThreadActivity</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#django_ag_ui.ThreadActivity" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>One pushed activity to put back into a restored thread, and where.</p>
+<p>Returned by a
+<a class="autorefs autorefs-internal" title="ThreadActivitySource" href="#django_ag_ui.ThreadActivitySource"><code>ThreadActivitySource</code></a>. The <code>event</code>
+is the same object the run pushed --
+<a class="autorefs autorefs-internal" title="chart_activity" href="#django_ag_ui.chart_activity"><code>chart_activity</code></a> builds one -- so a project
+re-pushes what it already knows how to build rather than learning a second
+vocabulary for the restore path.</p>
+<p><code>after_message_id</code> is the stored message this activity followed, and it is
+the caller's answer to the ordering question the library cannot answer for
+itself: the activity was never in the model's history, so nothing in the
+stored thread records where it belonged. Name the message it came after and
+it lands there; leave it <code>None</code> -- or name a message this thread does not
+have -- and it lands at the end, which is right for a chart pushed after the
+last turn and wrong for one pushed three turns ago.</p>
 
 
 
