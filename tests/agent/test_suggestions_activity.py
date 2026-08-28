@@ -26,9 +26,10 @@ def test_it_is_an_ordinary_activity_snapshot() -> None:
     assert event.content == {"prompts": ["Update the shipping address too"]}
 
 
-def test_it_replaces_rather_than_stacks() -> None:
-    # The client keeps one live set; ``replace`` is what says a later push
-    # supersedes an earlier one instead of being a second set beside it.
+def test_a_repeat_id_replaces_rather_than_stacks() -> None:
+    # Load-bearing only on a repeat id, and harmless otherwise: it is what tells
+    # the client a set supersedes the row under that id rather than being a
+    # second row that happens to share it.
     assert suggestions_activity(["Ask again"]).replace is True
 
 

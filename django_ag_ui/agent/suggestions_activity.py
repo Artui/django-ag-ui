@@ -54,10 +54,19 @@ def suggestions_activity(
     **written as the user would say it**, first person and complete, not as a
     label: ``"Update the shipping address too"``, not ``"Shipping address"``.
 
-    ``suggestions_id`` is the identity of *this set*. The client keeps one live
-    set: a later push supersedes an earlier one wherever it was drawn, and any
-    user message clears it, because a follow-up to an answer two turns back is
-    not a follow-up any more. Omit it and one is generated.
+    ``suggestions_id`` is the identity of *this set*, not of this event -- the
+    same contract as ``chart_id``. Omit it and every push draws its own row,
+    under the answer it follows, which is what suits a set offered per turn.
+    Send the same one again to **replace** a row already on screen, in the place
+    it was drawn.
+
+    It is an AG-UI ``message_id`` and shares that namespace, so a set sent under
+    an id an assistant turn already used replaces *that message*. Prefixing is
+    enough, and the generated ids do it (``suggestions-<uuid>``).
+
+    Chips are content, so they persist and a reload puts them back. Rows from
+    earlier turns stay above, reading as what was offered then; nothing expires
+    them, and a project that wants exactly one row keeps one id.
 
     Raises:
         ValueError: If ``prompts`` is empty, carries more than

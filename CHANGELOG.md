@@ -28,10 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   An ordinary `ACTIVITY_SNAPSHOT` under the `suggestions` type — a convention
   inside an extension point the protocol already provides, exactly as `chart` is,
-  so a client that has never heard of the name ignores it. `replace=True`,
-  because the client keeps **one live set**: a later push supersedes an earlier
-  one, and any user message clears it, since a follow-up to an answer two turns
-  back is not a follow-up any more.
+  so a client that has never heard of the name ignores it. Identity works as
+  `chart_id` does: omit `suggestions_id` and each push draws its own row under
+  the answer it follows; pass the same one to replace a row already on screen.
+  Chips are content, so they persist and a reload puts them back.
 
   Bounded at **4 prompts** (Slack's `setSuggestedPrompts` cap, and the point past
   which chips become a menu rather than a nudge) and 120 characters each, and
