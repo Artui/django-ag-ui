@@ -192,6 +192,16 @@ subclass it to change the model or point at another OpenAI-compatible server.
 
 ::: django_ag_ui.CHART_ACTIVITY_TYPE
 
+## Follow-up suggestions
+
+::: django_ag_ui.suggestions_activity
+
+::: django_ag_ui.SUGGESTIONS_ACTIVITY_TYPE
+
+::: django_ag_ui.MAX_SUGGESTIONS
+
+::: django_ag_ui.MAX_SUGGESTION_CHARS
+
 ## Host data invalidation
 
 ::: django_ag_ui.publish_invalidation

@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`suggestions_activity()` — server-pushed follow-up chips.** Registered skill
+  chips are static and host-configured, so they can offer "summarize this" but
+  never *"want me to update the shipping address too?"* after a tool has run.
+
+  ```python
+  from django_ag_ui import suggestions_activity
+
+  await sink(
+      suggestions_activity(
+          [
+              "Update the shipping address too",
+              "Show me the order history",
+          ]
+      )
+  )
+  ```
+
+  An ordinary `ACTIVITY_SNAPSHOT` under the `suggestions` type — a convention
+  inside an extension point the protocol already provides, exactly as `chart` is,
+  so a client that has never heard of the name ignores it. Identity works as
+  `chart_id` does: omit `suggestions_id` and each push draws its own row under
+  the answer it follows; pass the same one to replace a row already on screen.
+  Chips are content, so they persist and a reload puts them back.
+
+  Bounded at **4 prompts** (Slack's `setSuggestedPrompts` cap, and the point past
+  which chips become a menu rather than a nudge) and 120 characters each, and
+  **it raises rather than trimming**. The client draws no more than its own limit
+  and has no channel to report what it dropped, so trimming here would ship
+  suggestions that silently never appear — which is the hole `chart_limits`
+  exists to close, found there by shipping it.
+
+### Added
+
 - **`RUN_CONTEXT["DELIVERY"]` — the channel that carries client-supplied context
   is now a choice, because there are two defensible answers and this package
   held one of them silently.**
