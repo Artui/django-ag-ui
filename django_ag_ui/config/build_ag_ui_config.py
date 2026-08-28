@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast, get_args
 
+from django.core.exceptions import ImproperlyConfigured
 from django_pydantic_agent import AttachmentInlineConfig
 from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 from django_ag_ui.conf import get_setting
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.config.types.context_delivery import ContextDelivery
 from django_ag_ui.config.types.run_context_config import RunContextConfig
 
 
@@ -127,6 +129,12 @@ def _parse_tool_failure(raw: Any) -> ToolFailureConfig:
     )
 
 
+# The ``ContextDelivery`` members, for validating the settings string. A
+# ``Literal``'s arguments are the type's own definition, so reading them back
+# keeps the check from drifting when a third channel is added.
+_DELIVERIES: frozenset[str] = frozenset(get_args(ContextDelivery))
+
+
 def _parse_run_context(raw: Any) -> RunContextConfig:
     """Build a [`RunContextConfig`][django_ag_ui.RunContextConfig] from the
     ``RUN_CONTEXT`` settings dict.
@@ -139,12 +147,27 @@ def _parse_run_context(raw: Any) -> RunContextConfig:
     limited only by ``DATA_UPLOAD_MAX_MEMORY_SIZE``, and it reaches the model on
     every request of every run. 20 000 characters is roughly 5 000 tokens: a
     ceiling on a pathological page, not a budget to plan against.
+
+    ``DELIVERY`` picks the channel and defaults to ``"instructions"``, which is
+    what every release before it did. An unrecognised value **raises** rather
+    than falling back: the two channels have different security properties, so
+    a typo silently resolving to the more permissive one is the one outcome
+    worth refusing at startup.
     """
     run_context: dict[str, Any] = raw or {}
+    delivery = str(run_context.get("DELIVERY", "instructions"))
+    if delivery not in _DELIVERIES:
+        raise ImproperlyConfigured(
+            f"DJANGO_AG_UI['RUN_CONTEXT']['DELIVERY'] is {delivery!r}; "
+            f"expected one of {sorted(_DELIVERIES)}. The two channels differ in "
+            "whether client text inherits operator authority, so an unknown "
+            "value is not defaulted."
+        )
     return RunContextConfig(
         client_context=bool(run_context.get("CLIENT_CONTEXT", True)),
         attachment_manifest=bool(run_context.get("ATTACHMENT_MANIFEST", True)),
         max_chars=int(run_context.get("MAX_CHARS", 20000)),
+        delivery=cast("ContextDelivery", delivery),
     )
 
 

@@ -57,6 +57,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.RunContextConfig
 
+::: django_ag_ui.ContextDelivery
+
 ::: django_ag_ui.build_ag_ui_config
 
 ## Policy and audit

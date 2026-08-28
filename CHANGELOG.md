@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`RUN_CONTEXT["DELIVERY"]` — the channel that carries client-supplied context
+  is now a choice, because there are two defensible answers and this package
+  held one of them silently.**
+
+  ```python
+  DJANGO_AG_UI = {"RUN_CONTEXT": {"DELIVERY": "tool"}}  # or "instructions" (default)
+  ```
+
+  `"instructions"` is what every release before this key did and stays the
+  default: the fenced block rides additional run instructions, so it **survives
+  compaction** — the attachment manifest is still there at step 20 when the
+  model decides to read a file — and it is neither persisted into the thread nor
+  echoed back to the browser.
+
+  `"tool"` follows pydantic-ai's documented position. Upstream left an
+  `AGUIAdapter.context` accessor out **deliberately**, because *instructions
+  carry operator authority, so building them out of text a client sent lets a
+  prompt injection inherit that authority*, and points consumers at tool output
+  instead. On this channel the block is the return value of a
+  `get_client_context` tool.
+
+  Three costs come with `"tool"`, all real and all written down rather than
+  discovered: a tool result can be **compacted away** and is not re-supplied; the
+  model has to **decide to call it**, so ambient facts are only considered if it
+  thinks to ask; and a tool result is an ordinary part of the exchange, so the
+  block is **streamed back to the browser and persisted into the thread**.
+
+  The block itself is rendered once — same fence, same sentinel neutralisation,
+  same ceiling — and only the delivery differs, so the two channels cannot drift
+  in what they consider safe to pass on. An unrecognised `DELIVERY` raises at
+  startup rather than defaulting: the channels differ in whether client text
+  inherits operator authority, and a typo resolving to the more permissive one is
+  the outcome worth refusing.
+
+### Fixed
+
+- **Client context was fused into the cached instruction prefix, latently
+  costing money the moment anyone enables prompt caching.** Pydantic-AI
+  classifies a literal-string instruction as `dynamic=False` and a callable's
+  result as `dynamic=True`, sorts static before dynamic, and — with
+  `anthropic_cache_instructions` set — puts the cache breakpoint after the last
+  **static** instruction. The block was passed as a string, so it joined the
+  operator's static block and every request paid a fresh cache write and never
+  got a read.
+
+  It is now passed as a callable, which keeps rules-before-data (static still
+  sorts first) while landing the volatile text outside the breakpoint.
+
+  **Latent, not live** — nothing in any of these packages configures caching. But
+  `AgentConfig.model_settings` passes straight through, so it was one key away
+  with no code change, and `CachePoint` markers are dropped by the AG-UI adapter,
+  so a consumer could not have corrected it from the message side.
+
 ### Fixed
 
 - **A `SpecRegistry` handed to `service_specs=` was flattened before the

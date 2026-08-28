@@ -62,6 +62,7 @@ from django_ag_ui.agent.types.chart_spec import ChartSpec
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.config.types.context_delivery import ContextDelivery
 from django_ag_ui.config.types.run_context_config import RunContextConfig
 from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
@@ -122,6 +123,7 @@ __all__ = [
     "NullConversationStore",
     "NullTranscriptionBackend",
     "OpenedAttachment",
+    "ContextDelivery",
     "RunContextConfig",
     "SkillRegistry",
     "SkillSpec",
