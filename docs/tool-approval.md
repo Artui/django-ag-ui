@@ -38,8 +38,27 @@ when:
 - it is a drf-mcp bridged tool whose MCP `readOnlyHint` annotation is `False`
   (selectors are read-only, services mutate — the bridge maps this automatically,
   and a project can override it per registration); **or**
+- it is an **in-process** drf-services spec attached through
+  [`service_specs=`](configuration.md#service_specs) whose MCP annotations say
+  `readOnlyHint` is `False` — the same `ServiceSpec`, reached without the MCP
+  hop; **or**
+- its JSON Schema carries the `x-destructive` stamp at the root, which is what
+  [`build_input_schema`][django_ag_ui.build_input_schema] writes — so a tool you
+  attach through `toolsets=` with a schema derived by that helper is gated
+  without being in the registry; **or**
 - its name is listed in `TOOL_GUARD["REQUIRE_APPROVAL"]` (force-gate a tool that
   isn't flagged destructive).
+
+A hint has to **say** the tool mutates. An absent `readOnlyHint`, a missing stamp
+or metadata of another shape leaves the tool alone — silence is not a claim, and
+`REQUIRE_APPROVAL` is the answer for a tool whose source declares nothing.
+
+!!! note "Requires django-pydantic-agent 0.18"
+
+    The last two vocabularies arrived in the substrate's `ToolGuard` in 0.18.0.
+    Below that floor the guard read only the drf-mcp metadata key, so the *same*
+    spec was gated over the bridge and ungated in process — a transport swap
+    silently removed the gate. This package floors at `>=0.18` for that reason.
 
 `TOOL_GUARD["EXEMPT"]` un-gates a name even if it is destructive (`EXEMPT` wins).
 

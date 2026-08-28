@@ -40,18 +40,27 @@ dependencies = [
     # The settings-agnostic agent-host substrate this transport builds on:
     # agent construction, the tool registry, toolset/capability composition,
     # audit, user resolution, and the storage contracts.
-    # Floored at 0.17, and this transport is the reason rather than a bystander.
-    # An attached file's tool result has two halves with different lifetimes: the
-    # sentence is streamed and kept in the client transcript, the bytes never
-    # travel the event stream at all. This transport seeds later turns from that
-    # transcript -- ``message_history`` stays ``None`` unless a run is resumed --
-    # so before 0.17 it replayed "its contents are attached" with nothing
-    # attached, and the model answered confidently about a document it had never
-    # read. A transport that persists full ``ModelMessages`` keeps the bytes and
-    # never saw it. 0.16 also matters here: below it a row whose blob had left
+    # Floored at 0.18 for ``ToolGuard``, and this transport is the reason rather
+    # than a bystander. Below it the guard read a single vocabulary -- the
+    # destructive metadata key the drf-mcp bridge stamps -- while an in-process
+    # ``SpecToolset`` (the ``service_specs=`` path, ``[spec-tools]``) writes
+    # ``annotations["readOnlyHint"]`` instead, and nothing translated between
+    # them. A spec mutation therefore ran unapproved under
+    # ``TOOL_GUARD={"ENABLED": True}`` unless it was also named in
+    # ``REQUIRE_APPROVAL``: the setting on, the docs promising a gate, and the
+    # tool executing mid-stream anyway. A guard that reads as on while it is off
+    # is the worst shape to ship one in, so this floor is not a judgement call
+    # about the oldest version that works -- 0.17 demonstrably does not.
+    # 0.17 still earns its place: an attached file's tool result has two halves
+    # with different lifetimes -- the sentence is streamed and kept in the client
+    # transcript, the bytes never travel the event stream at all. This transport
+    # seeds later turns from that transcript (``message_history`` stays ``None``
+    # unless a run is resumed), so before 0.17 it replayed "its contents are
+    # attached" with nothing attached, and the model answered confidently about a
+    # document it had never read. And 0.16: below it a row whose blob had left
     # storage raised where the contract says it returns ``None``, and dedup
     # adopted a missing blob so re-uploading could never repair it.
-    "django-pydantic-agent>=0.17",
+    "django-pydantic-agent>=0.18",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).

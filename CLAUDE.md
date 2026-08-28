@@ -90,9 +90,14 @@ the JSON Schema as `x-destructive: true`. **What that flag gates depends on wher
   True}` composes a `ToolGuard` capability that flips destructive tools to
   `kind="unapproved"` at `prepare_tools` time — so instead of executing mid-stream, the run
   **defers** and finishes on a `RUN_FINISHED` *interrupt* the client approves/denies (via
-  `RunAgentInput.resume[]`), the standard AG-UI tool-approval loop. Destructiveness comes from
-  the registry `@tool(destructive=True)` flag and, for drf-mcp tools, the bridge maps
-  `readOnlyHint is False` onto `DESTRUCTIVE_METADATA_KEY`; `EXEMPT` / `REQUIRE_APPROVAL` override
+  `RunAgentInput.resume[]`), the standard AG-UI tool-approval loop. **Destructiveness is read
+  from four vocabularies** (dpa 0.18+, this package's floor): the registry
+  `@tool(destructive=True)` flag; `DESTRUCTIVE_METADATA_KEY`, which the drf-mcp bridge maps
+  `readOnlyHint is False` onto; `metadata["annotations"]["readOnlyHint"] is False`, which an
+  in-process `SpecToolset` on the `service_specs=` path writes instead; and the `x-destructive`
+  schema stamp `build_input_schema` emits. The middle two matter here because the *same*
+  `ServiceSpec` reaches the agent by both routes, and before 0.18 only the bridged one was
+  gated -- a transport swap silently removed the gate. `EXEMPT` / `REQUIRE_APPROVAL` override
   per name. Off by default (no surprise gates). **The wire stays vanilla AG-UI** — the gate rides
   the protocol's own interrupt/resume, not a custom event. The client must handle the interrupt to
   render an approval card and resume; the web component's card is the front-end half of this wave.

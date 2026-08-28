@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Raised the `django-pydantic-agent` floor to `>=0.18`** — below it
+  `TOOL_GUARD={"ENABLED": True}` did not gate a drf-services spec attached
+  **in process** through `service_specs=`. The guard read one vocabulary, the
+  `DESTRUCTIVE_METADATA_KEY` the drf-mcp bridge stamps; a `SpecToolset` writes
+  `metadata["annotations"]["readOnlyHint"]` instead, and nothing translated
+  between them. So the *same* `ServiceSpec` was gated when it arrived over the
+  bridge and ungated when it was attached directly — a transport swap silently
+  removed the gate, and a spec mutation ran unapproved with the setting on and
+  the docs promising otherwise.
+
+  The fix shipped in django-pydantic-agent 0.18.0; this release is what makes an
+  install of *this* package get it. A patched library is not a patched stack. If
+  you cannot upgrade yet, name the mutating specs in
+  `TOOL_GUARD["REQUIRE_APPROVAL"]` — that path always worked.
+
+  0.18 also taught the guard the `x-destructive` schema stamp
+  `build_input_schema` writes, so a tool attached through `toolsets=` with a
+  schema derived by that helper is now gated too. Both additions **widen** what
+  the gate catches; nothing that was gated before stops being gated.
+
+### Documentation
+
+- **`tool-approval.md` and `configuration.md` understated the gate.** Both
+  enumerated what counts as destructive and named only the registry flag and the
+  drf-mcp annotation. They now list all four vocabularies, and say that silence
+  is not a claim — a tool declaring nothing is left alone, which is what
+  `REQUIRE_APPROVAL` is for.
+
 ### Added
 
 - **`thread_activity_source=`** on `AGUIServer` / `ThreadsView` — a pushed chart
