@@ -104,6 +104,7 @@ nav:
   - Compaction & skills: compaction.md
   - Durable step persistence: step-persistence.md
   - Shared state: shared-state.md
+  - Invalidating host data: invalidation.md
   - Charts: charts.md
   - Key concepts: concepts.md
   - API reference: api.md
