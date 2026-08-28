@@ -33,6 +33,7 @@ from django_ag_ui import AGUIServer, ToolRegistry
         "service_specs",
         "skills",
         "step_store",
+        "thread_activity_source",
         "throttle",
         "transcription_backend",
     ],

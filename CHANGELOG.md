@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`thread_activity_source=`** on `AGUIServer` / `ThreadsView` — a pushed chart
+  can be put back on reload. A successful run stores the *model's* message
+  history, and a pushed activity deliberately never enters it, so a server-side
+  store served a restored thread with nothing to redraw the chart from: it was
+  there for the session and gone on refresh. A client-side store persists
+  activities, which is why both test suites agreed the feature worked.
+
+  ```python
+  class StoredCharts:
+      async def activities_for(self, thread_id, *, messages, request):
+          rows = Chart.objects.filter(thread_id=thread_id, owner=request.user)
+          return [
+              ThreadActivity(
+                  chart_activity(row.spec(), chart_id=row.chart_id),
+                  after_message_id=row.after_message_id,
+              )
+              async for row in rows
+          ]
+
+
+  AGUIServer(registry, conversation_store=store, thread_activity_source=StoredCharts())
+  ```
+
+  The source is asked on every thread read and its events are merged into the
+  messages served, materialised the way `@ag-ui/client` materialises a live
+  `ACTIVITY_SNAPSHOT` — so a restored chart is the same `role: "activity"`
+  message the browser already had on screen, and **no web-component change is
+  needed**; 0.26.0 and later redraw it as they stand.
+
+  **Merging on read rather than persisting activities beside the history** is
+  the deliberate half. Persisting them needs an ordering rule, a dedup rule and
+  an answer for what a resumed run does with a snapshot that already contains
+  them — decisions the framework cannot make, because it never saw the data.
+  The stored thread stays exactly the model's history, so resume, fork and
+  snapshot keep meaning what they meant. The project owns the record and answers
+  the placement question through `ThreadActivity.after_message_id`; an unknown
+  anchor lands the chart at the end rather than dropping it, and two entries
+  under one id collapse to first-position/last-content, which is what the
+  browser does with the pair anyway.
+
+- **`ThreadActivity`** and **`ThreadActivitySource`** — the record and the
+  Protocol above, exported from the package root.
+
 ## [0.49.0] — 2026-08-26
 
 ### Added

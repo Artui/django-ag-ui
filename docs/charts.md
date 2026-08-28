@@ -130,9 +130,9 @@ provider.
 | Agent can discuss it | yes | no |
 | Updates in place | no | **yes** |
 | Needs a tool call | yes | yes, but one the agent was calling anyway |
-| **Survives a reload** | **yes** | only with a client-side store |
+| **Survives a reload** | **yes** | with a client-side store, or a `thread_activity_source` |
 
-### A pushed chart does not survive a reload on the server
+### A pushed chart is not in the stored thread
 
 Worth knowing before you choose, because it is the one difference you cannot
 work around from the browser.
@@ -140,16 +140,64 @@ work around from the browser.
 When a run **succeeds**, what gets stored as the thread is the *model's* message
 history. A pushed chart never enters that history — which is the whole reason to
 push it — so it is not in the stored thread, and a reload has nothing to redraw.
-The chart is there for the rest of the session and gone on refresh.
 
-A chart the **agent** asked for survives, because the spec travels as the tool
-call's arguments, and tool calls are part of the model's history. The browser
-redraws it from those arguments without re-running anything.
+A chart the **agent** asked for survives on its own, because the spec travels as
+the tool call's arguments, and tool calls are part of the model's history. The
+browser redraws it from those arguments without re-running anything.
 
-If a chart has to outlive a refresh and its data must not reach the model, the
-options today are to store the data yourself and re-push it when the thread is
-opened, or to keep the conversation in a client-side store, which does persist
-activities. Teaching the server to persist them is on the roadmap.
+A **client-side store** persists activities and needs nothing from you. On a
+server-side store — the recommended setup — a pushed chart comes back only if
+you put it back, which is what the next section is for.
+
+## Putting a pushed chart back on reload
+
+`thread_activity_source=` is asked, on every thread read, which pushed
+activities belong to that thread. It hands back
+[`chart_activity`][django_ag_ui.chart_activity] events — the same ones the run
+pushed — and the endpoint merges them into the messages it serves, where the
+browser redraws them like any other restored turn.
+
+```python
+from django_ag_ui import AGUIServer, ThreadActivity, chart_activity
+
+
+class StoredCharts:
+    async def activities_for(self, thread_id, *, messages, request):
+        rows = Chart.objects.filter(thread_id=thread_id, owner=request.user)
+        return [
+            ThreadActivity(
+                chart_activity(row.spec(), chart_id=row.chart_id),
+                after_message_id=row.after_message_id,
+            )
+            async for row in rows
+        ]
+
+
+agent = AGUIServer(registry, conversation_store=store, thread_activity_source=StoredCharts())
+```
+
+It runs on the event loop next to the store's own reads, so reach for the
+`a`-prefixed queryset methods or `sync_to_async`, as anywhere else in this
+package.
+
+**Why you store the data and not the framework.** The server has nothing to
+persist on your behalf: the numbers never entered the model's history, and
+keeping a second record beside the conversation means owning its ordering, its
+identity and its behaviour on a resumed run — decisions only the project that
+holds the data can make. The stored thread stays exactly the model's history,
+which is what keeps a resume, a fork and a snapshot meaning what they meant
+before.
+
+**`after_message_id` is where the chart goes.** Name the stored message it
+followed and it lands there; leave it out and it lands at the end. The stored
+messages are handed to `activities_for` for exactly this reason — the tool
+result the chart accompanied is among them. An anchor the thread no longer has
+falls back to the end rather than dropping the chart.
+
+**Send a chart id you can reproduce.** `chart_id` is the chart's identity across
+both the run and the restore, so store it with the row rather than minting a new
+one on read. Two entries under one id collapse into one — first position, last
+content — which is what the browser does with the pair anyway.
 
 Both routes involve a tool call — the difference is what crosses it. The agent
 route sends the numbers *through* the model; the push route attaches them to a

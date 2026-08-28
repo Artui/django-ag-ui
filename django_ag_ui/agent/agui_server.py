@@ -33,6 +33,7 @@ from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.persistence.transcribe_view import TranscribeView
+from django_ag_ui.persistence.types.thread_activity_source import ThreadActivitySource
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
 from django_ag_ui.skills.skill_registry import SkillRegistry
 from django_ag_ui.skills.skills_view import SkillsView
@@ -70,7 +71,11 @@ class AGUIServer:
       was passed (``skills/``, GET JSON for ``data-skills-url``).
     - ``threads`` / ``thread`` — the conversation store is not a
       ``NullConversationStore`` (``threads/`` + ``threads/<id>/``, the history
-      drawer's ``data-threads-url``).
+      drawer's ``data-threads-url``). A ``thread_activity_source=`` puts pushed
+      activities back into what that route serves; without one, a restored
+      thread is the model's message history and nothing else, which is where a
+      pushed chart is missing from. See
+      [`ThreadActivitySource`][django_ag_ui.ThreadActivitySource].
     - ``attachments`` / ``attachment`` — the attachment store is not a
       ``NullAttachmentStore`` (``attachments/`` + ``attachments/<id>/``, the
       composer's ``data-attachments-url``).
@@ -211,6 +216,7 @@ class AGUIServer:
         authorize: AuthorizePredicate | None = None,
         skills: SkillRegistry | None = None,
         conversation_store: ConversationStore | None = None,
+        thread_activity_source: ThreadActivitySource | None = None,
         step_store: Callable[[HttpRequest], Any] | None = None,
         deps_factory: Callable[[HttpRequest], AgentDeps] | None = None,
         throttle: Throttle | None = None,
@@ -250,6 +256,7 @@ class AGUIServer:
             service_specs=service_specs,
             skills=skills,
             step_store=step_store,
+            thread_activity_source=thread_activity_source,
             throttle=throttle,
             toolsets=toolsets,
             transcribe_throttle=transcribe_throttle,
@@ -278,6 +285,7 @@ class AGUIServer:
         self._conversation_store: ConversationStore = (
             conversation_store if conversation_store is not None else NullConversationStore()
         )
+        self._thread_activity_source = thread_activity_source
         self._attachment_store: AttachmentStore = (
             attachment_store if attachment_store is not None else NullAttachmentStore()
         )
@@ -378,7 +386,10 @@ class AGUIServer:
             )
         if not isinstance(self._conversation_store, NullConversationStore):
             threads_view = ThreadsView(
-                self._conversation_store, config=self._config, **self._policy
+                self._conversation_store,
+                config=self._config,
+                thread_activity_source=self._thread_activity_source,
+                **self._policy,
             )
             patterns.append(path("threads/", threads_view, name="threads"))
             patterns.append(path("threads/<str:thread_id>/", threads_view, name="thread"))
