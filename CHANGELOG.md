@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A `SpecRegistry` handed to `service_specs=` was flattened before the
+  capability was built, dropping everything the entry carries.**
+  `_resolve_spec_source` returned only the `name -> spec` mapping, so the spec
+  capability was built from a registry's *output* rather than the registry — and
+  a `RegisteredSpec` holds more than its spec: its tags, and drf-services 0.45's
+  `AgentContract`, which is where a project declares what a caller with **no
+  HTTP request** has to be told (the URL kwargs, query params and field-audience
+  overrides the URLconf and query string give an HTTP caller for free).
+
+  The source is now kept beside the mapping and is what the capability is built
+  from. The mapping still serves the two consumers that want names — the tool
+  catalog and the view's tool-name reservation, which is why it was normalised
+  here in the first place.
+
+  **The loss was silent**, which is why it survived a wave of review: every tool
+  is still registered and the endpoint still works. It shows only as an argument
+  the model was never offered, or a field it was shown and should not have been.
+
+  The other half is `django-pydantic-agent`, which flattens again one step
+  later; the declarations reach the toolset once **both** land, so the dpa floor
+  raise rides with the next release sweep. Nothing regresses in the meantime —
+  a registry reaching the older builder is flattened exactly as before.
+
 ### Added
 
 - **`publish_invalidation` and `resource_invalidation` — tell the page what the

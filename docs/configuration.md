@@ -699,6 +699,15 @@ exactly once. Use this when you have drf-services specs but no reason to stand u
 an MCP server; use `drf_mcp_server=` when you already run one (or want MCP
 clients to share the tools).
 
+**Pass the registry, not `registry.specs()`.** An entry carries more than its
+spec: its tags, and the `AgentContract` (drf-services 0.45+) declaring what a
+caller with **no HTTP request** has to be told — the URL kwargs, query params
+and field-audience overrides an HTTP caller gets from the URLconf and query
+string for free. The flattened mapping has none of that, and the loss is silent:
+every tool is still there, just missing declarations nobody asked for. The same
+registry handed to an MCP server is read the same way, which is the point of
+declaring it once.
+
 **Every spec needs its own `permission_classes`.** Since
 `djangorestframework-pydantic-ai` 0.13 a spec that omits them makes the endpoint
 raise `ImproperlyConfigured` at construction rather than exposing an ungated

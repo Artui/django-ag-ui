@@ -107,6 +107,7 @@ class DjangoAGUIView:
         agent_factory: AgentFactoryFn | None = None,
         drf_mcp_server: Any = None,
         service_specs: dict[str, Any] | None = None,
+        spec_source: Any = None,
         spec_capability: Any = None,
         provider: Any = None,
         attachment_store: AttachmentStore | None = None,
@@ -130,6 +131,10 @@ class DjangoAGUIView:
         self._agent_factory = agent_factory
         self._drf_mcp_server = drf_mcp_server
         self._service_specs = service_specs
+        # The argument as given, when it carried more than its specs -- see
+        # ``_resolve_spec_source``. Only the capability wants it; the mapping
+        # above is what the catalog and the name dedup read.
+        self._spec_source = spec_source
         self._spec_capability = spec_capability
         self._provider = provider
         self._attachment_store = attachment_store
@@ -421,7 +426,14 @@ class DjangoAGUIView:
             return []
         from django_pydantic_agent.integrations.build_spec_capability import build_spec_capability
 
-        capability = build_spec_capability(specs, exclude_names=frozenset(seen))
+        # The source when there is one, so a registry's per-entry declarations
+        # survive; the flattened mapping otherwise. ``build_spec_capability``
+        # narrows a registry with its own ``subset``, so ``exclude_names`` means
+        # the same thing either way.
+        capability = build_spec_capability(
+            self._spec_source if self._spec_source is not None else specs,
+            exclude_names=frozenset(seen),
+        )
         seen.update(specs)
         return [capability]
 
