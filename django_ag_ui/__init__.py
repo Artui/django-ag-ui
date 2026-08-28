@@ -54,6 +54,12 @@ from django_ag_ui.agent.resource_invalidation import (
     INVALIDATE_EVENT_NAME,
     resource_invalidation,
 )
+from django_ag_ui.agent.suggestions_activity import (
+    MAX_SUGGESTION_CHARS,
+    MAX_SUGGESTIONS,
+    SUGGESTIONS_ACTIVITY_TYPE,
+    suggestions_activity,
+)
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.chart_kind import ChartKind
@@ -83,6 +89,9 @@ from django_ag_ui.version import __version__
 # is unchanged from before the extraction.
 __all__ = [
     "CHART_ACTIVITY_TYPE",
+    "MAX_SUGGESTIONS",
+    "MAX_SUGGESTION_CHARS",
+    "SUGGESTIONS_ACTIVITY_TYPE",
     "INVALIDATE_EVENT_NAME",
     "INVALIDATION_SINK",
     "MAX_LABELS",
@@ -93,6 +102,7 @@ __all__ = [
     "ChartSeries",
     "ChartSpec",
     "chart_activity",
+    "suggestions_activity",
     "publish_invalidation",
     "resource_invalidation",
     "chart_points_delta",
