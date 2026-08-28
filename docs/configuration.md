@@ -974,11 +974,22 @@ DJANGO_AG_UI = {
 | `EXEMPT` | `list[str]` | `[]` | Tool names never gated (wins over `REQUIRE_APPROVAL`). |
 | `REQUIRE_APPROVAL` | `list[str]` | `[]` | Tool names always gated, even if not flagged destructive. |
 
-**What counts as destructive:** a registry `@tool(destructive=True)`, or a
-drf-mcp tool whose MCP `readOnlyHint` annotation is `False` (selectors are
-read-only, services mutate; a project can override per registration). A tool is
-gated when it is destructive **or** named in `REQUIRE_APPROVAL`, **unless** it is
-named in `EXEMPT`.
+**What counts as destructive** — every vocabulary a toolset might declare a
+mutation in, so one setting covers the tools wherever they came from:
+
+- a registry `@tool(destructive=True)`;
+- a drf-mcp tool whose MCP `readOnlyHint` annotation is `False` (selectors are
+  read-only, services mutate; a project can override per registration);
+- an in-process drf-services spec attached through
+  [`service_specs=`](#service_specs) declaring the same annotation — the same
+  `ServiceSpec` without the MCP hop;
+- an `x-destructive` stamp at the root of the tool's JSON Schema, which is what
+  [`build_input_schema`][django_ag_ui.build_input_schema] writes.
+
+A tool is gated when it is destructive **or** named in `REQUIRE_APPROVAL`,
+**unless** it is named in `EXEMPT`. Silence is not a claim: a tool declaring
+nothing is left alone, and `REQUIRE_APPROVAL` is the answer for it. The last two
+vocabularies need django-pydantic-agent 0.18, this package's floor.
 
 The gate is only useful with a client that renders the interrupt and resumes —
 the web component's approval card is the front-end half of this feature; a bespoke

@@ -620,7 +620,7 @@ docs = [
 requires-dist = [
     { name = "ag-ui-protocol", specifier = ">=0.1.19" },
     { name = "django", specifier = ">=4.2" },
-    { name = "django-pydantic-agent", specifier = ">=0.17" },
+    { name = "django-pydantic-agent", specifier = ">=0.18" },
     { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.30" },
     { name = "djangorestframework-pydantic-ai", marker = "extra == 'spec-tools'", specifier = ">=0.16" },
     { name = "pydantic-ai-harness", marker = "extra == 'harness'", specifier = ">=0.13" },
@@ -657,16 +657,16 @@ docs = [
 
 [[package]]
 name = "django-pydantic-agent"
-version = "0.17.0"
+version = "0.18.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django", version = "5.2.17", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "django", version = "6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pydantic-ai-slim" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ff/d4/32dce0b52394788c1648138d3c4d87e3ab1a4bd44432d79576eda8557998/django_pydantic_agent-0.17.0.tar.gz", hash = "sha256:b894b1cf10c03806d2a3740933ae2f41c6d1f8fcbca1bc9781273d558a4971aa", size = 294932, upload-time = "2026-08-25T12:35:29.841Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/19/e67fbee4901a820fa64ce5399541a28d71a0c9eb84643881661ab7a940f2/django_pydantic_agent-0.18.0.tar.gz", hash = "sha256:ba54b0a3bb3723a6d782c059cf8147513f9ffbecb33f51ce443ababd78963a91", size = 308701, upload-time = "2026-08-26T13:27:59.519Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/f2/6ad7f8133ed1ce9d1fea5733f642874f122bb620b9668858a02a2b961c90/django_pydantic_agent-0.17.0-py3-none-any.whl", hash = "sha256:9d00fed00bb9efbf56841a950c9375a6e624419a652de196abd91bf30db5fa38", size = 91445, upload-time = "2026-08-25T12:35:28.431Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/6e/261df25400effa9fcd244b6c40fb508032713b22a871e938d8c5b6e1ff9e/django_pydantic_agent-0.18.0-py3-none-any.whl", hash = "sha256:9488e759705bcff9eb10d63210d1bf503e791362c71c9e312d4d47117ee8bc2f", size = 96940, upload-time = "2026-08-26T13:27:58.193Z" },
 ]
 
 [[package]]
@@ -865,6 +865,7 @@ dependencies = [
     { name = "cryptography" },
     { name = "pyasn1-modules" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/41/64/55f316b729f92a552d26e00aa3b1542b2e149d0a5efe2842afff0cac7af7/google_auth-2.57.0.tar.gz", hash = "sha256:9b4f96d6a1feb5f7201231f47cfb3de08d8f176f8a61f9e461555116e95a8789", size = 370794, upload-time = "2026-08-25T19:18:26.419Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/00/f3/8508a702c094af5f6e89773f4dfdeee74913df0f41a02c21b5e7dc3d75cd/google_auth-2.57.0-py3-none-any.whl", hash = "sha256:180dafe015cfb62193bea26b677500fab5b9fd51a1e825ebf3ad9b182047ae59", size = 259728, upload-time = "2026-08-24T21:55:08.449Z" },
 ]
