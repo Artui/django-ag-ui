@@ -21,6 +21,7 @@ from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
+from django_ag_ui.agent.build_client_context_toolset import build_client_context_toolset
 from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
 from django_ag_ui.agent.guarded_stream import guarded_stream
 from django_ag_ui.agent.inject_compaction_events import inject_compaction_events
@@ -120,7 +121,7 @@ class AgentSession:
             deps=self._deps,
             model=self._model,
             instructions=self._run_instructions(),
-            toolsets=self._toolsets,
+            toolsets=self._run_toolsets(),
             capabilities=self._capabilities,
         )
         events = self._adapter.transform_stream(native, on_complete=self._on_complete())
@@ -158,26 +159,67 @@ class AgentSession:
             on_cancel=self._on_cancel(transcript),
         )
 
-    def _run_instructions(self) -> list[str] | str | None:
-        """The operator instructions, plus this run's fenced client context.
+    def _client_context_block(self) -> str | None:
+        """This run's fenced client-supplied context, whichever channel takes it.
+
+        Rendered once here and handed to exactly one of
+        [`_run_instructions`][django_ag_ui.AgentSession._run_instructions] or
+        [`_run_toolsets`][django_ag_ui.AgentSession._run_toolsets], so the two
+        channels cannot disagree about what is safe to pass on.
+        """
+        return build_untrusted_context(self._run_input, config=self._config.run_context)
+
+    def _run_instructions(self) -> list[Any] | str | None:
+        """The operator instructions, plus this run's client context when it rides here.
 
         The delivery hook for what the client announced about the user's
         situation — ``RunAgentInput.context`` and the attachment refs riding the
         posted messages — which pydantic-ai's adapter deliberately leaves to the
-        consumer.
+        consumer. Under ``delivery="tool"`` the block is not here at all; see
+        [`ContextDelivery`][django_ag_ui.ContextDelivery] for why either answer
+        is defensible.
 
         Operator instructions come **first** so the model reads the rules before
         the data; the block's closing line re-asserts that precedence where the
         data ends. Returning a sequence rather than one joined string is what
         keeps the client's text out of the operator's prompt string, off the
         persisted thread, and out of what streams back to the browser.
+
+        **The block is passed as a callable, and that is load-bearing.**
+        Pydantic-AI classifies a literal string instruction as ``dynamic=False``
+        and a callable's result as ``dynamic=True``, then sorts static before
+        dynamic — so a callable keeps the rules-before-data order *and* keeps
+        the volatile text out of the static prefix. That matters the moment a
+        project sets ``anthropic_cache_instructions``: the cache breakpoint goes
+        after the last **static** instruction, so passing this as a string would
+        fuse it into the cached block and pay a fresh cache write on every
+        request, never a read. Nothing in this package configures caching, but
+        ``AgentConfig.model_settings`` passes straight through, so it is one key
+        away — and ``CachePoint`` markers are dropped by the AG-UI adapter, so a
+        consumer could not correct it from the message side.
         """
-        block = build_untrusted_context(self._run_input, config=self._config.run_context)
+        if self._config.run_context.delivery != "instructions":
+            return self._instructions
+        block = self._client_context_block()
         if block is None:
             return self._instructions
         if self._instructions is None:
-            return block
-        return [self._instructions, block]
+            return cast("Any", lambda _ctx: block)
+        return [self._instructions, cast("Any", lambda _ctx: block)]
+
+    def _run_toolsets(self) -> list[Any] | None:
+        """The session's toolsets, plus the context tool when it rides there.
+
+        Appended rather than prepended so the endpoint's own tools keep
+        precedence in the model's listing, and built per run because the block
+        it returns belongs to this ``RunAgentInput``.
+        """
+        if self._config.run_context.delivery != "tool":
+            return self._toolsets
+        block = self._client_context_block()
+        if block is None:
+            return self._toolsets
+        return [*(self._toolsets or []), build_client_context_toolset(block)]
 
     async def _persist_on_error(
         self,

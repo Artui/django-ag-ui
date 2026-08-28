@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+from django.core.exceptions import ImproperlyConfigured
 from django.test import override_settings
 from django_pydantic_agent import AttachmentInlineConfig
 from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
@@ -137,6 +139,28 @@ def test_an_explicit_run_context_wins() -> None:
         )
     assert config.run_context.client_context is False
     assert config.run_context.max_chars == 5
+
+
+def test_the_delivery_channel_defaults_to_instructions() -> None:
+    """What every release before the channel existed did."""
+    with override_settings(DJANGO_AG_UI={}):
+        assert build_ag_ui_config().run_context.delivery == "instructions"
+
+
+def test_the_delivery_channel_is_parsed_through() -> None:
+    with override_settings(DJANGO_AG_UI={"RUN_CONTEXT": {"DELIVERY": "tool"}}):
+        assert build_ag_ui_config().run_context.delivery == "tool"
+
+
+def test_an_unknown_delivery_channel_raises_rather_than_defaulting() -> None:
+    """The two channels differ in whether client text inherits operator
+    authority, so a typo resolving to the more permissive one is the outcome
+    worth refusing at startup rather than the one worth tolerating."""
+    with (
+        override_settings(DJANGO_AG_UI={"RUN_CONTEXT": {"DELIVERY": "instrctions"}}),
+        pytest.raises(ImproperlyConfigured, match="instrctions"),
+    ):
+        build_ag_ui_config()
 
 
 def test_attachment_inline_defaults_to_the_substrates_own() -> None:
