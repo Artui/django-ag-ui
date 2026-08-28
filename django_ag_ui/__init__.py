@@ -46,6 +46,14 @@ from django_ag_ui.agent.chart_points_delta import chart_points_delta
 from django_ag_ui.agent.compaction_observer import CompactionObserver
 from django_ag_ui.agent.fixed_window_throttle import FixedWindowThrottle
 from django_ag_ui.agent.inject_compaction_events import COMPACTION_ACTIVITY_TYPE
+from django_ag_ui.agent.publish_invalidation import (
+    INVALIDATION_SINK,
+    publish_invalidation,
+)
+from django_ag_ui.agent.resource_invalidation import (
+    INVALIDATE_EVENT_NAME,
+    resource_invalidation,
+)
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.chart_kind import ChartKind
@@ -74,6 +82,8 @@ from django_ag_ui.version import __version__
 # is unchanged from before the extraction.
 __all__ = [
     "CHART_ACTIVITY_TYPE",
+    "INVALIDATE_EVENT_NAME",
+    "INVALIDATION_SINK",
     "MAX_LABELS",
     "MAX_MAGNITUDE",
     "MAX_POINTS",
@@ -82,6 +92,8 @@ __all__ = [
     "ChartSeries",
     "ChartSpec",
     "chart_activity",
+    "publish_invalidation",
+    "resource_invalidation",
     "chart_points_delta",
     "CompactionObserver",
     "AGUIConfig",

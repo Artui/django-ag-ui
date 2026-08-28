@@ -190,6 +190,14 @@ subclass it to change the model or point at another OpenAI-compatible server.
 
 ::: django_ag_ui.CHART_ACTIVITY_TYPE
 
+## Host data invalidation
+
+::: django_ag_ui.publish_invalidation
+
+::: django_ag_ui.resource_invalidation
+
+::: django_ag_ui.INVALIDATE_EVENT_NAME
+
 ## Internal helpers
 
 These are not part of the public re-export surface but are referenced from the

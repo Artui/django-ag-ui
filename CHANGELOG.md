@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`publish_invalidation` and `resource_invalidation` — tell the page what the
+  agent just moved.** The agent writes and the page the user is looking at still
+  shows the old list. `ag-ui-run-finished` already says *something* moved and is
+  already adopted, so this is **precision on a channel that ships**, not a new
+  one: name the resources and a host refetches only those, live during the run
+  rather than once at the end.
+
+  ```python
+  with transaction.atomic():
+      order = Order.objects.create(sku=sku)
+      transaction.on_commit(
+          lambda: publish_invalidation("orders", f"orders/{order.pk}", reason="place_order")
+      )
+  ```
+
+  Keys are **opaque host-defined strings**. This package never interprets them,
+  because every alternative — model labels, spec names, URLs, MCP-style URIs —
+  encodes one side's vocabulary into a contract both sides must read, and the two
+  sides are a Django app and a frontend that may know nothing about Django
+  models. Matching is exact and never by prefix, so a write that should also
+  refresh the collection **names the collection**: a prefix rule would guess at a
+  scheme this package does not own, and `orders/1` would match `orders/11`.
+
+  A `CUSTOM` event, which is the opposite of the carrier `chart_activity` picks,
+  and the difference is **lifetime**. An `ACTIVITY_SNAPSHOT` is materialised into
+  a message, persisted with the transcript and replayed on every restore — right
+  for a chart, and a refetch storm for an invalidation.
+
+  ⇒ `ACTIVITY_SNAPSHOT` is for content; `CUSTOM` is for an imperative.
+
+  **Two routes, because the transaction boundary is wrong by default.**
+  `resource_invalidation` returns the event for a tool to hand back as
+  `ToolReturn(metadata=...)`, the same route charts document. But a tool has to
+  return before its metadata is forwarded, so it cannot announce *after* a
+  commit — and `ServiceSpec` is `atomic=True` unless told otherwise, so the
+  naive version tells the page to refetch data that has not committed and may
+  never commit. `publish_invalidation` queues onto the run's own stream instead,
+  which is what makes `transaction.on_commit` usable. It returns `False` when no
+  run is listening, so a call from a worker or a management command is a no-op
+  rather than an error.
+
+  The queue is a `ContextVar` sink drained by a stream injector, the same shape
+  compaction uses and for the same reason: one process serves many runs, and an
+  invalidation crossing between them would tell the wrong page to refetch.
+
+  The [guide](https://artui.github.io/django-ag-ui/invalidation/) leads with the
+  hazard that matters most — **an agent-triggered reload destroys unsaved input**
+  — and deliberately contains no one-line "reload on invalidation" example,
+  because that is the line someone would copy.
+
 ## [0.50.0] — 2026-08-28
 
 ### Security

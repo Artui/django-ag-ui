@@ -24,6 +24,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
 from django_ag_ui.agent.guarded_stream import guarded_stream
 from django_ag_ui.agent.inject_compaction_events import inject_compaction_events
+from django_ag_ui.agent.inject_invalidation_events import inject_invalidation_events
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
@@ -129,6 +130,11 @@ class AgentSession:
         # capability list, and a flag would mean a second way to express the
         # same opt-in.
         events = inject_compaction_events(events)
+        # Unconditional for the same reason: a no-op unless something calls
+        # ``publish_invalidation`` during the run, and a flag would mean a second
+        # way to express the same opt-in. It wraps *outside* the run, so the sink
+        # exists before the first tool can write.
+        events = inject_invalidation_events(events)
         # Only when there is something to say: the wrapper has to track tool-call
         # ids to match an interrupt back to its tool, and an endpoint that gates
         # nothing should not pay for that on every run.
