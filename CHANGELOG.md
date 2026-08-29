@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **A per-user memory page.** `pydantic-ai-harness` ships a complete memory
+  capability and `capabilities=` already carries it, so this is a recipe rather
+  than a feature — no new setting, no new code. It leads with the precondition
+  instead of burying it: **`TOOL_GUARD` should be on before memory is.** Memory
+  is durable, model-written and replayed into every later run, so a note that
+  reads as an instruction keeps working indefinitely; the guard is what stops one
+  reaching a destructive tool unattended. Each setting is defensible alone and
+  they are only wrong together.
+
+  It also records why the namespace resolver reads `ctx.deps.user` and not a
+  request — `capabilities=` is resolved once at construction, so nothing
+  request-shaped can be closed over in it — and why a memory-management UI stays
+  the host app's, while insisting that memory not be switched on without one.
+
+- **Preferences, on the same page, as the thing memory is not.** They differ on
+  *who reads them*: memory is read by the model as prompt text it wrote itself,
+  a preference is read by the server to shape the run through a slot the operator
+  wrote. Shipped as a recipe over `model_for_request` / `instructions_for_request`
+  — default model, tone and language all fall out of the two hooks that already
+  exist. No model ships here and none should: nothing this package owns would
+  read the table, and the schema would be guessing at a product's taxonomy.
+
+  The one preference with no path is per-user reasoning disclosure, and the
+  refusal is recorded as a decision rather than left as an omission.
+
+### Changed
+
+- **The `django-pydantic-agent` floor moves to `>=0.20`**, earned by the memory
+  page rather than by anything this package imports: the recipe needs
+  `memory_namespace_for_user` and `DefaultMemoryStore`, and neither exists below
+  it. A documentation-earned floor is the weaker kind, and worth naming as such
+  -- nothing here breaks at 0.19 -- but a shipped page that a valid install
+  cannot follow is drift of exactly the sort `check_docs_snippets.py` exists to
+  refuse, and it resolves those imports against the *installed* package.
+
 ### Fixed
 
 - **Two extras comments told readers to attach through settings keys that
