@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.0] — 2026-08-29
+
 ### Added
 
 - **`suggestions_activity()` — server-pushed follow-up chips.** Registered skill
@@ -3001,7 +3003,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.50.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.51.0...HEAD
+[0.51.0]: https://github.com/Artui/django-ag-ui/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/Artui/django-ag-ui/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/Artui/django-ag-ui/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/Artui/django-ag-ui/compare/v0.47.0...v0.48.0
