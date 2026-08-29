@@ -123,7 +123,7 @@ class AGUIServer:
         AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
 
     **Prefer the registry over ``registry.specs()``.** An entry carries more
-    than its spec -- its tags, and the ``AgentContract`` saying what a caller
+    than its spec -- its tags, and the ``OfflineContract`` saying what a caller
     with no HTTP request has to be told (the URL kwargs, query params and
     field-audience overrides an HTTP caller gets from the URLconf and query
     string for free). The flattened mapping has none of it, and losing it is
@@ -442,7 +442,7 @@ def _resolve_spec_source(
 
     **The third is the argument as given, because normalising is lossy.** A
     ``SpecRegistry`` entry carries more than its spec — its tags, and the
-    ``AgentContract`` saying what a caller with no HTTP request has to be told —
+    ``OfflineContract`` saying what a caller with no HTTP request has to be told —
     and ``specs()`` returns the specs alone. Returning only the mapping meant
     the capability was built from a registry's *output* rather than the
     registry, so those declarations never reached the toolset, silently: the

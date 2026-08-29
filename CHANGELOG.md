@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Two extras comments told readers to attach through settings keys that
+  raise.** `[spec-tools]` pointed at `DJANGO_AG_UI["SERVICE_SPECS"]` and
+  `[harness]` at `DJANGO_AG_UI["CAPABILITIES"]`; both keys were removed in
+  0.19.0 and `check_removed_settings` has rejected them ever since. Packaging
+  metadata is read where nothing runs -- no gate parses a comment in
+  `pyproject.toml` -- so the claim outlived the API by five minor versions.
+
+- Three docstrings and one docs line named drf-services' `AgentContract`, which
+  0.48.0 renamed to `OfflineContract` with no alias left behind. Prose only;
+  nothing imported it, which is exactly why nothing caught it.
+
 ## [0.51.0] — 2026-08-29
 
 ### Added
