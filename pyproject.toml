@@ -60,7 +60,7 @@ dependencies = [
     # document it had never read. And 0.16: below it a row whose blob had left
     # storage raised where the contract says it returns ``None``, and dedup
     # adopted a missing blob so re-uploading could never repair it.
-    "django-pydantic-agent>=0.18",
+    "django-pydantic-agent>=0.19",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
@@ -85,10 +85,10 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
-drf-mcp = ["djangorestframework-mcp-server>=0.30"]
+drf-mcp = ["djangorestframework-mcp-server>=0.35"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
 # pydantic-ai's SpecCapability — no MCP server in the path (DJANGO_AG_UI["SERVICE_SPECS"]).
-spec-tools = ["djangorestframework-pydantic-ai>=0.16"]
+spec-tools = ["djangorestframework-pydantic-ai>=0.20"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via DJANGO_AG_UI["CAPABILITIES"].
@@ -124,9 +124,9 @@ dev = [
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
-    "djangorestframework-mcp-server>=0.30",
+    "djangorestframework-mcp-server>=0.35",
     # The [spec-tools] extra's backing package, so its capability + tests run in dev.
-    "djangorestframework-pydantic-ai>=0.16",
+    "djangorestframework-pydantic-ai>=0.20",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
