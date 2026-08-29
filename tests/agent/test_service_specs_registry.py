@@ -152,7 +152,7 @@ class TestTheSourceSurvivesNormalisation:
     """Flattening is lossy, so the argument as given is kept beside the mapping.
 
     A ``SpecRegistry`` entry carries more than its spec: its tags, and the
-    ``AgentContract`` that says what a caller with no HTTP request has to be
+    ``OfflineContract`` that says what a caller with no HTTP request has to be
     told. ``specs()`` returns the specs alone, so a capability built from the
     mapping is built from a registry's *output* rather than the registry --
     silently, since the result is well-formed and merely missing declarations

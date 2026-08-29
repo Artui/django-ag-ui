@@ -87,11 +87,11 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
 drf-mcp = ["djangorestframework-mcp-server>=0.35"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
-# pydantic-ai's SpecCapability — no MCP server in the path (DJANGO_AG_UI["SERVICE_SPECS"]).
+# pydantic-ai's SpecCapability -- no MCP server in the path (service_specs=).
 spec-tools = ["djangorestframework-pydantic-ai>=0.20"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
-# via DJANGO_AG_UI["CAPABILITIES"].
+# via capabilities=.
 harness = ["pydantic-ai-harness>=0.13"]
 # CodeMode as well — wrapping many tools (e.g. the drf-mcp bridge) into one
 # sandboxed `run_code`. Separate because the sandbox (`pydantic-monty`) is
