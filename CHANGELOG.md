@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.0] — 2026-08-29
+
 ### Added
 
 - **`suggestions_activity()` — server-pushed follow-up chips.** Registered skill
@@ -40,7 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   suggestions that silently never appear — which is the hole `chart_limits`
   exists to close, found there by shipping it.
 
-### Added
 
 - **`RUN_CONTEXT["DELIVERY"]` — the channel that carries client-supplied context
   is now a choice, because there are two defensible answers and this package
@@ -76,51 +77,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inherits operator authority, and a typo resolving to the more permissive one is
   the outcome worth refusing.
 
-### Fixed
-
-- **Client context was fused into the cached instruction prefix, latently
-  costing money the moment anyone enables prompt caching.** Pydantic-AI
-  classifies a literal-string instruction as `dynamic=False` and a callable's
-  result as `dynamic=True`, sorts static before dynamic, and — with
-  `anthropic_cache_instructions` set — puts the cache breakpoint after the last
-  **static** instruction. The block was passed as a string, so it joined the
-  operator's static block and every request paid a fresh cache write and never
-  got a read.
-
-  It is now passed as a callable, which keeps rules-before-data (static still
-  sorts first) while landing the volatile text outside the breakpoint.
-
-  **Latent, not live** — nothing in any of these packages configures caching. But
-  `AgentConfig.model_settings` passes straight through, so it was one key away
-  with no code change, and `CachePoint` markers are dropped by the AG-UI adapter,
-  so a consumer could not have corrected it from the message side.
-
-### Fixed
-
-- **A `SpecRegistry` handed to `service_specs=` was flattened before the
-  capability was built, dropping everything the entry carries.**
-  `_resolve_spec_source` returned only the `name -> spec` mapping, so the spec
-  capability was built from a registry's *output* rather than the registry — and
-  a `RegisteredSpec` holds more than its spec: its tags, and drf-services 0.45's
-  `AgentContract`, which is where a project declares what a caller with **no
-  HTTP request** has to be told (the URL kwargs, query params and field-audience
-  overrides the URLconf and query string give an HTTP caller for free).
-
-  The source is now kept beside the mapping and is what the capability is built
-  from. The mapping still serves the two consumers that want names — the tool
-  catalog and the view's tool-name reservation, which is why it was normalised
-  here in the first place.
-
-  **The loss was silent**, which is why it survived a wave of review: every tool
-  is still registered and the endpoint still works. It shows only as an argument
-  the model was never offered, or a field it was shown and should not have been.
-
-  The other half is `django-pydantic-agent`, which flattens again one step
-  later; the declarations reach the toolset once **both** land, so the dpa floor
-  raise rides with the next release sweep. Nothing regresses in the meantime —
-  a registry reaching the older builder is flattened exactly as before.
-
-### Added
 
 - **`publish_invalidation` and `resource_invalidation` — tell the page what the
   agent just moved.** The agent writes and the page the user is looking at still
@@ -171,6 +127,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hazard that matters most — **an agent-triggered reload destroys unsaved input**
   — and deliberately contains no one-line "reload on invalidation" example,
   because that is the line someone would copy.
+
+### Changed
+
+- **Sibling floors raised: `django-pydantic-agent>=0.19`,
+  `djangorestframework-pydantic-ai>=0.20`, `djangorestframework-mcp-server>=0.35`.**
+
+  The first two are **code-path floors, not resolution floors**. Handing a
+  `SpecRegistry` to `service_specs=` is a four-hop chain — this package, then
+  dpa's `build_spec_capability`, then PAI's `SpecCapability`, then its
+  `SpecToolset` — and the middle two both flattened the registry to
+  `name -> spec` before passing it on. All three hops were fixed separately, and
+  **any one of them alone is a no-op**: below these versions the entry is
+  flattened again further down and everything a `RegisteredSpec` carries beyond
+  the spec is dropped, silently. So the fix in this release only does anything
+  with those versions present.
+
+  The drf-mcp floor is defensive: 0.30 through 0.34 import audience symbols that
+  `drf-services` 0.48.0 removed, and they declare no upper bound, so pinning one
+  of them alongside a current drf-services resolves to a combination that fails
+  at import. 0.35 is the first release that works.
+
+### Fixed
+
+- **Client context was fused into the cached instruction prefix, latently
+  costing money the moment anyone enables prompt caching.** Pydantic-AI
+  classifies a literal-string instruction as `dynamic=False` and a callable's
+  result as `dynamic=True`, sorts static before dynamic, and — with
+  `anthropic_cache_instructions` set — puts the cache breakpoint after the last
+  **static** instruction. The block was passed as a string, so it joined the
+  operator's static block and every request paid a fresh cache write and never
+  got a read.
+
+  It is now passed as a callable, which keeps rules-before-data (static still
+  sorts first) while landing the volatile text outside the breakpoint.
+
+  **Latent, not live** — nothing in any of these packages configures caching. But
+  `AgentConfig.model_settings` passes straight through, so it was one key away
+  with no code change, and `CachePoint` markers are dropped by the AG-UI adapter,
+  so a consumer could not have corrected it from the message side.
+
+
+- **A `SpecRegistry` handed to `service_specs=` was flattened before the
+  capability was built, dropping everything the entry carries.**
+  `_resolve_spec_source` returned only the `name -> spec` mapping, so the spec
+  capability was built from a registry's *output* rather than the registry — and
+  a `RegisteredSpec` holds more than its spec: its tags, and drf-services 0.45's
+  `AgentContract`, which is where a project declares what a caller with **no
+  HTTP request** has to be told (the URL kwargs, query params and field-audience
+  overrides the URLconf and query string give an HTTP caller for free).
+
+  The source is now kept beside the mapping and is what the capability is built
+  from. The mapping still serves the two consumers that want names — the tool
+  catalog and the view's tool-name reservation, which is why it was normalised
+  here in the first place.
+
+  **The loss was silent**, which is why it survived a wave of review: every tool
+  is still registered and the endpoint still works. It shows only as an argument
+  the model was never offered, or a field it was shown and should not have been.
+
+  The other half is `django-pydantic-agent`, which flattens again one step
+  later; the declarations reach the toolset once **both** land, so the dpa floor
+  raise rides with the next release sweep. Nothing regresses in the meantime —
+  a registry reaching the older builder is flattened exactly as before.
 
 ## [0.50.0] — 2026-08-28
 
@@ -2984,7 +3003,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.50.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.51.0...HEAD
+[0.51.0]: https://github.com/Artui/django-ag-ui/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/Artui/django-ag-ui/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/Artui/django-ag-ui/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/Artui/django-ag-ui/compare/v0.47.0...v0.48.0
