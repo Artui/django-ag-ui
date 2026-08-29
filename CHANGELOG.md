@@ -34,6 +34,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The one preference with no path is per-user reasoning disclosure, and the
   refusal is recorded as a decision rather than left as an omission.
 
+### Changed
+
+- **The `django-pydantic-agent` floor moves to `>=0.20`**, earned by the memory
+  page rather than by anything this package imports: the recipe needs
+  `memory_namespace_for_user` and `DefaultMemoryStore`, and neither exists below
+  it. A documentation-earned floor is the weaker kind, and worth naming as such
+  -- nothing here breaks at 0.19 -- but a shipped page that a valid install
+  cannot follow is drift of exactly the sort `check_docs_snippets.py` exists to
+  refuse, and it resolves those imports against the *installed* package.
+
 ### Fixed
 
 - **Two extras comments told readers to attach through settings keys that

@@ -40,7 +40,18 @@ dependencies = [
     # The settings-agnostic agent-host substrate this transport builds on:
     # agent construction, the tool registry, toolset/capability composition,
     # audit, user resolution, and the storage contracts.
-    # Floored at 0.18 for ``ToolGuard``, and this transport is the reason rather
+    # Floored at 0.20 for the recipe in ``docs/memory.md``: that page imports
+    # ``memory_namespace_for_user`` and ``DefaultMemoryStore``, and neither
+    # exists below it. This is the weaker kind of floor -- nothing this package
+    # imports breaks at 0.19 -- but a shipped page that a valid install cannot
+    # follow is drift, and ``check_docs_snippets.py`` resolves those imports
+    # against the *installed* package so that it cannot happen quietly.
+    # 0.19 is load-bearing for ``service_specs=``: below it a ``SpecRegistry``
+    # was flattened to ``name -> spec`` before the capability was built, so
+    # everything an entry carried beyond its spec -- its tags, its
+    # ``OfflineContract`` -- was gone before PAI ever saw it, silently, since
+    # the result is well-formed and merely missing declarations.
+    # 0.18 for ``ToolGuard``, and this transport is the reason rather
     # than a bystander. Below it the guard read a single vocabulary -- the
     # destructive metadata key the drf-mcp bridge stamps -- while an in-process
     # ``SpecToolset`` (the ``service_specs=`` path, ``[spec-tools]``) writes
@@ -60,7 +71,7 @@ dependencies = [
     # document it had never read. And 0.16: below it a row whose blob had left
     # storage raised where the contract says it returns ``None``, and dedup
     # adopted a missing blob so re-uploading could never repair it.
-    "django-pydantic-agent>=0.19",
+    "django-pydantic-agent>=0.20",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
