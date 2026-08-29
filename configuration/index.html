@@ -990,6 +990,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-user memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../shared-state/" class="md-nav__link">
         
   
@@ -2040,6 +2067,10 @@ one's tools.</p>
 <h2 id="capabilities"><code>capabilities=</code><a class="headerlink" href="#capabilities" title="Permanent link">&para;</a></h2>
 <p>Pydantic-AI capabilities passed to the <code>Agent</code>. Empty by default. (Ignored when
 <code>agent_factory=</code> is passed.)</p>
+<p>Resolved <strong>once</strong>, when the endpoint is constructed — so nothing request-shaped
+can be closed over in the list. A capability that needs per-user scoping reads it
+off <code>ctx.deps</code> in a resolver instead, which is what lets one agent serve every
+caller. <a href="../memory/">Per-user memory</a> is the worked example.</p>
 <h2 id="manage_system_prompt"><code>MANAGE_SYSTEM_PROMPT</code><a class="headerlink" href="#manage_system_prompt" title="Permanent link">&para;</a></h2>
 <p>Who owns the system prompt on the AG-UI wire: <code>"server"</code> (the default — the
 agent's configured prompt is authoritative and a client-posted system message
@@ -2380,7 +2411,7 @@ exactly once. Use this when you have drf-services specs but no reason to stand u
 an MCP server; use <code>drf_mcp_server=</code> when you already run one (or want MCP
 clients to share the tools).</p>
 <p><strong>Pass the registry, not <code>registry.specs()</code>.</strong> An entry carries more than its
-spec: its tags, and the <code>AgentContract</code> (drf-services 0.45+) declaring what a
+spec: its tags, and the <code>OfflineContract</code> (drf-services 0.48+, <code>AgentContract</code> before it) declaring what a
 caller with <strong>no HTTP request</strong> has to be told — the URL kwargs, query params
 and field-audience overrides an HTTP caller gets from the URLconf and query
 string for free. The flattened mapping has none of that, and the loss is silent:

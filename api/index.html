@@ -510,6 +510,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-user memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../shared-state/" class="md-nav__link">
         
   
@@ -5669,7 +5696,7 @@ already-built <code>SpecToolset</code> / <code>SpecCapability</code>:</p>
 AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
 </code></pre></div>
 <p><strong>Prefer the registry over <code>registry.specs()</code>.</strong> An entry carries more
-than its spec -- its tags, and the <code>AgentContract</code> saying what a caller
+than its spec -- its tags, and the <code>OfflineContract</code> saying what a caller
 with no HTTP request has to be told (the URL kwargs, query params and
 field-audience overrides an HTTP caller gets from the URLconf and query
 string for free). The flattened mapping has none of it, and losing it is
