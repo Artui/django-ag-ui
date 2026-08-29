@@ -358,6 +358,11 @@ one's tools.
 Pydantic-AI capabilities passed to the `Agent`. Empty by default. (Ignored when
 `agent_factory=` is passed.)
 
+Resolved **once**, when the endpoint is constructed — so nothing request-shaped
+can be closed over in the list. A capability that needs per-user scoping reads it
+off `ctx.deps` in a resolver instead, which is what lets one agent serve every
+caller. [Per-user memory](memory.md) is the worked example.
+
 ## `MANAGE_SYSTEM_PROMPT`
 
 Who owns the system prompt on the AG-UI wire: `"server"` (the default — the
