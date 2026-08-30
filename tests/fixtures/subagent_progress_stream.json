@@ -33,6 +33,7 @@
     },
     {
       "type": "CUSTOM",
+      "timestamp": 1735689600000,
       "name": "ag_ui.subagent",
       "value": {
         "delegationId": "call-1",
@@ -43,6 +44,7 @@
     },
     {
       "type": "CUSTOM",
+      "timestamp": 1735689600000,
       "name": "ag_ui.subagent",
       "value": {
         "delegationId": "call-1",
@@ -58,6 +60,7 @@
     },
     {
       "type": "CUSTOM",
+      "timestamp": 1735689600000,
       "name": "ag_ui.subagent",
       "value": {
         "delegationId": "call-1",
@@ -73,6 +76,7 @@
     },
     {
       "type": "CUSTOM",
+      "timestamp": 1735689600000,
       "name": "ag_ui.subagent",
       "value": {
         "delegationId": "call-1",
@@ -88,6 +92,7 @@
     },
     {
       "type": "CUSTOM",
+      "timestamp": 1735689600000,
       "name": "ag_ui.subagent",
       "value": {
         "delegationId": "call-1",
@@ -103,6 +108,7 @@
     },
     {
       "type": "CUSTOM",
+      "timestamp": 1735689600000,
       "name": "ag_ui.subagent",
       "value": {
         "delegationId": "call-1",
@@ -139,6 +145,7 @@
     },
     {
       "type": "CUSTOM",
+      "timestamp": 1735689600000,
       "name": "ag_ui.subagent",
       "value": {
         "delegationId": "call-2",
@@ -149,6 +156,7 @@
     },
     {
       "type": "CUSTOM",
+      "timestamp": 1735689600000,
       "name": "ag_ui.subagent",
       "value": {
         "delegationId": "call-2",

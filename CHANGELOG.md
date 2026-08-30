@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Every `CUSTOM` event this package builds now carries a `timestamp`.** It was
+  the only event type in the stream without one — pydantic-ai's adapter stamps
+  everything it emits, and the two events built here did not, so a consumer
+  reading the raw stream could not time a delegation. Found by the browser half
+  of this change reading the fixture rather than the prose.
+
+  **Both emitters, not one.** `resource_invalidation` had the same gap; stamping
+  only the new channel would have traded an asymmetry against the adapter for an
+  asymmetry inside this package. Additive and optional in the AG-UI envelope, so
+  nothing that reads these events breaks.
+
+  Not a clock for a browser to measure elapsed time with — a client's own clock
+  has no skew against itself and this one does. It is here so a logged stream
+  reads consistently.
+
 - **`SubAgentObserver` — a delegated sub-agent's work reaches the browser while
   it is happening.** A child agent runs to completion inside one `delegate_task`
   tool call, and a tool call emits nothing between its arguments and its result.

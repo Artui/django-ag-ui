@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from ag_ui.core import CustomEvent
 
+from django_ag_ui.agent.event_timestamp import event_timestamp
+
 SUBAGENT_EVENT_NAME = "ag_ui.subagent"
 """``name`` a client matches on to render a delegation's progress.
 
@@ -46,8 +48,11 @@ fifth::
   ignores this one.
 - ``tool`` is present on ``tool_call`` and ``tool_result`` only, and always has
   all three keys. ``ok`` is ``null`` on ``tool_call`` (the call has not returned
-  yet), ``true`` on a result the child accepted, and ``false`` on one that came
-  back as a retry. Sending the key as ``null`` rather than omitting it keeps the
+  yet), ``true`` on a result the child accepted, and ``false`` on one it did
+  not -- which pydantic-ai surfaces to the child as a retry, and which the
+  ``status`` line calls *failed*, because that is what a reader watching the
+  row sees happen. A client rendering its own wording should follow
+  ``status``; ``ok`` is the machine-readable half of the same fact. Sending the key as ``null`` rather than omitting it keeps the
   shape fixed, so a client can create the row on ``tool_call`` and update it in
   place on ``tool_result``.
 
@@ -110,7 +115,7 @@ def subagent_progress(
     }
     if tool_name is not None:
         value["tool"] = {"toolCallId": tool_call_id, "name": tool_name, "ok": ok}
-    return CustomEvent(name=SUBAGENT_EVENT_NAME, value=value)
+    return CustomEvent(name=SUBAGENT_EVENT_NAME, value=value, timestamp=event_timestamp())
 
 
 __all__ = ["SUBAGENT_EVENT_NAME", "subagent_progress"]
