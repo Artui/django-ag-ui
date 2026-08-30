@@ -54,6 +54,8 @@ from django_ag_ui.agent.resource_invalidation import (
     INVALIDATE_EVENT_NAME,
     resource_invalidation,
 )
+from django_ag_ui.agent.subagent_observer import SubAgentObserver
+from django_ag_ui.agent.subagent_progress import SUBAGENT_EVENT_NAME
 from django_ag_ui.agent.suggestions_activity import (
     MAX_SUGGESTION_CHARS,
     MAX_SUGGESTIONS,
@@ -92,6 +94,7 @@ __all__ = [
     "MAX_SUGGESTIONS",
     "MAX_SUGGESTION_CHARS",
     "SUGGESTIONS_ACTIVITY_TYPE",
+    "SUBAGENT_EVENT_NAME",
     "INVALIDATE_EVENT_NAME",
     "INVALIDATION_SINK",
     "MAX_LABELS",
@@ -107,6 +110,7 @@ __all__ = [
     "resource_invalidation",
     "chart_points_delta",
     "CompactionObserver",
+    "SubAgentObserver",
     "AGUIConfig",
     "DEFAULT_SYSTEM_PROMPT",
     "AGUIServer",

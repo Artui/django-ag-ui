@@ -202,6 +202,12 @@ subclass it to change the model or point at another OpenAI-compatible server.
 
 ::: django_ag_ui.MAX_SUGGESTION_CHARS
 
+## Sub-agent progress
+
+::: django_ag_ui.SubAgentObserver
+
+::: django_ag_ui.SUBAGENT_EVENT_NAME
+
 ## Host data invalidation
 
 ::: django_ag_ui.publish_invalidation

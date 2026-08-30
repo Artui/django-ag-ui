@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from ag_ui.core import CustomEvent
 
+from django_ag_ui.agent.event_timestamp import event_timestamp
+
 INVALIDATE_EVENT_NAME = "ag_ui.invalidate"
 """``name`` the client matches on to route an invalidation to the host page.
 
@@ -67,6 +69,7 @@ def resource_invalidation(*keys: str, reason: str | None = None) -> CustomEvent:
     return CustomEvent(
         name=INVALIDATE_EVENT_NAME,
         value={"keys": list(keys), "reason": reason},
+        timestamp=event_timestamp(),
     )
 
 
