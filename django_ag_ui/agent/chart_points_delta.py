@@ -8,6 +8,7 @@ from ag_ui.core import ActivityDeltaEvent
 
 from django_ag_ui.agent.chart_activity import CHART_ACTIVITY_TYPE
 from django_ag_ui.agent.chart_limits import validate_point
+from django_ag_ui.agent.types.chart_spec import ChartSpec
 
 
 def chart_points_delta(
@@ -15,6 +16,7 @@ def chart_points_delta(
     *,
     series: int = 0,
     points: tuple[float, ...] | list[float],
+    spec: ChartSpec | None = None,
 ) -> ActivityDeltaEvent:
     """Replace one series' points on the chart already under ``chart_id``.
 
@@ -27,16 +29,35 @@ def chart_points_delta(
     snapshot first and keep the id.
 
     ``series`` is the index in the spec's series list, and ``points`` must be
-    the **same length** as the series it replaces. Neither can be checked here,
-    and both fail the same quiet way: a patch is applied positionally, so it
-    cannot tell that series 2 is now something else, and a wrong-length array
-    applies cleanly and leaves a chart the client then refuses to redraw --
-    stale numbers on screen, and the chart gone entirely on the next reload.
+    the **same length** as the series it replaces. Neither can be checked from
+    ``chart_id`` alone -- an id is a name, not a shape -- and both fail the same
+    quiet way: a patch is applied positionally, so it cannot tell that series 2
+    is now something else, and a wrong-length array applies cleanly and leaves a
+    chart the client then refuses to redraw -- stale numbers on screen, and the
+    chart gone entirely on the next reload.
 
-    So: send a fresh snapshot whenever the *shape* changes, and reserve this for
-    when only the values move. An index past the end is refused by the client
-    rather than applied, which at least fails visibly in a console; a
-    wrong-length array is the one that fails invisibly.
+    **``spec=`` is how you get told.** Pass the
+    [`ChartSpec`][django_ag_ui.ChartSpec] the chart on screen was drawn from and
+    both of those become construction-time errors, the way a spec's own shape
+    already is. It stays optional and the default is unchanged: a caller that
+    does not declare a shape gets exactly the behaviour above, because a delta
+    sent from somewhere the spec is no longer in hand is a legitimate call, not
+    a mistake.
+
+    **Why the spec and not an expected point count.** A count was the cheaper
+    argument and is the wrong one twice over. It is derived --
+    ``len(spec.labels)`` -- and deriving it by hand is the same step that goes
+    wrong in the first place, so a caller who miscounts the points miscounts the
+    count too and the guard cheerfully agrees with the mistake. And it can only
+    see half the problem: ``series`` is an *index into* ``spec.series``, so only
+    the spec itself can say that index 2 is past the end. The spec also costs
+    nothing the caller does not already have, since a delta requires a snapshot
+    to have gone first and the spec is what that snapshot was built from --
+    keeping it is the same act as keeping the ``chart_id``.
+
+    It is read, never sent. This helper still emits a patch touching one array;
+    ``spec`` is the caller's declaration of what that array is expected to
+    replace, and nothing about it reaches the wire.
     """
     # Everything below is refused here because the client cannot report any of
     # it. A patch it cannot apply is caught, warned about in a console nobody is
@@ -56,6 +77,25 @@ def chart_points_delta(
         )
     for point in points:
         validate_point(f"delta for {chart_id!r}", point)
+    if spec is not None:
+        # The two checks the helper cannot make on its own, enabled by the
+        # caller declaring what it is patching. Ordered index-then-length
+        # because the index is what decides whether there is a series to have a
+        # length at all.
+        if series >= len(spec.series):
+            raise ValueError(
+                f"delta for {chart_id!r} names series {series} of a chart that has "
+                f"{len(spec.series)}; the patch path would not resolve, so the client "
+                f"would keep the numbers it already has and report nothing"
+            )
+        if len(points) != len(spec.labels):
+            raise ValueError(
+                f"delta for {chart_id!r} carries {len(points)} points for a chart of "
+                f"{len(spec.labels)} labels (series {spec.series[series].label!r}); the "
+                f"patch applies cleanly and then leaves a spec the client refuses to "
+                f"redraw -- stale numbers on screen, and the chart gone on the next "
+                f"reload. Send a fresh snapshot when the shape changes."
+            )
     patch: list[dict[str, Any]] = [
         {"op": "replace", "path": f"/series/{series}/points", "value": list(points)}
     ]

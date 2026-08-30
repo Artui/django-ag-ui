@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from ag_ui.core import EventType
 
-from django_ag_ui import CHART_ACTIVITY_TYPE, chart_points_delta
+from django_ag_ui import CHART_ACTIVITY_TYPE, ChartSeries, ChartSpec, chart_points_delta
 
 
 def test_a_delta_moves_one_series_without_re_sending_the_chart() -> None:
@@ -58,3 +58,40 @@ def test_a_magnitude_the_client_refuses_is_caught_here_too() -> None:
     # only one of them is a gap a caller finds by accident.
     with pytest.raises(ValueError, match="over the client's"):
         chart_points_delta("c1", points=(1e300,))
+
+
+def _spec() -> ChartSpec:
+    return ChartSpec(
+        labels=("mon", "tue", "wed"),
+        series=(ChartSeries("new", (1.0, 2.0, 3.0)), ChartSeries("returning", (4.0, 5.0, 6.0))),
+    )
+
+
+def test_a_declared_spec_refuses_a_points_array_of_the_wrong_length() -> None:
+    """The failure the helper could not see until the caller declared the shape.
+
+    A short array patches cleanly, so the client stores it and then refuses to
+    redraw -- the previous numbers stay on screen reading as current.
+    """
+    with pytest.raises(ValueError, match="2 points for a chart of 3 labels"):
+        chart_points_delta("c1", points=(7.0, 8.0), spec=_spec())
+
+
+def test_a_declared_spec_refuses_a_series_index_past_the_end() -> None:
+    # The other half of the same quiet failure: a patch path that resolves to
+    # nothing, warned about in a console nobody is watching.
+    with pytest.raises(ValueError, match="names series 5 of a chart that has 2"):
+        chart_points_delta("c1", series=5, points=(7.0, 8.0, 9.0), spec=_spec())
+
+
+def test_a_delta_matching_the_declared_spec_is_built_as_usual() -> None:
+    delta = chart_points_delta("c1", series=1, points=(7.0, 8.0, 9.0), spec=_spec())
+    assert delta.patch == [{"op": "replace", "path": "/series/1/points", "value": [7.0, 8.0, 9.0]}]
+
+
+def test_a_caller_that_declares_nothing_behaves_exactly_as_before() -> None:
+    # The guard is opt-in: the helper is stateless without a spec and cannot
+    # know the shape, so a wrong-length delta still goes out. Declaring is the
+    # only way to be told, and not declaring must stay a working call.
+    delta = chart_points_delta("c1", points=(7.0, 8.0))
+    assert delta.patch[0]["value"] == [7.0, 8.0]

@@ -95,17 +95,28 @@ from django_ag_ui import chart_points_delta
 
 return ToolReturn(
     return_value="Throughput updated.",
-    metadata=chart_points_delta("throughput", points=(14, 21, 11, 26, 20)),
+    metadata=chart_points_delta("throughput", points=(14, 21, 11, 26, 20), spec=revised),
 )
 ```
 
-A delta is applied **positionally**, so it cannot tell that series 2 is now
-something else, and it cannot tell that you sent the wrong number of points —
-a wrong-length patch applies cleanly and then leaves the previous chart on
-screen, with the stale numbers still showing. Send a fresh snapshot when the
-*shape* changes and reserve the delta for when it has not. A delta naming a
-chart the client has not drawn is dropped — send the snapshot first and keep
-its id.
+A delta is applied **positionally**, and `chart_id` is a name rather than a
+shape — so on its own the helper cannot tell that series 2 is now something
+else, or that you sent the wrong number of points. A wrong-length patch applies
+cleanly and then leaves the previous chart on screen with the stale numbers
+still showing, and the chart gone on the next reload.
+
+**`spec=` is how you get told.** Pass the `ChartSpec` the chart on screen was
+drawn from and both mistakes become `ValueError` at construction, next to the
+code that made them, the same as a bad spec. It is optional and read-only —
+nothing about it goes on the wire — so a delta sent from somewhere the spec is
+no longer in hand still works exactly as before. The spec rather than an
+expected point count because a count is derived from it, and miscounting is the
+mistake being guarded against; and because only the spec knows how many series
+there are.
+
+Still send a fresh snapshot when the *shape* changes and reserve the delta for
+when it has not. A delta naming a chart the client has not drawn is dropped —
+send the snapshot first and keep its id.
 
 ## Letting the agent ask for a chart
 
@@ -193,6 +204,15 @@ followed and it lands there; leave it out and it lands at the end. The stored
 messages are handed to `activities_for` for exactly this reason — the tool
 result the chart accompanied is among them. An anchor the thread no longer has
 falls back to the end rather than dropping the chart.
+
+**Materialise, do not replay.** `activities_for` returns snapshots, and only
+snapshots — a chart you moved with `chart_points_delta` comes back as a fresh
+`chart_activity` built from the numbers it currently shows. You hold those
+numbers already, because you computed them and that is where the deltas came
+from, so restoring is a constructor call. Storing the patches instead would mean
+keeping an ordered event log, replaying it on every thread load, and deciding
+what a resumed run does with a half-applied one — to reach a value that was
+already in a variable.
 
 **Send a chart id you can reproduce.** `chart_id` is the chart's identity across
 both the run and the restore, so store it with the row rather than minting a new
