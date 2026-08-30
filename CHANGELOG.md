@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Both spec-facing extras floored at the releases that carry
+  `drf-services>=0.49`** — `[drf-mcp]` at `>=0.37`, `[spec-tools]` at `>=0.24`.
+  0.49 is where a self-referential serializer stopped crashing schema generation,
+  and both paths here reach it: a tool catalog is built by walking every spec's
+  schema, and `service_specs=` builds a `SpecToolset` whose tool definitions are
+  schemas. This package declares no direct `drf-services` dependency, so the
+  extras are the only place that constraint can be stated. Verified rather than
+  assumed: `--resolution lowest-direct` now pulls `drf-services` 0.49.0
+  transitively through both.
+
 - **Every `CUSTOM` event this package builds now carries a `timestamp`.** It was
   the only event type in the stream without one — pydantic-ai's adapter stamps
   everything it emits, and the two events built here did not, so a consumer

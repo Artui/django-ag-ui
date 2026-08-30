@@ -96,10 +96,18 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
-drf-mcp = ["djangorestframework-mcp-server>=0.35"]
+# Floored at 0.37, the first release carrying drf-services>=0.49: a tool catalog
+# is built by walking every spec's schema, and a serializer that nests itself
+# crashed that walk. No direct drf-services dependency exists here to state the
+# constraint against, so the extra carries it.
+drf-mcp = ["djangorestframework-mcp-server>=0.37"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
 # pydantic-ai's SpecCapability -- no MCP server in the path (service_specs=).
-spec-tools = ["djangorestframework-pydantic-ai>=0.20"]
+# Floored at 0.24, the first release carrying drf-services>=0.49: the
+# service_specs= path builds a SpecToolset, and a serializer that nests itself
+# took that down at construction. No direct drf-services dependency exists here
+# to state it against, so the extra carries it.
+spec-tools = ["djangorestframework-pydantic-ai>=0.24"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via capabilities=.
@@ -135,9 +143,9 @@ dev = [
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
-    "djangorestframework-mcp-server>=0.35",
+    "djangorestframework-mcp-server>=0.37",
     # The [spec-tools] extra's backing package, so its capability + tests run in dev.
-    "djangorestframework-pydantic-ai>=0.20",
+    "djangorestframework-pydantic-ai>=0.24",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
