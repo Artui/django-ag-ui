@@ -2468,6 +2468,95 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#sub-agent-progress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sub-agent progress
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.SubAgentObserver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SubAgentObserver
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SubAgentObserver">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.SubAgentObserver.wrap_tool_execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wrap_tool_execute
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SUBAGENT_EVENT_NAME
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SUBAGENT_EVENT_NAME">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--the-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--what-is-deliberately-not-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is deliberately not here
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--why-custom" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why X_CONFIRM_KEY module-attribute &para; X_CONFIRM_KEY = &#39;x-confirm&#39;
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#host-data-invalidation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4377,6 +4466,95 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sub-agent-progress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sub-agent progress
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.SubAgentObserver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SubAgentObserver
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SubAgentObserver">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.SubAgentObserver.wrap_tool_execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wrap_tool_execute
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SUBAGENT_EVENT_NAME
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SUBAGENT_EVENT_NAME">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--the-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The value
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--what-is-deliberately-not-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is deliberately not here
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--why-custom" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why X_CONFIRM_KEY module-attribute &para; X_CONFIRM_KEY = &#39;x-confirm&#39;
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -8517,6 +8695,16 @@ without keeping a second record beside the conversation, with its own
 ordering, its own identity rules and its own answer for what a resumed run
 does with a snapshot. The project already holds the data (it charted it), so
 the smaller, more honest seam is to ask.</p>
+<p><strong>Materialise, do not replay.</strong> <code>event</code> is an <code>ActivitySnapshotEvent</code>
+and deliberately only that: a chart that was moved with
+<a class="autorefs autorefs-internal" title="chart_points_delta" href="#django_ag_ui.chart_points_delta"><code>chart_points_delta</code></a> comes back as a
+fresh snapshot built from the <em>current</em> numbers, not as the patches that
+produced them. The project holds those numbers already -- it computed them,
+which is where the deltas came from -- so materialising is a constructor
+call. Widening this to accept deltas would instead ask every implementation
+for an ordered event log, a replay on every thread load, and an answer for
+what a resumed run does with a half-applied patch, all to arrive at a value
+that was already in a variable.</p>
 <p>The stored <code>messages</code> are handed over so an implementation can work out
 where each activity belongs -- the tool result it accompanied is in there,
 and its id is what
@@ -10018,8 +10206,12 @@ enough, and the generated ids do it (<code>chart-&lt;uuid&gt;</code>).</p>
 
 <a href="#django_ag_ui.chart_points_delta" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">chart_points_delta</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">chart_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">series</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">points</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ActivityDeltaEvent</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">chart_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">series</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">points</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ChartSpec</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ActivityDeltaEvent</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -10032,15 +10224,37 @@ which is right when a long-running computation is only moving the numbers.</p>
 id it does not hold is dropped -- there is nothing to patch -- so send the
 snapshot first and keep the id.</p>
 <p><code>series</code> is the index in the spec's series list, and <code>points</code> must be
-the <strong>same length</strong> as the series it replaces. Neither can be checked here,
-and both fail the same quiet way: a patch is applied positionally, so it
-cannot tell that series 2 is now something else, and a wrong-length array
-applies cleanly and leaves a chart the client then refuses to redraw --
-stale numbers on screen, and the chart gone entirely on the next reload.</p>
-<p>So: send a fresh snapshot whenever the <em>shape</em> changes, and reserve this for
-when only the values move. An index past the end is refused by the client
-rather than applied, which at least fails visibly in a console; a
-wrong-length array is the one that fails invisibly.</p>
+the <strong>same length</strong> as the series it replaces. Neither can be checked from
+<code>chart_id</code> alone -- an id is a name, not a shape -- and both fail the same
+quiet way: a patch is applied positionally, so it cannot tell that series 2
+is now something else, and a wrong-length array applies cleanly and leaves a
+chart the client then refuses to redraw -- stale numbers on screen, and the
+chart gone entirely on the next reload.</p>
+<p><strong><code>spec=</code> is how you get told.</strong> Pass the
+<a class="autorefs autorefs-internal" title="ChartSpec
+
+
+  
+      dataclass
+  " href="#django_ag_ui.ChartSpec"><code>ChartSpec</code></a> the chart on screen was drawn from and
+both of those become construction-time errors, the way a spec's own shape
+already is. It stays optional and the default is unchanged: a caller that
+does not declare a shape gets exactly the behaviour above, because a delta
+sent from somewhere the spec is no longer in hand is a legitimate call, not
+a mistake.</p>
+<p><strong>Why the spec and not an expected point count.</strong> A count was the cheaper
+argument and is the wrong one twice over. It is derived --
+<code>len(spec.labels)</code> -- and deriving it by hand is the same step that goes
+wrong in the first place, so a caller who miscounts the points miscounts the
+count too and the guard cheerfully agrees with the mistake. And it can only
+see half the problem: <code>series</code> is an <em>index into</em> <code>spec.series</code>, so only
+the spec itself can say that index 2 is past the end. The spec also costs
+nothing the caller does not already have, since a delta requires a snapshot
+to have gone first and the spec is what that snapshot was built from --
+keeping it is the same act as keeping the <code>chart_id</code>.</p>
+<p>It is read, never sent. This helper still emits a patch touching one array;
+<code>spec</code> is the caller's declaration of what that array is expected to
+replace, and nothing about it reaches the wire.</p>
 
 
     </div>
@@ -10228,6 +10442,210 @@ know the same number ships suggestions that never appear -- the exact hole
 <p>A suggestion is a question the user might send, not an answer: past a sentence
 it stops being scannable, and a chip that wraps to three lines is a paragraph
 with a border. Mirrored on the client for the same reason as the count.</p>
+
+    </div>
+
+</div><h2 id="sub-agent-progress">Sub-agent progress<a class="headerlink" href="#sub-agent-progress" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.SubAgentObserver" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SubAgentObserver</span>
+
+
+<a href="#django_ag_ui.SubAgentObserver" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic_ai.capabilities.WrapperCapability">WrapperCapability</span>[<span title="typing.Any">Any</span>]</code></p>
+
+
+
+        <p>Wraps a <code>SubAgents</code> capability and reports each delegation as it happens.</p>
+<p>A delegated child runs to completion inside one <code>delegate_task</code> tool call,
+and a tool call emits nothing between its arguments and its result. So a
+parent that hands a long task to a sub-agent shows a tool card that simply
+sits there -- for a minute, for five -- with no way to tell a working run
+from a wedged one. Wrapping the capability is the seam for saying so:</p>
+<div class="language-text highlight"><pre><span></span><code>capabilities=[SubAgentObserver(SubAgents(agents=[...], agent_folders=None))]
+</code></pre></div>
+<p>Opt-in by construction: passing <code>SubAgents</code> unwrapped emits nothing, and
+costs nothing.</p>
+<p>What reaches the client is a stream of <code>CUSTOM</code> events --
+<a class="autorefs autorefs-internal" title="SUBAGENT_EVENT_NAME
+
+
+  
+      module-attribute
+  " href="#django_ag_ui.SUBAGENT_EVENT_NAME"><code>SUBAGENT_EVENT_NAME</code></a> carries the wire
+contract -- keyed by the parent's own <code>delegate_task</code> tool call id, so a
+client augments the card it already drew rather than opening a second row
+beside it.</p>
+<p><strong>The observer installs itself onto the capability you hand it.</strong> Reporting
+a child's tool calls needs <code>SubAgents.event_stream_handler</code>, which only the
+capability that starts the child run can pass on, so construction sets that
+field on the wrapped instance. Two consequences worth stating rather than
+discovering: wrapping a <code>SubAgents</code> that <em>already</em> carries a handler is
+refused (silently replacing it would lose whatever it was for), and the
+instance you passed is the one that changed. The second is harmless in a way
+worth knowing -- the installed handler announces onto
+<code>SUBAGENT_SINK</code>, which no run outside this transport's stream ever binds,
+so the same instance reused at an unwrapped endpoint behaves exactly as it
+did before.</p>
+<p>Subclassing <code>WrapperCapability</code> (pydantic-ai's supported wrapper, analogous
+to <code>WrapperToolset</code>) rather than hand-rolling a proxy keeps the rest of the
+capability protocol intact -- ordering, the <code>has_*</code> hook-introspection
+flags and every other lifecycle method delegate untouched.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_ag_ui.SubAgentObserver.wrap_tool_execute" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">wrap_tool_execute</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_ag_ui.SubAgentObserver.wrap_tool_execute" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">wrap_tool_execute</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">call</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">tool_def</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">handler</span><span class="p">:</span> <span class="n">Any</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Announce the delegation this call is, then run it.</p>
+<p>This hook fires for <strong>every</strong> tool in the parent run, not only the ones
+the wrapped capability contributed -- pydantic-ai composes one root
+capability and asks it about each call -- so the delegate tool is picked
+out by name and everything else is delegated untouched.</p>
+<p><code>asyncio.CancelledError</code> is deliberately not caught: a cancelled run is
+a client that has gone away, and there is nobody left to tell.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="django_ag_ui.SUBAGENT_EVENT_NAME" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">SUBAGENT_EVENT_NAME</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.SUBAGENT_EVENT_NAME" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">SUBAGENT_EVENT_NAME</span> <span class="o">=</span> <span class="s1">&#39;ag_ui.subagent&#39;</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p><code>name</code> a client matches on to render a delegation's progress.</p>
+<p>A <strong>convention inside an extension point the protocol already provides</strong>, not a
+protocol extension: AG-UI defines the envelope and leaves <code>name</code> an open
+string. A client that does not know this name ignores the event, which is the
+graceful outcome and the whole reason the field is open -- a run that delegates
+streams exactly as it did before, plus events nobody has to read.</p>
+<h4 id="django_ag_ui.SUBAGENT_EVENT_NAME--the-value">The value<a class="headerlink" href="#django_ag_ui.SUBAGENT_EVENT_NAME--the-value" title="Permanent link">&para;</a></h4>
+<p>Every event carries the same four keys, and the two tool-call phases add a
+fifth::</p>
+<div class="language-text highlight"><pre><span></span><code>{
+  &quot;delegationId&quot;: &quot;call_abc123&quot;,
+  &quot;agent&quot;: &quot;researcher&quot;,
+  &quot;phase&quot;: &quot;tool_call&quot;,
+  &quot;status&quot;: &quot;researcher: calling search_docs&quot;,
+  &quot;tool&quot;: {&quot;toolCallId&quot;: &quot;call_def456&quot;, &quot;name&quot;: &quot;search_docs&quot;, &quot;ok&quot;: null}
+}
+</code></pre></div>
+<ul>
+<li><code>delegationId</code> is the parent's <code>delegate_task</code> <strong>tool call id</strong> -- the
+  <code>toolCallId</code> the client already received on <code>TOOL_CALL_START</code> and already
+  drew a tool card for. That is what makes this an <em>augmentation</em> of a card on
+  screen rather than a second row beside it, and it is why the id is the
+  parent's call rather than the child's run id: the child's run id names
+  something the client has never heard of.</li>
+<li><code>agent</code> is the sub-agent's name, as the parent model asked for it.</li>
+<li><code>phase</code> is one of <code>started</code>, <code>tool_call</code>, <code>tool_result</code>, <code>finished</code>,
+  <code>failed</code>. One <code>started</code> opens a delegation and exactly one of <code>finished</code>
+  / <code>failed</code> closes it; any number of <code>tool_call</code> / <code>tool_result</code> pairs sit
+  between.</li>
+<li><code>status</code> is a rendered one-line summary. <strong>A client that never expands a row
+  needs nothing but this</strong>, which is the point of sending it: the collapsed line
+  costs no client-side assembly and no phase-to-wording table. A client that
+  wants its own wording (a localised UI) builds it from the structured keys and
+  ignores this one.</li>
+<li><code>tool</code> is present on <code>tool_call</code> and <code>tool_result</code> only, and always has
+  all three keys. <code>ok</code> is <code>null</code> on <code>tool_call</code> (the call has not returned
+  yet), <code>true</code> on a result the child accepted, and <code>false</code> on one it did
+  not -- which pydantic-ai surfaces to the child as a retry, and which the
+  <code>status</code> line calls <em>failed</em>, because that is what a reader watching the
+  row sees happen. A client rendering its own wording should follow
+  <code>status</code>; <code>ok</code> is the machine-readable half of the same fact. Sending the key as <code>null</code> rather than omitting it keeps the
+  shape fixed, so a client can create the row on <code>tool_call</code> and update it in
+  place on <code>tool_result</code>.</li>
+</ul>
+<h4 id="django_ag_ui.SUBAGENT_EVENT_NAME--what-is-deliberately-not-here">What is deliberately not here<a class="headerlink" href="#django_ag_ui.SUBAGENT_EVENT_NAME--what-is-deliberately-not-here" title="Permanent link">&para;</a></h4>
+<p><strong>The child's failure text.</strong> A <code>failed</code> event names the sub-agent and stops.
+An exception's own words are written for an operator -- the same reasoning
+<code>AgentSession</code> applies when it withholds <code>RUN_ERROR</code> detail unless
+<code>TOOL_FAILURE["INCLUDE_DETAIL"]</code> opts in -- and this channel has no business
+carrying them. Nothing is lost: whatever the delegation returns to the parent
+model (a steering message, a retry) travels the ordinary <code>TOOL_CALL_RESULT</code>
+path and is rendered by the tool card this progress belongs to.</p>
+<p><strong>The child's text output.</strong> Progress is a status line, not a second transcript.</p>
+<h4 id="django_ag_ui.SUBAGENT_EVENT_NAME--why-custom">Why <code>CUSTOM</code><a class="headerlink" href="#django_ag_ui.SUBAGENT_EVENT_NAME--why-custom" title="Permanent link">&para;</a></h4>
+<p>The opposite of the choice <code>chart_activity</code> makes, and the difference is
+<strong>lifetime</strong>, not taste. <code>@ag-ui/client</code> materialises an activity into a
+<code>role: "activity"</code> message; the transport persists the message list wholesale,
+and the client's replay path re-fires it on every thread restore. That is right
+for a chart, which is content and should come back. <strong>Replayed progress is a
+lie</strong>: a run that finished last week would redraw "working, step 4 of 8" on
+every reload of the thread.</p>
+<p><strong><code>ACTIVITY_SNAPSHOT</code> is for content; <code>CUSTOM</code> is for an imperative.</strong>
+Progress is the second -- it has no meaning once acted on.</p>
+<p><code>STATE_SNAPSHOT</code> / <code>STATE_DELTA</code> are out for a third reason: shared state
+round-trips into the next <code>RunAgentInput</code>, so progress placed there would be
+echoed back to the model as though it were something the model had said.</p>
 
     </div>
 

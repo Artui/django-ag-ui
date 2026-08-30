@@ -523,6 +523,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#showing-the-childs-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Showing the child's work
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Showing the child&#39;s work">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-reaches-the-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What reaches the client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-it-deliberately-does-not-carry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it deliberately does not carry
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -806,6 +845,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#showing-the-childs-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Showing the child's work
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Showing the child&#39;s work">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-reaches-the-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What reaches the client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-it-deliberately-does-not-carry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it deliberately does not carry
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -919,11 +997,86 @@ message as the tool result rather than an exception, so the run continues.</p>
 into the same <code>capabilities=</code> seam (compaction, step-persistence, CodeMode,
 …). They ride the <code>[harness]</code> extra, except CodeMode, which needs the
 sandbox in <code>[code-mode]</code>.</p>
-<p>Today a delegated child's answer surfaces as the parent's <code>delegate_task</code>
-tool result. Streaming a child's <em>own</em> turn (its intermediate tool calls and
-tokens) into the UI as a nested run is a possible future enhancement — the
-capability accepts an <code>event_stream_handler</code>, but django-ag-ui does not yet
-route child events onto the SSE stream.</p>
+</div>
+<h2 id="showing-the-childs-work">Showing the child's work<a class="headerlink" href="#showing-the-childs-work" title="Permanent link">&para;</a></h2>
+<p>A delegated child runs to completion inside one <code>delegate_task</code> tool call, and a
+tool call emits nothing between its arguments and its result. So a parent that
+hands a long task to a sub-agent shows a tool card that simply sits there — for
+a minute, for five — with no way to tell a working run from a wedged one.</p>
+<p>Wrap the capability in a
+<a class="autorefs autorefs-internal" title="SubAgentObserver" href="../api/#django_ag_ui.SubAgentObserver"><code>SubAgentObserver</code></a> and the run reports itself as
+it goes:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubAgentObserver</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.subagents</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubAgent</span><span class="p">,</span> <span class="n">SubAgents</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">subagents</span><span class="p">():</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="k">return</span> <span class="n">SubAgentObserver</span><span class="p">(</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="n">SubAgents</span><span class="p">(</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>            <span class="n">agents</span><span class="o">=</span><span class="p">[</span><span class="n">SubAgent</span><span class="p">(</span><span class="n">researcher</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Gathers facts on a topic.&quot;</span><span class="p">)],</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>            <span class="n">agent_folders</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>        <span class="p">)</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="p">)</span>
+</span></code></pre></div>
+<p>Opt-in by construction: passing <code>SubAgents</code> unwrapped emits nothing, and there is
+no setting behind the wrapping. The observer installs itself onto the capability
+you hand it — it needs <code>SubAgents.event_stream_handler</code>, which only the
+capability that starts the child run can pass on — so wrapping one that already
+carries a handler is refused rather than replacing it.</p>
+<h3 id="what-reaches-the-client">What reaches the client<a class="headerlink" href="#what-reaches-the-client" title="Permanent link">&para;</a></h3>
+<p>A stream of AG-UI <code>CUSTOM</code> events named <code>ag_ui.subagent</code>, interleaved into the
+run <strong>as they happen</strong> rather than at the end of the delegation:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CUSTOM&quot;</span><span class="p">,</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ag_ui.subagent&quot;</span><span class="p">,</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">&quot;value&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nt">&quot;delegationId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;call_abc123&quot;</span><span class="p">,</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nt">&quot;agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;researcher&quot;</span><span class="p">,</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nt">&quot;phase&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tool_call&quot;</span><span class="p">,</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;researcher: calling search_docs&quot;</span><span class="p">,</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span><span class="nt">&quot;tool&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;toolCallId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;call_def456&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;search_docs&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ok&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">}</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="p">}</span>
+</span></code></pre></div>
+<ul>
+<li><strong><code>delegationId</code> is the parent's own <code>delegate_task</code> tool call id</strong> — the
+  <code>toolCallId</code> the client already drew a card for. That is what makes this an
+  augmentation of the card on screen rather than a second row beside it.</li>
+<li><strong><code>phase</code></strong> is one of <code>started</code>, <code>tool_call</code>, <code>tool_result</code>, <code>finished</code>,
+  <code>failed</code>. One <code>started</code> opens a delegation and exactly one of
+  <code>finished</code> / <code>failed</code> closes it, with any number of <code>tool_call</code> /
+  <code>tool_result</code> pairs between.</li>
+<li><strong><code>status</code></strong> is a rendered one-line summary, so a client that draws a collapsed
+  row and never expands it needs nothing else.</li>
+<li><strong><code>tool</code></strong> is present on the two tool phases only, always with all three keys.
+  <code>ok</code> is <code>null</code> on <code>tool_call</code>, <code>true</code> on a result the child accepted and
+  <code>false</code> on one that came back as a retry — a fixed shape, so a client creates
+  the row on <code>tool_call</code> and updates it in place on <code>tool_result</code>.</li>
+</ul>
+<p>A client that does not know the name ignores the event and the run streams
+exactly as it did before: <code>name</code> is an open string the protocol leaves to
+conventions like this one.</p>
+<p><code>tests/fixtures/subagent_progress_stream.json</code> in this repository is a full
+recorded run — both a successful delegation and a failing one — generated by
+<code>scripts/generate_subagent_fixture.py</code> driving the real endpoint, and
+regenerated by the test suite on every run so it cannot drift from the server.
+Build a client against that rather than against a hand-typed sample.</p>
+<h3 id="what-it-deliberately-does-not-carry">What it deliberately does not carry<a class="headerlink" href="#what-it-deliberately-does-not-carry" title="Permanent link">&para;</a></h3>
+<p><strong>The child's failure text.</strong> A <code>failed</code> event names the sub-agent and stops. An
+exception's own words are written for an operator, which is the same reasoning
+<code>TOOL_FAILURE["INCLUDE_DETAIL"]</code> applies to <code>RUN_ERROR</code> — and nothing is lost,
+because whatever the delegation returns to the parent model travels the ordinary
+<code>TOOL_CALL_RESULT</code> and is rendered on the card this progress belongs to.</p>
+<p><strong>The child's prose.</strong> Progress is a status line, not a second transcript.</p>
+<div class="admonition note">
+<p class="admonition-title">Why <code>CUSTOM</code> rather than an activity</p>
+<p><code>@ag-ui/client</code> materialises an <code>ACTIVITY_SNAPSHOT</code> into a
+<code>role: "activity"</code> message, the message list is persisted wholesale, and the
+client replays it on every thread restore. That is right for a
+<a href="../charts/">chart</a>, which is content. Replayed <em>progress</em> is a lie: a run
+that finished last week would redraw "calling search_docs" on every reload.
+Shared state is out for a third reason — it round-trips into the next
+<code>RunAgentInput</code>, so progress placed there would be echoed back to the model.</p>
 </div>
 
 

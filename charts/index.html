@@ -1039,16 +1039,25 @@ the numbers move, a patch is cheaper than re-sending the whole spec:</p>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">return</span> <span class="n">ToolReturn</span><span class="p">(</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">return_value</span><span class="o">=</span><span class="s2">&quot;Throughput updated.&quot;</span><span class="p">,</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">metadata</span><span class="o">=</span><span class="n">chart_points_delta</span><span class="p">(</span><span class="s2">&quot;throughput&quot;</span><span class="p">,</span> <span class="n">points</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">21</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">26</span><span class="p">,</span> <span class="mi">20</span><span class="p">)),</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">metadata</span><span class="o">=</span><span class="n">chart_points_delta</span><span class="p">(</span><span class="s2">&quot;throughput&quot;</span><span class="p">,</span> <span class="n">points</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">21</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">26</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span> <span class="n">spec</span><span class="o">=</span><span class="n">revised</span><span class="p">),</span>
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">)</span>
 </span></code></pre></div>
-<p>A delta is applied <strong>positionally</strong>, so it cannot tell that series 2 is now
-something else, and it cannot tell that you sent the wrong number of points —
-a wrong-length patch applies cleanly and then leaves the previous chart on
-screen, with the stale numbers still showing. Send a fresh snapshot when the
-<em>shape</em> changes and reserve the delta for when it has not. A delta naming a
-chart the client has not drawn is dropped — send the snapshot first and keep
-its id.</p>
+<p>A delta is applied <strong>positionally</strong>, and <code>chart_id</code> is a name rather than a
+shape — so on its own the helper cannot tell that series 2 is now something
+else, or that you sent the wrong number of points. A wrong-length patch applies
+cleanly and then leaves the previous chart on screen with the stale numbers
+still showing, and the chart gone on the next reload.</p>
+<p><strong><code>spec=</code> is how you get told.</strong> Pass the <code>ChartSpec</code> the chart on screen was
+drawn from and both mistakes become <code>ValueError</code> at construction, next to the
+code that made them, the same as a bad spec. It is optional and read-only —
+nothing about it goes on the wire — so a delta sent from somewhere the spec is
+no longer in hand still works exactly as before. The spec rather than an
+expected point count because a count is derived from it, and miscounting is the
+mistake being guarded against; and because only the spec knows how many series
+there are.</p>
+<p>Still send a fresh snapshot when the <em>shape</em> changes and reserve the delta for
+when it has not. A delta naming a chart the client has not drawn is dropped —
+send the snapshot first and keep its id.</p>
 <h2 id="letting-the-agent-ask-for-a-chart">Letting the agent ask for a chart<a class="headerlink" href="#letting-the-agent-ask-for-a-chart" title="Permanent link">&para;</a></h2>
 <p>Use this when the agent should be able to talk about what it drew. The numbers
 are in its context, so it can summarise them in the same turn.</p>
@@ -1145,6 +1154,14 @@ followed and it lands there; leave it out and it lands at the end. The stored
 messages are handed to <code>activities_for</code> for exactly this reason — the tool
 result the chart accompanied is among them. An anchor the thread no longer has
 falls back to the end rather than dropping the chart.</p>
+<p><strong>Materialise, do not replay.</strong> <code>activities_for</code> returns snapshots, and only
+snapshots — a chart you moved with <code>chart_points_delta</code> comes back as a fresh
+<code>chart_activity</code> built from the numbers it currently shows. You hold those
+numbers already, because you computed them and that is where the deltas came
+from, so restoring is a constructor call. Storing the patches instead would mean
+keeping an ordered event log, replaying it on every thread load, and deciding
+what a resumed run does with a half-applied one — to reach a value that was
+already in a variable.</p>
 <p><strong>Send a chart id you can reproduce.</strong> <code>chart_id</code> is the chart's identity across
 both the run and the restore, so store it with the row rather than minting a new
 one on read. Two entries under one id collapse into one — first position, last
