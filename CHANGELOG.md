@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`chart_points_delta(..., spec=)` — the caller declares the shape, and the
+  wrong-length delta finally raises.** The helper's own docstring conceded this
+  failure in full and could not do anything about it: a delta carries a
+  `chart_id`, and an id is a name rather than a shape, so a patch built from the
+  wrong number of points applied cleanly in the browser and then left a spec the
+  client refuses to redraw. The user sees the *previous* numbers, which reads as
+  a chart that is up to date rather than one that failed, and the chart is gone
+  entirely on the next reload. Nothing was reported on either side, because
+  there is no channel for the client to report on.
+
+  ```python
+  chart_points_delta("throughput", points=(14, 21, 11, 26, 20), spec=revised)
+  ```
+
+  Passing the `ChartSpec` the chart on screen was drawn from turns both halves
+  of that silence into a `ValueError` at construction, next to the code that
+  made the mistake -- the posture `ChartSpec.validate` and `validate_point`
+  already take, and their wording too: an error here says what the client would
+  do, because what the client does is nothing.
+
+  **An expected point count was the cheaper argument and the wrong one.** It is
+  derived from the spec (`len(spec.labels)`), and deriving it by hand is the
+  same step that goes wrong in the first place -- a caller who miscounts the
+  points miscounts the count as well, and the guard then agrees with the
+  mistake. It also sees only half the problem: `series` is an *index into*
+  `spec.series`, so only the spec can say that index 2 is past the end, which is
+  the other quiet failure the docstring named. And the spec costs the caller
+  nothing they do not already hold, since a delta requires a snapshot to have
+  gone first and the spec is what that snapshot was built from -- keeping it is
+  the same act as keeping the `chart_id`.
+
+  **Optional, and unchanged without it.** The helper is stateless by design and
+  a delta sent from somewhere the spec is no longer in hand is a legitimate
+  call, not a mistake, so the guard is a declaration the caller opts into rather
+  than a new requirement. The spec is read and never sent; the patch on the wire
+  is byte-for-byte what it was.
+
+### Documentation
+
+- **`ThreadActivitySource` now says why it takes snapshots and not deltas:
+  materialise, do not replay.** Asked to widen `ThreadActivity.event` so a chart
+  updated by `chart_points_delta` could be replayed on restore, and declined --
+  but the reasoning was nowhere in the docs, which left the narrow type looking
+  like an oversight.
+
+  The hook is implemented by the *project*, and its own docstring already says
+  why: the project holds the data, because it charted it. A project that pushed
+  a snapshot and then deltas holds the current numbers -- it computed them, that
+  is where the deltas came from -- so restoring current state is a fresh
+  `chart_activity` built from those numbers, a constructor call. Accepting
+  deltas would instead ask every implementation for an ordered event log, a
+  replay on every thread load, and an answer for what a resumed run does with a
+  half-applied patch, in order to arrive at a value that was already in a
+  variable. The type is unchanged.
+
 ## [0.52.0] — 2026-08-29
 
 ### Documentation

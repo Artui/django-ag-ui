@@ -27,6 +27,17 @@ class ThreadActivitySource(Protocol):
     does with a snapshot. The project already holds the data (it charted it), so
     the smaller, more honest seam is to ask.
 
+    **Materialise, do not replay.** ``event`` is an ``ActivitySnapshotEvent``
+    and deliberately only that: a chart that was moved with
+    [`chart_points_delta`][django_ag_ui.chart_points_delta] comes back as a
+    fresh snapshot built from the *current* numbers, not as the patches that
+    produced them. The project holds those numbers already -- it computed them,
+    which is where the deltas came from -- so materialising is a constructor
+    call. Widening this to accept deltas would instead ask every implementation
+    for an ordered event log, a replay on every thread load, and an answer for
+    what a resumed run does with a half-applied patch, all to arrive at a value
+    that was already in a variable.
+
     The stored ``messages`` are handed over so an implementation can work out
     where each activity belongs -- the tool result it accompanied is in there,
     and its id is what
