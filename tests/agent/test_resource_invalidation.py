@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
+import pytest
 from ag_ui.core import BaseEvent, CustomEvent, EventType, TextMessageStartEvent
 
 from django_ag_ui import (
@@ -174,8 +175,20 @@ class TestQueueingOntoTheStream:
         assert second == [["beta"]]
 
 
-def test_the_queue_is_a_delivery_mechanism_not_a_second_wire_format() -> None:
-    """Both routes put the identical event on the wire."""
+def test_the_queue_is_a_delivery_mechanism_not_a_second_wire_format(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both routes put the identical event on the wire.
+
+    The clock is frozen so the comparison can stay a *total* one. Two events
+    built at different instants legitimately carry different timestamps, so
+    without this the assertion would have to exclude that field -- and an
+    exclusion is a hole exactly where a second wire format would hide. Freezing
+    keeps the claim whole. The real clock is covered in ``test_event_timestamp``.
+    """
+    monkeypatch.setattr(
+        "django_ag_ui.agent.resource_invalidation.event_timestamp", lambda: 1735689600000
+    )
     direct = resource_invalidation("orders", reason="r").model_dump(by_alias=True)
 
     sink: list[CustomEvent] = []
