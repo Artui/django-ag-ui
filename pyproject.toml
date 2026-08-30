@@ -71,7 +71,12 @@ dependencies = [
     # document it had never read. And 0.16: below it a row whose blob had left
     # storage raised where the contract says it returns ``None``, and dedup
     # adopted a missing blob so re-uploading could never repair it.
-    "django-pydantic-agent>=0.20",
+    # 0.21 is the first release whose own spec extras floor drf-services at 0.49,
+    # for the bounded schema recursion. This package states that constraint in its
+    # own extras too, so the resolver would take the stricter of the two either
+    # way -- the floor is here so the claim is not left resting on that, and so a
+    # reader is not asked to work out which sibling is carrying it.
+    "django-pydantic-agent>=0.21",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).

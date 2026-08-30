@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Floored at `django-pydantic-agent>=0.21`.** 0.21 is the first release whose
+  own spec extras floor `drf-services` at 0.49. This package states that
+  constraint in its own extras as well, so a resolver takes the stricter of the
+  two regardless — the floor is here so the claim does not rest on that, and so a
+  reader is not left working out which sibling carries it.
+
 - **Both spec-facing extras floored at the releases that carry
   `drf-services>=0.49`** — `[drf-mcp]` at `>=0.37`, `[spec-tools]` at `>=0.24`.
   0.49 is where a self-referential serializer stopped crashing schema generation,
