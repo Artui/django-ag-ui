@@ -2519,6 +2519,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--half-a-contract-and-the-half-it-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Half a contract, and the half it is
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--the-value" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2530,21 +2541,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--what-is-deliberately-not-here" class="md-nav__link">
+  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--why-custom-still-for-these-two" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What is deliberately not here
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--why-custom" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why X_CONFIRM_KEY module-attribute &para; X_CONFIRM_KEY = &#39;x-confirm&#39;
+        Why SkillSpec dataclass &para; A pre-defined action offered to the user (a "skill"). Serialised into the client catalog the frontend surfaces as chips and/or the /-command palette. A skill need not ship its prompt to the browser. With prompt unset the catalog advertises only the name and label, and picking the skill sends the bare /name token for the agent to resolve — from the harness Skills capability or its own instructions — so the wording of an internal workflow never leaves the server. Setting prompt hands the text to the client, which fills any {placeholder}s from its skill context before sending: right for a prompt that is genuinely a user-facing convenience, and for placeholders only the page can fill. name instance-attribute &para; name: str Stable id; the /token in the palette. Unique within a registry. title instance-attribute &para; title: str Label shown in chips and the palette. prompt class-attribute instance-attribute &para; prompt: str | None = None Prompt text handed to the client, or None to keep it server-side and have the client send /name instead. May contain {placeholder}s the client fills before sending. description class-attribute instance-attribute &para; description: str | None = None Optional secondary line shown in the palette. send_immediately class-attribute instance-attribute &para; send_immediately: bool = False Send on pick instead of pre-filling the input. Surfaced as sendImmediately. chip class-attribute instance-attribute &para; chip: bool = False Also surface as a chip (the palette shows all skills regardless). , still, for these two
       
     </span>
   </a>
@@ -4521,6 +4521,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--half-a-contract-and-the-half-it-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Half a contract, and the half it is
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--the-value" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4532,21 +4543,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--what-is-deliberately-not-here" class="md-nav__link">
+  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--why-custom-still-for-these-two" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What is deliberately not here
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--why-custom" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why X_CONFIRM_KEY module-attribute &para; X_CONFIRM_KEY = &#39;x-confirm&#39;
+        Why SkillSpec dataclass &para; A pre-defined action offered to the user (a "skill"). Serialised into the client catalog the frontend surfaces as chips and/or the /-command palette. A skill need not ship its prompt to the browser. With prompt unset the catalog advertises only the name and label, and picking the skill sends the bare /name token for the agent to resolve — from the harness Skills capability or its own instructions — so the wording of an internal workflow never leaves the server. Setting prompt hands the text to the client, which fills any {placeholder}s from its skill context before sending: right for a prompt that is genuinely a user-facing convenience, and for placeholders only the page can fill. name instance-attribute &para; name: str Stable id; the /token in the palette. Unique within a registry. title instance-attribute &para; title: str Label shown in chips and the palette. prompt class-attribute instance-attribute &para; prompt: str | None = None Prompt text handed to the client, or None to keep it server-side and have the client send /name instead. May contain {placeholder}s the client fills before sending. description class-attribute instance-attribute &para; description: str | None = None Optional secondary line shown in the palette. send_immediately class-attribute instance-attribute &para; send_immediately: bool = False Send on pick instead of pre-filling the input. Surfaced as sendImmediately. chip class-attribute instance-attribute &para; chip: bool = False Also surface as a chip (the palette shows all skills regardless). , still, for these two
       
     </span>
   </a>
@@ -10475,16 +10475,25 @@ from a wedged one. Wrapping the capability is the seam for saying so:</p>
 </code></pre></div>
 <p>Opt-in by construction: passing <code>SubAgents</code> unwrapped emits nothing, and
 costs nothing.</p>
-<p>What reaches the client is a stream of <code>CUSTOM</code> events --
+<p>What reaches the client rides <strong>two carriers, on purpose</strong>. The delegation's
+own lifetime goes on the protocol's <code>SUBAGENT_STARTED</code> / <code>_FINISHED</code> /
+<code>_ERROR</code> events, built by <code>subagent_lifecycle</code>; each tool call the child
+makes goes on a <code>CUSTOM</code> event, whose wire contract is
 <a class="autorefs autorefs-internal" title="SUBAGENT_EVENT_NAME
 
 
   
       module-attribute
-  " href="#django_ag_ui.SUBAGENT_EVENT_NAME"><code>SUBAGENT_EVENT_NAME</code></a> carries the wire
-contract -- keyed by the parent's own <code>delegate_task</code> tool call id, so a
-client augments the card it already drew rather than opening a second row
-beside it.</p>
+  " href="#django_ag_ui.SUBAGENT_EVENT_NAME"><code>SUBAGENT_EVENT_NAME</code></a>. Both key on the
+parent's own <code>delegate_task</code> tool call id -- as <code>parentToolCallId</code> and as
+<code>delegationId</code> respectively -- so a client augments the card it already
+drew rather than opening a second row beside it.</p>
+<p>The split is not a transitional state. Moving the steps to the protocol's
+own vocabulary would mean ordinary <code>TOOL_CALL_*</code> events tagged with
+<code>subagentRunId</code>, and those are materialised into the persisted message
+list and replayed on every thread restore -- which would redraw a finished
+run's progress as though it were live. <code>subagent_progress</code> carries the
+full reasoning.</p>
 <p><strong>The observer installs itself onto the capability you hand it.</strong> Reporting
 a child's tool calls needs <code>SubAgents.event_stream_handler</code>, which only the
 capability that starts the child run can pass on, so construction sets that
@@ -10546,8 +10555,17 @@ flags and every other lifecycle method delegate untouched.</p>
 the wrapped capability contributed -- pydantic-ai composes one root
 capability and asks it about each call -- so the delegate tool is picked
 out by name and everything else is delegated untouched.</p>
-<p><code>asyncio.CancelledError</code> is deliberately not caught: a cancelled run is
-a client that has gone away, and there is nobody left to tell.</p>
+<p><strong>Every exit path closes the delegation it opened, cancellation
+included</strong> -- which reverses an earlier choice here, and the reason is
+worth keeping. Not announcing on <code>asyncio.CancelledError</code> was defended
+as "a cancelled run is a client that has gone away, and there is nobody
+left to tell", and that holds only when the whole <em>run</em> was cancelled. A
+single tool call can be cancelled while the run continues, and under the
+protocol's own lifecycle an unclosed delegation is not merely a missing
+line: <code>@ag-ui/client</code> refuses <code>RUN_FINISHED</code> while any delegation is
+still open, so the omission would take down the run it was trying not to
+disturb. Announcing into a sink nobody is draining costs nothing, which
+makes the safe direction the cheap one.</p>
 
 
     </div>
@@ -10580,15 +10598,20 @@ a client that has gone away, and there is nobody left to tell.</p>
 
     <div class="doc doc-contents first">
 
-        <p><code>name</code> a client matches on to render a delegation's progress.</p>
+        <p><code>name</code> a client matches on to render one step a delegated sub-agent took.</p>
 <p>A <strong>convention inside an extension point the protocol already provides</strong>, not a
 protocol extension: AG-UI defines the envelope and leaves <code>name</code> an open
 string. A client that does not know this name ignores the event, which is the
 graceful outcome and the whole reason the field is open -- a run that delegates
 streams exactly as it did before, plus events nobody has to read.</p>
+<h4 id="django_ag_ui.SUBAGENT_EVENT_NAME--half-a-contract-and-the-half-it-is">Half a contract, and the half it is<a class="headerlink" href="#django_ag_ui.SUBAGENT_EVENT_NAME--half-a-contract-and-the-half-it-is" title="Permanent link">&para;</a></h4>
+<p>A delegation's <em>lifetime</em> is no longer described here. AG-UI 0.1.21 gave a
+sub-agent a first-class lifecycle, so <code>SUBAGENT_STARTED</code> opens a delegation
+and <code>SUBAGENT_FINISHED</code> / <code>SUBAGENT_ERROR</code> closes it, built by
+<code>subagent_lifecycle</code>. What stayed on this carrier is what the child does in
+between: one event per tool call it makes and one per result it gets back.</p>
 <h4 id="django_ag_ui.SUBAGENT_EVENT_NAME--the-value">The value<a class="headerlink" href="#django_ag_ui.SUBAGENT_EVENT_NAME--the-value" title="Permanent link">&para;</a></h4>
-<p>Every event carries the same four keys, and the two tool-call phases add a
-fifth::</p>
+<p>Every event carries the same five keys::</p>
 <div class="language-text highlight"><pre><span></span><code>{
   &quot;delegationId&quot;: &quot;call_abc123&quot;,
   &quot;agent&quot;: &quot;researcher&quot;,
@@ -10603,46 +10626,49 @@ fifth::</p>
   drew a tool card for. That is what makes this an <em>augmentation</em> of a card on
   screen rather than a second row beside it, and it is why the id is the
   parent's call rather than the child's run id: the child's run id names
-  something the client has never heard of.</li>
+  something the client has never heard of. It is also the value the lifecycle
+  events carry as <code>parentToolCallId</code>, which is what joins the two carriers.</li>
 <li><code>agent</code> is the sub-agent's name, as the parent model asked for it.</li>
-<li><code>phase</code> is one of <code>started</code>, <code>tool_call</code>, <code>tool_result</code>, <code>finished</code>,
-  <code>failed</code>. One <code>started</code> opens a delegation and exactly one of <code>finished</code>
-  / <code>failed</code> closes it; any number of <code>tool_call</code> / <code>tool_result</code> pairs sit
-  between.</li>
+<li><code>phase</code> is <code>tool_call</code> or <code>tool_result</code>. Any number of the pair sit
+  between the <code>SUBAGENT_STARTED</code> that opens the delegation and the
+  <code>SUBAGENT_FINISHED</code> / <code>SUBAGENT_ERROR</code> that closes it.</li>
 <li><code>status</code> is a rendered one-line summary. <strong>A client that never expands a row
   needs nothing but this</strong>, which is the point of sending it: the collapsed line
   costs no client-side assembly and no phase-to-wording table. A client that
   wants its own wording (a localised UI) builds it from the structured keys and
   ignores this one.</li>
-<li><code>tool</code> is present on <code>tool_call</code> and <code>tool_result</code> only, and always has
-  all three keys. <code>ok</code> is <code>null</code> on <code>tool_call</code> (the call has not returned
-  yet), <code>true</code> on a result the child accepted, and <code>false</code> on one it did
-  not -- which pydantic-ai surfaces to the child as a retry, and which the
-  <code>status</code> line calls <em>failed</em>, because that is what a reader watching the
-  row sees happen. A client rendering its own wording should follow
-  <code>status</code>; <code>ok</code> is the machine-readable half of the same fact. Sending the key as <code>null</code> rather than omitting it keeps the
-  shape fixed, so a client can create the row on <code>tool_call</code> and update it in
-  place on <code>tool_result</code>.</li>
+<li><code>tool</code> always has all three keys. <code>ok</code> is <code>null</code> on <code>tool_call</code> (the
+  call has not returned yet), <code>true</code> on a result the child accepted, and
+  <code>false</code> on one it did not -- which pydantic-ai surfaces to the child as a
+  retry, and which the <code>status</code> line calls <em>failed</em>, because that is what a
+  reader watching the row sees happen. A client rendering its own wording should
+  follow <code>status</code>; <code>ok</code> is the machine-readable half of the same fact.
+  Sending the key as <code>null</code> rather than omitting it keeps the shape fixed, so
+  a client can create the row on <code>tool_call</code> and update it in place on
+  <code>tool_result</code>.</li>
 </ul>
-<h4 id="django_ag_ui.SUBAGENT_EVENT_NAME--what-is-deliberately-not-here">What is deliberately not here<a class="headerlink" href="#django_ag_ui.SUBAGENT_EVENT_NAME--what-is-deliberately-not-here" title="Permanent link">&para;</a></h4>
-<p><strong>The child's failure text.</strong> A <code>failed</code> event names the sub-agent and stops.
-An exception's own words are written for an operator -- the same reasoning
-<code>AgentSession</code> applies when it withholds <code>RUN_ERROR</code> detail unless
-<code>TOOL_FAILURE["INCLUDE_DETAIL"]</code> opts in -- and this channel has no business
-carrying them. Nothing is lost: whatever the delegation returns to the parent
-model (a steering message, a retry) travels the ordinary <code>TOOL_CALL_RESULT</code>
-path and is rendered by the tool card this progress belongs to.</p>
-<p><strong>The child's text output.</strong> Progress is a status line, not a second transcript.</p>
-<h4 id="django_ag_ui.SUBAGENT_EVENT_NAME--why-custom">Why <code>CUSTOM</code><a class="headerlink" href="#django_ag_ui.SUBAGENT_EVENT_NAME--why-custom" title="Permanent link">&para;</a></h4>
-<p>The opposite of the choice <code>chart_activity</code> makes, and the difference is
-<strong>lifetime</strong>, not taste. <code>@ag-ui/client</code> materialises an activity into a
-<code>role: "activity"</code> message; the transport persists the message list wholesale,
-and the client's replay path re-fires it on every thread restore. That is right
-for a chart, which is content and should come back. <strong>Replayed progress is a
-lie</strong>: a run that finished last week would redraw "working, step 4 of 8" on
-every reload of the thread.</p>
+<p>Note that the <code>null</code> survives on the wire, and it is worth knowing why it
+  is safe to rely on. From 0.1.21 the protocol omits an unset optional field
+  rather than serialising it as <code>null</code> -- but that applies to declared <em>model
+  fields</em>, and <code>ok</code> is a value inside a plain <code>dict</code>, which it leaves alone.</p>
+<p><strong>The child's text output is deliberately absent.</strong> Progress is a status line,
+not a second transcript.</p>
+<h4 id="django_ag_ui.SUBAGENT_EVENT_NAME--why-custom-still-for-these-two">Why <code>CUSTOM</code>, still, for these two<a class="headerlink" href="#django_ag_ui.SUBAGENT_EVENT_NAME--why-custom-still-for-these-two" title="Permanent link">&para;</a></h4>
+<p>The lifecycle moved to the protocol's own events and these did not, and the
+reason is the one that chose <code>CUSTOM</code> in the first place: <strong>lifetime</strong>.</p>
+<p>The protocol <em>does</em> have a way to say "the child called a tool" -- an ordinary
+<code>TOOL_CALL_START</code> tagged with <code>subagentRunId</code>. But <code>@ag-ui/client</code>
+materialises those into <code>agent.messages</code> exactly as it does the parent's own,
+the transport persists the message list wholesale, and the replay path re-fires
+it on every thread restore. <strong>Replayed progress is a lie</strong>: a run that finished
+last week would redraw "working, step 4 of 8" on every reload of the thread.
+The three lifecycle events have no such problem -- the client dispatches them to
+callbacks and never pushes them into <code>messages</code> -- which is precisely why they
+were adoptable and these are not.</p>
 <p><strong><code>ACTIVITY_SNAPSHOT</code> is for content; <code>CUSTOM</code> is for an imperative.</strong>
-Progress is the second -- it has no meaning once acted on.</p>
+Progress is the second -- it has no meaning once acted on. That is also the
+choice <code>chart_activity</code> makes in the other direction, because a chart is
+content and should come back.</p>
 <p><code>STATE_SNAPSHOT</code> / <code>STATE_DELTA</code> are out for a third reason: shared state
 round-trips into the next <code>RunAgentInput</code>, so progress placed there would be
 echoed back to the model as though it were something the model had said.</p>

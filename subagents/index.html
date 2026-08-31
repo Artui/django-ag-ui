@@ -544,6 +544,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What reaches the client">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-delegation-opens-and-closes-on-the-protocols-own-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The delegation opens and closes on the protocol's own events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#each-of-the-childs-tool-calls-rides-a-custom-event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Each of the child's tool calls rides a CUSTOM event
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -866,6 +894,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What reaches the client">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-delegation-opens-and-closes-on-the-protocols-own-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The delegation opens and closes on the protocol's own events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#each-of-the-childs-tool-calls-rides-a-custom-event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Each of the child's tool calls rides a CUSTOM event
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1024,52 +1080,73 @@ you hand it — it needs <code>SubAgents.event_stream_handler</code>, which only
 capability that starts the child run can pass on — so wrapping one that already
 carries a handler is refused rather than replacing it.</p>
 <h3 id="what-reaches-the-client">What reaches the client<a class="headerlink" href="#what-reaches-the-client" title="Permanent link">&para;</a></h3>
-<p>A stream of AG-UI <code>CUSTOM</code> events named <code>ag_ui.subagent</code>, interleaved into the
-run <strong>as they happen</strong> rather than at the end of the delegation:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CUSTOM&quot;</span><span class="p">,</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ag_ui.subagent&quot;</span><span class="p">,</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">&quot;value&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nt">&quot;delegationId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;call_abc123&quot;</span><span class="p">,</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nt">&quot;agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;researcher&quot;</span><span class="p">,</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nt">&quot;phase&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tool_call&quot;</span><span class="p">,</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;researcher: calling search_docs&quot;</span><span class="p">,</span>
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span><span class="nt">&quot;tool&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;toolCallId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;call_def456&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;search_docs&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ok&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">}</span>
-</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="p">}</span>
+<p>Two kinds of event, interleaved into the run <strong>as they happen</strong> rather than at
+the end of the delegation. The delegation's own lifetime rides the protocol's
+events; each tool call the child makes rides a <code>CUSTOM</code> one.</p>
+<h4 id="the-delegation-opens-and-closes-on-the-protocols-own-events">The delegation opens and closes on the protocol's own events<a class="headerlink" href="#the-delegation-opens-and-closes-on-the-protocols-own-events" title="Permanent link">&para;</a></h4>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;SUBAGENT_STARTED&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;subagentRunId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;subagent-call_abc123&quot;</span><span class="p">,</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;researcher&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;parentToolCallId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;call_abc123&quot;</span><span class="p">}</span>
+</span></code></pre></div>
+<p>and closes with exactly one <code>SUBAGENT_FINISHED</code> carrying the same
+<code>subagentRunId</code>, or a <code>SUBAGENT_ERROR</code> carrying it plus a <code>message</code>.</p>
+<ul>
+<li><strong><code>parentToolCallId</code> is the parent's own <code>delegate_task</code> tool call id</strong> — the
+  <code>toolCallId</code> the client already drew a card for. That is what makes this an
+  augmentation of the card on screen rather than a second row beside it, and it
+  is the protocol's field for exactly this "agents as tools" shape.</li>
+<li><strong><code>subagentRunId</code> names the child run.</strong> It is derived from the delegation's
+  tool call id, which is already unique per invocation — but read the link from
+  <code>parentToolCallId</code>, never by taking the prefix off this one.</li>
+<li><strong>Exactly one open, exactly one close, on every path including cancellation.</strong>
+  <code>@ag-ui/client</code> verifies this: it refuses a reused <code>subagentRunId</code>, and
+  refuses <code>RUN_FINISHED</code> while any delegation is still open.</li>
+</ul>
+<h4 id="each-of-the-childs-tool-calls-rides-a-custom-event">Each of the child's tool calls rides a <code>CUSTOM</code> event<a class="headerlink" href="#each-of-the-childs-tool-calls-rides-a-custom-event" title="Permanent link">&para;</a></h4>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CUSTOM&quot;</span><span class="p">,</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ag_ui.subagent&quot;</span><span class="p">,</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">&quot;value&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">    </span><span class="nt">&quot;delegationId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;call_abc123&quot;</span><span class="p">,</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="nt">&quot;agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;researcher&quot;</span><span class="p">,</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="nt">&quot;phase&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tool_call&quot;</span><span class="p">,</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">    </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;researcher: calling search_docs&quot;</span><span class="p">,</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">    </span><span class="nt">&quot;tool&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;toolCallId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;call_def456&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;search_docs&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ok&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">}</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="p">}</span>
 </span></code></pre></div>
 <ul>
-<li><strong><code>delegationId</code> is the parent's own <code>delegate_task</code> tool call id</strong> — the
-  <code>toolCallId</code> the client already drew a card for. That is what makes this an
-  augmentation of the card on screen rather than a second row beside it.</li>
-<li><strong><code>phase</code></strong> is one of <code>started</code>, <code>tool_call</code>, <code>tool_result</code>, <code>finished</code>,
-  <code>failed</code>. One <code>started</code> opens a delegation and exactly one of
-  <code>finished</code> / <code>failed</code> closes it, with any number of <code>tool_call</code> /
-  <code>tool_result</code> pairs between.</li>
+<li><strong><code>delegationId</code></strong> is the same parent tool call id the lifecycle events carry
+  as <code>parentToolCallId</code>. That is what joins the two carriers.</li>
+<li><strong><code>phase</code></strong> is <code>tool_call</code> or <code>tool_result</code>. Any number of the pair sit
+  between the delegation's open and its close.</li>
 <li><strong><code>status</code></strong> is a rendered one-line summary, so a client that draws a collapsed
   row and never expands it needs nothing else.</li>
-<li><strong><code>tool</code></strong> is present on the two tool phases only, always with all three keys.
-  <code>ok</code> is <code>null</code> on <code>tool_call</code>, <code>true</code> on a result the child accepted and
-  <code>false</code> on one that came back as a retry — a fixed shape, so a client creates
-  the row on <code>tool_call</code> and updates it in place on <code>tool_result</code>.</li>
+<li><strong><code>tool</code></strong> always has all three keys. <code>ok</code> is <code>null</code> on <code>tool_call</code>, <code>true</code> on
+  a result the child accepted and <code>false</code> on one that came back as a retry — a
+  fixed shape, so a client creates the row on <code>tool_call</code> and updates it in
+  place on <code>tool_result</code>.</li>
 </ul>
-<p>A client that does not know the name ignores the event and the run streams
-exactly as it did before: <code>name</code> is an open string the protocol leaves to
-conventions like this one.</p>
+<p>A client that does not know the <code>CUSTOM</code> name ignores those events and the run
+streams exactly as it did before: <code>name</code> is an open string the protocol leaves
+to conventions like this one. A client that speaks AG-UI at all understands the
+three lifecycle events without knowing anything about this package.</p>
 <p><code>tests/fixtures/subagent_progress_stream.json</code> in this repository is a full
-recorded run — both a successful delegation and a failing one — generated by
-<code>scripts/generate_subagent_fixture.py</code> driving the real endpoint, and
-regenerated by the test suite on every run so it cannot drift from the server.
-Build a client against that rather than against a hand-typed sample.</p>
+recorded run — both a successful delegation and a failing one, on both carriers
+— generated by <code>scripts/generate_subagent_fixture.py</code> driving the real endpoint,
+and regenerated by the test suite on every run so it cannot drift from the
+server. Build a client against that rather than against a hand-typed sample: the
+interleaving of the two carriers is the part neither contract states on its own.</p>
 <h3 id="what-it-deliberately-does-not-carry">What it deliberately does not carry<a class="headerlink" href="#what-it-deliberately-does-not-carry" title="Permanent link">&para;</a></h3>
-<p><strong>The child's failure text.</strong> A <code>failed</code> event names the sub-agent and stops. An
-exception's own words are written for an operator, which is the same reasoning
-<code>TOOL_FAILURE["INCLUDE_DETAIL"]</code> applies to <code>RUN_ERROR</code> — and nothing is lost,
-because whatever the delegation returns to the parent model travels the ordinary
-<code>TOOL_CALL_RESULT</code> and is rendered on the card this progress belongs to.</p>
+<p><strong>The child's failure text.</strong> A <code>SUBAGENT_ERROR</code> names the sub-agent and stops:
+its required <code>message</code> says only which one failed, and the optional <code>code</code> is
+left unset. An exception's own words are written for an operator, which is the
+same reasoning <code>TOOL_FAILURE["INCLUDE_DETAIL"]</code> applies to <code>RUN_ERROR</code> — and
+nothing is lost, because whatever the delegation returns to the parent model
+travels the ordinary <code>TOOL_CALL_RESULT</code> and is rendered on the card this
+progress belongs to.</p>
 <p><strong>The child's prose.</strong> Progress is a status line, not a second transcript.</p>
 <div class="admonition note">
-<p class="admonition-title">Why <code>CUSTOM</code> rather than an activity</p>
+<p class="admonition-title">Why the steps stay on <code>CUSTOM</code></p>
 <p><code>@ag-ui/client</code> materialises an <code>ACTIVITY_SNAPSHOT</code> into a
 <code>role: "activity"</code> message, the message list is persisted wholesale, and the
 client replays it on every thread restore. That is right for a
@@ -1077,6 +1154,12 @@ client replays it on every thread restore. That is right for a
 that finished last week would redraw "calling search_docs" on every reload.
 Shared state is out for a third reason — it round-trips into the next
 <code>RunAgentInput</code>, so progress placed there would be echoed back to the model.</p>
+<p>The protocol <em>does</em> have a way to say "the child called a tool": an ordinary
+<code>TOOL_CALL_START</code> tagged with <code>subagentRunId</code>. It is not used here, and this
+is the same objection — the client materialises those into <code>agent.messages</code>
+exactly as it does the parent's own, so they would be persisted and
+replayed. The three lifecycle events have no such problem, which is why they
+were adoptable and these are not.</p>
 </div>
 
 
