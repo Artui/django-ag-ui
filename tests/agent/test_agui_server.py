@@ -212,6 +212,25 @@ def test_passing_a_store_mounts_the_thread_endpoints() -> None:
     assert "threads" in _names(server)
 
 
+def test_thread_activity_source_reaches_the_thread_view() -> None:
+    """Both thread patterns are one view instance, so one check covers the route."""
+
+    class _Source:
+        async def activities_for(self, thread_id: str, **kwargs: Any) -> list[Any]:
+            return []  # pragma: no cover - wiring is what this asserts
+
+    source = _Source()
+    patterns, _, _ = _server(conversation_store=_DummyStore(), thread_activity_source=source).urls
+    thread = next(p for p in patterns if p.name == "thread")
+    assert thread.callback._thread_activity_source is source
+
+
+def test_no_activity_source_is_the_default() -> None:
+    patterns, _, _ = _server(conversation_store=_DummyStore()).urls
+    thread = next(p for p in patterns if p.name == "thread")
+    assert thread.callback._thread_activity_source is None
+
+
 def test_no_store_means_no_thread_endpoints() -> None:
     """Stores are passed, never resolved from a dotted path — so a server with
     none gets the Null store and doesn't mount the sub-views."""

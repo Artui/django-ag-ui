@@ -15,6 +15,7 @@ from pydantic_ai import Agent
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models.function import DeltaThinkingPart, FunctionModel
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
@@ -172,7 +173,8 @@ async def test_forward_reasoning_opt_out_strips_reasoning_events() -> None:
 # The whole approval lifecycle is upstream (a ``requires_approval`` tool defers to
 # a ``RUN_FINISHED`` interrupt outcome; a follow-up run carrying ``resume[]``
 # approves/denies it). These tests pin that the *latent* loop is driven by our
-# session pipeline — gated only on the protocol floor (0.1.19) and
+# session pipeline — gated only on the protocol version that introduced the
+# lifecycle (0.1.19; the package now floors higher, for unrelated reasons) and
 # ``DeferredToolRequests`` in the agent ``output_type``. The tool under test is
 # **server-side** (no frontend tool in ``RunAgentInput.tools``), the case the
 # adapter's frontend-only ``output_type`` augmentation would miss.
@@ -1052,3 +1054,145 @@ async def test_a_request_without_a_session_still_saves() -> None:
     await _events(_session_for(RequestFactory().post("/agent/"), store))
 
     assert store.saved[0].owner_id is None
+
+
+# --- The delivery channel ---------------------------------------------------
+#
+# Two defensible answers, and the package holds neither as the only one. What
+# these cases pin is that each channel actually carries the block, that the
+# other one then does not, and the three properties the channels differ on:
+# where the text sits relative to the cache breakpoint, whether the model has
+# to ask for it, and whether it comes back to the browser.
+
+TOOL_DELIVERY = override_settings(DJANGO_AG_UI={"RUN_CONTEXT": {"DELIVERY": "tool"}})
+
+
+def _noop_tool() -> str:
+    """A tool the endpoint itself brought."""
+    return "ok"
+
+
+def _instruction_parts(seen: dict[str, Any]) -> list[Any]:
+    """The structured instruction parts this request was built with."""
+    return list(seen["info"].model_request_parameters.instruction_parts or [])
+
+
+def _recording_agent(seen: dict[str, Any]) -> Agent[None, Any]:
+    """A capturing agent that keeps the ``AgentInfo`` as well as the messages."""
+
+    async def stream_fn(messages: list, info: Any) -> Any:
+        seen["messages"] = messages
+        seen["info"] = info
+        yield "ok"
+
+    return Agent(FunctionModel(stream_function=stream_fn))
+
+
+def _tool_names(seen: dict[str, Any]) -> list[str]:
+    return [tool.name for tool in seen["info"].function_tools]
+
+
+async def test_the_client_block_is_its_own_dynamic_instruction_part() -> None:
+    """Not fused into the operator's literal, and that is load-bearing.
+
+    Pydantic-AI classifies literal strings as ``dynamic=False`` and a callable's
+    result as ``dynamic=True``, sorts static first, and -- with
+    ``anthropic_cache_instructions`` set -- puts the cache breakpoint after the
+    last *static* part. Passed as a string the block fuses into that cached
+    prefix, so every request pays a fresh cache write and never gets a read.
+    Passed as a callable it lands outside the breakpoint while still being read
+    after the rules.
+    """
+    seen: dict[str, Any] = {}
+    session = _session(
+        _recording_agent(seen), _run_input(context=PAGE_CONTEXT), instructions="OPERATOR RULES"
+    )
+
+    await _events(session)
+
+    parts = _instruction_parts(seen)
+    static = [p for p in parts if not p.dynamic]
+    dynamic = [p for p in parts if p.dynamic]
+    assert any("OPERATOR RULES" in p.content for p in static)
+    assert not any(CLOSE_SENTINEL in p.content for p in static)
+    assert any(CLOSE_SENTINEL in p.content for p in dynamic)
+
+
+async def test_the_instructions_channel_offers_no_context_tool() -> None:
+    seen: dict[str, Any] = {}
+
+    await _events(_session(_recording_agent(seen), _run_input(context=PAGE_CONTEXT)))
+
+    assert _tool_names(seen) == []
+
+
+@TOOL_DELIVERY
+async def test_the_tool_channel_offers_a_tool_and_leaves_instructions_alone() -> None:
+    seen: dict[str, Any] = {}
+    session = _session(
+        _recording_agent(seen), _run_input(context=PAGE_CONTEXT), instructions="OPERATOR RULES"
+    )
+
+    await _events(session)
+
+    assert "get_client_context" in _tool_names(seen)
+    instructions = _delivered_instructions(seen)
+    assert "OPERATOR RULES" in instructions
+    assert CLOSE_SENTINEL not in instructions
+
+
+@TOOL_DELIVERY
+async def test_the_tool_returns_the_same_fenced_block() -> None:
+    """Same fence, same neutralisation, same ceiling -- only the delivery differs.
+
+    ``TestModel`` calls every tool it is offered, so the block reaching the
+    stream is the tool's return value rather than anything the model composed.
+    """
+    stream = await _events(_session(Agent(TestModel()), _run_input(context=PAGE_CONTEXT)))
+
+    assert CLOSE_SENTINEL in stream
+    assert "Order #42, status shipped" in stream
+
+
+@TOOL_DELIVERY
+async def test_the_tool_result_reaches_the_browser_unlike_the_instructions_channel() -> None:
+    """A property of the channel, not a bug in it.
+
+    A tool result is an ordinary part of the exchange, so it streams back and is
+    persisted into the thread, where the instructions channel is neither.
+    Auditability for some projects, an unwanted copy of a page map for others --
+    either way it is written down, and this is what catches it changing.
+    """
+    stream = await _events(_session(Agent(TestModel()), _run_input(context=PAGE_CONTEXT)))
+
+    assert "get_client_context" in stream
+
+
+@TOOL_DELIVERY
+async def test_the_tool_channel_keeps_the_sessions_own_toolsets() -> None:
+    """Appended, so the endpoint's own tools keep their place in the listing."""
+    seen: dict[str, Any] = {}
+    own = FunctionToolset([_noop_tool], id="endpoint-own")
+    session = AgentSession(
+        _recording_agent(seen),
+        _run_input(context=PAGE_CONTEXT),
+        RequestFactory().post("/agent/"),
+        deps=AgentDeps(user=None),
+        audit_logger=NullAuditLogger(),
+        config=build_ag_ui_config(),
+        conversation_store=NullConversationStore(),
+        toolsets=[own],
+    )
+
+    await _events(session)
+
+    assert sorted(_tool_names(seen)) == ["_noop_tool", "get_client_context"]
+
+
+@TOOL_DELIVERY
+async def test_no_tool_is_added_when_there_is_nothing_to_say() -> None:
+    seen: dict[str, Any] = {}
+
+    await _events(_session(_recording_agent(seen), _run_input()))
+
+    assert _tool_names(seen) == []

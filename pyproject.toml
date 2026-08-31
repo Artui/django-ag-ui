@@ -40,27 +40,55 @@ dependencies = [
     # The settings-agnostic agent-host substrate this transport builds on:
     # agent construction, the tool registry, toolset/capability composition,
     # audit, user resolution, and the storage contracts.
-    # Floored at 0.17, and this transport is the reason rather than a bystander.
-    # An attached file's tool result has two halves with different lifetimes: the
-    # sentence is streamed and kept in the client transcript, the bytes never
-    # travel the event stream at all. This transport seeds later turns from that
-    # transcript -- ``message_history`` stays ``None`` unless a run is resumed --
-    # so before 0.17 it replayed "its contents are attached" with nothing
-    # attached, and the model answered confidently about a document it had never
-    # read. A transport that persists full ``ModelMessages`` keeps the bytes and
-    # never saw it. 0.16 also matters here: below it a row whose blob had left
+    # Floored at 0.20 for the recipe in ``docs/memory.md``: that page imports
+    # ``memory_namespace_for_user`` and ``DefaultMemoryStore``, and neither
+    # exists below it. This is the weaker kind of floor -- nothing this package
+    # imports breaks at 0.19 -- but a shipped page that a valid install cannot
+    # follow is drift, and ``check_docs_snippets.py`` resolves those imports
+    # against the *installed* package so that it cannot happen quietly.
+    # 0.19 is load-bearing for ``service_specs=``: below it a ``SpecRegistry``
+    # was flattened to ``name -> spec`` before the capability was built, so
+    # everything an entry carried beyond its spec -- its tags, its
+    # ``OfflineContract`` -- was gone before PAI ever saw it, silently, since
+    # the result is well-formed and merely missing declarations.
+    # 0.18 for ``ToolGuard``, and this transport is the reason rather
+    # than a bystander. Below it the guard read a single vocabulary -- the
+    # destructive metadata key the drf-mcp bridge stamps -- while an in-process
+    # ``SpecToolset`` (the ``service_specs=`` path, ``[spec-tools]``) writes
+    # ``annotations["readOnlyHint"]`` instead, and nothing translated between
+    # them. A spec mutation therefore ran unapproved under
+    # ``TOOL_GUARD={"ENABLED": True}`` unless it was also named in
+    # ``REQUIRE_APPROVAL``: the setting on, the docs promising a gate, and the
+    # tool executing mid-stream anyway. A guard that reads as on while it is off
+    # is the worst shape to ship one in, so this floor is not a judgement call
+    # about the oldest version that works -- 0.17 demonstrably does not.
+    # 0.17 still earns its place: an attached file's tool result has two halves
+    # with different lifetimes -- the sentence is streamed and kept in the client
+    # transcript, the bytes never travel the event stream at all. This transport
+    # seeds later turns from that transcript (``message_history`` stays ``None``
+    # unless a run is resumed), so before 0.17 it replayed "its contents are
+    # attached" with nothing attached, and the model answered confidently about a
+    # document it had never read. And 0.16: below it a row whose blob had left
     # storage raised where the contract says it returns ``None``, and dedup
     # adopted a missing blob so re-uploading could never repair it.
-    "django-pydantic-agent>=0.17",
+    # 0.21 is the first release whose own spec extras floor drf-services at 0.49,
+    # for the bounded schema recursion. This package states that constraint in its
+    # own extras too, so the resolver would take the stricter of the two either
+    # way -- the floor is here so the claim is not left resting on that, and so a
+    # reader is not asked to work out which sibling is carrying it.
+    "django-pydantic-agent>=0.21",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
     "pydantic-ai-slim[ag-ui]>=2,<3",
-    # The tool-approval interrupt/resume lifecycle (RUN_FINISHED outcomes +
-    # RunAgentInput.resume) is gated on ag-ui-protocol 0.1.19
-    # (INTERRUPTS_VERSION). pydantic-ai-slim only floors it at >=0.1.10, so we
-    # pin the interrupt floor ourselves; see the HITL approval loop.
-    "ag-ui-protocol>=0.1.19",
+    # Two lifecycles are gated here, and the later one sets the floor. The
+    # tool-approval interrupt/resume lifecycle (RUN_FINISHED outcomes +
+    # RunAgentInput.resume) needs 0.1.19 (INTERRUPTS_VERSION); a delegated
+    # sub-agent's own lifecycle needs the SUBAGENT_STARTED / _FINISHED / _ERROR
+    # events, which arrived in 0.1.21 and which the observer imports at module
+    # level. pydantic-ai-slim only floors the distribution at >=0.1.10, so both
+    # floors are ours to state.
+    "ag-ui-protocol>=0.1.21",
 ]
 
 [project.optional-dependencies]
@@ -76,13 +104,21 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
-drf-mcp = ["djangorestframework-mcp-server>=0.30"]
+# Floored at 0.37, the first release carrying drf-services>=0.49: a tool catalog
+# is built by walking every spec's schema, and a serializer that nests itself
+# crashed that walk. No direct drf-services dependency exists here to state the
+# constraint against, so the extra carries it.
+drf-mcp = ["djangorestframework-mcp-server>=0.37"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
-# pydantic-ai's SpecCapability — no MCP server in the path (DJANGO_AG_UI["SERVICE_SPECS"]).
-spec-tools = ["djangorestframework-pydantic-ai>=0.16"]
+# pydantic-ai's SpecCapability -- no MCP server in the path (service_specs=).
+# Floored at 0.24, the first release carrying drf-services>=0.49: the
+# service_specs= path builds a SpecToolset, and a serializer that nests itself
+# took that down at construction. No direct drf-services dependency exists here
+# to state it against, so the extra carries it.
+spec-tools = ["djangorestframework-pydantic-ai>=0.24"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
-# via DJANGO_AG_UI["CAPABILITIES"].
+# via capabilities=.
 harness = ["pydantic-ai-harness>=0.13"]
 # CodeMode as well — wrapping many tools (e.g. the drf-mcp bridge) into one
 # sandboxed `run_code`. Separate because the sandbox (`pydantic-monty`) is
@@ -115,9 +151,9 @@ dev = [
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
-    "djangorestframework-mcp-server>=0.30",
+    "djangorestframework-mcp-server>=0.37",
     # The [spec-tools] extra's backing package, so its capability + tests run in dev.
-    "djangorestframework-pydantic-ai>=0.16",
+    "djangorestframework-pydantic-ai>=0.24",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
@@ -213,7 +249,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.49.0"
+current_version = "0.54.0"
 allow_dirty = false
 commit = false
 tag = false

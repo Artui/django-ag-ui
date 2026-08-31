@@ -46,6 +46,22 @@ from django_ag_ui.agent.chart_points_delta import chart_points_delta
 from django_ag_ui.agent.compaction_observer import CompactionObserver
 from django_ag_ui.agent.fixed_window_throttle import FixedWindowThrottle
 from django_ag_ui.agent.inject_compaction_events import COMPACTION_ACTIVITY_TYPE
+from django_ag_ui.agent.publish_invalidation import (
+    INVALIDATION_SINK,
+    publish_invalidation,
+)
+from django_ag_ui.agent.resource_invalidation import (
+    INVALIDATE_EVENT_NAME,
+    resource_invalidation,
+)
+from django_ag_ui.agent.subagent_observer import SubAgentObserver
+from django_ag_ui.agent.subagent_progress import SUBAGENT_EVENT_NAME
+from django_ag_ui.agent.suggestions_activity import (
+    MAX_SUGGESTION_CHARS,
+    MAX_SUGGESTIONS,
+    SUGGESTIONS_ACTIVITY_TYPE,
+    suggestions_activity,
+)
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.chart_kind import ChartKind
@@ -54,12 +70,15 @@ from django_ag_ui.agent.types.chart_spec import ChartSpec
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.config.types.context_delivery import ContextDelivery
 from django_ag_ui.config.types.run_context_config import RunContextConfig
 from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.scoped_step_store import ScopedStepStore
 from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.persistence.transcribe_view import TranscribeView
+from django_ag_ui.persistence.types.thread_activity import ThreadActivity
+from django_ag_ui.persistence.types.thread_activity_source import ThreadActivitySource
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
 from django_ag_ui.skills.skill_registry import SkillRegistry
 from django_ag_ui.skills.types.skill_spec import SkillSpec
@@ -72,6 +91,12 @@ from django_ag_ui.version import __version__
 # is unchanged from before the extraction.
 __all__ = [
     "CHART_ACTIVITY_TYPE",
+    "MAX_SUGGESTIONS",
+    "MAX_SUGGESTION_CHARS",
+    "SUGGESTIONS_ACTIVITY_TYPE",
+    "SUBAGENT_EVENT_NAME",
+    "INVALIDATE_EVENT_NAME",
+    "INVALIDATION_SINK",
     "MAX_LABELS",
     "MAX_MAGNITUDE",
     "MAX_POINTS",
@@ -80,8 +105,12 @@ __all__ = [
     "ChartSeries",
     "ChartSpec",
     "chart_activity",
+    "suggestions_activity",
+    "publish_invalidation",
+    "resource_invalidation",
     "chart_points_delta",
     "CompactionObserver",
+    "SubAgentObserver",
     "AGUIConfig",
     "DEFAULT_SYSTEM_PROMPT",
     "AGUIServer",
@@ -108,9 +137,12 @@ __all__ = [
     "NullConversationStore",
     "NullTranscriptionBackend",
     "OpenedAttachment",
+    "ContextDelivery",
     "RunContextConfig",
     "SkillRegistry",
     "SkillSpec",
+    "ThreadActivity",
+    "ThreadActivitySource",
     "ThreadsView",
     "Throttle",
     "ToolBinding",

@@ -145,7 +145,9 @@ class TestTheServerThreadsIt:
         server = AGUIServer(
             _recording_registry(seen),
             model=TestModel(),
-            deps_factory=lambda _request: _TenantDeps(tenant="acme"),
+            # ``user`` is required from django-pydantic-agent 0.18; the sibling
+            # cases above already name it, this one had been leaning on the default.
+            deps_factory=lambda _request: _TenantDeps(user="alice", tenant="acme"),
         )
 
         await _drain(await server._view(_post()))

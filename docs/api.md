@@ -57,6 +57,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.RunContextConfig
 
+::: django_ag_ui.ContextDelivery
+
 ::: django_ag_ui.build_ag_ui_config
 
 ## Policy and audit
@@ -100,6 +102,10 @@ The seam both spending routes take — the agent endpoint via `throttle=` and
 
 
 ::: django_ag_ui.ThreadsView
+
+::: django_ag_ui.ThreadActivitySource
+
+::: django_ag_ui.ThreadActivity
 
 ### Reference store (opt-in)
 
@@ -185,6 +191,30 @@ subclass it to change the model or point at another OpenAI-compatible server.
 ::: django_ag_ui.chart_points_delta
 
 ::: django_ag_ui.CHART_ACTIVITY_TYPE
+
+## Follow-up suggestions
+
+::: django_ag_ui.suggestions_activity
+
+::: django_ag_ui.SUGGESTIONS_ACTIVITY_TYPE
+
+::: django_ag_ui.MAX_SUGGESTIONS
+
+::: django_ag_ui.MAX_SUGGESTION_CHARS
+
+## Sub-agent progress
+
+::: django_ag_ui.SubAgentObserver
+
+::: django_ag_ui.SUBAGENT_EVENT_NAME
+
+## Host data invalidation
+
+::: django_ag_ui.publish_invalidation
+
+::: django_ag_ui.resource_invalidation
+
+::: django_ag_ui.INVALIDATE_EVENT_NAME
 
 ## Internal helpers
 

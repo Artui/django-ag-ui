@@ -1,0 +1,184 @@
+{
+  "generator": "scripts/generate_subagent_fixture.py",
+  "scenario": "One run delegating twice: 'researcher' succeeds after a tool retry, 'auditor' fails.",
+  "canonicalized": [
+    "timestamp",
+    "messageId",
+    "parentMessageId"
+  ],
+  "events": [
+    {
+      "type": "RUN_STARTED",
+      "timestamp": 1735689600000,
+      "threadId": "thread-fixture",
+      "runId": "run-fixture"
+    },
+    {
+      "type": "TOOL_CALL_START",
+      "timestamp": 1735689600000,
+      "toolCallId": "call-1",
+      "toolCallName": "delegate_task",
+      "parentMessageId": "message-1"
+    },
+    {
+      "type": "TOOL_CALL_ARGS",
+      "timestamp": 1735689600000,
+      "toolCallId": "call-1",
+      "delta": "{\"agent_name\": \"researcher\", \"task\": \"Find settlement passages.\"}"
+    },
+    {
+      "type": "TOOL_CALL_END",
+      "timestamp": 1735689600000,
+      "toolCallId": "call-1"
+    },
+    {
+      "type": "SUBAGENT_STARTED",
+      "timestamp": 1735689600000,
+      "subagentRunId": "subagent-call-1",
+      "name": "researcher",
+      "parentToolCallId": "call-1"
+    },
+    {
+      "type": "CUSTOM",
+      "timestamp": 1735689600000,
+      "name": "ag_ui.subagent",
+      "value": {
+        "delegationId": "call-1",
+        "agent": "researcher",
+        "phase": "tool_call",
+        "status": "researcher: calling lookup_docs",
+        "tool": {
+          "toolCallId": "sub-1",
+          "name": "lookup_docs",
+          "ok": null
+        }
+      }
+    },
+    {
+      "type": "CUSTOM",
+      "timestamp": 1735689600000,
+      "name": "ag_ui.subagent",
+      "value": {
+        "delegationId": "call-1",
+        "agent": "researcher",
+        "phase": "tool_result",
+        "status": "researcher: lookup_docs returned",
+        "tool": {
+          "toolCallId": "sub-1",
+          "name": "lookup_docs",
+          "ok": true
+        }
+      }
+    },
+    {
+      "type": "CUSTOM",
+      "timestamp": 1735689600000,
+      "name": "ag_ui.subagent",
+      "value": {
+        "delegationId": "call-1",
+        "agent": "researcher",
+        "phase": "tool_call",
+        "status": "researcher: calling lookup_docs",
+        "tool": {
+          "toolCallId": "sub-2",
+          "name": "lookup_docs",
+          "ok": null
+        }
+      }
+    },
+    {
+      "type": "CUSTOM",
+      "timestamp": 1735689600000,
+      "name": "ag_ui.subagent",
+      "value": {
+        "delegationId": "call-1",
+        "agent": "researcher",
+        "phase": "tool_result",
+        "status": "researcher: lookup_docs failed",
+        "tool": {
+          "toolCallId": "sub-2",
+          "name": "lookup_docs",
+          "ok": false
+        }
+      }
+    },
+    {
+      "type": "SUBAGENT_FINISHED",
+      "timestamp": 1735689600000,
+      "subagentRunId": "subagent-call-1"
+    },
+    {
+      "type": "TOOL_CALL_RESULT",
+      "timestamp": 1735689600000,
+      "messageId": "message-2",
+      "toolCallId": "call-1",
+      "content": "Three passages mention settlement.",
+      "role": "tool"
+    },
+    {
+      "type": "TOOL_CALL_START",
+      "timestamp": 1735689600000,
+      "toolCallId": "call-2",
+      "toolCallName": "delegate_task",
+      "parentMessageId": "message-3"
+    },
+    {
+      "type": "TOOL_CALL_ARGS",
+      "timestamp": 1735689600000,
+      "toolCallId": "call-2",
+      "delta": "{\"agent_name\": \"auditor\", \"task\": \"Check them against the ledger.\"}"
+    },
+    {
+      "type": "TOOL_CALL_END",
+      "timestamp": 1735689600000,
+      "toolCallId": "call-2"
+    },
+    {
+      "type": "SUBAGENT_STARTED",
+      "timestamp": 1735689600000,
+      "subagentRunId": "subagent-call-2",
+      "name": "auditor",
+      "parentToolCallId": "call-2"
+    },
+    {
+      "type": "SUBAGENT_ERROR",
+      "timestamp": 1735689600000,
+      "subagentRunId": "subagent-call-2",
+      "message": "auditor failed"
+    },
+    {
+      "type": "TOOL_CALL_RESULT",
+      "timestamp": 1735689600000,
+      "messageId": "message-4",
+      "toolCallId": "call-2",
+      "content": "Sub-agent 'auditor' failed: the auditor model went away\n\nFix the errors and try again.",
+      "role": "tool"
+    },
+    {
+      "type": "TEXT_MESSAGE_START",
+      "timestamp": 1735689600000,
+      "messageId": "message-5",
+      "role": "assistant"
+    },
+    {
+      "type": "TEXT_MESSAGE_CONTENT",
+      "timestamp": 1735689600000,
+      "messageId": "message-5",
+      "delta": "The handbook mentions settlement three times; the ledger check did not run."
+    },
+    {
+      "type": "TEXT_MESSAGE_END",
+      "timestamp": 1735689600000,
+      "messageId": "message-5"
+    },
+    {
+      "type": "RUN_FINISHED",
+      "timestamp": 1735689600000,
+      "threadId": "thread-fixture",
+      "runId": "run-fixture",
+      "outcome": {
+        "type": "success"
+      }
+    }
+  ]
+}

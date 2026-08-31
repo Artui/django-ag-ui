@@ -7,6 +7,516 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.0] — 2026-08-31
+
+### Changed
+
+- **A delegation now opens and closes on the protocol's own events.**
+  `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` / `SUBAGENT_ERROR` replace the
+  `started` / `finished` / `failed` phases of the `ag_ui.subagent` `CUSTOM`
+  channel. A client that speaks AG-UI understands a delegation's lifetime
+  without knowing anything about this package; the opening event carries the
+  parent's `delegate_task` tool call id as `parentToolCallId`, which is the
+  protocol's own field for the "agents as tools" shape and the same value the
+  `CUSTOM` steps carry as `delegationId`.
+
+  **Breaking for a client that reads the `CUSTOM` channel.** `phase` is now
+  `tool_call` or `tool_result` only, and `tool` is present on every one of them.
+  A client that matched on `started` / `finished` / `failed` sees a delegation
+  that never opens; read the three protocol events instead.
+
+  The child's individual tool calls deliberately did **not** move. The protocol
+  would have those be ordinary `TOOL_CALL_*` events tagged with `subagentRunId`,
+  and `@ag-ui/client` materialises those into the persisted message list and
+  replays them on every thread restore — which would redraw a finished run's
+  progress as live. That is the property the `CUSTOM` carrier was chosen for,
+  and the three lifecycle events keep it because the client dispatches them to
+  callbacks without ever pushing them into `agent.messages`.
+
+### Fixed
+
+- **A cancelled delegation now closes instead of being left open.** Cancellation
+  used to announce nothing, on the reasoning that a cancelled run is a client
+  that has gone away. That holds for a cancelled *run*, but a single tool call
+  can be cancelled while the run continues — and `@ag-ui/client` refuses
+  `RUN_FINISHED` while any delegation is still open, so the silence would have
+  taken down the run it was trying not to disturb.
+
+### Changed (dependencies)
+
+- **Floored at `ag-ui-protocol>=0.1.21`**, raised from `>=0.1.19`, for the three
+  `SUBAGENT_*` events above — imported at module level, so this is a hard floor
+  rather than a preference. 0.1.21 is also the release that stopped serialising
+  unset optional fields as JSON `null`, which matters here rather than
+  incidentally: `@ag-ui/client` refuses several of these events' optional fields
+  as an explicit `null`, so the floor that introduces the events is the floor
+  that makes them serialise the way their reader demands. The bump brings
+  `TokenUsage` on `RUN_FINISHED` / `RUN_ERROR` (0.1.20) along with it, unused so
+  far.
+
+  The canonical AG-UI event set asserted by `tests/test_ag_ui_event_contract.py`
+  moves from 33 to 36 in step, as does its twin in the web component's suite.
+
+## [0.53.0] — 2026-08-30
+
+### Added
+
+- **Floored at `django-pydantic-agent>=0.21`.** 0.21 is the first release whose
+  own spec extras floor `drf-services` at 0.49. This package states that
+  constraint in its own extras as well, so a resolver takes the stricter of the
+  two regardless — the floor is here so the claim does not rest on that, and so a
+  reader is not left working out which sibling carries it.
+
+- **Both spec-facing extras floored at the releases that carry
+  `drf-services>=0.49`** — `[drf-mcp]` at `>=0.37`, `[spec-tools]` at `>=0.24`.
+  0.49 is where a self-referential serializer stopped crashing schema generation,
+  and both paths here reach it: a tool catalog is built by walking every spec's
+  schema, and `service_specs=` builds a `SpecToolset` whose tool definitions are
+  schemas. This package declares no direct `drf-services` dependency, so the
+  extras are the only place that constraint can be stated. Verified rather than
+  assumed: `--resolution lowest-direct` now pulls `drf-services` 0.49.0
+  transitively through both.
+
+- **Every `CUSTOM` event this package builds now carries a `timestamp`.** It was
+  the only event type in the stream without one — pydantic-ai's adapter stamps
+  everything it emits, and the two events built here did not, so a consumer
+  reading the raw stream could not time a delegation. Found by the browser half
+  of this change reading the fixture rather than the prose.
+
+  **Both emitters, not one.** `resource_invalidation` had the same gap; stamping
+  only the new channel would have traded an asymmetry against the adapter for an
+  asymmetry inside this package. Additive and optional in the AG-UI envelope, so
+  nothing that reads these events breaks.
+
+  Not a clock for a browser to measure elapsed time with — a client's own clock
+  has no skew against itself and this one does. It is here so a logged stream
+  reads consistently.
+
+- **`SubAgentObserver` — a delegated sub-agent's work reaches the browser while
+  it is happening.** A child agent runs to completion inside one `delegate_task`
+  tool call, and a tool call emits nothing between its arguments and its result.
+  So a parent that hands a long task to a sub-agent shows a tool card that sits
+  there — for a minute, for five — and a working run is indistinguishable from a
+  wedged one. The harness half of this already existed (`SubAgents` accepts an
+  `event_stream_handler`); nothing routed those events onto the SSE stream.
+
+  ```python
+  capabilities = [SubAgentObserver(SubAgents(agents=[...], agent_folders=None))]
+  ```
+
+  Opt-in by construction, with no setting behind the wrapping. What reaches the
+  client is a stream of `CUSTOM` events named `ag_ui.subagent`, each carrying a
+  `delegationId`, the sub-agent's name, a `phase` (`started`, `tool_call`,
+  `tool_result`, `finished`, `failed`), a rendered `status` line, and — on the
+  two tool phases — the child's tool call and whether it landed.
+
+  **The key is the parent's own `delegate_task` tool call id**, not the child's
+  run id. The client has already drawn a card for that id off `TOOL_CALL_START`;
+  keying on it makes this an augmentation of that card rather than a second row
+  beside it, and the child's run id names something the client has never heard
+  of. `tests/fixtures/subagent_progress_stream.json` is a full recorded run,
+  generated by `scripts/generate_subagent_fixture.py` driving the real endpoint
+  and regenerated by the suite on every run, so a client can be built against
+  what the server writes rather than against a hand-typed sample.
+
+  **`CUSTOM` rather than `ACTIVITY_SNAPSHOT`, and the difference is lifetime.**
+  An activity is materialised into a `role: "activity"` message, persisted with
+  the transcript and replayed on every thread restore. That is right for a chart,
+  which is content. Replayed progress is a lie: a run that finished last week
+  would redraw "calling search_docs" on every reload. Shared state is out for a
+  third reason — it round-trips into the next `RunAgentInput`, so progress placed
+  there would be echoed back to the model as though it were something the model
+  had said.
+
+  **A `failed` event names the sub-agent and stops.** An exception's own words
+  are written for an operator, which is the reasoning `TOOL_FAILURE`'s
+  `INCLUDE_DETAIL` already applies to `RUN_ERROR`; nothing is lost, because what
+  the *model* was told travels the ordinary `TOOL_CALL_RESULT` on the card this
+  progress belongs to.
+
+  **Interleaving it live cost more than draining a list, and the cost was the
+  point.** The two sibling injectors drain between upstream events, which is
+  enough for a compaction or an invalidation — another event always follows
+  shortly. Here the AG-UI stream is silent from the delegate call's
+  `TOOL_CALL_END` to its `TOOL_CALL_RESULT`, so the same approach would have
+  delivered a five-minute delegation's whole progress in one burst *after* it
+  finished, which restates the stall rather than fixing it. Upstream is
+  therefore pumped by one long-lived task and raced against the announcement
+  queue. One task rather than one per event, because a task runs in a *copy* of
+  the context and the sibling injectors set and reset their sinks inside that
+  chain; and the pump is kept in lockstep with the consumer, which preserves the
+  client's backpressure and is also what keeps the interleaving true — a pump
+  even one event ahead would let a delegation's start overtake the tool call
+  that started it.
+
+- **`chart_points_delta(..., spec=)` — the caller declares the shape, and the
+  wrong-length delta finally raises.** The helper's own docstring conceded this
+  failure in full and could not do anything about it: a delta carries a
+  `chart_id`, and an id is a name rather than a shape, so a patch built from the
+  wrong number of points applied cleanly in the browser and then left a spec the
+  client refuses to redraw. The user sees the *previous* numbers, which reads as
+  a chart that is up to date rather than one that failed, and the chart is gone
+  entirely on the next reload. Nothing was reported on either side, because
+  there is no channel for the client to report on.
+
+  ```python
+  chart_points_delta("throughput", points=(14, 21, 11, 26, 20), spec=revised)
+  ```
+
+  Passing the `ChartSpec` the chart on screen was drawn from turns both halves
+  of that silence into a `ValueError` at construction, next to the code that
+  made the mistake -- the posture `ChartSpec.validate` and `validate_point`
+  already take, and their wording too: an error here says what the client would
+  do, because what the client does is nothing.
+
+  **An expected point count was the cheaper argument and the wrong one.** It is
+  derived from the spec (`len(spec.labels)`), and deriving it by hand is the
+  same step that goes wrong in the first place -- a caller who miscounts the
+  points miscounts the count as well, and the guard then agrees with the
+  mistake. It also sees only half the problem: `series` is an *index into*
+  `spec.series`, so only the spec can say that index 2 is past the end, which is
+  the other quiet failure the docstring named. And the spec costs the caller
+  nothing they do not already hold, since a delta requires a snapshot to have
+  gone first and the spec is what that snapshot was built from -- keeping it is
+  the same act as keeping the `chart_id`.
+
+  **Optional, and unchanged without it.** The helper is stateless by design and
+  a delta sent from somewhere the spec is no longer in hand is a legitimate
+  call, not a mistake, so the guard is a declaration the caller opts into rather
+  than a new requirement. The spec is read and never sent; the patch on the wire
+  is byte-for-byte what it was.
+
+### Documentation
+
+- **`ThreadActivitySource` now says why it takes snapshots and not deltas:
+  materialise, do not replay.** Asked to widen `ThreadActivity.event` so a chart
+  updated by `chart_points_delta` could be replayed on restore, and declined --
+  but the reasoning was nowhere in the docs, which left the narrow type looking
+  like an oversight.
+
+  The hook is implemented by the *project*, and its own docstring already says
+  why: the project holds the data, because it charted it. A project that pushed
+  a snapshot and then deltas holds the current numbers -- it computed them, that
+  is where the deltas came from -- so restoring current state is a fresh
+  `chart_activity` built from those numbers, a constructor call. Accepting
+  deltas would instead ask every implementation for an ordered event log, a
+  replay on every thread load, and an answer for what a resumed run does with a
+  half-applied patch, in order to arrive at a value that was already in a
+  variable. The type is unchanged.
+
+## [0.52.0] — 2026-08-29
+
+### Documentation
+
+- **A per-user memory page.** `pydantic-ai-harness` ships a complete memory
+  capability and `capabilities=` already carries it, so this is a recipe rather
+  than a feature — no new setting, no new code. It leads with the precondition
+  instead of burying it: **`TOOL_GUARD` should be on before memory is.** Memory
+  is durable, model-written and replayed into every later run, so a note that
+  reads as an instruction keeps working indefinitely; the guard is what stops one
+  reaching a destructive tool unattended. Each setting is defensible alone and
+  they are only wrong together.
+
+  It also records why the namespace resolver reads `ctx.deps.user` and not a
+  request — `capabilities=` is resolved once at construction, so nothing
+  request-shaped can be closed over in it — and why a memory-management UI stays
+  the host app's, while insisting that memory not be switched on without one.
+
+- **Preferences, on the same page, as the thing memory is not.** They differ on
+  *who reads them*: memory is read by the model as prompt text it wrote itself,
+  a preference is read by the server to shape the run through a slot the operator
+  wrote. Shipped as a recipe over `model_for_request` / `instructions_for_request`
+  — default model, tone and language all fall out of the two hooks that already
+  exist. No model ships here and none should: nothing this package owns would
+  read the table, and the schema would be guessing at a product's taxonomy.
+
+  The one preference with no path is per-user reasoning disclosure, and the
+  refusal is recorded as a decision rather than left as an omission.
+
+### Changed
+
+- **The `django-pydantic-agent` floor moves to `>=0.20`**, earned by the memory
+  page rather than by anything this package imports: the recipe needs
+  `memory_namespace_for_user` and `DefaultMemoryStore`, and neither exists below
+  it. A documentation-earned floor is the weaker kind, and worth naming as such
+  -- nothing here breaks at 0.19 -- but a shipped page that a valid install
+  cannot follow is drift of exactly the sort `check_docs_snippets.py` exists to
+  refuse, and it resolves those imports against the *installed* package.
+
+### Fixed
+
+- **Two extras comments told readers to attach through settings keys that
+  raise.** `[spec-tools]` pointed at `DJANGO_AG_UI["SERVICE_SPECS"]` and
+  `[harness]` at `DJANGO_AG_UI["CAPABILITIES"]`; both keys were removed in
+  0.19.0 and `check_removed_settings` has rejected them ever since. Packaging
+  metadata is read where nothing runs -- no gate parses a comment in
+  `pyproject.toml` -- so the claim outlived the API by five minor versions.
+
+- Three docstrings and one docs line named drf-services' `AgentContract`, which
+  0.48.0 renamed to `OfflineContract` with no alias left behind. Prose only;
+  nothing imported it, which is exactly why nothing caught it.
+
+## [0.51.0] — 2026-08-29
+
+### Added
+
+- **`suggestions_activity()` — server-pushed follow-up chips.** Registered skill
+  chips are static and host-configured, so they can offer "summarize this" but
+  never *"want me to update the shipping address too?"* after a tool has run.
+
+  ```python
+  from django_ag_ui import suggestions_activity
+
+  await sink(
+      suggestions_activity(
+          [
+              "Update the shipping address too",
+              "Show me the order history",
+          ]
+      )
+  )
+  ```
+
+  An ordinary `ACTIVITY_SNAPSHOT` under the `suggestions` type — a convention
+  inside an extension point the protocol already provides, exactly as `chart` is,
+  so a client that has never heard of the name ignores it. Identity works as
+  `chart_id` does: omit `suggestions_id` and each push draws its own row under
+  the answer it follows; pass the same one to replace a row already on screen.
+  Chips are content, so they persist and a reload puts them back.
+
+  Bounded at **4 prompts** (Slack's `setSuggestedPrompts` cap, and the point past
+  which chips become a menu rather than a nudge) and 120 characters each, and
+  **it raises rather than trimming**. The client draws no more than its own limit
+  and has no channel to report what it dropped, so trimming here would ship
+  suggestions that silently never appear — which is the hole `chart_limits`
+  exists to close, found there by shipping it.
+
+
+- **`RUN_CONTEXT["DELIVERY"]` — the channel that carries client-supplied context
+  is now a choice, because there are two defensible answers and this package
+  held one of them silently.**
+
+  ```python
+  DJANGO_AG_UI = {"RUN_CONTEXT": {"DELIVERY": "tool"}}  # or "instructions" (default)
+  ```
+
+  `"instructions"` is what every release before this key did and stays the
+  default: the fenced block rides additional run instructions, so it **survives
+  compaction** — the attachment manifest is still there at step 20 when the
+  model decides to read a file — and it is neither persisted into the thread nor
+  echoed back to the browser.
+
+  `"tool"` follows pydantic-ai's documented position. Upstream left an
+  `AGUIAdapter.context` accessor out **deliberately**, because *instructions
+  carry operator authority, so building them out of text a client sent lets a
+  prompt injection inherit that authority*, and points consumers at tool output
+  instead. On this channel the block is the return value of a
+  `get_client_context` tool.
+
+  Three costs come with `"tool"`, all real and all written down rather than
+  discovered: a tool result can be **compacted away** and is not re-supplied; the
+  model has to **decide to call it**, so ambient facts are only considered if it
+  thinks to ask; and a tool result is an ordinary part of the exchange, so the
+  block is **streamed back to the browser and persisted into the thread**.
+
+  The block itself is rendered once — same fence, same sentinel neutralisation,
+  same ceiling — and only the delivery differs, so the two channels cannot drift
+  in what they consider safe to pass on. An unrecognised `DELIVERY` raises at
+  startup rather than defaulting: the channels differ in whether client text
+  inherits operator authority, and a typo resolving to the more permissive one is
+  the outcome worth refusing.
+
+
+- **`publish_invalidation` and `resource_invalidation` — tell the page what the
+  agent just moved.** The agent writes and the page the user is looking at still
+  shows the old list. `ag-ui-run-finished` already says *something* moved and is
+  already adopted, so this is **precision on a channel that ships**, not a new
+  one: name the resources and a host refetches only those, live during the run
+  rather than once at the end.
+
+  ```python
+  with transaction.atomic():
+      order = Order.objects.create(sku=sku)
+      transaction.on_commit(
+          lambda: publish_invalidation("orders", f"orders/{order.pk}", reason="place_order")
+      )
+  ```
+
+  Keys are **opaque host-defined strings**. This package never interprets them,
+  because every alternative — model labels, spec names, URLs, MCP-style URIs —
+  encodes one side's vocabulary into a contract both sides must read, and the two
+  sides are a Django app and a frontend that may know nothing about Django
+  models. Matching is exact and never by prefix, so a write that should also
+  refresh the collection **names the collection**: a prefix rule would guess at a
+  scheme this package does not own, and `orders/1` would match `orders/11`.
+
+  A `CUSTOM` event, which is the opposite of the carrier `chart_activity` picks,
+  and the difference is **lifetime**. An `ACTIVITY_SNAPSHOT` is materialised into
+  a message, persisted with the transcript and replayed on every restore — right
+  for a chart, and a refetch storm for an invalidation.
+
+  ⇒ `ACTIVITY_SNAPSHOT` is for content; `CUSTOM` is for an imperative.
+
+  **Two routes, because the transaction boundary is wrong by default.**
+  `resource_invalidation` returns the event for a tool to hand back as
+  `ToolReturn(metadata=...)`, the same route charts document. But a tool has to
+  return before its metadata is forwarded, so it cannot announce *after* a
+  commit — and `ServiceSpec` is `atomic=True` unless told otherwise, so the
+  naive version tells the page to refetch data that has not committed and may
+  never commit. `publish_invalidation` queues onto the run's own stream instead,
+  which is what makes `transaction.on_commit` usable. It returns `False` when no
+  run is listening, so a call from a worker or a management command is a no-op
+  rather than an error.
+
+  The queue is a `ContextVar` sink drained by a stream injector, the same shape
+  compaction uses and for the same reason: one process serves many runs, and an
+  invalidation crossing between them would tell the wrong page to refetch.
+
+  The [guide](https://artui.github.io/django-ag-ui/invalidation/) leads with the
+  hazard that matters most — **an agent-triggered reload destroys unsaved input**
+  — and deliberately contains no one-line "reload on invalidation" example,
+  because that is the line someone would copy.
+
+### Changed
+
+- **Sibling floors raised: `django-pydantic-agent>=0.19`,
+  `djangorestframework-pydantic-ai>=0.20`, `djangorestframework-mcp-server>=0.35`.**
+
+  The first two are **code-path floors, not resolution floors**. Handing a
+  `SpecRegistry` to `service_specs=` is a four-hop chain — this package, then
+  dpa's `build_spec_capability`, then PAI's `SpecCapability`, then its
+  `SpecToolset` — and the middle two both flattened the registry to
+  `name -> spec` before passing it on. All three hops were fixed separately, and
+  **any one of them alone is a no-op**: below these versions the entry is
+  flattened again further down and everything a `RegisteredSpec` carries beyond
+  the spec is dropped, silently. So the fix in this release only does anything
+  with those versions present.
+
+  The drf-mcp floor is defensive: 0.30 through 0.34 import audience symbols that
+  `drf-services` 0.48.0 removed, and they declare no upper bound, so pinning one
+  of them alongside a current drf-services resolves to a combination that fails
+  at import. 0.35 is the first release that works.
+
+### Fixed
+
+- **Client context was fused into the cached instruction prefix, latently
+  costing money the moment anyone enables prompt caching.** Pydantic-AI
+  classifies a literal-string instruction as `dynamic=False` and a callable's
+  result as `dynamic=True`, sorts static before dynamic, and — with
+  `anthropic_cache_instructions` set — puts the cache breakpoint after the last
+  **static** instruction. The block was passed as a string, so it joined the
+  operator's static block and every request paid a fresh cache write and never
+  got a read.
+
+  It is now passed as a callable, which keeps rules-before-data (static still
+  sorts first) while landing the volatile text outside the breakpoint.
+
+  **Latent, not live** — nothing in any of these packages configures caching. But
+  `AgentConfig.model_settings` passes straight through, so it was one key away
+  with no code change, and `CachePoint` markers are dropped by the AG-UI adapter,
+  so a consumer could not have corrected it from the message side.
+
+
+- **A `SpecRegistry` handed to `service_specs=` was flattened before the
+  capability was built, dropping everything the entry carries.**
+  `_resolve_spec_source` returned only the `name -> spec` mapping, so the spec
+  capability was built from a registry's *output* rather than the registry — and
+  a `RegisteredSpec` holds more than its spec: its tags, and drf-services 0.45's
+  `AgentContract`, which is where a project declares what a caller with **no
+  HTTP request** has to be told (the URL kwargs, query params and field-audience
+  overrides the URLconf and query string give an HTTP caller for free).
+
+  The source is now kept beside the mapping and is what the capability is built
+  from. The mapping still serves the two consumers that want names — the tool
+  catalog and the view's tool-name reservation, which is why it was normalised
+  here in the first place.
+
+  **The loss was silent**, which is why it survived a wave of review: every tool
+  is still registered and the endpoint still works. It shows only as an argument
+  the model was never offered, or a field it was shown and should not have been.
+
+  The other half is `django-pydantic-agent`, which flattens again one step
+  later; the declarations reach the toolset once **both** land, so the dpa floor
+  raise rides with the next release sweep. Nothing regresses in the meantime —
+  a registry reaching the older builder is flattened exactly as before.
+
+## [0.50.0] — 2026-08-28
+
+### Security
+
+- **Raised the `django-pydantic-agent` floor to `>=0.18`** — below it
+  `TOOL_GUARD={"ENABLED": True}` did not gate a drf-services spec attached
+  **in process** through `service_specs=`. The guard read one vocabulary, the
+  `DESTRUCTIVE_METADATA_KEY` the drf-mcp bridge stamps; a `SpecToolset` writes
+  `metadata["annotations"]["readOnlyHint"]` instead, and nothing translated
+  between them. So the *same* `ServiceSpec` was gated when it arrived over the
+  bridge and ungated when it was attached directly — a transport swap silently
+  removed the gate, and a spec mutation ran unapproved with the setting on and
+  the docs promising otherwise.
+
+  The fix shipped in django-pydantic-agent 0.18.0; this release is what makes an
+  install of *this* package get it. A patched library is not a patched stack. If
+  you cannot upgrade yet, name the mutating specs in
+  `TOOL_GUARD["REQUIRE_APPROVAL"]` — that path always worked.
+
+  0.18 also taught the guard the `x-destructive` schema stamp
+  `build_input_schema` writes, so a tool attached through `toolsets=` with a
+  schema derived by that helper is now gated too. Both additions **widen** what
+  the gate catches; nothing that was gated before stops being gated.
+
+### Documentation
+
+- **`tool-approval.md` and `configuration.md` understated the gate.** Both
+  enumerated what counts as destructive and named only the registry flag and the
+  drf-mcp annotation. They now list all four vocabularies, and say that silence
+  is not a claim — a tool declaring nothing is left alone, which is what
+  `REQUIRE_APPROVAL` is for.
+
+### Added
+
+- **`thread_activity_source=`** on `AGUIServer` / `ThreadsView` — a pushed chart
+  can be put back on reload. A successful run stores the *model's* message
+  history, and a pushed activity deliberately never enters it, so a server-side
+  store served a restored thread with nothing to redraw the chart from: it was
+  there for the session and gone on refresh. A client-side store persists
+  activities, which is why both test suites agreed the feature worked.
+
+  ```python
+  class StoredCharts:
+      async def activities_for(self, thread_id, *, messages, request):
+          rows = Chart.objects.filter(thread_id=thread_id, owner=request.user)
+          return [
+              ThreadActivity(
+                  chart_activity(row.spec(), chart_id=row.chart_id),
+                  after_message_id=row.after_message_id,
+              )
+              async for row in rows
+          ]
+
+
+  AGUIServer(registry, conversation_store=store, thread_activity_source=StoredCharts())
+  ```
+
+  The source is asked on every thread read and its events are merged into the
+  messages served, materialised the way `@ag-ui/client` materialises a live
+  `ACTIVITY_SNAPSHOT` — so a restored chart is the same `role: "activity"`
+  message the browser already had on screen, and **no web-component change is
+  needed**; 0.26.0 and later redraw it as they stand.
+
+  **Merging on read rather than persisting activities beside the history** is
+  the deliberate half. Persisting them needs an ordering rule, a dedup rule and
+  an answer for what a resumed run does with a snapshot that already contains
+  them — decisions the framework cannot make, because it never saw the data.
+  The stored thread stays exactly the model's history, so resume, fork and
+  snapshot keep meaning what they meant. The project owns the record and answers
+  the placement question through `ThreadActivity.after_message_id`; an unknown
+  anchor lands the chart at the end rather than dropping it, and two entries
+  under one id collapse to first-position/last-content, which is what the
+  browser does with the pair anyway.
+
+- **`ThreadActivity`** and **`ThreadActivitySource`** — the record and the
+  Protocol above, exported from the package root.
+
 ## [0.49.0] — 2026-08-26
 
 ### Added
@@ -2742,7 +3252,12 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.49.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.54.0...HEAD
+[0.54.0]: https://github.com/Artui/django-ag-ui/compare/v0.53.0...v0.54.0
+[0.53.0]: https://github.com/Artui/django-ag-ui/compare/v0.52.0...v0.53.0
+[0.52.0]: https://github.com/Artui/django-ag-ui/compare/v0.51.0...v0.52.0
+[0.51.0]: https://github.com/Artui/django-ag-ui/compare/v0.50.0...v0.51.0
+[0.50.0]: https://github.com/Artui/django-ag-ui/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/Artui/django-ag-ui/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/Artui/django-ag-ui/compare/v0.47.0...v0.48.0
 [0.47.0]: https://github.com/Artui/django-ag-ui/compare/v0.46.0...v0.47.0

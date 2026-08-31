@@ -148,6 +148,84 @@ class TestNormalisation:
         assert list(_server(service_specs=registry)._service_specs) == ["b_spec", "a_spec"]
 
 
+class TestTheSourceSurvivesNormalisation:
+    """Flattening is lossy, so the argument as given is kept beside the mapping.
+
+    A ``SpecRegistry`` entry carries more than its spec: its tags, and the
+    ``OfflineContract`` that says what a caller with no HTTP request has to be
+    told. ``specs()`` returns the specs alone, so a capability built from the
+    mapping is built from a registry's *output* rather than the registry --
+    silently, since the result is well-formed and merely missing declarations
+    nobody asked it for.
+    """
+
+    def test_a_registry_is_kept_as_the_source(self) -> None:
+        registry = _registry()
+        server = _server(service_specs=registry)
+
+        assert server._spec_source is registry
+        # And the entry, not just the spec, is what that preserves.
+        assert server._spec_source.get("list_widgets").tags == frozenset({"read", "public"})
+
+    def test_a_plain_mapping_has_no_source_to_keep(self) -> None:
+        assert _server(service_specs={"list_widgets": _selector()})._spec_source is None
+
+    def test_unset_has_no_source(self) -> None:
+        assert _server()._spec_source is None
+
+    def test_a_prebuilt_capability_is_not_a_source(self) -> None:
+        """It is attached as itself, so nothing is built from a source for it."""
+        from rest_framework_pydantic_ai import SpecCapability
+
+        server = _server(service_specs=SpecCapability({"list_widgets": _selector()}))
+
+        assert server._spec_source is None
+        assert server._spec_capability is not None
+
+    def test_the_registry_is_what_the_capability_gets_built_from(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The whole point of keeping it: the builder must see the entries."""
+        from django_pydantic_agent.integrations import build_spec_capability as builder_module
+
+        captured: list[Any] = []
+
+        real = builder_module.build_spec_capability
+
+        def _stub(specs: Any, *, exclude_names: frozenset[str] = frozenset()) -> Any:
+            captured.append(specs)
+            return real(specs, exclude_names=exclude_names)
+
+        monkeypatch.setattr(builder_module, "build_spec_capability", _stub)
+        registry = _registry()
+        view = _server(service_specs=registry)._view
+
+        view._spec_capabilities(view._service_specs, set())
+
+        assert captured == [registry]
+
+    def test_a_mapping_still_reaches_the_builder_as_a_mapping(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from django_pydantic_agent.integrations import build_spec_capability as builder_module
+
+        captured: list[Any] = []
+
+        real = builder_module.build_spec_capability
+
+        def _stub(specs: Any, *, exclude_names: frozenset[str] = frozenset()) -> Any:
+            captured.append(specs)
+            return real(specs, exclude_names=exclude_names)
+
+        monkeypatch.setattr(builder_module, "build_spec_capability", _stub)
+        specs = {"list_widgets": _selector()}
+        view = _server(service_specs=specs)._view
+
+        view._spec_capabilities(view._service_specs, set())
+
+        assert captured == [specs]
+
+
 class TestProjections:
     def test_filtered_views_give_two_endpoints_different_surfaces(self) -> None:
         registry = _registry()

@@ -95,17 +95,28 @@ from django_ag_ui import chart_points_delta
 
 return ToolReturn(
     return_value="Throughput updated.",
-    metadata=chart_points_delta("throughput", points=(14, 21, 11, 26, 20)),
+    metadata=chart_points_delta("throughput", points=(14, 21, 11, 26, 20), spec=revised),
 )
 ```
 
-A delta is applied **positionally**, so it cannot tell that series 2 is now
-something else, and it cannot tell that you sent the wrong number of points —
-a wrong-length patch applies cleanly and then leaves the previous chart on
-screen, with the stale numbers still showing. Send a fresh snapshot when the
-*shape* changes and reserve the delta for when it has not. A delta naming a
-chart the client has not drawn is dropped — send the snapshot first and keep
-its id.
+A delta is applied **positionally**, and `chart_id` is a name rather than a
+shape — so on its own the helper cannot tell that series 2 is now something
+else, or that you sent the wrong number of points. A wrong-length patch applies
+cleanly and then leaves the previous chart on screen with the stale numbers
+still showing, and the chart gone on the next reload.
+
+**`spec=` is how you get told.** Pass the `ChartSpec` the chart on screen was
+drawn from and both mistakes become `ValueError` at construction, next to the
+code that made them, the same as a bad spec. It is optional and read-only —
+nothing about it goes on the wire — so a delta sent from somewhere the spec is
+no longer in hand still works exactly as before. The spec rather than an
+expected point count because a count is derived from it, and miscounting is the
+mistake being guarded against; and because only the spec knows how many series
+there are.
+
+Still send a fresh snapshot when the *shape* changes and reserve the delta for
+when it has not. A delta naming a chart the client has not drawn is dropped —
+send the snapshot first and keep its id.
 
 ## Letting the agent ask for a chart
 
@@ -130,9 +141,9 @@ provider.
 | Agent can discuss it | yes | no |
 | Updates in place | no | **yes** |
 | Needs a tool call | yes | yes, but one the agent was calling anyway |
-| **Survives a reload** | **yes** | only with a client-side store |
+| **Survives a reload** | **yes** | with a client-side store, or a `thread_activity_source` |
 
-### A pushed chart does not survive a reload on the server
+### A pushed chart is not in the stored thread
 
 Worth knowing before you choose, because it is the one difference you cannot
 work around from the browser.
@@ -140,16 +151,73 @@ work around from the browser.
 When a run **succeeds**, what gets stored as the thread is the *model's* message
 history. A pushed chart never enters that history — which is the whole reason to
 push it — so it is not in the stored thread, and a reload has nothing to redraw.
-The chart is there for the rest of the session and gone on refresh.
 
-A chart the **agent** asked for survives, because the spec travels as the tool
-call's arguments, and tool calls are part of the model's history. The browser
-redraws it from those arguments without re-running anything.
+A chart the **agent** asked for survives on its own, because the spec travels as
+the tool call's arguments, and tool calls are part of the model's history. The
+browser redraws it from those arguments without re-running anything.
 
-If a chart has to outlive a refresh and its data must not reach the model, the
-options today are to store the data yourself and re-push it when the thread is
-opened, or to keep the conversation in a client-side store, which does persist
-activities. Teaching the server to persist them is on the roadmap.
+A **client-side store** persists activities and needs nothing from you. On a
+server-side store — the recommended setup — a pushed chart comes back only if
+you put it back, which is what the next section is for.
+
+## Putting a pushed chart back on reload
+
+`thread_activity_source=` is asked, on every thread read, which pushed
+activities belong to that thread. It hands back
+[`chart_activity`][django_ag_ui.chart_activity] events — the same ones the run
+pushed — and the endpoint merges them into the messages it serves, where the
+browser redraws them like any other restored turn.
+
+```python
+from django_ag_ui import AGUIServer, ThreadActivity, chart_activity
+
+
+class StoredCharts:
+    async def activities_for(self, thread_id, *, messages, request):
+        rows = Chart.objects.filter(thread_id=thread_id, owner=request.user)
+        return [
+            ThreadActivity(
+                chart_activity(row.spec(), chart_id=row.chart_id),
+                after_message_id=row.after_message_id,
+            )
+            async for row in rows
+        ]
+
+
+agent = AGUIServer(registry, conversation_store=store, thread_activity_source=StoredCharts())
+```
+
+It runs on the event loop next to the store's own reads, so reach for the
+`a`-prefixed queryset methods or `sync_to_async`, as anywhere else in this
+package.
+
+**Why you store the data and not the framework.** The server has nothing to
+persist on your behalf: the numbers never entered the model's history, and
+keeping a second record beside the conversation means owning its ordering, its
+identity and its behaviour on a resumed run — decisions only the project that
+holds the data can make. The stored thread stays exactly the model's history,
+which is what keeps a resume, a fork and a snapshot meaning what they meant
+before.
+
+**`after_message_id` is where the chart goes.** Name the stored message it
+followed and it lands there; leave it out and it lands at the end. The stored
+messages are handed to `activities_for` for exactly this reason — the tool
+result the chart accompanied is among them. An anchor the thread no longer has
+falls back to the end rather than dropping the chart.
+
+**Materialise, do not replay.** `activities_for` returns snapshots, and only
+snapshots — a chart you moved with `chart_points_delta` comes back as a fresh
+`chart_activity` built from the numbers it currently shows. You hold those
+numbers already, because you computed them and that is where the deltas came
+from, so restoring is a constructor call. Storing the patches instead would mean
+keeping an ordered event log, replaying it on every thread load, and deciding
+what a resumed run does with a half-applied one — to reach a value that was
+already in a variable.
+
+**Send a chart id you can reproduce.** `chart_id` is the chart's identity across
+both the run and the restore, so store it with the row rather than minting a new
+one on read. Two entries under one id collapse into one — first position, last
+content — which is what the browser does with the pair anyway.
 
 Both routes involve a tool call — the difference is what crosses it. The agent
 route sends the numbers *through* the model; the push route attaches them to a

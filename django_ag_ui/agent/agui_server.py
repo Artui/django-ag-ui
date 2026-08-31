@@ -33,6 +33,7 @@ from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.persistence.transcribe_view import TranscribeView
+from django_ag_ui.persistence.types.thread_activity_source import ThreadActivitySource
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
 from django_ag_ui.skills.skill_registry import SkillRegistry
 from django_ag_ui.skills.skills_view import SkillsView
@@ -70,7 +71,11 @@ class AGUIServer:
       was passed (``skills/``, GET JSON for ``data-skills-url``).
     - ``threads`` / ``thread`` — the conversation store is not a
       ``NullConversationStore`` (``threads/`` + ``threads/<id>/``, the history
-      drawer's ``data-threads-url``).
+      drawer's ``data-threads-url``). A ``thread_activity_source=`` puts pushed
+      activities back into what that route serves; without one, a restored
+      thread is the model's message history and nothing else, which is where a
+      pushed chart is missing from. See
+      [`ThreadActivitySource`][django_ag_ui.ThreadActivitySource].
     - ``attachments`` / ``attachment`` — the attachment store is not a
       ``NullAttachmentStore`` (``attachments/`` + ``attachments/<id>/``, the
       composer's ``data-attachments-url``).
@@ -116,6 +121,14 @@ class AGUIServer:
 
         AGUIServer(registry, service_specs=spec_registry.by_tag("public"))
         AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
+
+    **Prefer the registry over ``registry.specs()``.** An entry carries more
+    than its spec -- its tags, and the ``OfflineContract`` saying what a caller
+    with no HTTP request has to be told (the URL kwargs, query params and
+    field-audience overrides an HTTP caller gets from the URLconf and query
+    string for free). The flattened mapping has none of it, and losing it is
+    silent: the tools are all there and merely missing declarations nobody asked
+    for.
 
     A filtered registry view (``by_tag`` / ``subset``) is itself a registry, so
     two endpoints can be given different projections with no shared state. The
@@ -211,6 +224,7 @@ class AGUIServer:
         authorize: AuthorizePredicate | None = None,
         skills: SkillRegistry | None = None,
         conversation_store: ConversationStore | None = None,
+        thread_activity_source: ThreadActivitySource | None = None,
         step_store: Callable[[HttpRequest], Any] | None = None,
         deps_factory: Callable[[HttpRequest], AgentDeps] | None = None,
         throttle: Throttle | None = None,
@@ -250,6 +264,7 @@ class AGUIServer:
             service_specs=service_specs,
             skills=skills,
             step_store=step_store,
+            thread_activity_source=thread_activity_source,
             throttle=throttle,
             toolsets=toolsets,
             transcribe_throttle=transcribe_throttle,
@@ -278,6 +293,7 @@ class AGUIServer:
         self._conversation_store: ConversationStore = (
             conversation_store if conversation_store is not None else NullConversationStore()
         )
+        self._thread_activity_source = thread_activity_source
         self._attachment_store: AttachmentStore = (
             attachment_store if attachment_store is not None else NullAttachmentStore()
         )
@@ -294,7 +310,15 @@ class AGUIServer:
         # ``.items()``, and the view's ``seen.update(...)`` would iterate
         # ``RegisteredSpec`` records rather than names, quietly stopping
         # tool-name collision detection.
-        self._service_specs, self._spec_capability = _resolve_spec_source(service_specs)
+        #
+        # The **source** is kept alongside, because normalising is lossy in the
+        # one direction that matters: a ``SpecRegistry`` entry carries the
+        # per-entry declarations an agent transport reads, and ``specs()``
+        # returns the specs alone. The capability is built from the source; the
+        # mapping serves the two consumers above, which want names.
+        self._service_specs, self._spec_capability, self._spec_source = _resolve_spec_source(
+            service_specs
+        )
         # Only a mapping is checked. A pre-built toolset ran the same check in
         # its own constructor, and may have been built with
         # ``require_permissions=False`` on purpose — the entire reason for
@@ -318,6 +342,7 @@ class AGUIServer:
             drf_mcp_server=drf_mcp_server,
             service_specs=self._service_specs,
             spec_capability=self._spec_capability,
+            spec_source=self._spec_source,
             provider=provider,
             attachment_store=self._attachment_store,
             conversation_store=self._conversation_store,
@@ -378,7 +403,10 @@ class AGUIServer:
             )
         if not isinstance(self._conversation_store, NullConversationStore):
             threads_view = ThreadsView(
-                self._conversation_store, config=self._config, **self._policy
+                self._conversation_store,
+                config=self._config,
+                thread_activity_source=self._thread_activity_source,
+                **self._policy,
             )
             patterns.append(path("threads/", threads_view, name="threads"))
             patterns.append(path("threads/<str:thread_id>/", threads_view, name="thread"))
@@ -403,14 +431,23 @@ class AGUIServer:
 
 def _resolve_spec_source(
     service_specs: Any,
-) -> tuple[dict[str, Any] | None, Any]:
-    """Split ``service_specs=`` into a mapping and, if given, a pre-built capability.
+) -> tuple[dict[str, Any] | None, Any, Any]:
+    """Split ``service_specs=`` into a mapping, a capability, and the source.
 
     Three shapes go in — a ``name -> spec`` mapping, a ``SpecRegistry``, or an
-    already-built ``SpecToolset`` / ``SpecCapability`` — and the same two things
-    come out, so everything downstream sees one normalised pair. A pre-built
-    object is attached as itself *and* has its ``specs`` extracted, so it still
-    feeds the tool catalog and the tool-name dedup.
+    already-built ``SpecToolset`` / ``SpecCapability`` — and the same three
+    things come out, so everything downstream sees one normalised triple. A
+    pre-built object is attached as itself *and* has its ``specs`` extracted, so
+    it still feeds the tool catalog and the tool-name dedup.
+
+    **The third is the argument as given, because normalising is lossy.** A
+    ``SpecRegistry`` entry carries more than its spec — its tags, and the
+    ``OfflineContract`` saying what a caller with no HTTP request has to be told —
+    and ``specs()`` returns the specs alone. Returning only the mapping meant
+    the capability was built from a registry's *output* rather than the
+    registry, so those declarations never reached the toolset, silently: the
+    result is well-formed and merely missing what nobody asked it for. The
+    source is ``None`` where there is nothing extra to preserve.
 
     The parameter is ``Any`` on purpose while the public one is not: this is the
     sniffing boundary, and each arm is recognised by ``getattr``, which no
@@ -418,24 +455,29 @@ def _resolve_spec_source(
     make the resolved arms unassignable to what each branch calls.
     """
     if service_specs is None:
-        return None, None
+        return None, None, None
     toolset = getattr(service_specs, "get_toolset", None)
     if toolset is not None:
         # A ``SpecCapability``: attach it as given, read its names off the
-        # toolset it owns.
-        return dict(toolset().specs), service_specs
+        # toolset it owns. Nothing is built from a source here.
+        return dict(toolset().specs), service_specs, None
     specs = getattr(service_specs, "specs", None)
-    if callable(specs) or specs is None:
-        # A plain mapping or a ``SpecRegistry`` — ``SpecRegistry.specs`` is a
-        # *method*, which is what tells the two apart from a built toolset
-        # whose ``specs`` is a property.
-        return dict(resolve_spec_mapping(service_specs)), None
+    if callable(specs):
+        # A ``SpecRegistry`` — ``SpecRegistry.specs`` is a *method*, which is
+        # what tells it from a built toolset whose ``specs`` is a property. The
+        # one shape with something to lose, so it is kept as the source.
+        return dict(resolve_spec_mapping(service_specs)), None, service_specs
+    if specs is None:
+        # A plain mapping. Copied, so a later mutation by the caller cannot
+        # leak into a config resolved once; and no source, because the mapping
+        # and its flattening are the same thing.
+        return dict(service_specs), None, None
     # A bare ``SpecToolset``. Wrapped so the endpoint composes capabilities
     # uniformly, and so ``defer_loading`` stays available; ``from_toolset``
     # adopts the toolset's own id and instructions, changing nothing about it.
     from rest_framework_pydantic_ai import SpecCapability
 
-    return dict(specs), SpecCapability.from_toolset(service_specs)
+    return dict(specs), SpecCapability.from_toolset(service_specs), None
 
 
 def _reject_spec_name_collisions(
