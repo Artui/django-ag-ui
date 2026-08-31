@@ -13,7 +13,13 @@ import asyncio
 from typing import Any
 
 import pytest
-from ag_ui.core import CustomEvent
+from ag_ui.core import (
+    BaseEvent,
+    CustomEvent,
+    SubagentErrorEvent,
+    SubagentFinishedEvent,
+    SubagentStartedEvent,
+)
 from django.core.exceptions import ImproperlyConfigured
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
@@ -60,17 +66,23 @@ class _Call:
 
 @pytest.fixture
 def sink() -> Any:
-    queue: asyncio.Queue[CustomEvent] = asyncio.Queue()
+    queue: asyncio.Queue[BaseEvent] = asyncio.Queue()
     token = SUBAGENT_SINK.set(queue)
     yield queue
     SUBAGENT_SINK.reset(token)
 
 
-def _drain(queue: asyncio.Queue[CustomEvent]) -> list[dict[str, Any]]:
-    values: list[dict[str, Any]] = []
+def _drain(queue: asyncio.Queue[BaseEvent]) -> list[BaseEvent]:
+    """Everything announced, on both carriers, in the order it was queued."""
+    events: list[BaseEvent] = []
     while not queue.empty():
-        values.append(queue.get_nowait().value)
-    return values
+        events.append(queue.get_nowait())
+    return events
+
+
+def _step_values(queue: asyncio.Queue[BaseEvent]) -> list[dict[str, Any]]:
+    """Just the ``CUSTOM`` step payloads -- what the child's tool calls ride."""
+    return [event.value for event in _drain(queue) if isinstance(event, CustomEvent)]
 
 
 async def _handler(_args: dict[str, Any]) -> str:
@@ -120,7 +132,7 @@ class TestInstallation:
 
 class TestObservingTheDelegation:
     async def test_a_delegation_is_announced_from_start_to_finish(
-        self, sink: asyncio.Queue[CustomEvent]
+        self, sink: asyncio.Queue[BaseEvent]
     ) -> None:
         observer = SubAgentObserver(_subagents())
 
@@ -133,13 +145,16 @@ class TestObservingTheDelegation:
         )
 
         assert result == "child answer"
-        assert [(v["phase"], v["delegationId"], v["agent"]) for v in _drain(sink)] == [
-            ("started", "call-1", "researcher"),
-            ("finished", "call-1", "researcher"),
-        ]
+        # The protocol's own lifecycle, not this package's CUSTOM convention:
+        # the delegation opens and closes on events any AG-UI client knows.
+        opened, closed = _drain(sink)
+        assert isinstance(opened, SubagentStartedEvent)
+        assert (opened.name, opened.parent_tool_call_id) == ("researcher", "call-1")
+        assert isinstance(closed, SubagentFinishedEvent)
+        assert closed.subagent_run_id == opened.subagent_run_id
 
     async def test_a_failing_delegation_is_announced_and_still_raises(
-        self, sink: asyncio.Queue[CustomEvent]
+        self, sink: asyncio.Queue[BaseEvent]
     ) -> None:
         async def boom(_args: dict[str, Any]) -> str:
             raise RuntimeError("connection to db-prod-3 refused for user agent_svc")
@@ -155,14 +170,49 @@ class TestObservingTheDelegation:
                 handler=boom,
             )
 
-        announced = _drain(sink)
-        assert [value["phase"] for value in announced] == ["started", "failed"]
+        opened, closed = _drain(sink)
+        assert isinstance(opened, SubagentStartedEvent)
+        assert isinstance(closed, SubagentErrorEvent)
+        assert closed.subagent_run_id == opened.subagent_run_id
         # The operator's words stay with the operator. Everything the model is
         # told travels the ordinary tool result, on the card this belongs to.
-        assert "db-prod-3" not in str(announced)
+        assert closed.message == "auditor failed"
+        assert "db-prod-3" not in str([opened, closed])
+
+    async def test_a_cancelled_delegation_is_still_closed(
+        self, sink: asyncio.Queue[BaseEvent]
+    ) -> None:
+        """The reversal, and the reason it matters more than a missing line.
+
+        Cancellation used to announce nothing, defended as "a cancelled run is a
+        client that has gone away". That holds for a cancelled *run*, but a
+        single tool call can be cancelled while the run carries on -- and under
+        the protocol's lifecycle an unclosed delegation makes ``@ag-ui/client``
+        refuse the ``RUN_FINISHED`` that follows. Not announcing would take down
+        the run it was trying not to disturb.
+        """
+
+        async def cancelled(_args: dict[str, Any]) -> str:
+            raise asyncio.CancelledError
+
+        observer = SubAgentObserver(_subagents())
+
+        with pytest.raises(asyncio.CancelledError):
+            await observer.wrap_tool_execute(
+                None,
+                call=_Call("delegate_task"),
+                tool_def=None,
+                args={"agent_name": "researcher"},
+                handler=cancelled,
+            )
+
+        opened, closed = _drain(sink)
+        assert isinstance(opened, SubagentStartedEvent)
+        assert isinstance(closed, SubagentErrorEvent)
+        assert closed.subagent_run_id == opened.subagent_run_id
 
     async def test_another_tool_is_delegated_untouched_and_announces_nothing(
-        self, sink: asyncio.Queue[CustomEvent]
+        self, sink: asyncio.Queue[BaseEvent]
     ) -> None:
         # The hook fires for every tool in the parent run, not only the ones the
         # wrapped capability contributed.
@@ -214,10 +264,10 @@ class TestObservingTheChild:
             args={"agent_name": "researcher"},
             handler=handler,
         )
-        return [value for value in _drain(sink) if value["phase"].startswith("tool_")]
+        return _step_values(sink)
 
     async def test_a_child_tool_call_is_reported_with_no_outcome_yet(
-        self, sink: asyncio.Queue[CustomEvent]
+        self, sink: asyncio.Queue[BaseEvent]
     ) -> None:
         observer = SubAgentObserver(_subagents())
 
@@ -240,7 +290,7 @@ class TestObservingTheChild:
         ]
 
     async def test_a_child_tool_result_reports_whether_it_landed(
-        self, sink: asyncio.Queue[CustomEvent]
+        self, sink: asyncio.Queue[BaseEvent]
     ) -> None:
         observer = SubAgentObserver(_subagents())
 
@@ -265,7 +315,7 @@ class TestObservingTheChild:
         ]
 
     async def test_the_childs_own_prose_is_not_forwarded(
-        self, sink: asyncio.Queue[CustomEvent]
+        self, sink: asyncio.Queue[BaseEvent]
     ) -> None:
         # Progress is a status line, not a second transcript.
         observer = SubAgentObserver(_subagents())
@@ -277,7 +327,7 @@ class TestObservingTheChild:
         assert announced == []
 
     async def test_a_handler_called_outside_a_delegation_announces_nothing(
-        self, sink: asyncio.Queue[CustomEvent]
+        self, sink: asyncio.Queue[BaseEvent]
     ) -> None:
         # Unreachable on the path that installs it -- only a delegation starts a
         # child run -- and checked anyway, because a handler is a plain callable.

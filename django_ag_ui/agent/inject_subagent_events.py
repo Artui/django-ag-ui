@@ -7,7 +7,7 @@ import contextlib
 from collections.abc import AsyncIterator
 from typing import Any
 
-from ag_ui.core import BaseEvent, CustomEvent
+from ag_ui.core import BaseEvent
 
 from django_ag_ui.agent.subagent_observer import SUBAGENT_SINK
 
@@ -21,7 +21,7 @@ and asyncio turns it into a bare ``RuntimeError`` on the way through.
 
 
 async def inject_subagent_events(stream: AsyncIterator[BaseEvent]) -> AsyncIterator[BaseEvent]:
-    """Forward ``stream``, interleaving each progress event **as it is announced**.
+    """Forward ``stream``, interleaving each announced event **as it is announced**.
 
     Establishes the per-run channel [`SubAgentObserver`][django_ag_ui.SubAgentObserver]
     announces onto, then races it against the upstream stream so a queued event
@@ -63,12 +63,12 @@ async def inject_subagent_events(stream: AsyncIterator[BaseEvent]) -> AsyncItera
     the last thing a delegation announces is its own completion, and upstream may
     have no event left to carry it out on.
     """
-    progress: asyncio.Queue[CustomEvent] = asyncio.Queue()
+    progress: asyncio.Queue[BaseEvent] = asyncio.Queue()
     token = SUBAGENT_SINK.set(progress)
     events: asyncio.Queue[Any] = asyncio.Queue(maxsize=1)
     pump = asyncio.ensure_future(_pump(stream, events))
     next_event: asyncio.Task[Any] | None = None
-    next_progress: asyncio.Task[CustomEvent] | None = None
+    next_progress: asyncio.Task[BaseEvent] | None = None
     ended = False
     try:
         while True:
