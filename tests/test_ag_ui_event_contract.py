@@ -15,10 +15,13 @@ from __future__ import annotations
 
 from ag_ui.core import EventType
 
-# The 33 AG-UI event types, as of ag-ui-protocol 0.1.19 / @ag-ui/core 0.0.54.
-# The 0.1.18 -> 0.1.19 bump (tool-approval interrupt/resume) rides
-# RUN_FINISHED *outcomes* + the RunAgentInput.resume field, not new EventType
-# members, so this canonical set is unchanged.
+# The 36 AG-UI event types, as of ag-ui-protocol 0.1.21 / @ag-ui/core 0.0.59.
+#
+# Two bumps moved through here without touching the set, and one moved it. The
+# 0.1.18 -> 0.1.19 bump (tool-approval interrupt/resume) rides RUN_FINISHED
+# *outcomes* + the RunAgentInput.resume field, and 0.1.20 added TokenUsage on
+# RUN_FINISHED / RUN_ERROR -- neither is an EventType member. 0.1.21 is the one
+# that grew the catalogue, adding the three SUBAGENT_* events below.
 CANONICAL_AG_UI_EVENTS = frozenset(
     {
         "ACTIVITY_DELTA",
@@ -40,6 +43,9 @@ CANONICAL_AG_UI_EVENTS = frozenset(
         "STATE_SNAPSHOT",
         "STEP_FINISHED",
         "STEP_STARTED",
+        "SUBAGENT_ERROR",
+        "SUBAGENT_FINISHED",
+        "SUBAGENT_STARTED",
         "TEXT_MESSAGE_CHUNK",
         "TEXT_MESSAGE_CONTENT",
         "TEXT_MESSAGE_END",

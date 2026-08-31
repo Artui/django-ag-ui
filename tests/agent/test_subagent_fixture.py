@@ -27,11 +27,17 @@ def _document() -> dict[str, Any]:
 
 
 def _progress() -> list[dict[str, Any]]:
+    """The ``CUSTOM`` steps: one per tool call the child made."""
     return [
         event["value"]
         for event in _document()["events"]
-        if event["type"] == "CUSTOM" and event["name"] == "ag_ui.subagent"
+        if event["type"] == "CUSTOM" and event.get("name") == "ag_ui.subagent"
     ]
+
+
+def _lifecycle() -> list[dict[str, Any]]:
+    """The protocol's own three, which open and close each delegation."""
+    return [event for event in _document()["events"] if str(event["type"]).startswith("SUBAGENT_")]
 
 
 def test_regenerating_the_fixture_changes_nothing(tmp_path: pathlib.Path) -> None:
@@ -54,14 +60,15 @@ def test_regenerating_the_fixture_changes_nothing(tmp_path: pathlib.Path) -> Non
 
 def test_the_fixture_covers_every_phase_of_the_contract() -> None:
     # What the browser lane is entitled to find in it. A scenario that stopped
-    # exercising a phase would leave that half of the contract undemonstrated.
-    assert {value["phase"] for value in _progress()} == {
-        "started",
-        "tool_call",
-        "tool_result",
-        "finished",
-        "failed",
+    # exercising a phase would leave that half of the contract undemonstrated,
+    # and there are two halves now: the protocol's lifecycle and this package's
+    # steps. Both are asserted here so neither can quietly drop out.
+    assert {event["type"] for event in _lifecycle()} == {
+        "SUBAGENT_STARTED",
+        "SUBAGENT_FINISHED",
+        "SUBAGENT_ERROR",
     }
+    assert {value["phase"] for value in _progress()} == {"tool_call", "tool_result"}
 
 
 def test_the_fixture_shows_both_tool_outcomes() -> None:
@@ -71,41 +78,46 @@ def test_the_fixture_shows_both_tool_outcomes() -> None:
 
 
 def test_every_delegation_opens_once_and_closes_once() -> None:
-    opened: dict[str, list[str]] = {}
-    for value in _progress():
-        opened.setdefault(value["delegationId"], []).append(value["phase"])
+    # Not a house rule any more: ``@ag-ui/client`` verifies it, refusing a
+    # reused subagentRunId and refusing RUN_FINISHED while one is still open.
+    # A fixture that violated it would describe a stream the browser rejects.
+    seen: dict[str, list[str]] = {}
+    for event in _lifecycle():
+        seen.setdefault(event["subagentRunId"], []).append(event["type"])
 
-    for phases in opened.values():
-        assert phases[0] == "started"
-        assert phases[-1] in {"finished", "failed"}
-        assert phases.count("started") == 1
-        assert sum(phase in {"finished", "failed"} for phase in phases) == 1
+    for types in seen.values():
+        assert types[0] == "SUBAGENT_STARTED"
+        assert types[-1] in {"SUBAGENT_FINISHED", "SUBAGENT_ERROR"}
+        assert len(types) == 2
 
 
 def test_a_delegation_is_keyed_to_a_tool_call_the_client_already_saw() -> None:
-    announced = {value["delegationId"] for value in _progress()}
+    # Both carriers, because a client joins them by this id: the lifecycle
+    # carries it as parentToolCallId and the steps as delegationId, and each has
+    # to name a card the client already drew off TOOL_CALL_START.
     drawn = {
         event["toolCallId"] for event in _document()["events"] if event["type"] == "TOOL_CALL_START"
     }
+    announced = {value["delegationId"] for value in _progress()}
+    linked = {
+        event["parentToolCallId"] for event in _lifecycle() if event["type"] == "SUBAGENT_STARTED"
+    }
 
     assert announced <= drawn
+    assert linked <= drawn
 
 
 def test_the_failure_detail_rides_the_tool_result_and_not_the_progress() -> None:
     # The split the contract turns on. The progress channel names the sub-agent
     # and stops; the words the model was given travel the ordinary tool result,
     # which the client renders on the card this progress belongs to.
-    failed = [value for value in _progress() if value["phase"] == "failed"]
+    failed = [event for event in _lifecycle() if event["type"] == "SUBAGENT_ERROR"]
     results = [
         event["content"] for event in _document()["events"] if event["type"] == "TOOL_CALL_RESULT"
     ]
 
-    assert failed == [
-        {
-            "delegationId": "call-2",
-            "agent": "auditor",
-            "phase": "failed",
-            "status": "auditor failed",
-        }
-    ]
+    assert [event["message"] for event in failed] == ["auditor failed"]
+    # The protocol offers a ``code`` beside the message, and it stays unset for
+    # the same reason: a machine-readable reason is still a disclosure.
+    assert all("code" not in event for event in failed)
     assert any("the auditor model went away" in content for content in results)

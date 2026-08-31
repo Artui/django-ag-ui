@@ -32,15 +32,11 @@
       "toolCallId": "call-1"
     },
     {
-      "type": "CUSTOM",
+      "type": "SUBAGENT_STARTED",
       "timestamp": 1735689600000,
-      "name": "ag_ui.subagent",
-      "value": {
-        "delegationId": "call-1",
-        "agent": "researcher",
-        "phase": "started",
-        "status": "Delegated to researcher"
-      }
+      "subagentRunId": "subagent-call-1",
+      "name": "researcher",
+      "parentToolCallId": "call-1"
     },
     {
       "type": "CUSTOM",
@@ -107,15 +103,9 @@
       }
     },
     {
-      "type": "CUSTOM",
+      "type": "SUBAGENT_FINISHED",
       "timestamp": 1735689600000,
-      "name": "ag_ui.subagent",
-      "value": {
-        "delegationId": "call-1",
-        "agent": "researcher",
-        "phase": "finished",
-        "status": "researcher finished"
-      }
+      "subagentRunId": "subagent-call-1"
     },
     {
       "type": "TOOL_CALL_RESULT",
@@ -144,26 +134,17 @@
       "toolCallId": "call-2"
     },
     {
-      "type": "CUSTOM",
+      "type": "SUBAGENT_STARTED",
       "timestamp": 1735689600000,
-      "name": "ag_ui.subagent",
-      "value": {
-        "delegationId": "call-2",
-        "agent": "auditor",
-        "phase": "started",
-        "status": "Delegated to auditor"
-      }
+      "subagentRunId": "subagent-call-2",
+      "name": "auditor",
+      "parentToolCallId": "call-2"
     },
     {
-      "type": "CUSTOM",
+      "type": "SUBAGENT_ERROR",
       "timestamp": 1735689600000,
-      "name": "ag_ui.subagent",
-      "value": {
-        "delegationId": "call-2",
-        "agent": "auditor",
-        "phase": "failed",
-        "status": "auditor failed"
-      }
+      "subagentRunId": "subagent-call-2",
+      "message": "auditor failed"
     },
     {
       "type": "TOOL_CALL_RESULT",

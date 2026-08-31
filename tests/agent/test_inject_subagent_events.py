@@ -24,6 +24,7 @@ import pytest
 from ag_ui.core import BaseEvent, CustomEvent, EventType, TextMessageStartEvent
 
 from django_ag_ui.agent.inject_subagent_events import inject_subagent_events
+from django_ag_ui.agent.subagent_lifecycle import subagent_lifecycle
 from django_ag_ui.agent.subagent_observer import SUBAGENT_SINK
 from django_ag_ui.agent.subagent_progress import subagent_progress
 
@@ -36,17 +37,38 @@ def _text(message_id: str) -> BaseEvent:
     return TextMessageStartEvent(message_id=message_id)
 
 
-def _announce(phase: Any = "started") -> None:
-    """Queue a progress event the way the observer does, from inside the stream."""
+def _step(marker: str = "calling search_docs") -> None:
+    """Queue a step event the way the observer does, from inside the stream.
+
+    ``marker`` rides the status line, which is free text, so a test can tell one
+    announcement from another without inventing a phase the contract does not
+    have.
+    """
     sink = SUBAGENT_SINK.get()
     assert sink is not None
     sink.put_nowait(
         subagent_progress(
             delegation_id="call-1",
             agent="researcher",
-            phase=phase,
-            status=f"researcher {phase}",
+            phase="tool_call",
+            status=marker,
+            tool_call_id="sub-1",
+            tool_name="search_docs",
         )
+    )
+
+
+def _close() -> None:
+    """Queue the delegation's own closing event, the way the observer does.
+
+    The other carrier. This injector forwards whatever is queued and has no
+    opinion about which of the two an event came from, which is exactly what the
+    tests below that mix them are for.
+    """
+    sink = SUBAGENT_SINK.get()
+    assert sink is not None
+    sink.put_nowait(
+        subagent_lifecycle(delegation_id="call-1", agent="researcher", phase="finished")
     )
 
 
@@ -76,7 +98,7 @@ async def test_progress_ships_while_upstream_is_still_blocked() -> None:
 
     async def upstream() -> AsyncIterator[BaseEvent]:
         yield _text("a")
-        _announce("tool_call")
+        _step()
         await released.wait()
         yield _text("b")
 
@@ -103,17 +125,18 @@ async def test_progress_announced_after_the_last_event_still_ships() -> None:
     # Two of them, so the flush is asserted to be a drain and not one take.
     async def upstream() -> AsyncIterator[BaseEvent]:
         yield _text("a")
-        _announce("tool_result")
-        _announce("finished")
+        _step("second call returned")
+        _close()
 
     out = await _collect(inject_subagent_events(upstream()))
 
+    # One from each carrier, which is the sharper version of the same claim: the
+    # flush is a drain, and it is indifferent to what it is draining.
     assert [event.type for event in out] == [
         EventType.TEXT_MESSAGE_START,
         EventType.CUSTOM,
-        EventType.CUSTOM,
+        EventType.SUBAGENT_FINISHED,
     ]
-    assert [event.value["phase"] for event in out[1:]] == ["tool_result", "finished"]
 
 
 async def test_an_upstream_failure_reaches_the_consumer() -> None:
@@ -228,15 +251,15 @@ async def test_concurrent_runs_do_not_share_a_channel() -> None:
     async def run(name: str) -> list[Any]:
         async def upstream() -> AsyncIterator[BaseEvent]:
             yield _text(name)
-            _announce(f"finished-{name}")
+            _step(f"from-{name}")
 
         return [
-            event.value["phase"]
+            event.value["status"]
             for event in await _collect(inject_subagent_events(upstream()))
             if isinstance(event, CustomEvent)
         ]
 
     first, second = await asyncio.gather(run("a"), run("b"))
 
-    assert first == ["finished-a"]
-    assert second == ["finished-b"]
+    assert first == ["from-a"]
+    assert second == ["from-b"]

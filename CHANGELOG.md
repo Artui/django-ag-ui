@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A delegation now opens and closes on the protocol's own events.**
+  `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` / `SUBAGENT_ERROR` replace the
+  `started` / `finished` / `failed` phases of the `ag_ui.subagent` `CUSTOM`
+  channel. A client that speaks AG-UI understands a delegation's lifetime
+  without knowing anything about this package; the opening event carries the
+  parent's `delegate_task` tool call id as `parentToolCallId`, which is the
+  protocol's own field for the "agents as tools" shape and the same value the
+  `CUSTOM` steps carry as `delegationId`.
+
+  **Breaking for a client that reads the `CUSTOM` channel.** `phase` is now
+  `tool_call` or `tool_result` only, and `tool` is present on every one of them.
+  A client that matched on `started` / `finished` / `failed` sees a delegation
+  that never opens; read the three protocol events instead.
+
+  The child's individual tool calls deliberately did **not** move. The protocol
+  would have those be ordinary `TOOL_CALL_*` events tagged with `subagentRunId`,
+  and `@ag-ui/client` materialises those into the persisted message list and
+  replays them on every thread restore — which would redraw a finished run's
+  progress as live. That is the property the `CUSTOM` carrier was chosen for,
+  and the three lifecycle events keep it because the client dispatches them to
+  callbacks without ever pushing them into `agent.messages`.
+
+### Fixed
+
+- **A cancelled delegation now closes instead of being left open.** Cancellation
+  used to announce nothing, on the reasoning that a cancelled run is a client
+  that has gone away. That holds for a cancelled *run*, but a single tool call
+  can be cancelled while the run continues — and `@ag-ui/client` refuses
+  `RUN_FINISHED` while any delegation is still open, so the silence would have
+  taken down the run it was trying not to disturb.
+
+### Changed (dependencies)
+
+- **Floored at `ag-ui-protocol>=0.1.21`**, raised from `>=0.1.19`, for the three
+  `SUBAGENT_*` events above — imported at module level, so this is a hard floor
+  rather than a preference. 0.1.21 is also the release that stopped serialising
+  unset optional fields as JSON `null`, which matters here rather than
+  incidentally: `@ag-ui/client` refuses several of these events' optional fields
+  as an explicit `null`, so the floor that introduces the events is the floor
+  that makes them serialise the way their reader demands. The bump brings
+  `TokenUsage` on `RUN_FINISHED` / `RUN_ERROR` (0.1.20) along with it, unused so
+  far.
+
+  The canonical AG-UI event set asserted by `tests/test_ag_ui_event_contract.py`
+  moves from 33 to 36 in step, as does its twin in the web component's suite.
+
 ## [0.53.0] — 2026-08-30
 
 ### Added

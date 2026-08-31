@@ -81,11 +81,14 @@ dependencies = [
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
     "pydantic-ai-slim[ag-ui]>=2,<3",
-    # The tool-approval interrupt/resume lifecycle (RUN_FINISHED outcomes +
-    # RunAgentInput.resume) is gated on ag-ui-protocol 0.1.19
-    # (INTERRUPTS_VERSION). pydantic-ai-slim only floors it at >=0.1.10, so we
-    # pin the interrupt floor ourselves; see the HITL approval loop.
-    "ag-ui-protocol>=0.1.19",
+    # Two lifecycles are gated here, and the later one sets the floor. The
+    # tool-approval interrupt/resume lifecycle (RUN_FINISHED outcomes +
+    # RunAgentInput.resume) needs 0.1.19 (INTERRUPTS_VERSION); a delegated
+    # sub-agent's own lifecycle needs the SUBAGENT_STARTED / _FINISHED / _ERROR
+    # events, which arrived in 0.1.21 and which the observer imports at module
+    # level. pydantic-ai-slim only floors the distribution at >=0.1.10, so both
+    # floors are ours to state.
+    "ag-ui-protocol>=0.1.21",
 ]
 
 [project.optional-dependencies]

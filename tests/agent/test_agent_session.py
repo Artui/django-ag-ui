@@ -173,7 +173,8 @@ async def test_forward_reasoning_opt_out_strips_reasoning_events() -> None:
 # The whole approval lifecycle is upstream (a ``requires_approval`` tool defers to
 # a ``RUN_FINISHED`` interrupt outcome; a follow-up run carrying ``resume[]``
 # approves/denies it). These tests pin that the *latent* loop is driven by our
-# session pipeline — gated only on the protocol floor (0.1.19) and
+# session pipeline — gated only on the protocol version that introduced the
+# lifecycle (0.1.19; the package now floors higher, for unrelated reasons) and
 # ``DeferredToolRequests`` in the agent ``output_type``. The tool under test is
 # **server-side** (no frontend tool in ``RunAgentInput.tools``), the case the
 # adapter's frontend-only ``output_type`` augmentation would miss.

@@ -6,9 +6,9 @@ import asyncio
 from collections.abc import AsyncIterable
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, Literal, cast
 
-from ag_ui.core import CustomEvent
+from ag_ui.core import BaseEvent
 from django.core.exceptions import ImproperlyConfigured
 from pydantic_ai.capabilities import WrapperCapability
 from pydantic_ai.messages import (
@@ -17,6 +17,7 @@ from pydantic_ai.messages import (
     RetryPromptPart,
 )
 
+from django_ag_ui.agent.subagent_lifecycle import subagent_lifecycle
 from django_ag_ui.agent.subagent_progress import subagent_progress
 
 # The per-run channel the observer announces onto, drained by
@@ -36,7 +37,7 @@ from django_ag_ui.agent.subagent_progress import subagent_progress
 # hold every one of a delegation's progress events until the delegation had
 # already finished, which is the stall this exists to fix. A queue can be
 # awaited, so the injector can race it against the next upstream event.
-SUBAGENT_SINK: ContextVar[asyncio.Queue[CustomEvent] | None] = ContextVar(
+SUBAGENT_SINK: ContextVar[asyncio.Queue[BaseEvent] | None] = ContextVar(
     "django_ag_ui_subagent_sink", default=None
 )
 
@@ -78,11 +79,21 @@ class SubAgentObserver(WrapperCapability[Any]):
     Opt-in by construction: passing ``SubAgents`` unwrapped emits nothing, and
     costs nothing.
 
-    What reaches the client is a stream of ``CUSTOM`` events --
-    [`SUBAGENT_EVENT_NAME`][django_ag_ui.SUBAGENT_EVENT_NAME] carries the wire
-    contract -- keyed by the parent's own ``delegate_task`` tool call id, so a
-    client augments the card it already drew rather than opening a second row
-    beside it.
+    What reaches the client rides **two carriers, on purpose**. The delegation's
+    own lifetime goes on the protocol's ``SUBAGENT_STARTED`` / ``_FINISHED`` /
+    ``_ERROR`` events, built by ``subagent_lifecycle``; each tool call the child
+    makes goes on a ``CUSTOM`` event, whose wire contract is
+    [`SUBAGENT_EVENT_NAME`][django_ag_ui.SUBAGENT_EVENT_NAME]. Both key on the
+    parent's own ``delegate_task`` tool call id -- as ``parentToolCallId`` and as
+    ``delegationId`` respectively -- so a client augments the card it already
+    drew rather than opening a second row beside it.
+
+    The split is not a transitional state. Moving the steps to the protocol's
+    own vocabulary would mean ordinary ``TOOL_CALL_*`` events tagged with
+    ``subagentRunId``, and those are materialised into the persisted message
+    list and replayed on every thread restore -- which would redraw a finished
+    run's progress as though it were live. ``subagent_progress`` carries the
+    full reasoning.
 
     **The observer installs itself onto the capability you hand it.** Reporting
     a child's tool calls needs ``SubAgents.event_stream_handler``, which only the
@@ -138,8 +149,17 @@ class SubAgentObserver(WrapperCapability[Any]):
         capability and asks it about each call -- so the delegate tool is picked
         out by name and everything else is delegated untouched.
 
-        ``asyncio.CancelledError`` is deliberately not caught: a cancelled run is
-        a client that has gone away, and there is nobody left to tell.
+        **Every exit path closes the delegation it opened, cancellation
+        included** -- which reverses an earlier choice here, and the reason is
+        worth keeping. Not announcing on ``asyncio.CancelledError`` was defended
+        as "a cancelled run is a client that has gone away, and there is nobody
+        left to tell", and that holds only when the whole *run* was cancelled. A
+        single tool call can be cancelled while the run continues, and under the
+        protocol's own lifecycle an unclosed delegation is not merely a missing
+        line: ``@ag-ui/client`` refuses ``RUN_FINISHED`` while any delegation is
+        still open, so the omission would take down the run it was trying not to
+        disturb. Announcing into a sink nobody is draining costs nothing, which
+        makes the safe direction the cheap one.
         """
         if call.tool_name != self._delegate_tool_name:
             return await super().wrap_tool_execute(
@@ -150,19 +170,21 @@ class SubAgentObserver(WrapperCapability[Any]):
             agent=str(args.get("agent_name", "")),
         )
         token = _DELEGATION.set(delegation)
-        _announce(delegation, phase="started", status=f"Delegated to {delegation.agent}")
+        _emit(_lifecycle(delegation, phase="started"))
         try:
             result = await super().wrap_tool_execute(
                 ctx, call=call, tool_def=tool_def, args=args, handler=handler
             )
-        except Exception:
-            # Named, and nothing more. The exception's own words are written for
-            # an operator; what the *model* is told travels the ordinary tool
+        except BaseException:
+            # ``BaseException`` rather than ``Exception``, so that a cancelled
+            # tool call closes its delegation too -- see the note above. Named,
+            # and nothing more: the exception's own words are written for an
+            # operator, and what the *model* is told travels the ordinary tool
             # result, which the client renders on the card this belongs to.
-            _announce(delegation, phase="failed", status=f"{delegation.agent} failed")
+            _emit(_lifecycle(delegation, phase="failed"))
             raise
         else:
-            _announce(delegation, phase="finished", status=f"{delegation.agent} finished")
+            _emit(_lifecycle(delegation, phase="finished"))
             return result
         finally:
             _DELEGATION.reset(token)
@@ -186,12 +208,15 @@ class SubAgentObserver(WrapperCapability[Any]):
             if delegation is None:
                 continue
             if isinstance(event, FunctionToolCallEvent):
-                _announce(
-                    delegation,
-                    phase="tool_call",
-                    status=f"{delegation.agent}: calling {event.part.tool_name}",
-                    tool_call_id=event.tool_call_id,
-                    tool_name=event.part.tool_name,
+                _emit(
+                    subagent_progress(
+                        delegation_id=delegation.delegation_id,
+                        agent=delegation.agent,
+                        phase="tool_call",
+                        status=f"{delegation.agent}: calling {event.part.tool_name}",
+                        tool_call_id=event.tool_call_id,
+                        tool_name=event.part.tool_name,
+                    )
                 )
             elif isinstance(event, FunctionToolResultEvent):
                 # A ``RetryPromptPart`` is the child's tool telling the child's
@@ -199,28 +224,41 @@ class SubAgentObserver(WrapperCapability[Any]):
                 # here without reading the result's contents.
                 ok = not isinstance(event.part, RetryPromptPart)
                 outcome = "returned" if ok else "failed"
-                _announce(
-                    delegation,
-                    phase="tool_result",
-                    status=f"{delegation.agent}: {event.part.tool_name} {outcome}",
-                    tool_call_id=event.tool_call_id,
-                    tool_name=event.part.tool_name,
-                    ok=ok,
+                _emit(
+                    subagent_progress(
+                        delegation_id=delegation.delegation_id,
+                        agent=delegation.agent,
+                        phase="tool_result",
+                        status=f"{delegation.agent}: {event.part.tool_name} {outcome}",
+                        tool_call_id=event.tool_call_id,
+                        tool_name=event.part.tool_name,
+                        ok=ok,
+                    )
                 )
 
 
-def _announce(delegation: _Delegation, **fields: Any) -> None:
-    """Queue one progress event for the run currently streaming, if there is one."""
+def _lifecycle(
+    delegation: _Delegation, *, phase: Literal["started", "finished", "failed"]
+) -> BaseEvent:
+    """The protocol event opening or closing ``delegation``."""
+    return subagent_lifecycle(
+        delegation_id=delegation.delegation_id,
+        agent=delegation.agent,
+        phase=phase,
+    )
+
+
+def _emit(event: BaseEvent) -> None:
+    """Queue one event for the run currently streaming, if there is one.
+
+    The no-sink case is the ordinary one outside this transport -- a delegation
+    driven from a management command, a worker or a test binds no channel -- and
+    it is why every caller can announce unconditionally.
+    """
     sink = SUBAGENT_SINK.get()
     if sink is None:
         return
-    sink.put_nowait(
-        subagent_progress(
-            delegation_id=delegation.delegation_id,
-            agent=delegation.agent,
-            **fields,
-        )
-    )
+    sink.put_nowait(event)
 
 
 def _install_handler(wrapped: Any, handler: Any) -> None:

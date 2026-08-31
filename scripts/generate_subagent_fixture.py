@@ -4,8 +4,10 @@
 
 The fixture is what a client actually receives when a run delegates: the whole
 Server-Sent Events stream of one ``DjangoAGUIView`` run, decoded from the same
-encoder a browser reads, with the ``ag_ui.subagent`` ``CUSTOM`` events in the
-positions and the order they really arrive in.
+encoder a browser reads, with the delegation's own ``SUBAGENT_*`` events and its
+``ag_ui.subagent`` ``CUSTOM`` steps in the positions and the order they really
+arrive in. **Both carriers, in one file, is the point** -- the interleaving is
+the part a browser lane cannot infer from either contract on its own.
 
 **Generated rather than written by hand, and that is the point.** A hand-typed
 double describing a wire no server writes makes every test that uses it agree
@@ -21,11 +23,12 @@ run is the same every time. Two fields are still not: see ``_canonicalized``.
 The scenario covers every phase of the contract in one run:
 
 1. a delegation to ``researcher`` that calls a tool successfully, calls it again
-   and gets a retry back, then answers -- ``started``, ``tool_call``,
-   ``tool_result`` both ways, ``finished``;
-2. a delegation to ``auditor`` whose model fails -- ``started``, ``failed``,
-   plus the ordinary ``TOOL_CALL_RESULT`` that carries the failure to the model,
-   which is where a client reads *why* rather than from the progress channel.
+   and gets a retry back, then answers -- ``SUBAGENT_STARTED``, ``tool_call``
+   and ``tool_result`` both ways, ``SUBAGENT_FINISHED``;
+2. a delegation to ``auditor`` whose model fails -- ``SUBAGENT_STARTED``,
+   ``SUBAGENT_ERROR``, plus the ordinary ``TOOL_CALL_RESULT`` that carries the
+   failure to the model, which is where a client reads *why* rather than from
+   either announcement channel.
 """
 
 from __future__ import annotations
@@ -204,8 +207,14 @@ def _canonicalized(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ``timestamp`` is the wall clock and ``messageId`` / ``parentMessageId`` are
     freshly generated UUIDs, so a byte-for-byte regeneration check needs both
     settled. Every other value here is what the server wrote -- including each
-    ``toolCallId``, which the scripted models fix, and which is what the progress
-    events key on.
+    ``toolCallId``, which the scripted models fix, and which is what both
+    announcement carriers key on.
+
+    ``subagentRunId`` is deliberately **not** on that list, and it is worth
+    saying why rather than leaving it to look like an omission: it is derived
+    from the delegation's tool call id rather than minted, so it repeats on its
+    own. Every field settled here is a field the fixture stops demonstrating,
+    which is the cost that made deriving the better choice.
     """
     ids: dict[str, str] = {}
 

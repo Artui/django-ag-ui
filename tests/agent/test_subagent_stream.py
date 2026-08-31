@@ -104,30 +104,64 @@ async def _events(response: StreamingHttpResponse) -> list[dict[str, Any]]:
     ]
 
 
-async def _progress() -> list[dict[str, Any]]:
+async def _stream() -> list[dict[str, Any]]:
+    """Every event one delegating run puts on the wire, in the order it sent them."""
     response = await _view()(_post())
     assert isinstance(response, StreamingHttpResponse)
-    return [
-        event["value"]
-        for event in await _events(response)
-        if event["type"] == "CUSTOM" and event["name"] == SUBAGENT_EVENT_NAME
-    ]
+    return await _events(response)
+
+
+def _is_step(event: dict[str, Any]) -> bool:
+    """A ``CUSTOM`` step: one tool call the child made."""
+    return event["type"] == "CUSTOM" and event.get("name") == SUBAGENT_EVENT_NAME
+
+
+def _is_lifecycle(event: dict[str, Any]) -> bool:
+    """One of the protocol's own three, which open and close the delegation."""
+    return str(event["type"]).startswith("SUBAGENT_")
+
+
+async def _progress() -> list[dict[str, Any]]:
+    return [event["value"] for event in await _stream() if _is_step(event)]
 
 
 async def test_a_delegation_reports_itself_from_start_to_finish() -> None:
-    assert [value["phase"] for value in await _progress()] == [
-        "started",
+    # The claim the split has to earn: two carriers, one narrative, in order.
+    # A client reading only the protocol's events sees the delegation open and
+    # close; one that also reads the CUSTOM channel sees what happened between.
+    narration = [
+        event["type"] if _is_lifecycle(event) else event["value"]["phase"]
+        for event in await _stream()
+        if _is_lifecycle(event) or _is_step(event)
+    ]
+
+    assert narration == [
+        "SUBAGENT_STARTED",
         "tool_call",
         "tool_result",
-        "finished",
+        "SUBAGENT_FINISHED",
     ]
+
+
+async def test_the_delegation_opens_and_closes_on_one_run_id() -> None:
+    # The protocol refuses a close that names no open delegation, and refuses
+    # RUN_FINISHED while one is still open -- so this pair being consistent is
+    # what keeps the run acceptable to the client, not a cosmetic nicety.
+    opened, closed = [event for event in await _stream() if _is_lifecycle(event)]
+
+    assert opened["subagentRunId"] == closed["subagentRunId"]
 
 
 async def test_every_event_is_keyed_to_the_parents_own_tool_call() -> None:
     # The client already drew a card for ``call-1`` off TOOL_CALL_START. Keying
     # on that id is what makes this an augmentation of that card rather than a
-    # second row beside it.
-    assert {value["delegationId"] for value in await _progress()} == {"call-1"}
+    # second row beside it -- and both carriers have to agree on it, since the
+    # client joins them by it.
+    events = await _stream()
+    opened = next(event for event in events if event["type"] == "SUBAGENT_STARTED")
+
+    assert opened["parentToolCallId"] == "call-1"
+    assert {event["value"]["delegationId"] for event in events if _is_step(event)} == {"call-1"}
 
 
 async def test_the_childs_tool_call_is_named_with_its_outcome() -> None:
@@ -140,15 +174,12 @@ async def test_the_childs_tool_call_is_named_with_its_outcome() -> None:
 
 
 async def test_the_progress_arrives_around_the_delegate_tool_call() -> None:
-    # Ordering on the wire, not just presence: the first progress event has to
-    # follow the tool call it belongs to, and the last has to precede its result.
-    response = await _view()(_post())
-    types = [(event["type"], event.get("name")) for event in await _events(response)]
-    first = types.index(("CUSTOM", SUBAGENT_EVENT_NAME))
-    last = len(types) - 1 - types[::-1].index(("CUSTOM", SUBAGENT_EVENT_NAME))
+    # Ordering on the wire, not just presence: the delegation has to open after
+    # the tool call it belongs to, and close before that call's result.
+    types = [event["type"] for event in await _stream()]
 
-    assert types.index(("TOOL_CALL_END", None)) < first
-    assert last < types.index(("TOOL_CALL_RESULT", None))
+    assert types.index("TOOL_CALL_END") < types.index("SUBAGENT_STARTED")
+    assert types.index("SUBAGENT_FINISHED") < types.index("TOOL_CALL_RESULT")
 
 
 async def test_two_delegations_at_once_do_not_cross_talk() -> None:
@@ -214,11 +245,21 @@ async def test_two_delegations_at_once_do_not_cross_talk() -> None:
         ],
     )
     response = await view(_post())
-    progress = [
-        event["value"]
-        for event in await _events(response)
-        if event.get("name") == SUBAGENT_EVENT_NAME
-    ]
+    events = await _events(response)
+    progress = [event["value"] for event in events if event.get("name") == SUBAGENT_EVENT_NAME]
+
+    # The lifecycle half, which is where the protocol is strictest: it refuses a
+    # reused subagentRunId inside one run, and refuses RUN_FINISHED while any
+    # delegation is still open. Two parallel delegations are the case that would
+    # break both if the correlation leaked between tasks.
+    lifecycle = [event for event in events if _is_lifecycle(event)]
+    assert {
+        event["subagentRunId"] for event in lifecycle if event["type"] == "SUBAGENT_STARTED"
+    } == {event["subagentRunId"] for event in lifecycle if event["type"] == "SUBAGENT_FINISHED"}
+    assert len(lifecycle) == 4
+    assert {
+        event["parentToolCallId"] for event in lifecycle if event["type"] == "SUBAGENT_STARTED"
+    } == {"call-a", "call-b"}
 
     by_delegation: dict[str, list[str]] = {"call-a": [], "call-b": []}
     for value in progress:
@@ -257,6 +298,7 @@ async def test_an_unwrapped_capability_emits_nothing() -> None:
     )
     response = await view(_post())
 
-    assert not [
-        event for event in await _events(response) if event.get("name") == SUBAGENT_EVENT_NAME
-    ]
+    # Neither carrier, not just the CUSTOM one: the wrapping is the switch, and
+    # adopting the protocol's own events did not add a second way in.
+    events = await _events(response)
+    assert not [event for event in events if _is_step(event) or _is_lifecycle(event)]
