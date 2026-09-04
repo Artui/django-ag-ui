@@ -1073,6 +1073,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   key the client already reads off a tool's schema, so one concept covers both
   gates. A tool with neither source keeps the generated question, and an interrupt
   whose tool supplied its own `x-confirm` is left alone.
+
 - **`ToolGuard` and `ToolGuardConfig` are re-exported.** `build_ag_ui_config`
   takes a `ToolGuardConfig` and `AGUIConfig` is typed with one, while the package
   exported neither — so configuring the gate in code meant importing from
@@ -1093,27 +1094,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is the server half. Nothing is lost on the way back: every nullable field on
   these models is also optional.
 
-### Documentation
-
-- **What a resumed request has to carry**, which is two things and the second is
-  easy to miss: the `resume[]` array answers the interrupt, and the assistant turn
-  holding the pending tool call has to be in `messages[]` beside it, with no tool
-  message (nothing has run). Send the answer alone and the run starts the turn
-  over. Also that a denial reaches the model as a tool return whose `outcome` is
-  `"denied"` — read the outcome, not the message text.
-- **How a server-side write tells the host page.** An approved call changes data
-  the page may be rendering, and the page has no reason to refetch. The two
-  channels are now named where the gate is documented: the web component's
-  `ag-ui-run-finished` event (needs nothing of the agent) and shared state (richer,
-  but the agent has to emit a snapshot).
-
-### Fixed
-
 - **Three attribute descriptions now reach the page at all.** `OpenAITranscriptionBackend`'s
   `model`, `base_url` and `timeout` documented themselves with Sphinx `#:` comments,
   which mkdocstrings reads as ordinary Python comments — so the text was never
   rendered anywhere. They are attribute docstrings now, and the reference carries
   them.
+
 - **The reST literal-block marker no longer reaches the page.** Sphinx reads a
   trailing `::` as "an indented literal block follows" and prints one colon;
   Markdown has no such rule, so the second colon rendered verbatim. The indented
@@ -1122,8 +1108,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   The API page still shows the marker inside symbols re-exported from
   `django-pydantic-agent`; that is fixed in its repo and clears when it releases.
-
-### Fixed
 
 - **Docstring cross-references now render as links instead of raw markup.** The
   docstrings carried Sphinx roles — ``:class:`~django_ag_ui.AGUIServer` `` — but
@@ -1138,6 +1122,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The API page still shows raw roles inside the symbols re-exported from
   `django-pydantic-agent`; those come from that package's own docstrings and
   clear when its fix is released and picked up here.
+
+### Documentation
+
+- **What a resumed request has to carry**, which is two things and the second is
+  easy to miss: the `resume[]` array answers the interrupt, and the assistant turn
+  holding the pending tool call has to be in `messages[]` beside it, with no tool
+  message (nothing has run). Send the answer alone and the run starts the turn
+  over. Also that a denial reaches the model as a tool return whose `outcome` is
+  `"denied"` — read the outcome, not the message text.
+
+- **How a server-side write tells the host page.** An approved call changes data
+  the page may be rendering, and the page has no reason to refetch. The two
+  channels are now named where the gate is documented: the web component's
+  `ag-ui-run-finished` event (needs nothing of the agent) and shared state (richer,
+  but the agent has to emit a snapshot).
 
 ## [0.42.0] — 2026-08-12
 
