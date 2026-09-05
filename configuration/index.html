@@ -1910,9 +1910,23 @@ wraps the <em>factory</em>, not a store, because that is what <code>step_store=<
 pre-built Pydantic-AI <code>Model</code> instance (which passes through untouched).
 Optional in settings, but an agent cannot be built without a model: if <code>MODEL</code>
 is unset and no <code>model=</code> is passed to
-<a class="autorefs autorefs-internal" title="DjangoAGUIView" href="../api/#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a>, the view raises
-<code>django.core.exceptions.ImproperlyConfigured</code>. A <code>model=</code> argument to the view
-always wins over this setting.</p>
+<a class="autorefs autorefs-internal" title="DjangoAGUIView" href="../api/#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a>, <strong>the view refuses to be
+constructed</strong> with <code>django.core.exceptions.ImproperlyConfigured</code>. Since the
+URLConf is what constructs it, that is a refusal at startup and
+<code>manage.py check</code> reaches it. A <code>model=</code> argument to the view always wins over
+this setting.</p>
+<p><code>model_for_request=</code> and <code>agent_factory=</code> are exempt: the first is at least
+intended to supply a model, and the second takes full control of construction.</p>
+<div class="admonition note">
+<p class="admonition-title">Why only the model, and not the whole agent</p>
+<p>Building the agent stays lazy. Constructing it resolves the provider, which
+reads the API key from the environment — so an eager build would refuse
+<code>manage.py migrate</code> on a machine that has no key, and a key can legitimately
+arrive after boot. Reading the model touches neither a provider nor a
+credential, so it is the half that can move.</p>
+<p>A missing provider package and a missing API key therefore still surface on
+the first run, and that is not an oversight.</p>
+</div>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">}</span>
 </span></code></pre></div>
 <p>When <a href="#api_key"><code>API_KEY</code></a> or <a href="#provider"><code>provider=</code></a> is set, the <code>MODEL</code> string
