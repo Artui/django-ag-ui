@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.57.0] — 2026-09-05
+
 ### Fixed
 
 - **`FORWARD_REASONING` was documented as safe by default, and it is not.** Both
@@ -3381,7 +3383,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.56.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.57.0...HEAD
+[0.57.0]: https://github.com/Artui/django-ag-ui/compare/v0.56.0...v0.57.0
 [0.56.0]: https://github.com/Artui/django-ag-ui/compare/v0.55.0...v0.56.0
 [0.55.0]: https://github.com/Artui/django-ag-ui/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/Artui/django-ag-ui/compare/v0.53.0...v0.54.0
