@@ -119,10 +119,19 @@ drf-mcp = ["djangorestframework-mcp-server>=0.37"]
 # call that failed -- a worse state than the silence it replaced, because a
 # client would now be reading a field and believing it.
 #
+# 0.26 raises it again, for the half a consumer's own suite has to reach: it
+# ships a streaming test double. The 0.25 double could only serve a
+# non-streamed request, and this transport always streams -- so a consumer
+# wanting to assert what its browser receives for a failed tool call, which is
+# exactly what 0.25 made expressible, had no way to drive one. The floor is
+# soft in the sense that nothing here imports it; it is stated because a
+# consumer testing this package's outcome forwarding needs it, and finding that
+# out from a run that dies before the toolset is touched costs an afternoon.
+#
 # 0.24 was the previous floor, the first release carrying drf-services>=0.49
 # after a self-nesting serializer took SpecToolset down at construction. That
 # constraint still holds and is subsumed.
-spec-tools = ["djangorestframework-pydantic-ai>=0.25"]
+spec-tools = ["djangorestframework-pydantic-ai>=0.26"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via capabilities=.
@@ -256,7 +265,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.56.0"
+current_version = "0.57.0"
 allow_dirty = false
 commit = false
 tag = false

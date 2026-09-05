@@ -159,6 +159,30 @@ async def test_thinking_streams_as_reasoning_events_by_default() -> None:
     assert "private pondering" in joined
 
 
+@override_settings(DJANGO_AG_UI={"MODEL_SETTINGS": {}})
+async def test_reasoning_is_forwarded_with_no_model_settings_at_all() -> None:
+    """The documented claim, pinned on the side that is a disclosure risk.
+
+    Both this field's docstring and its configuration page used to say reasoning
+    was "only emitted if a thinking budget is enabled via ``model_settings``",
+    which invites the reading that an operator who configures nothing cannot
+    leak a chain-of-thought. That is not true of the models, and this package is
+    the last hop before the browser.
+
+    Pydantic-AI's OpenAI-compatible chat path builds a ``ThinkingPart`` out of
+    the provider's ``reasoning`` / ``reasoning_content`` field consulting no
+    setting, and its DeepSeek profile marks ``deepseek-reasoner``
+    ``thinking_always_enabled`` because the model has no off switch. We cannot
+    reach a real provider from here, so what is pinned is our own half: given a
+    response that thinks, an empty ``MODEL_SETTINGS`` forwards it. The two facts
+    together are the hazard.
+    """
+    joined = await _events(_session(_thinking_agent()))
+
+    assert "REASONING" in joined, "an empty MODEL_SETTINGS did not stop the forwarding"
+    assert "private pondering" in joined
+
+
 @override_settings(DJANGO_AG_UI={"FORWARD_REASONING": False})
 async def test_forward_reasoning_opt_out_strips_reasoning_events() -> None:
     joined = await _events(_session(_thinking_agent()))

@@ -624,8 +624,9 @@ render a collapsible "thinking" region). Set `False` to let the model reason
 privately — the events are stripped from the stream before encoding, so the
 chain-of-thought never leaves the server.
 
-Reasoning is only emitted when the model is actually configured to think, which
-is a `MODEL_SETTINGS` concern, not a separate switch. For an Anthropic model:
+Whether the model emits reasoning at all is the model's concern, not this
+package's — but do not read that as "nothing reaches the browser until I opt in".
+For an Anthropic model it is indeed a `MODEL_SETTINGS` matter:
 
 ```python
 DJANGO_AG_UI = {
@@ -638,6 +639,35 @@ DJANGO_AG_UI = {
 It is a pure pass-through (no protocol extension): the events ride the standard
 AG-UI reasoning event family, and the server-side transcript ignores them (they
 are ephemeral and never persisted).
+
+!!! warning "Reasoning events are not gated on you enabling reasoning"
+
+    **A `REASONING_*` event can reach the browser on a model that cannot
+    think.** A failed tool call emits a `REASONING_ENCRYPTED_VALUE`, because
+    that is where Pydantic-AI carries a non-success outcome, and it does so on
+    any model at all. The payload is neither encrypted nor reasoning
+    (`{"pydantic_ai": {"outcome": "failed"}}`), and since 0.56.0 it is redundant
+    — the same outcome rode the `TOOL_CALL_RESULT` one event earlier. It is
+    forwarded anyway: the event is upstream's, and its general form carries
+    provider continuity data that has to survive. The bundled web component
+    ignores it, but a client that treats the `REASONING_*` family generically
+    will see it.
+
+    **And several reasoning models return their thinking whether or not you
+    asked.** Pydantic-AI's OpenAI-compatible chat path builds a `ThinkingPart`
+    from whatever the provider put in `reasoning` or `reasoning_content`,
+    consulting no setting to do it, and its DeepSeek profile marks
+    `deepseek-reasoner` as `thinking_always_enabled` because that model has no
+    off switch. Point `MODEL` at one of those, leave `MODEL_SETTINGS` empty, and
+    the default `FORWARD_REASONING = True` streams the raw chain-of-thought to
+    every browser.
+
+    That second case is the one to weigh, because a model's private reasoning is
+    written for nobody: it restates the system prompt, argues with itself about
+    the user, and discusses tools it decided not to call. If you have not decided
+    that your users should read it, set `FORWARD_REASONING` to `False` and decide
+    later.
+
 
 ## `transcription_backend=`
 
