@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.55.0] — 2026-09-05
+
 ### Changed
 
 - **An endpoint with no model is refused when it is built, not on the first
@@ -3290,7 +3292,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.54.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.55.0...HEAD
+[0.55.0]: https://github.com/Artui/django-ag-ui/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/Artui/django-ag-ui/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/Artui/django-ag-ui/compare/v0.52.0...v0.53.0
 [0.52.0]: https://github.com/Artui/django-ag-ui/compare/v0.51.0...v0.52.0
