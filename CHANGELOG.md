@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`TOOL_CALL_RESULT` now says whether the call succeeded**, as an optional
+  `outcome` field carrying pydantic-ai's own `ToolReturnPart.outcome` —
+  `"failed"`, `"denied"` or `"interrupted"`. **Absent means success**, so every
+  existing client is unaffected and no version negotiation is needed.
+
+  AG-UI's `TOOL_CALL_RESULT` carries a `content` string and nothing else, so a
+  tool call that failed was byte-identical on the wire to one that succeeded and
+  every client rendered both as a completed call. Pydantic-AI knew the
+  difference the whole time and had nowhere in the event to put it.
+
+  Upstream does carry the outcome, on a `REASONING_ENCRYPTED_VALUE` event
+  following the result — the only standard event whose reducer can attach
+  continuity data to a `ToolMessage`. That carrier could not serve here: it is
+  namespaced, opaque and documented as reasoning continuity rather than as a
+  rendering signal, it only exists from `ag-ui-protocol` 0.1.13, and this
+  package's own `FORWARD_REASONING = False` filter drops every `REASONING_*`
+  event — so the deployment most likely to want a failure marked is the one that
+  could not see it.
+
+  The field is additive because AG-UI's event models allow extras (the Python
+  `ag_ui.core` models are `extra="allow"`; the TypeScript zod schemas are
+  `passthrough`), so an unknown key survives parsing instead of being stripped or
+  raising.
+
+  The value is forwarded verbatim rather than mapped onto a vocabulary of our
+  own, so nothing here has to be revised when pydantic-ai adds a fifth. The
+  rendering contract clients are given is that an unrecognised value — including
+  `"interrupted"` — is treated as success, which is the same rule as an absent
+  one.
+
+  Wired by `OutcomeAGUIAdapter`, which `AgentSession` builds in place of the
+  stock `AGUIAdapter`. It overrides `build_event_stream`, the adapter's own seam,
+  rather than wrapping the event stream the way this package's other stream
+  additions do: by the time a wrapper sees the events the `ToolReturnPart` is
+  gone, and the only things left to correlate on are the content string (the
+  guessing this exists to remove) and a `tool_call_id` that a native tool return
+  rewrites. All three handlers that emit a `TOOL_CALL_RESULT` are covered — a
+  function tool's result, an output tool's result, and a provider-executed tool's
+  return.
+
 ## [0.55.0] — 2026-09-05
 
 ### Changed
