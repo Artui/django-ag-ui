@@ -93,8 +93,17 @@ class AGUIConfig:
 
     forward_reasoning: bool
     """Whether to forward a reasoning model's chain-of-thought to the client as
-    AG-UI reasoning events — a pure adapter pass-through, only emitted if a
-    thinking budget is enabled via ``model_settings``."""
+    AG-UI reasoning events — a pure adapter pass-through.
+
+    Whether there is anything *to* forward is the model's business rather than
+    this package's, and it is emphatically not always an opt-in. Pydantic-AI's
+    OpenAI-compatible chat path builds a ``ThinkingPart`` out of whatever the
+    provider returned in ``reasoning`` / ``reasoning_content``, consulting no
+    setting at all, and its DeepSeek profile marks ``deepseek-reasoner`` with
+    ``thinking_always_enabled`` because that model cannot be told to stop. On
+    such a provider the default here — ``True`` — streams chain-of-thought to
+    every browser with nothing configured and nothing asked for. Set ``False``
+    to keep it server-side."""
 
     transcription_max_bytes: int
     """Maximum accepted audio-clip size in bytes (server-authoritative). ``0``

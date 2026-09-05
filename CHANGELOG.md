@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`FORWARD_REASONING` was documented as safe by default, and it is not.** Both
+  the field's docstring and its configuration page said reasoning events were
+  "only emitted if a thinking budget is enabled via `model_settings`", which
+  reads as a guarantee that an operator who configures nothing cannot stream a
+  model's chain-of-thought to a browser. That is false for a whole class of
+  providers, and this package is the last hop before the browser.
+
+  Pydantic-AI's OpenAI-compatible chat path builds a `ThinkingPart` out of
+  whatever the provider returned in `reasoning` or `reasoning_content`,
+  consulting no setting to do it, and its DeepSeek profile marks
+  `deepseek-reasoner` with `thinking_always_enabled` because that model has no
+  off switch. Point `MODEL` at one of those, leave `MODEL_SETTINGS` empty, and
+  the default `FORWARD_REASONING = True` forwards the raw reasoning verbatim.
+
+  No behaviour changed — the default is deliberate and stays — but the sentence
+  that talked an operator out of checking is gone, replaced by a warning
+  admonition that names the providers and says what a chain-of-thought actually
+  contains. The suite already contained a test that streams a `ThinkingPart`
+  through an unconfigured session and asserts the events arrive; it had sat
+  beside the docstring it disproves since the feature landed.
+
+### Changed
+
+- **The `[spec-tools]` extra is floored on `djangorestframework-pydantic-ai>=0.26`**,
+  the release that ships a streaming test double. Nothing here imports it; the
+  floor is stated for the consumer's suite rather than for this package's
+  runtime. 0.25's double could serve only a non-streamed request and this
+  transport always streams, so a consumer wanting to assert what its browser
+  receives for a failed tool call — precisely what 0.25 made expressible — got a
+  run that died before the toolset was reached, surfaced through this package's
+  own redaction as "The run failed", naming nothing.
+
 ## [0.56.0] — 2026-09-05
 
 ### Added

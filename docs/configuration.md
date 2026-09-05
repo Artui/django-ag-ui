@@ -624,8 +624,9 @@ render a collapsible "thinking" region). Set `False` to let the model reason
 privately — the events are stripped from the stream before encoding, so the
 chain-of-thought never leaves the server.
 
-Reasoning is only emitted when the model is actually configured to think, which
-is a `MODEL_SETTINGS` concern, not a separate switch. For an Anthropic model:
+Whether the model emits reasoning at all is the model's concern, not this
+package's — but do not read that as "nothing reaches the browser until I opt in".
+For an Anthropic model it is indeed a `MODEL_SETTINGS` matter:
 
 ```python
 DJANGO_AG_UI = {
@@ -638,6 +639,23 @@ DJANGO_AG_UI = {
 It is a pure pass-through (no protocol extension): the events ride the standard
 AG-UI reasoning event family, and the server-side transcript ignores them (they
 are ephemeral and never persisted).
+
+!!! warning "On some providers the chain-of-thought is on by default"
+
+    Several reasoning models return their thinking whether or not you asked.
+    Pydantic-AI's OpenAI-compatible chat path builds a `ThinkingPart` from
+    whatever the provider put in `reasoning` or `reasoning_content` and consults
+    no setting to do it, and its DeepSeek profile marks `deepseek-reasoner` as
+    `thinking_always_enabled` because that model has no off switch. Point
+    `MODEL` at one of those, leave `MODEL_SETTINGS` empty, and the default
+    `FORWARD_REASONING = True` streams the raw chain-of-thought to every
+    browser.
+
+    That matters because a model's private reasoning is written for nobody: it
+    restates the system prompt, argues with itself about the user, and talks
+    about tools it decided not to call. If you have not decided that your users
+    should read it, set `FORWARD_REASONING` to `False` and decide later.
+
 
 ## `transcription_backend=`
 
