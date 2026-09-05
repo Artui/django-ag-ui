@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.56.0] — 2026-09-05
+
 ### Added
 
 - **`TOOL_CALL_RESULT` now says whether the call succeeded**, as an optional
@@ -48,6 +50,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rewrites. All three handlers that emit a `TOOL_CALL_RESULT` are covered — a
   function tool's result, an output tool's result, and a provider-executed tool's
   return.
+
+### Changed
+
+- **The `[spec-tools]` extra is floored on `djangorestframework-pydantic-ai>=0.25`**,
+  the release that raises `ToolFailed` for a terminal failure instead of
+  returning `{"error": ...}`. That floor is what the outcome forwarding above
+  needs underneath it to be truthful: below 0.25 a spec tool's conflict or
+  missing row is an ordinary return, which pydantic-ai marks
+  `outcome="success"`, so this package would faithfully forward `success` for a
+  call that failed. That is worse than the silence it replaces, because a client
+  would be reading a field and believing it.
 
 ## [0.55.0] — 2026-09-05
 
@@ -3334,7 +3347,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.55.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.56.0...HEAD
+[0.56.0]: https://github.com/Artui/django-ag-ui/compare/v0.55.0...v0.56.0
 [0.55.0]: https://github.com/Artui/django-ag-ui/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/Artui/django-ag-ui/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/Artui/django-ag-ui/compare/v0.52.0...v0.53.0
