@@ -18,19 +18,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model's chain-of-thought to a browser. That is false for a whole class of
   providers, and this package is the last hop before the browser.
 
-  Pydantic-AI's OpenAI-compatible chat path builds a `ThinkingPart` out of
-  whatever the provider returned in `reasoning` or `reasoning_content`,
-  consulting no setting to do it, and its DeepSeek profile marks
-  `deepseek-reasoner` with `thinking_always_enabled` because that model has no
-  off switch. Point `MODEL` at one of those, leave `MODEL_SETTINGS` empty, and
-  the default `FORWARD_REASONING = True` forwards the raw reasoning verbatim.
+  The nearest counterexample is this package itself: a failed tool call emits a
+  `REASONING_ENCRYPTED_VALUE` on **any** model, including one that cannot think,
+  because that is where Pydantic-AI carries a non-success outcome. Its payload
+  is neither encrypted nor reasoning, and since 0.56.0 it is redundant with the
+  `outcome` on the preceding `TOOL_CALL_RESULT`. It is still forwarded, because
+  the event is upstream's and its general form carries provider continuity data;
+  the bundled web component ignores it, but a client treating the `REASONING_*`
+  family generically will not.
+
+  The models supply the other half. Pydantic-AI's OpenAI-compatible chat path
+  builds a `ThinkingPart` out of whatever the provider returned in `reasoning`
+  or `reasoning_content`, consulting no setting to do it, and its DeepSeek
+  profile marks `deepseek-reasoner` with `thinking_always_enabled` because that
+  model has no off switch. Point `MODEL` at one of those, leave `MODEL_SETTINGS`
+  empty, and the default `FORWARD_REASONING = True` forwards the raw reasoning
+  verbatim.
 
   No behaviour changed — the default is deliberate and stays — but the sentence
   that talked an operator out of checking is gone, replaced by a warning
-  admonition that names the providers and says what a chain-of-thought actually
+  admonition that names both causes and says what a chain-of-thought actually
   contains. The suite already contained a test that streams a `ThinkingPart`
   through an unconfigured session and asserts the events arrive; it had sat
-  beside the docstring it disproves since the feature landed.
+  beside the docstring it disproves since the feature landed. Two tests now pin
+  the claim deliberately, one of them reading the emitted event off the wire.
 
 ### Changed
 

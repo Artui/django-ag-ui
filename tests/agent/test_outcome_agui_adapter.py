@@ -283,6 +283,41 @@ async def test_a_failed_call_reaches_the_browser_marked_failed() -> None:
     assert "RUN_ERROR" not in joined
 
 
+async def test_a_failed_call_emits_a_reasoning_event_on_a_model_that_never_thinks() -> None:
+    """The likeliest reason a REASONING_* event reaches a browser, pinned here.
+
+    ``FORWARD_REASONING`` was documented as though reasoning events could only
+    appear once an operator configured a thinking budget. This run configures
+    nothing -- a ``FunctionModel`` with no settings, which cannot think at all --
+    and still puts a ``REASONING_ENCRYPTED_VALUE`` on the wire, because that is
+    where Pydantic-AI carries a non-success outcome.
+
+    It is a poor fit for its own name three ways over: the payload is not
+    encrypted, it is not reasoning, and since 0.56.0 it is redundant -- the same
+    outcome rode the ``TOOL_CALL_RESULT`` one event earlier. It is forwarded
+    anyway rather than filtered, because it belongs to upstream and the general
+    form of the event does carry provider continuity data that has to survive.
+
+    Kept as an assertion because the docs now make this claim to operators, and
+    a claim about what is on the wire should be read off the wire.
+    """
+    joined = "".join([chunk async for chunk in _failing_session().stream()])
+
+    reasoning = [
+        json.loads(line.removeprefix("data: "))
+        for line in joined.splitlines()
+        if line.startswith("data: ") and '"REASONING' in line
+    ]
+
+    assert [e["type"] for e in reasoning] == ["REASONING_ENCRYPTED_VALUE"], (
+        "a run that cannot think stopped emitting the carrier -- the documented "
+        "expectation changes with it"
+    )
+    # The payload is the whole point: an outcome envelope, wearing the name of
+    # an encrypted chain-of-thought.
+    assert json.loads(reasoning[0]["encryptedValue"]) == {"pydantic_ai": {"outcome": "failed"}}
+
+
 async def test_the_outcome_survives_the_reasoning_filter() -> None:
     """``FORWARD_REASONING = False`` must not cost a client the failure marking.
 
