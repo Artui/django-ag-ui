@@ -7029,8 +7029,20 @@ honoured. <code>False</code> drops them with a warning before they reach the age
     <div class="doc doc-contents ">
 
         <p>Whether to forward a reasoning model's chain-of-thought to the client as
-AG-UI reasoning events — a pure adapter pass-through, only emitted if a
-thinking budget is enabled via <code>model_settings</code>.</p>
+AG-UI reasoning events — a pure adapter pass-through.</p>
+<p>Reasoning events are emphatically <em>not</em> gated on an operator opting in, and
+the nearest counterexample is this package. A failed tool call emits a
+<code>REASONING_ENCRYPTED_VALUE</code> — that is where Pydantic-AI carries a
+non-success outcome — on any model whatsoever, including one that cannot
+think. It is forwarded rather than filtered because the event belongs to
+upstream and its general form carries provider continuity data.</p>
+<p>The models supply the other half. Pydantic-AI's OpenAI-compatible chat path
+builds a <code>ThinkingPart</code> out of whatever the provider returned in
+<code>reasoning</code> / <code>reasoning_content</code>, consulting no setting at all, and its
+DeepSeek profile marks <code>deepseek-reasoner</code> with <code>thinking_always_enabled</code>
+because that model cannot be told to stop. On such a provider the default
+here — <code>True</code> — streams a chain-of-thought to every browser with nothing
+configured and nothing asked for. Set <code>False</code> to keep it server-side.</p>
 
     </div>
 

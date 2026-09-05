@@ -2315,8 +2315,9 @@ coarse filter — the store decides what to do with the bytes.</p>
 render a collapsible "thinking" region). Set <code>False</code> to let the model reason
 privately — the events are stripped from the stream before encoding, so the
 chain-of-thought never leaves the server.</p>
-<p>Reasoning is only emitted when the model is actually configured to think, which
-is a <code>MODEL_SETTINGS</code> concern, not a separate switch. For an Anthropic model:</p>
+<p>Whether the model emits reasoning at all is the model's concern, not this
+package's — but do not read that as "nothing reaches the browser until I opt in".
+For an Anthropic model it is indeed a <code>MODEL_SETTINGS</code> matter:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>    <span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">,</span>
 </span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>    <span class="s2">&quot;MODEL_SETTINGS&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;anthropic_thinking&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;enabled&quot;</span><span class="p">,</span> <span class="s2">&quot;budget_tokens&quot;</span><span class="p">:</span> <span class="mi">2048</span><span class="p">}},</span>
@@ -2326,6 +2327,32 @@ is a <code>MODEL_SETTINGS</code> concern, not a separate switch. For an Anthropi
 <p>It is a pure pass-through (no protocol extension): the events ride the standard
 AG-UI reasoning event family, and the server-side transcript ignores them (they
 are ephemeral and never persisted).</p>
+<div class="admonition warning">
+<p class="admonition-title">Reasoning events are not gated on you enabling reasoning</p>
+<p><strong>A <code>REASONING_*</code> event can reach the browser on a model that cannot
+think.</strong> A failed tool call emits a <code>REASONING_ENCRYPTED_VALUE</code>, because
+that is where Pydantic-AI carries a non-success outcome, and it does so on
+any model at all. The payload is neither encrypted nor reasoning
+(<code>{"pydantic_ai": {"outcome": "failed"}}</code>), and since 0.56.0 it is redundant
+— the same outcome rode the <code>TOOL_CALL_RESULT</code> one event earlier. It is
+forwarded anyway: the event is upstream's, and its general form carries
+provider continuity data that has to survive. The bundled web component
+ignores it, but a client that treats the <code>REASONING_*</code> family generically
+will see it.</p>
+<p><strong>And several reasoning models return their thinking whether or not you
+asked.</strong> Pydantic-AI's OpenAI-compatible chat path builds a <code>ThinkingPart</code>
+from whatever the provider put in <code>reasoning</code> or <code>reasoning_content</code>,
+consulting no setting to do it, and its DeepSeek profile marks
+<code>deepseek-reasoner</code> as <code>thinking_always_enabled</code> because that model has no
+off switch. Point <code>MODEL</code> at one of those, leave <code>MODEL_SETTINGS</code> empty, and
+the default <code>FORWARD_REASONING = True</code> streams the raw chain-of-thought to
+every browser.</p>
+<p>That second case is the one to weigh, because a model's private reasoning is
+written for nobody: it restates the system prompt, argues with itself about
+the user, and discusses tools it decided not to call. If you have not decided
+that your users should read it, set <code>FORWARD_REASONING</code> to <code>False</code> and decide
+later.</p>
+</div>
 <h2 id="transcription_backend"><code>transcription_backend=</code><a class="headerlink" href="#transcription_backend" title="Permanent link">&para;</a></h2>
 <p>A <a class="autorefs autorefs-internal" title="TranscriptionBackend" href="../api/#django_ag_ui.TranscriptionBackend"><code>TranscriptionBackend</code></a> instance. Omitted
 (the default) keeps <strong>voice input disabled</strong> using
