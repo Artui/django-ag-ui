@@ -6113,7 +6113,8 @@ silences it.</p>
         <p>Per-run orchestration between the HTTP transport and the agent.</p>
 <p>Owns everything one AG-UI run needs after the transport has authenticated
 the request, parsed the <code>RunAgentInput</code>, and built the agent — and before
-the response object exists: the <code>AGUIAdapter</code>, the composed event stream
+the response object exists: the <code>AGUIAdapter</code> (an <code>OutcomeAGUIAdapter</code>,
+the stock one plus a tool call's outcome), the composed event stream
 (native → transformed → reasoning-filtered → encoded → disconnect-guarded),
 and persistence on all three of a run's exits — completed, failed and
 cancelled — the last two audited as well.</p>
