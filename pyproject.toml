@@ -111,11 +111,18 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 drf-mcp = ["djangorestframework-mcp-server>=0.37"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
 # pydantic-ai's SpecCapability -- no MCP server in the path (service_specs=).
-# Floored at 0.24, the first release carrying drf-services>=0.49: the
-# service_specs= path builds a SpecToolset, and a serializer that nests itself
-# took that down at construction. No direct drf-services dependency exists here
-# to state it against, so the extra carries it.
-spec-tools = ["djangorestframework-pydantic-ai>=0.24"]
+# Floored at 0.25, the release that raises ToolFailed for a terminal failure
+# instead of returning {"error": ...}. That is what this package's outcome
+# forwarding has to have underneath it to be truthful: below 0.25 a spec tool's
+# conflict or missing row is an ordinary return, which pydantic-ai marks
+# outcome="success", so the transport would faithfully forward "success" for a
+# call that failed -- a worse state than the silence it replaced, because a
+# client would now be reading a field and believing it.
+#
+# 0.24 was the previous floor, the first release carrying drf-services>=0.49
+# after a self-nesting serializer took SpecToolset down at construction. That
+# constraint still holds and is subsumed.
+spec-tools = ["djangorestframework-pydantic-ai>=0.25"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via capabilities=.
@@ -249,7 +256,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.55.0"
+current_version = "0.56.0"
 allow_dirty = false
 commit = false
 tag = false
