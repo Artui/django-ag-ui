@@ -163,7 +163,39 @@ instance. On each POST it:
    encoded events as a `StreamingHttpResponse` with `Content-Type:
    text/event-stream`, `Cache-Control: no-cache`, and `X-Accel-Buffering: no`.
 
-Non-POST methods get `405 Method Not Allowed`. The view marks itself as a
+Non-POST methods get `405 Method Not Allowed`.
+
+### `TOOL_CALL_RESULT` carries an outcome
+
+AG-UI's `TOOL_CALL_RESULT` event defines a `content` string and no field saying
+how the call went, so a tool that failed reaches a client byte-identical to one
+that succeeded — and every client renders both as a completed call. Pydantic-AI
+knows the difference (`ToolReturnPart.outcome`) and has nowhere in the event to
+put it.
+
+This package adds it, as an optional field on the result event:
+
+```json
+{"type": "TOOL_CALL_RESULT", "messageId": "…", "toolCallId": "…",
+ "content": "that name is already taken", "role": "tool", "outcome": "failed"}
+```
+
+| Value | What it means |
+| --- | --- |
+| *absent* | The call succeeded. Every AG-UI server that does not do this omits the field, so absence has to keep meaning success. |
+| `"failed"` | The call ran and failed — a bug, a definitive upstream error, or a domain refusal such as a conflict or a missing row. |
+| `"denied"` | The call was refused by a person or a guard, and never attempted. This is what a denied [tool approval](tool-approval.md) produces. |
+| anything else | Treat as success. `"interrupted"` reaches the wire because the value is forwarded verbatim, but it is not part of the rendering contract, and neither is any value pydantic-ai adds later. |
+
+The field is additive rather than a protocol change: AG-UI's event schemas allow
+unknown keys (`extra="allow"` on the Python models, `passthrough` on the
+TypeScript zod schemas), so it survives parsing on a client that has never heard
+of it. A client that reads it needs no version negotiation, and one that ignores
+it sees exactly the stream it saw before.
+
+Only a **server-side** tool has an outcome here: a frontend tool executes in the
+browser and its result comes back in the next request, so the browser already
+knows how it went. The view marks itself as a
 coroutine function so Django awaits it under ASGI; served over WSGI it emits a
 one-time `RuntimeWarning` (SSE streaming needs ASGI). Frontend-declared tools in
 the request are merged into the catalog by the adapter automatically.

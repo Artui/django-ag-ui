@@ -27,6 +27,7 @@ from django_ag_ui.agent.guarded_stream import guarded_stream
 from django_ag_ui.agent.inject_compaction_events import inject_compaction_events
 from django_ag_ui.agent.inject_invalidation_events import inject_invalidation_events
 from django_ag_ui.agent.inject_subagent_events import inject_subagent_events
+from django_ag_ui.agent.outcome_agui_adapter import OutcomeAGUIAdapter
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
@@ -40,7 +41,8 @@ class AgentSession:
 
     Owns everything one AG-UI run needs after the transport has authenticated
     the request, parsed the ``RunAgentInput``, and built the agent — and before
-    the response object exists: the ``AGUIAdapter``, the composed event stream
+    the response object exists: the ``AGUIAdapter`` (an ``OutcomeAGUIAdapter``,
+    the stock one plus a tool call's outcome), the composed event stream
     (native → transformed → reasoning-filtered → encoded → disconnect-guarded),
     and persistence on all three of a run's exits — completed, failed and
     cancelled — the last two audited as well.
@@ -96,7 +98,12 @@ class AgentSession:
         # nothing to persist to never needs it at all.
         self._prior: list[Message] | None = None
         self._forward_reasoning = config.forward_reasoning
-        self._adapter = AGUIAdapter(
+        # ``OutcomeAGUIAdapter`` rather than ``AGUIAdapter``: identical in every
+        # respect except that its ``TOOL_CALL_RESULT`` events say whether the
+        # call succeeded. Unconditional, because the field is additive and absent
+        # means success -- a client that does not read it sees the stream it saw
+        # before, so there is nothing for a setting to protect.
+        self._adapter = OutcomeAGUIAdapter(
             agent,
             run_input,
             # A plain string at the config boundary; the adapter types it as
