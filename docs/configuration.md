@@ -155,9 +155,24 @@ A Pydantic-AI model string, e.g. `"anthropic:claude-sonnet-4.6"`, **or** a
 pre-built Pydantic-AI `Model` instance (which passes through untouched).
 Optional in settings, but an agent cannot be built without a model: if `MODEL`
 is unset and no `model=` is passed to
-[`DjangoAGUIView`][django_ag_ui.DjangoAGUIView], the view raises
-`django.core.exceptions.ImproperlyConfigured`. A `model=` argument to the view
-always wins over this setting.
+[`DjangoAGUIView`][django_ag_ui.DjangoAGUIView], **the view refuses to be
+constructed** with `django.core.exceptions.ImproperlyConfigured`. Since the
+URLConf is what constructs it, that is a refusal at startup and
+`manage.py check` reaches it. A `model=` argument to the view always wins over
+this setting.
+
+`model_for_request=` and `agent_factory=` are exempt: the first is at least
+intended to supply a model, and the second takes full control of construction.
+
+!!! note "Why only the model, and not the whole agent"
+    Building the agent stays lazy. Constructing it resolves the provider, which
+    reads the API key from the environment — so an eager build would refuse
+    `manage.py migrate` on a machine that has no key, and a key can legitimately
+    arrive after boot. Reading the model touches neither a provider nor a
+    credential, so it is the half that can move.
+
+    A missing provider package and a missing API key therefore still surface on
+    the first run, and that is not an oversight.
 
 ```python
 DJANGO_AG_UI = {"MODEL": "anthropic:claude-sonnet-4.6"}
