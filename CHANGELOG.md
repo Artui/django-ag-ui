@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.55.0] — 2026-09-05
+
+### Changed
+
+- **An endpoint with no model is refused when it is built, not on the first
+  request.** Since the URLConf is what constructs a view, that is a refusal at
+  startup and `manage.py check` reaches it.
+
+  This is the last collaborator to escape a rule the package already applies to
+  every other one. A dotted path handed to `audit_logger` has been refused at
+  construction since 0.19.0 for settings, and later for constructor arguments,
+  and the reason recorded there is this one exactly: *a string reached the
+  endpoint the argument configures and failed there, one request later.*
+  `model` was missed because the mechanism those checks use is "this must not be
+  a string" -- and a model legitimately is one, so the only setting whose value
+  is a string is the one the string rule could not cover.
+
+  The old timing was inherited rather than chosen. Before 0.32.0 the agent was
+  built per request and the build took the request, so the error could not have
+  happened earlier; when 0.32.0 removed the request dependency and memoised the
+  build, the timing stayed and a test was added pinning it as *"the error keeps
+  the timing it always had"*.
+
+  **Only the model check moved. The build stays lazy, and the two are
+  separable.** Constructing the agent resolves the provider, which reads the API
+  key from the environment, so an eager build would refuse `manage.py migrate`
+  on a machine with no key -- and a key can legitimately arrive after boot.
+  Reading the model touches neither a provider nor a credential.
+
+  A missing provider package and a missing API key therefore still surface on
+  the first run, deliberately.
+
+  `model_for_request=` and `agent_factory=` are exempt. The first is at least
+  intended to supply a model and the second takes full control of construction,
+  and a check that refuses a configuration which might work is worse than one
+  that misses a case.
+
+  **Breaking for a deployment that was already broken**: a project with no model
+  configured now fails at startup rather than on its first agent request. It had
+  no working agent either way.
+
 ## [0.54.0] — 2026-08-31
 
 ### Changed
@@ -3251,7 +3292,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.54.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.55.0...HEAD
+[0.55.0]: https://github.com/Artui/django-ag-ui/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/Artui/django-ag-ui/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/Artui/django-ag-ui/compare/v0.52.0...v0.53.0
 [0.52.0]: https://github.com/Artui/django-ag-ui/compare/v0.51.0...v0.52.0

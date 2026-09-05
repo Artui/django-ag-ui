@@ -154,6 +154,7 @@ class DjangoAGUIView:
         self._authorize_predicate = authorize
         # Instance state, never module state: two endpoints hold two agents.
         self._built_agent: Agent[AgentDeps, Any] | None = None
+        self._require_a_model()
         # The warning fires here and only here. Every sibling view resolves the
         # same flag through the same helper, but this is the view a consumer
         # always mounts — the sub-views would raise the identical concern up to
@@ -602,6 +603,36 @@ class DjangoAGUIView:
                 RuntimeWarning,
                 stacklevel=2,
             )
+
+    def _require_a_model(self) -> None:
+        """Refuse an endpoint with no model, here rather than one request later.
+
+        The last collaborator to escape a rule this package applies to every
+        other one. A dotted path handed to ``audit_logger`` has been refused at
+        construction since 0.19.0 for settings and later for constructor
+        arguments, and the reason given there is this one exactly: *a string
+        reached the endpoint the argument configures and failed there, one
+        request later*. ``model`` was missed because the mechanism those checks
+        use is "this must not be a string" -- and a model legitimately is one,
+        so the only setting whose value is a string is the one the string rule
+        could not cover.
+
+        **The build stays lazy, and only this moves.** Constructing the agent
+        resolves the provider, which reads the API key from the environment, so
+        an eager build would refuse ``manage.py migrate`` on a machine that has
+        no key -- and the key can legitimately arrive after boot. Reading the
+        model touches neither: it is a settings lookup, and
+        ``_resolve_model_value`` returns the string untouched unless a key or
+        provider was configured explicitly.
+
+        Two configurations are deliberately left alone. ``agent_factory`` takes
+        full control of construction, model included. ``model_for_request`` is
+        at least *intended* to supply one, and a check that refuses a
+        configuration which might work is worse than one that misses a case.
+        """
+        if self._agent_factory is not None or self._model_for_request is not None:
+            return
+        self._resolve_model()
 
     def _resolve_model(self) -> Any:
         model = self._model if self._model is not None else self._config.model

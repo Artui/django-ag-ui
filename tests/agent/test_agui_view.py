@@ -175,10 +175,18 @@ async def test_stating_how_requests_authenticate_silences_the_warning(kwargs: di
 
 @override_settings(DJANGO_AG_UI={})
 async def test_missing_model_raises_improperly_configured() -> None:
-    # No model passed and none in settings.
-    view = DjangoAGUIView(_registry())
+    """No model passed and none in settings, refused where it is cheap to notice.
+
+    It used to reach the first request. That was inherited rather than chosen:
+    before the agent was built once per endpoint the build took the request, so
+    it could not have happened earlier, and when the request dependency went the
+    timing stayed. Every other collaborator this endpoint takes is checked at
+    construction, for the reason given there -- a misconfiguration that surfaces
+    one request later names a setting the reader has never heard of, from a
+    traceback with no declaration in it.
+    """
     with pytest.raises(ImproperlyConfigured, match="MODEL"):
-        await view(_post(_run_input("hi")))
+        DjangoAGUIView(_registry())
 
 
 @override_settings(DJANGO_AG_UI={"MODEL": "anthropic:claude-sonnet-4.6"})
@@ -353,11 +361,17 @@ class TestTheAgentIsBuiltOnce:
         assert view._run_instructions(_post(_run_input("hi"))) == "Be terse."
 
     @override_settings(DJANGO_AG_UI={})
-    async def test_a_missing_model_still_fails_on_the_request(self) -> None:
-        """Lazy, not eager: the error keeps the timing it always had."""
-        view = DjangoAGUIView(_registry())
+    async def test_a_missing_model_fails_when_the_endpoint_is_built(self) -> None:
+        """The build stays lazy; only the model check moved.
+
+        Those are separable, and keeping them apart is the whole point:
+        constructing the agent resolves the provider, which reads the API key
+        from the environment, so an eager *build* would refuse `manage.py
+        migrate` on a machine with no key. Reading the model touches neither a
+        provider nor a credential.
+        """
         with pytest.raises(ImproperlyConfigured, match="MODEL"):
-            await view(_post(_run_input("hi")))
+            DjangoAGUIView(_registry())
 
 
 class TestPerRequestOverrides:
