@@ -916,6 +916,10 @@ your model via a <code>django-ag-ui</code> provider extra:</p>
 </tr>
 </tbody>
 </table>
+<p>No extra is needed to stand the endpoint up and stream from it: setting
+<code>"MODEL": "test"</code> uses Pydantic-AI's built-in <code>TestModel</code>, which reaches no
+provider. See
+<a href="../configuration/#rehearsing-the-wiring-before-you-have-a-key">Rehearsing the wiring before you have a key</a>.</p>
 <p>When you set <a href="../configuration/#api_key"><code>API_KEY</code> or <code>provider=</code></a> so the model is
 built with an explicit key, the <code>MODEL</code> string's <code>provider:</code> prefix may be <strong>any
 provider Pydantic-AI knows</strong> (<code>anthropic</code>, <code>openai</code>, <code>openai-responses</code>,
