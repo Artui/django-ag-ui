@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The `[spec-tools]` floor is `djangorestframework-pydantic-ai>=0.27`**, and
+  unlike the two floors before it this one is about production rather than about
+  a consumer's tests. A spec dispatch runs on asgiref's process-wide shared
+  thread; Django closes connections per *request*, on the *request's* thread, and
+  `django.db.connections` is thread-local — so `request_finished` never reaches
+  the connection the dispatch opened.
+
+  That applies here even though every AG-UI call arrives over HTTP. The request
+  finishing closes the request thread's connection and nothing else, so a
+  long-lived server accumulates an open connection on the shared thread and keeps
+  it. 0.27 releases what a dispatch opened and leaves alone what it did not,
+  which is the part that makes it safe when asgiref routes back onto a caller's
+  own thread mid-transaction.
+
+  **The `[drf-mcp]` floor deliberately does not move.** 0.41 is published and
+  nothing in it is load-bearing here — its work is the OAuth surface this package
+  never reaches through the in-process bridge — so raising it would narrow what a
+  consumer may resolve in exchange for nothing. Recorded rather than skipped.
+
 ### Documentation
 
 - **The last step of standing this stack up was the one step nobody could

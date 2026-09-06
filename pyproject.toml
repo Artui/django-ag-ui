@@ -128,10 +128,31 @@ drf-mcp = ["djangorestframework-mcp-server>=0.37"]
 # consumer testing this package's outcome forwarding needs it, and finding that
 # out from a run that dies before the toolset is touched costs an afternoon.
 #
+# 0.27 is the floor now, and unlike the two above it this one is about what
+# happens in production rather than in a consumer's tests. A spec dispatch runs
+# on asgiref's process-wide shared thread, and Django closes connections per
+# *request* on the *request's* thread -- `django.db.connections` is thread-local,
+# so `request_finished` never reaches the connection the dispatch opened. That
+# applies here even though every AG-UI call arrives over HTTP: the request
+# finishing closes the request thread's connection and nothing else, so a
+# long-lived server accumulates one open connection on the shared thread and
+# keeps it forever. 0.27 releases what a dispatch opened and leaves what it did
+# not, which is the part that makes it safe when asgiref routes back onto a
+# caller's own thread mid-transaction.
+#
+# 0.26 raises it again, for the half a consumer's own suite has to reach: it
+# ships a streaming test double. The 0.25 double could only serve a
+# non-streamed request, and this transport always streams -- so a consumer
+# wanting to assert what its browser receives for a failed tool call, which is
+# exactly what 0.25 made expressible, had no way to drive one. The floor is
+# soft in the sense that nothing here imports it; it is stated because a
+# consumer testing this package's outcome forwarding needs it, and finding that
+# out from a run that dies before the toolset is touched costs an afternoon.
+#
 # 0.24 was the previous floor, the first release carrying drf-services>=0.49
 # after a self-nesting serializer took SpecToolset down at construction. That
 # constraint still holds and is subsumed.
-spec-tools = ["djangorestframework-pydantic-ai>=0.26"]
+spec-tools = ["djangorestframework-pydantic-ai>=0.27"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via capabilities=.
