@@ -187,6 +187,71 @@ map to a provider (e.g. `claude-…`). When the provider can't be resolved the v
 raises `ImproperlyConfigured` (set `provider=` instead). A pre-built `Model`
 instance ignores `API_KEY` / `provider=` and is used as-is.
 
+### Rehearsing the wiring before you have a key
+
+One `MODEL` string reaches no provider at all: `"test"`. Pydantic-AI's
+`infer_model` answers it with its own `TestModel` — a model that contacts nothing
+and replies locally — so the endpoint stands up and streams with **no API key, no
+provider extra and no provider account**:
+
+```python
+# settings.py — a rehearsal, not a deployment
+DJANGO_AG_UI = {"MODEL": "test"}
+```
+
+Mount the server exactly as you mean to deploy it and POST a `RunAgentInput` to
+the endpoint. A `200` carrying `Content-Type: text/event-stream`, opening on
+`RUN_STARTED` and closing on `RUN_FINISHED` with no `RUN_ERROR`, means the whole
+host side is wired.
+
+That is worth having because this stack reports its configuration errors **one
+request at a time** — the URLconf mount, the auth gate, the CSRF answer, the
+request body, the tool registry, then the model — and the credential is the
+*last* of them. Without this value the final step of standing a deployment up is
+the one step you cannot rehearse until a key exists, which is usually the step
+you least want to be debugging under time pressure.
+
+**What a green rehearsal is evidence for**, because each of these really runs:
+
+- the `path(..., server.urls)` mount and its namespaced route;
+- the authentication gate — `require_authenticated`, and your `get_user` hook if
+  you pass one (a `401` here is the gate reporting, not the model);
+- the [CSRF](#csrf) answer, under whatever middleware you deploy with;
+- the `RunAgentInput` parse, so a client sending the wrong shape meets its `400`
+  during the rehearsal rather than after it;
+- the settings path itself: `DJANGO_AG_UI` is read at construction, so a key you
+  misspelled is a key that is still missing at `"test"`;
+- your [`ToolRegistry`][django_ag_ui.ToolRegistry] — the tools are advertised to
+  the model and **executed**, so a tool that raises when called, or reaches a
+  table that does not exist, surfaces here;
+- the AG-UI event encoding and the SSE response, including whether your server is
+  actually ASGI (under WSGI the response buffers and the view warns).
+
+**What it is not evidence for.** Nothing downstream of the model is exercised, so
+a rehearsal cannot tell you that your key is valid, that the provider extra for
+your real `MODEL` is installed, that the provider is reachable from your network,
+or anything about the answers a real model gives — its tool choices, its output,
+its latency or its token budget. Those failures are still ahead of you; the point
+is that they are now the *only* ones ahead of you.
+
+!!! warning "It calls your tools, and it does not read the prompt"
+    `TestModel` defaults to calling **every** registered tool with synthesised
+    arguments, whatever the user message says — including tools marked
+    `destructive=True`, which no server-side gate stops unless you have turned
+    [`TOOL_GUARD`](#tool_guard) on. Rehearse against a scratch database, not a
+    populated one.
+
+`"test"` is answered before any provider prefix is parsed, so it behaves the same
+whether or not [`API_KEY`](#api_key) or [`provider=`](#provider) happens to be
+set — rehearsing on a machine that already carries a key means changing one
+setting, not two.
+
+This is a different thing from passing `model=TestModel()` to a server in your
+own test suite, which the [Quickstart](quickstart.md#4-optional-override-per-mount)
+shows: that injects a double into a *test*, deliberately bypassing settings.
+The `"test"` string goes **through** the settings path, which is the part of a
+deployment a rehearsal is meant to check.
+
 ## `API_KEY`
 
 An explicit provider API key. When set (and `MODEL` is a `provider:name`

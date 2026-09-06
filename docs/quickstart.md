@@ -37,6 +37,16 @@ DJANGO_AG_UI = {
 }
 ```
 
+!!! tip "No key yet? Walk the rest of this page anyway"
+    `"MODEL": "test"` resolves to Pydantic-AI's `TestModel`, which talks to no
+    provider — so everything below (the mount, the auth gate, the tool registry,
+    the SSE stream) stands up and runs end to end with no API key, no provider
+    extra and no provider account. It exercises your wiring, not your
+    credential; see
+    [Rehearsing the wiring before you have a key](configuration.md#rehearsing-the-wiring-before-you-have-a-key)
+    for what a green run does and does not prove, and for the one caveat that
+    bites — `TestModel` calls every registered tool, destructive ones included.
+
 ## 2. Register tools
 
 A [`ToolRegistry`][django_ag_ui.ToolRegistry] is an instance — build one and
@@ -128,6 +138,10 @@ from pydantic_ai.models.test import TestModel
 
 agent = AGUIServer(registry, model=TestModel())
 ```
+
+That is for **your** test suite, and it bypasses settings on purpose. To rehearse
+a **deployment** — the settings read included — set `"MODEL": "test"` instead
+(see [step 1](#1-configure-the-model)).
 
 !!! warning "CSRF and cookie-authenticated deployments"
     CSRF is exempt unless you say otherwise — right for header-token auth
