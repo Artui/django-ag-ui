@@ -71,7 +71,12 @@ The AG-UI stack design doc (`django-ag-ui-plan.md`) lives in the private ecosyst
     serialisation boundaries.
 12. **Tool callables are typed.** Every registered tool declares typed parameters and a typed
     return — no `**kwargs: Any` escape hatches. The registry uses signatures to derive JSON
-    Schema for AG-UI's tool definitions; an untyped tool breaks the schema.
+    Schema for AG-UI's tool definitions, and an untyped tool **degrades** that schema rather
+    than refusing it: registration succeeds and every parameter is advertised as a bare
+    string, so the model is told less than the truth and nothing anywhere reports it. That is
+    worse than a failure, which is why this is a rule rather than a preference — checked
+    2026-09-06, because the line here previously read "breaks the schema" and a reader could
+    reasonably take that as "raises".
 
 ## Security boundary
 
