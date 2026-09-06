@@ -35,6 +35,11 @@ Each maps to the corresponding `pydantic-ai-slim` provider extra:
 | `django-ag-ui[openai]` | `pydantic-ai-slim[openai]` |
 | `django-ag-ui[google]` | `pydantic-ai-slim[google]` |
 
+No extra is needed to stand the endpoint up and stream from it: setting
+`"MODEL": "test"` uses Pydantic-AI's built-in `TestModel`, which reaches no
+provider. See
+[Rehearsing the wiring before you have a key](configuration.md#rehearsing-the-wiring-before-you-have-a-key).
+
 When you set [`API_KEY` or `provider=`](configuration.md#api_key) so the model is
 built with an explicit key, the `MODEL` string's `provider:` prefix may be **any
 provider Pydantic-AI knows** (`anthropic`, `openai`, `openai-responses`,

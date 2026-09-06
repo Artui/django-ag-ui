@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **The last step of standing this stack up was the one step nobody could
+  rehearse.** Configuration errors surface one HTTP request at a time — the
+  mount, the auth gate, the CSRF answer, the request body, the tool registry,
+  then the model — and the model is where a genuine provider credential is
+  finally required. So a consumer waiting on an API key could not find out
+  whether anything *else* was wired until the key arrived, which is the worst
+  moment to be discovering a misspelled settings key.
+
+  `DJANGO_AG_UI["MODEL"] = "test"` already answered this and was documented
+  nowhere: Pydantic-AI's `infer_model` maps that one string to its own
+  `TestModel` before it parses a provider prefix, and `_resolve_model_value`
+  passes a model string through untouched, so the endpoint mounts, gates,
+  parses, runs its tools and streams `RUN_STARTED` through `RUN_FINISHED` with
+  no API key, no provider extra and no provider account. Configuration now has
+  a section on it, saying what a green rehearsal is evidence for (routing, the
+  auth gate, CSRF, the `RunAgentInput` parse, the settings read itself, the tool
+  registry, the SSE encoding and whether the server is really ASGI) and what it
+  is not (a valid key, an installed provider extra, a reachable provider, or
+  anything at all about a real model's answers). The quickstart and the
+  installation page point at it from the two places a keyless reader is
+  actually stopped.
+
+  The one caveat is documented with it, because it is not inferable: `TestModel`
+  defaults to calling **every** registered tool with synthesised arguments,
+  ignoring the user's message, destructive tools included — so a rehearsal wants
+  a scratch database. Nothing in the package changed; the behaviour is pinned by
+  new tests that drive the recipe as written, through a real `path()` mount and
+  the settings path rather than the `model=TestModel()` constructor override the
+  rest of the suite uses.
+
 ## [0.57.0] — 2026-09-05
 
 ### Fixed
