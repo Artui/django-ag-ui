@@ -14,6 +14,17 @@
       "runId": "run-fixture"
     },
     {
+      "type": "TEXT_MESSAGE_START",
+      "timestamp": 1735689600000,
+      "messageId": "message-1",
+      "role": "assistant"
+    },
+    {
+      "type": "TEXT_MESSAGE_END",
+      "timestamp": 1735689600000,
+      "messageId": "message-1"
+    },
+    {
       "type": "TOOL_CALL_START",
       "timestamp": 1735689600000,
       "toolCallId": "call-1",
@@ -114,6 +125,17 @@
       "toolCallId": "call-1",
       "content": "Three passages mention settlement.",
       "role": "tool"
+    },
+    {
+      "type": "TEXT_MESSAGE_START",
+      "timestamp": 1735689600000,
+      "messageId": "message-3",
+      "role": "assistant"
+    },
+    {
+      "type": "TEXT_MESSAGE_END",
+      "timestamp": 1735689600000,
+      "messageId": "message-3"
     },
     {
       "type": "TOOL_CALL_START",

@@ -80,7 +80,16 @@ dependencies = [
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
-    "pydantic-ai-slim[ag-ui]>=2,<3",
+    # The floor buys a stream in which every TOOL_CALL_START names an assistant
+    # message the stream actually announced. A response whose first part is a
+    # tool call has no text to open that message with, and below this floor the
+    # `parentMessageId` was emitted anyway, naming a message no event carried --
+    # a client could only answer by minting an id of its own, which then matches
+    # nothing in the history echoed back. From here an empty message is opened
+    # and closed there instead. Load-bearing rather than tidy: the wire fixture
+    # the browser lane builds against is generated from this endpoint, and below
+    # this version it regenerates differently.
+    "pydantic-ai-slim[ag-ui]>=2.37,<3",
     # Two lifecycles are gated here, and the later one sets the floor. The
     # tool-approval interrupt/resume lifecycle (RUN_FINISHED outcomes +
     # RunAgentInput.resume) needs 0.1.19 (INTERRUPTS_VERSION); a delegated
