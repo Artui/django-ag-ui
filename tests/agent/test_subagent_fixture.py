@@ -107,6 +107,33 @@ def test_a_delegation_is_keyed_to_a_tool_call_the_client_already_saw() -> None:
     assert linked <= drawn
 
 
+def test_every_tool_call_names_a_message_the_stream_announced() -> None:
+    # `TOOL_CALL_START` carries the assistant message its call belongs to, and a
+    # response whose first part is a tool call has no text to open that message
+    # with. Until pydantic-ai 2.37 the id was emitted anyway and named a message
+    # no event in the stream carried: a client could only answer by minting one
+    # of its own, whose id then matches nothing in the history echoed back, so a
+    # replayed conversation cannot be told from new input.
+    #
+    # 2.37 opens and closes an empty message there instead, which is why this
+    # fixture gained two envelopes carrying no content. Asserted as the property
+    # rather than left to the byte comparison above, because that test says the
+    # wire moved and this one says which way.
+    announced = {
+        event["messageId"]
+        for event in _document()["events"]
+        if event["type"] == "TEXT_MESSAGE_START"
+    }
+    parents = {
+        event["parentMessageId"]
+        for event in _document()["events"]
+        if event["type"] == "TOOL_CALL_START" and event.get("parentMessageId") is not None
+    }
+
+    assert parents, "the scenario has to contain a parented tool call for this to mean anything"
+    assert parents <= announced
+
+
 def test_the_failure_detail_rides_the_tool_result_and_not_the_progress() -> None:
     # The split the contract turns on. The progress channel names the sub-agent
     # and stops; the words the model was given travel the ordinary tool result,
