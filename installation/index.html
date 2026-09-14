@@ -856,7 +856,7 @@
 <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-ag-ui
 </span></code></pre></div>
-<p>Core dependencies are <code>django&gt;=4.2</code> and <code>pydantic-ai-slim[ag-ui]&gt;=1.0</code>. The
+<p>Core dependencies are <code>django&gt;=4.2</code> and <code>pydantic-ai-slim[ag-ui]&gt;=2.37,&lt;3</code>. The
 AG-UI wire types and the <code>AGUIAdapter</code> come from the <code>pydantic-ai-slim[ag-ui]</code>
 extra; this package does not re-implement them. The <strong>slim</strong> package ships the
 AG-UI adapter and wire types but <strong>no model-provider library</strong> — pick one via a
@@ -883,7 +883,7 @@ provider extra (see below).</p>
 </tr>
 <tr>
 <td>Pydantic-AI</td>
-<td>1.0 (with the <code>pydantic-ai-slim[ag-ui]</code> extra)</td>
+<td>2.37 (with the <code>pydantic-ai-slim[ag-ui]</code> extra)</td>
 <td>latest in the CI matrix</td>
 </tr>
 </tbody>
