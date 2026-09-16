@@ -113,13 +113,19 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
-# Floored at 0.37, the first release carrying drf-services>=0.49: a tool catalog
-# is built by walking every spec's schema, and a serializer that nests itself
-# crashed that walk. The package declares no drf-services dependency of its own
-# to state the constraint against -- its one import of it, ``unguarded_specs``,
-# is lazy and runs only when ``service_specs=`` is set, which an extra has already
-# installed -- so the extra carries it.
-drf-mcp = ["djangorestframework-mcp-server>=0.37"]
+# Floored at 0.44, where the tools that bridge lists and calls caught up with
+# drf-services' affordances. Below it a chain tool ran a step whose service's own
+# affordances refuse it, and reported success, and the ``outputSchema`` the bridge
+# hands the model as its return schema left out the ``affordances`` object
+# drf-services renders into each item of a spec declaring them. 0.44 floors
+# drf-services at 0.52 in turn. The package declares no drf-services dependency
+# of its own to state the constraint against -- its one import of it,
+# ``unguarded_specs``, is lazy and runs only when ``service_specs=`` is set, which
+# an extra has already installed -- so the extra carries it.
+#
+# 0.37 was the previous floor, the first release carrying drf-services>=0.49
+# after a serializer that nests itself crashed the catalog walk. Subsumed.
+drf-mcp = ["djangorestframework-mcp-server>=0.44"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
 # pydantic-ai's SpecCapability -- no MCP server in the path (service_specs=).
 # Floored at 0.25, the release that raises ToolFailed for a terminal failure
@@ -139,7 +145,7 @@ drf-mcp = ["djangorestframework-mcp-server>=0.37"]
 # consumer testing this package's outcome forwarding needs it, and finding that
 # out from a run that dies before the toolset is touched costs an afternoon.
 #
-# 0.27 is the floor now, and unlike the two above it this one is about what
+# 0.27 raised it again, and unlike the two above that raise was about what
 # happens in production rather than in a consumer's tests. A spec dispatch runs
 # on asgiref's process-wide shared thread, and Django closes connections per
 # *request* on the *request's* thread -- `django.db.connections` is thread-local,
@@ -151,10 +157,16 @@ drf-mcp = ["djangorestframework-mcp-server>=0.37"]
 # not, which is the part that makes it safe when asgiref routes back onto a
 # caller's own thread mid-transaction.
 #
-# 0.24 was the previous floor, the first release carrying drf-services>=0.49
+# 0.28 is the floor now, for what the model is told rather than what runs: a
+# spec tool's return schema declares the ``affordances`` object drf-services
+# renders into each item of a spec declaring them. Below it the model was handed
+# items carrying a key the schema said did not exist. 0.28 floors drf-services at
+# 0.51 in turn.
+#
+# 0.24 was the floor before these, the first release carrying drf-services>=0.49
 # after a self-nesting serializer took SpecToolset down at construction. That
 # constraint still holds and is subsumed.
-spec-tools = ["djangorestframework-pydantic-ai>=0.27"]
+spec-tools = ["djangorestframework-pydantic-ai>=0.28"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via capabilities=.
@@ -190,9 +202,9 @@ dev = [
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
-    "djangorestframework-mcp-server>=0.37",
+    "djangorestframework-mcp-server>=0.44",
     # The [spec-tools] extra's backing package, so its capability + tests run in dev.
-    "djangorestframework-pydantic-ai>=0.24",
+    "djangorestframework-pydantic-ai>=0.28",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised

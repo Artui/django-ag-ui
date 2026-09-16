@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The `[drf-mcp]` extra is floored at `djangorestframework-mcp-server>=0.44`
+  (was `>=0.37`).** `drf_mcp_server=` reaches the agent through
+  django-pydantic-agent's in-process bridge, and below 0.44 two things went wrong
+  once that server's specs declared drf-services affordances: a chain tool ran a
+  step whose service's own affordances refuse it and reported success, and the
+  `outputSchema` handed to the model as its return schema left out the
+  `affordances` object each rendered item carries. 0.44 floors
+  `djangorestframework-services` at 0.52 in turn.
+
+- **The `[spec-tools]` extra is floored at `djangorestframework-pydantic-ai>=0.28`
+  (was `>=0.27`).** Below it, a `service_specs=` tool advertised a return schema
+  without the `affordances` object drf-services renders into each item of a spec
+  declaring them, so the model read a key the schema said did not exist. 0.28
+  floors `djangorestframework-services` at 0.51 in turn.
+
+  Both dev-group pins move with their extras (the `djangorestframework-pydantic-ai`
+  one had stayed at `>=0.24` through the extra's last three raises), and `uv.lock`
+  now resolves `djangorestframework-services` 0.52.0,
+  `djangorestframework-mcp-server` 0.44.0 and `djangorestframework-pydantic-ai`
+  0.28.0.
+
 ## [0.59.0] — 2026-09-14
 
 ### Changed
