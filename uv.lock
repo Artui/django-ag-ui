@@ -776,7 +776,7 @@ wheels = [
 
 [[package]]
 name = "djangorestframework-services"
-version = "0.49.0"
+version = "0.51.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django", version = "5.2.17", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -785,9 +785,9 @@ dependencies = [
     { name = "djangorestframework-dataclasses" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a4/1b/da882793245eeef11c81c8f39cbd6ea37307eb1c3d454fe79d29093b302a/djangorestframework_services-0.49.0.tar.gz", hash = "sha256:56ebde0141865bf4a82407dde0d659064990475192d0a5e35bc13ec7bcfd2d68", size = 661838, upload-time = "2026-08-30T15:42:27.374Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/e6/bdb179bf8f218c6a61f5e4e48a83fab6204e67c9d66e2841374750d23f9e/djangorestframework_services-0.51.0.tar.gz", hash = "sha256:a2ac40c336eb784702764dce88891557cfbe5f4c4cd280b7cfffeb853f424bb9", size = 735461, upload-time = "2026-09-16T14:05:57.853Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ca/10/66334d7349caf8d97b1cbb26e798f73527ec3382fce454bba9c2de517bb2/djangorestframework_services-0.49.0-py3-none-any.whl", hash = "sha256:fceebfa5abd50b2645a068def7353af5297ca3da9ee5d0e9c96d2118cdbba657", size = 299832, upload-time = "2026-08-30T15:42:25.742Z" },
+    { url = "https://files.pythonhosted.org/packages/20/62/e39ae1b88f7777ebf76a7e4342dfb039ca4ef69a81dc4114a8f5ce3c92ee/djangorestframework_services-0.51.0-py3-none-any.whl", hash = "sha256:6aec2ab7f220e875530712fcdddf8b91e441c5be7bb830e61aee4c66d2a60c44", size = 330669, upload-time = "2026-09-16T14:05:56.388Z" },
 ]
 
 [[package]]
