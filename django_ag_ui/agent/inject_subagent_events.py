@@ -10,14 +10,7 @@ from typing import Any
 from ag_ui.core import BaseEvent
 
 from django_ag_ui.agent.subagent_observer import SUBAGENT_SINK
-
-_END = object()
-"""Queued by the pump to say the upstream stream is exhausted.
-
-A sentinel rather than letting ``StopAsyncIteration`` out of the pump: raised
-inside a task it is not the loop-ending signal it is inside an ``async for``,
-and asyncio turns it into a bare ``RuntimeError`` on the way through.
-"""
+from django_ag_ui.agent.utils import STREAM_END, discard_tasks, pump_in_lockstep
 
 
 async def inject_subagent_events(stream: AsyncIterator[BaseEvent]) -> AsyncIterator[BaseEvent]:
@@ -37,23 +30,14 @@ async def inject_subagent_events(stream: AsyncIterator[BaseEvent]) -> AsyncItera
     every progress event a five-minute delegation produced would arrive in one
     burst *after* it finished, which describes the stall rather than fixing it.
 
-    **Upstream is pumped by one long-lived task, and its lifetime is the reason.**
-    Racing means awaiting upstream as a future, and a future is a task, and a
-    task runs in a *copy* of the context. One task per ``__anext__`` would
-    therefore hand the upstream generators a different context on every step --
-    which breaks them, because that is precisely where the sibling injectors set
-    and reset their own sinks, and where the tools that write into those sinks
-    run. One task for the whole stream keeps the upstream chain in a single
-    context from first event to last, exactly as it was before anything raced.
-
-    **The pump is kept in lockstep** -- it asks upstream for the next event only
-    once this generator has yielded the previous one, which is exactly when a
-    plain ``async for`` would have asked. That preserves the client's
-    backpressure (a browser that stops reading stops the run), and it is also
-    what makes the interleaving *true*: a pump allowed to run even one event
-    ahead would let progress announced while producing event N+1 overtake event
-    N, and the client would see a delegation start before the tool call that
-    started it.
+    **Upstream is pumped by one long-lived task, kept in lockstep** --
+    [`pump_in_lockstep`][django_ag_ui.agent.utils.pump_in_lockstep], which is
+    where both halves of that are argued. The short of it: racing means awaiting
+    upstream as a future, one future per step would hand the upstream generators
+    a fresh context copy each time and break the very sinks the siblings set, and
+    a pump allowed to run an event ahead would let progress announced while
+    producing event N+1 overtake event N -- so the client would see a delegation
+    start before the tool call that started it.
 
     Applied unconditionally, for the reason the siblings give: it is inert unless
     something announces during the run, and a flag would mean a second way to
@@ -66,7 +50,7 @@ async def inject_subagent_events(stream: AsyncIterator[BaseEvent]) -> AsyncItera
     progress: asyncio.Queue[BaseEvent] = asyncio.Queue()
     token = SUBAGENT_SINK.set(progress)
     events: asyncio.Queue[Any] = asyncio.Queue(maxsize=1)
-    pump = asyncio.ensure_future(_pump(stream, events))
+    pump = asyncio.ensure_future(pump_in_lockstep(stream, events))
     next_event: asyncio.Task[Any] | None = None
     next_progress: asyncio.Task[BaseEvent] | None = None
     ended = False
@@ -96,7 +80,7 @@ async def inject_subagent_events(stream: AsyncIterator[BaseEvent]) -> AsyncItera
                 continue
             item = next_event.result()
             next_event = None
-            if item is _END:
+            if item is STREAM_END:
                 ended = True
                 continue
             if isinstance(item, BaseException):
@@ -113,50 +97,7 @@ async def inject_subagent_events(stream: AsyncIterator[BaseEvent]) -> AsyncItera
         # cleared belongs to a context that is itself ending.
         with contextlib.suppress(ValueError):
             SUBAGENT_SINK.reset(token)
-        # Awaited, not merely cancelled. The pump holds the upstream chain, and
-        # returning while that is still unwinding leaves the generator "already
-        # running" for whoever closes it next -- which on the disconnect path is
-        # ``guarded_stream``, one frame out, closing the provider's stream.
-        await _discard(pump, next_event, next_progress)
-
-
-async def _pump(stream: AsyncIterator[BaseEvent], out: asyncio.Queue[Any]) -> None:
-    """Move ``stream`` into ``out`` one event at a time, then say how it ended.
-
-    ``join`` is what makes it lockstep: the next ``__anext__`` waits for the
-    consumer's ``task_done``, so upstream advances no sooner than it would have
-    under a plain ``async for``.
-
-    An exception is queued rather than raised so it reaches the consumer in
-    order, behind the events that preceded it, instead of surfacing out of band
-    as a task nobody awaited.
-
-    Upstream is closed on the way out, and that is what a pump owes back. A
-    cancelled pump is a consumer that has gone away, and its cancellation lands
-    on ``join`` as often as inside ``__anext__`` -- which leaves the upstream
-    generator suspended at its own yield with its ``finally`` unrun, waiting on
-    garbage collection. Closing it here is the same obligation ``guarded_stream``
-    discharges one frame further out for the provider's own stream.
-    """
-    try:
-        async for event in stream:
-            await out.put(event)
-            await out.join()
-        await out.put(_END)
-    except Exception as error:
-        await out.put(error)
-    finally:
-        aclose = getattr(stream, "aclose", None)
-        if aclose is not None:
-            await aclose()
-
-
-async def _discard(*tasks: asyncio.Future[Any] | None) -> None:
-    """Cancel whichever of ``tasks`` are still live, and wait for them to settle."""
-    live = [task for task in tasks if task is not None]
-    for task in live:
-        task.cancel()
-    await asyncio.gather(*live, return_exceptions=True)
+        await discard_tasks(pump, next_event, next_progress)
 
 
 __all__ = ["inject_subagent_events"]

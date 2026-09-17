@@ -162,6 +162,11 @@ instance. On each POST it:
 5. Wraps the agent in a `pydantic_ai.ui.ag_ui.AGUIAdapter` and streams its
    encoded events as a `StreamingHttpResponse` with `Content-Type:
    text/event-stream`, `Cache-Control: no-cache`, and `X-Accel-Buffering: no`.
+   A stream silent for longer than
+   [`HEARTBEAT_SECONDS`](configuration.md#heartbeat_seconds) also carries SSE
+   comment frames, so a proxy counting idle seconds does not sever a run that is
+   still thinking. Comments are ignored by every conformant `EventSource`, so
+   nothing downstream sees them as events.
 
 Non-POST methods get `405 Method Not Allowed`.
 

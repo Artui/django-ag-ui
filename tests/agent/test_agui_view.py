@@ -1219,3 +1219,134 @@ class TestTheThrottleHook:
         view = DjangoAGUIView(_registry(), model=TestModel())
 
         assert isinstance(await view(_post(_run_input("double 5"))), StreamingHttpResponse)
+
+
+def _gated_model(release: asyncio.Event):  # noqa: ANN202
+    """A model that streams a partial answer, stalls on ``release``, then finishes.
+
+    The shape the heartbeat exists for, and the one no other fixture here
+    produces: a run that is alive and silent. ``_blocking_model`` above never
+    finishes, so it cannot show the beat stopping.
+    """
+    from pydantic_ai.models.function import FunctionModel
+
+    async def stream_fn(messages, info):  # noqa: ANN001, ANN202
+        yield "partial "
+        await release.wait()
+        yield "answer"
+
+    return FunctionModel(stream_function=stream_fn)
+
+
+class TestHeartbeat:
+    """The endpoint's side of the idle-proxy problem.
+
+    ``tests/agent/test_heartbeat_stream.py`` proves what the wrapper writes and
+    that an ``EventSource`` drops it. These prove the endpoint actually applies
+    it -- the wiring is the part a refactor silently loses.
+    """
+
+    HEARTBEAT = ": django-ag-ui heartbeat\n\n"
+    INTERVAL = 0.02
+
+    @staticmethod
+    def _consume_into(response: StreamingHttpResponse, sink: list[str]) -> Any:
+        async def _run() -> None:
+            async for chunk in response.streaming_content:
+                sink.append(chunk if isinstance(chunk, str) else chunk.decode())
+
+        return asyncio.ensure_future(_run())
+
+    @staticmethod
+    async def _until(predicate: Any, *, timeout: float = 5.0) -> None:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while not predicate():
+            if loop.time() > deadline:
+                raise AssertionError("the response never reached the expected state")
+            await asyncio.sleep(0.005)
+
+    async def test_a_stalled_run_keeps_bytes_on_the_wire(self) -> None:
+        """The whole point: a run that is thinking emits nothing of its own, and
+        a proxy counting idle seconds cannot tell that from a dead backend."""
+        release = asyncio.Event()
+        view = DjangoAGUIView(
+            _registry(),
+            model=_gated_model(release),
+            config=build_ag_ui_config(heartbeat_seconds=self.INTERVAL),
+        )
+        response = await view(_post(_run_input("hi")))
+        chunks: list[str] = []
+        consumer = self._consume_into(response, chunks)
+
+        await self._until(lambda: chunks.count(self.HEARTBEAT) >= 3)
+        release.set()
+        await consumer
+
+        body = "".join(chunks)
+        assert self.HEARTBEAT in body
+        # The run still completed, and the beats did not displace or reorder it.
+        assert body.index("RUN_STARTED") < body.index("RUN_FINISHED")
+        assert "partial " in body
+        # Nothing beat after the run ended.
+        assert chunks[-1] != self.HEARTBEAT
+
+    async def test_the_beat_is_invisible_to_an_event_source_client(self) -> None:
+        """Every heartbeat line is an SSE comment, so no ``event:`` line in the
+        response is ever one -- which is what makes it safe to add to a protocol
+        stream nobody is going to re-teach."""
+        release = asyncio.Event()
+        view = DjangoAGUIView(
+            _registry(),
+            model=_gated_model(release),
+            config=build_ag_ui_config(heartbeat_seconds=self.INTERVAL),
+        )
+        response = await view(_post(_run_input("hi")))
+        chunks: list[str] = []
+        consumer = self._consume_into(response, chunks)
+        await self._until(lambda: self.HEARTBEAT in chunks)
+        release.set()
+        await consumer
+
+        body = "".join(chunks)
+        assert self.HEARTBEAT in body
+        lines = body.split("\n")
+        assert any(line.startswith(":") for line in lines)
+        # Nothing a client reads as a field carries the heartbeat's text.
+        assert not any(
+            line.startswith(("event:", "data:")) and "heartbeat" in line for line in lines
+        )
+
+    @override_settings(DJANGO_AG_UI={"HEARTBEAT_SECONDS": 0})
+    async def test_zero_disables_it(self) -> None:
+        """An endpoint not behind an idle-timeout proxy can turn it off, and then
+        the stream is byte-for-byte what it was before this existed."""
+        release = asyncio.Event()
+        view = DjangoAGUIView(_registry(), model=_gated_model(release))
+        response = await view(_post(_run_input("hi")))
+        chunks: list[str] = []
+        consumer = self._consume_into(response, chunks)
+
+        # Far longer than the default interval would have needed.
+        await asyncio.sleep(0.2)
+        assert not any(chunk.startswith(":") for chunk in chunks)
+        release.set()
+        await consumer
+
+        assert "RUN_FINISHED" in "".join(chunks)
+
+    async def test_a_disconnect_mid_beat_still_tears_the_provider_stream_down(self) -> None:
+        """The wrapper sits inside ``guarded_stream``, so the guard's contract has
+        to be unchanged by it -- including when the cancellation lands while the
+        heartbeat, not the run, is what the task is parked in."""
+        model_stream_closed = asyncio.Event()
+        view = DjangoAGUIView(
+            _registry(),
+            model=_blocking_model(model_stream_closed),
+            config=build_ag_ui_config(heartbeat_seconds=self.INTERVAL),
+        )
+        response = await view(_post(_run_input("hi")))
+
+        await _cancel_mid_stream(response, self.HEARTBEAT)
+
+        assert model_stream_closed.is_set()
