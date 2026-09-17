@@ -1156,7 +1156,7 @@ mutation in, so one setting covers the tools wherever they came from:
 A tool is gated when it is destructive **or** named in `REQUIRE_APPROVAL`,
 **unless** it is named in `EXEMPT`. Silence is not a claim: a tool declaring
 nothing is left alone, and `REQUIRE_APPROVAL` is the answer for it. The last two
-vocabularies need django-pydantic-agent 0.18, this package's floor.
+vocabularies need django-pydantic-agent 0.18, which this package's floor is above.
 
 The gate is only useful with a client that renders the interrupt and resumes —
 the web component's approval card is the front-end half of this feature; a bespoke

@@ -9,6 +9,7 @@ from django.test import RequestFactory
 from django_pydantic_agent.agent.types.agent_deps import AgentDeps
 from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
 from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
+from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai import Agent, ToolFailed
 from pydantic_ai.messages import (
     FunctionToolResultEvent,
@@ -20,15 +21,18 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 from pydantic_ai.models.function import DeltaToolCall, FunctionModel
+from pydantic_ai.models.test import TestModel
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
+from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.outcome_agui_adapter import (
     OUTCOME_FIELD,
     OutcomeAGUIAdapter,
     _OutcomeEventStream,
 )
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from tests.authed_request_factory import AuthedRequestFactory
 
 # --- driving the event stream directly ---------------------------------------
 #
@@ -280,6 +284,54 @@ async def test_a_failed_call_reaches_the_browser_marked_failed() -> None:
     assert '"outcome":"failed"' in joined
     # The run survived the failure -- the model answered after reading it, which
     # is what separates a failed *call* from a failed run.
+    assert "RUN_ERROR" not in joined
+
+
+async def test_a_refused_drf_mcp_tool_reaches_the_browser_marked_failed() -> None:
+    """The same marking for a tool bridged from ``drf_mcp_server=``.
+
+    That bridge is django-pydantic-agent's, and below its 0.23 it *returned* the
+    server's refusal as ``{"error": ...}``, the tool's value, which pydantic-ai
+    records as a success: the result above reached the browser with no
+    ``outcome`` at all, and a refused call rendered as a completed one. This is
+    the test holding the ``django-pydantic-agent>=0.23`` floor.
+    """
+    from tests.integrations.drf_server import server as drf_server
+
+    view = DjangoAGUIView(ToolRegistry(), model=TestModel(), drf_mcp_server=drf_server)
+    request = AuthedRequestFactory().post("/agent/")
+    (bridge,) = view._run_toolsets(request)
+
+    async def stream_fn(messages: list[Any], info: Any) -> Any:
+        returned = any(
+            getattr(part, "part_kind", "") == "tool-return"
+            for message in messages
+            for part in getattr(message, "parts", [])
+        )
+        if returned:
+            yield "done"
+        else:
+            args = json.dumps({"a": 1, "b": 2})
+            yield {0: DeltaToolCall(name="denied", json_args=args, tool_call_id="call-1")}
+
+    session = AgentSession(
+        Agent(FunctionModel(stream_function=stream_fn), toolsets=[bridge]),
+        _run_input(),
+        request,
+        deps=AgentDeps(user=request.user),
+        audit_logger=NullAuditLogger(),
+        config=build_ag_ui_config(),
+        conversation_store=NullConversationStore(),
+    )
+    joined = "".join([chunk async for chunk in session.stream()])
+
+    (result,) = [
+        json.loads(line.removeprefix("data: "))
+        for line in joined.splitlines()
+        if line.startswith("data: ") and '"TOOL_CALL_RESULT"' in line
+    ]
+    assert result["outcome"] == "failed"
+    assert result["content"] == "denied by policy"
     assert "RUN_ERROR" not in joined
 
 
