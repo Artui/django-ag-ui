@@ -229,4 +229,3 @@ guides.
 ::: django_pydantic_agent.integrations.drf_mcp.DRFMCPToolset
 
 ::: django_pydantic_agent.agent.attachment_toolset.build_attachment_toolset
-</content>

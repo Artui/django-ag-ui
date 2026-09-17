@@ -685,4 +685,3 @@ with no network MCP hop.
 
 The bridge is imported lazily, only when `drf_mcp_server=` is set, keeping
 `rest_framework_mcp` an optional dependency.
-</content>

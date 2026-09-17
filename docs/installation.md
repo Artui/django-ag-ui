@@ -109,4 +109,3 @@ This pulls in `djangorestframework-mcp-server` (which in turn pulls
 only when a `drf_mcp_server=` is passed, so the dependency stays
 optional for projects that do not use it. See
 [Configuration → `drf_mcp_server=`](configuration.md#drf_mcp_server).
-</content>
