@@ -232,4 +232,3 @@ the drf-mcp tools, using their `display_name` as the label. See
 - [Configuration](configuration.md) for every settings key.
 - [Key concepts](concepts.md) for how the registry, audit logger, streaming,
   and persistence fit together.
-</content>

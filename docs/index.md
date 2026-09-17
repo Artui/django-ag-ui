@@ -83,5 +83,3 @@ multi-worker deployments are safe.
 - [Key concepts](concepts.md) — registry, audit, streaming, persistence, the
   drf-mcp bridge.
 - [API reference](api.md) — autodoc of the public surface.
-</content>
-</invoke>

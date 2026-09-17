@@ -832,7 +832,6 @@ from myproject.mcp import server as mcp_server
 
 AGUIServer(registry, drf_mcp_server=mcp_server)
 ```
-</content>
 
 ## `service_specs=`
 
