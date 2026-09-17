@@ -31,10 +31,8 @@ async def heartbeat_stream(stream: AsyncIterator[str], *, interval: float) -> As
     like one.** An idle-timeout proxy closes a connection with no bytes in either
     direction for N seconds; an agent that thinks, or waits on a slow tool call,
     for longer than N emits nothing in that window. The client sees a dead
-    connection where an answer was coming, with no error from either end saying
-    so -- the run carries on server-side and finishes into a socket nobody is
-    reading. Measured against the default that bit us: AWS ALB's
-    ``idle_timeout`` is 60s, and so is nginx's ``proxy_read_timeout``.
+    connection where an answer was coming. AWS ALB's ``idle_timeout`` defaults
+    to 60s, and so does nginx's ``proxy_read_timeout``.
 
     **It belongs here rather than in a consumer's infrastructure.** Raising the
     load balancer's timeout does work, and is the wrong shape: ``idle_timeout``
@@ -69,9 +67,10 @@ async def heartbeat_stream(stream: AsyncIterator[str], *, interval: float) -> As
     or takes the run's cancellation at its own ``await``, the ``finally`` cancels
     the pump and waits for it -- and the pump closes upstream on its way out, so
     nothing is left for garbage collection to notice and no task outlives the
-    run. ``guarded_stream`` stays the outermost frame and its contract is
-    unchanged: on the cancellation path the chain below has already unwound by
-    the time it catches.
+    run. ``guarded_stream`` stays the outermost frame, and on a disconnect it
+    closes this generator before the provider's stream: a beat reaches the client
+    exactly while the pump is inside that stream, which cannot be closed until
+    the pump has let go of it.
     """
     chunks: asyncio.Queue[Any] = asyncio.Queue(maxsize=1)
     pump = asyncio.ensure_future(pump_in_lockstep(stream, chunks))

@@ -237,6 +237,10 @@ dev = [
     # Floored with the ``anthropic`` extra above, for the reason given there --
     # the floor job resolves this group too.
     "pydantic-ai-slim[anthropic,openai,google]>=2.33",
+    # A real ASGI server for the heartbeat's wire test. Every in-process client
+    # reads a response it already holds, so whether a frame reaches the socket
+    # *during* a silence -- the only thing an idle proxy sees -- needs a socket.
+    "uvicorn>=0.30",
 ]
 docs = [
     "mkdocs>=1.6",

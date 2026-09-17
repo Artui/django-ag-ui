@@ -158,13 +158,13 @@ class AGUIConfig:
     An idle-timeout proxy closes a connection with no bytes in either direction
     for N seconds, and an agent that thinks -- or waits on a slow tool call --
     for longer than N sends nothing in that window. The client sees a dead
-    connection where an answer was coming. Measured: AWS ALB's ``idle_timeout``
+    connection where an answer was coming. AWS ALB's ``idle_timeout``
     defaults to 60s and nginx's ``proxy_read_timeout`` to the same.
 
     The default of 15s is a quarter of that 60, deliberately: the beat is a
     coroutine on the same event loop as the run, so a tool that blocks the loop
     delays it, and at 15s three consecutive beats can be lost before the tightest
-    common timeout is reached. A silent ten-minute run costs 40 frames of 25
+    common timeout is reached. A silent ten-minute run costs 40 frames of 26
     bytes.
 
     ``0`` disables it, which also skips the wrapper entirely -- an endpoint that

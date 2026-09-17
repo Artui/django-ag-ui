@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from typing import Any
 
 _logger = logging.getLogger("django_ag_ui.agent")
@@ -21,6 +21,7 @@ async def guarded_stream(
     *,
     native_events: AsyncIterator[Any],
     on_cancel: Callable[[], Awaitable[None]],
+    racing_stages: Sequence[AsyncIterator[Any]] = (),
 ) -> AsyncIterator[str]:
     """Yield ``stream`` through; on client-disconnect cancellation, tear down and observe.
 
@@ -41,6 +42,21 @@ async def guarded_stream(
     orphaned generation stops billing. On the ``CancelledError`` path the chain
     has already unwound and the ``aclose()`` is a no-op.
 
+    **``racing_stages`` are closed first, outermost first, and after ``stream``
+    itself.** A racing stage drives its upstream from a task of its own so it can
+    write while upstream is blocked, which means the frames it writes reach the
+    client exactly while that task is inside the provider's stream. A
+    ``GeneratorExit`` delivered at such a frame finds ``native_events`` running,
+    and closing it raises "already running" instead of stopping the generation.
+    Closing the stage cancels its task and waits for it, and only then is the
+    provider's stream closable. Outermost first because a stage nested inside
+    another's task is itself running until the outer one lets go.
+
+    Only the racing stages are listed, not every generator in the chain. The rest
+    are not holding anything open, and several of them reset a context variable
+    on the way out: closed from this task rather than the one that iterated them,
+    that reset raises.
+
     ``on_cancel`` then persists / audits the cancelled run, **shielded and time
     bounded**. Shielded because this already runs inside the cancellation: a
     second one delivered mid-write would otherwise abort the store call and take
@@ -54,17 +70,9 @@ async def guarded_stream(
         async for chunk in stream:
             yield chunk
     except (asyncio.CancelledError, GeneratorExit) as cancellation:
-        try:
-            aclose = getattr(native_events, "aclose", None)
-            if aclose is not None:
-                await aclose()
-        except (Exception, asyncio.CancelledError):
-            # Its own handler, so a teardown that blows up does not also cost
-            # the run its record: closing the provider's stream and observing
-            # what the run did are two separate obligations.
-            _logger.exception(
-                "django-ag-ui: error while closing a cancelled run's provider stream",
-            )
+        for stage in (stream, *racing_stages):
+            await _close_quietly(stage, "stream stage")
+        await _close_quietly(native_events, "provider stream")
         finalize = asyncio.ensure_future(_finalize_quietly(on_cancel))
         try:
             await asyncio.wait_for(asyncio.shield(finalize), _FINALIZE_TIMEOUT_SECONDS)
@@ -75,6 +83,21 @@ async def guarded_stream(
                 _FINALIZE_TIMEOUT_SECONDS,
             )
         raise cancellation
+
+
+async def _close_quietly(iterator: AsyncIterator[Any], what: str) -> None:
+    """Close ``iterator`` if it can be closed, reporting a failure rather than raising it.
+
+    Each close has its own handler, so one that blows up neither stops the next
+    nor costs the run its record: closing the chain and observing what the run
+    did are separate obligations.
+    """
+    try:
+        aclose = getattr(iterator, "aclose", None)
+        if aclose is not None:
+            await aclose()
+    except (Exception, asyncio.CancelledError):
+        _logger.exception("django-ag-ui: error while closing a cancelled run's %s", what)
 
 
 async def _finalize_quietly(on_cancel: Callable[[], Awaitable[None]]) -> None:
