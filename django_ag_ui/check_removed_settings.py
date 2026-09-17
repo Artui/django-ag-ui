@@ -39,6 +39,7 @@ _KNOWN_SETTINGS: frozenset[str] = frozenset(
         "ATTACHMENT_ALLOWED_TYPES",
         "ATTACHMENT_MAX_BYTES",
         "FORWARD_REASONING",
+        "HEARTBEAT_SECONDS",
         "MANAGE_SYSTEM_PROMPT",
         "MODEL",
         "MODEL_SETTINGS",

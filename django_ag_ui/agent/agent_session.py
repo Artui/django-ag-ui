@@ -24,6 +24,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.build_client_context_toolset import build_client_context_toolset
 from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
 from django_ag_ui.agent.guarded_stream import guarded_stream
+from django_ag_ui.agent.heartbeat_stream import heartbeat_stream
 from django_ag_ui.agent.inject_compaction_events import inject_compaction_events
 from django_ag_ui.agent.inject_invalidation_events import inject_invalidation_events
 from django_ag_ui.agent.inject_subagent_events import inject_subagent_events
@@ -166,8 +167,16 @@ class AgentSession:
         # error callback, so the terminal event is the only hook a *failing* run
         # can be persisted from.
         observed = self._persist_on_error(events, transcript)
+        encoded = self._adapter.encode_stream(observed)
+        # Outside the encoder because what it writes is not an event: an SSE
+        # comment, which is bytes on the wire and nothing in the protocol. Inside
+        # the guard because the guard is the frame that owns disconnect, and
+        # nothing about that should change. Conditional because a disabled
+        # heartbeat should not cost a run the pump task the wrapper needs.
+        if self._config.heartbeat_seconds > 0:
+            encoded = heartbeat_stream(encoded, interval=self._config.heartbeat_seconds)
         return guarded_stream(
-            self._adapter.encode_stream(observed),
+            encoded,
             native_events=native,
             on_cancel=self._on_cancel(transcript),
         )

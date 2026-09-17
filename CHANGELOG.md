@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The SSE response now carries a heartbeat, so an idle-timeout proxy stops
+  severing runs that are still thinking.** A run emits nothing while the model
+  thinks and nothing while a slow tool call runs. Every proxy in the path is
+  counting that silence: an AWS Application Load Balancer closes a connection
+  idle for `idle_timeout` seconds — 60 by default — and nginx's
+  `proxy_read_timeout` defaults to the same 60. Past that the stream is cut
+  mid-run, and neither end reports an error: the browser sees a stream that
+  stopped, while the server finishes the run into a socket nobody is reading.
+  What a consumer observes is "long answers never arrive", which points at the
+  model rather than at the network.
+
+  What goes on the wire is an SSE **comment** (`: django-ag-ui heartbeat`),
+  emitted whenever the stream has been silent for `HEARTBEAT_SECONDS`
+  (default `15.0`; `0` disables it and skips the wrapper entirely). A line
+  beginning with a colon is ignored by the event-stream specification, so every
+  conformant `EventSource` drops it before any handler sees it — no client needs
+  teaching and none can mistake it for an AG-UI event. The tests prove that
+  rather than assert it: they parse the response with the spec's own dispatch
+  algorithm and check the events a client would see are exactly the run's.
+
+  Silence-triggered rather than a metronome. The clock is the wait for the next
+  real frame and restarts on every one, so a busy stream is never padded and the
+  guarantee is the one a proxy cares about — no more than `HEARTBEAT_SECONDS`
+  pass with nothing on the wire.
+
+  15s is a quarter of that 60, deliberately. The beat is a coroutine on the same
+  event loop as the run, so a tool that blocks the loop delays it; at 15s three
+  consecutive beats can be lost before the tightest common timeout is reached. A
+  silent ten-minute run costs 40 frames of 25 bytes.
+
+  **On by default, and in this package rather than in a deployment's
+  infrastructure.** Raising the load balancer's `idle_timeout` does work and is
+  the wrong shape: it is an attribute of the balancer, not of the route, so one
+  streaming endpoint changes the behaviour of every service sharing it. And the
+  balancer is only the proxy a consumer knows about — corporate proxies, mobile
+  carriers and CDNs each impose their own idle bound and a consumer controls
+  none of them. Bytes on the wire are the only fix that reaches all of them, and
+  this package owns the wire. The failure is also invisible from the consumer's
+  side, so an opt-in would have been found only by whoever already understood
+  the problem.
+
+  The wrapper sits inside `guarded_stream`, which stays the outermost frame with
+  its disconnect contract unchanged, and drives upstream through the same
+  single long-lived lockstep pump `inject_subagent_events` uses — now shared as
+  `agent/utils.py`, since duplicating its context and teardown semantics was the
+  larger risk. The pending `__anext__` is observed with `asyncio.wait`, never
+  `wait_for`: cancelling an async generator's `__anext__` mid-await does not
+  merely lose that item, it leaves the generator unusable for the next one.
+  Backpressure, ordering and teardown are all covered — including that no task
+  outlives a run that ends, is closed, or is cancelled.
+
+
 ## [0.60.0] — 2026-09-17
 
 ### Changed
