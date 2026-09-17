@@ -11035,14 +11035,19 @@ exactly — without the network hop. Tool definitions carry the default
 <code>external</code> tool would instead be deferred to the client and never run.</p>
 <p>Failures split three ways, along MCP's protocol-vs-tool boundary:</p>
 <ul>
-<li>JSON-RPC <code>-32602</code> and tool-level <code>validation_error</code> results raise
-  <code>pydantic_ai.ModelRetry</code>, so the model retries with the field
-  errors instead of the run dying;</li>
-<li>other tool-level failures (<code>service_error</code> / <code>not_found</code>) are returned
-  as the tool's content, for the model to read;</li>
+<li>JSON-RPC <code>-32602</code> and tool-level <code>validation_error</code> and
+  <code>input_required</code> results raise <code>pydantic_ai.ModelRetry</code>, so the model
+  calls again with the field errors fixed or the missing input supplied,
+  instead of the run dying;</li>
+<li>every other tool-level failure (<code>service_error</code>, <code>not_found</code>, a
+  timeout, an oversized result) raises <code>pydantic_ai.ToolFailed</code>, so the
+  model reads the sentence and the call is recorded <code>outcome="failed"</code>;</li>
 <li>protocol faults (auth, rate limits, an internal error) raise
   <code>RuntimeError</code> and abort the run.</li>
 </ul>
+<p>The mapping is the one <code>djangorestframework-pydantic-ai</code> applies to the same
+exceptions raised in process, and a refusal reads identically through both:
+<code>The books are closed. (code: books_closed)</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
