@@ -7,30 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.60.0] — 2026-09-16
+## [0.60.0] — 2026-09-17
 
 ### Changed
 
-- **The `[drf-mcp]` extra is floored at `djangorestframework-mcp-server>=0.44`
-  (was `>=0.37`).** `drf_mcp_server=` reaches the agent through
-  django-pydantic-agent's in-process bridge, and below 0.44 two things went wrong
-  once that server's specs declared drf-services affordances: a chain tool ran a
-  step whose service's own affordances refuse it and reported success, and the
-  `outputSchema` handed to the model as its return schema left out the
-  `affordances` object each rendered item carries. 0.44 floors
-  `djangorestframework-services` at 0.52 in turn.
+- **`django-pydantic-agent` is floored at `>=0.23` (was `>=0.21`), and a tool
+  bridged from `drf_mcp_server=` that the server refuses now reaches the browser
+  marked failed.** The bridge is django-pydantic-agent's, and below 0.23 it
+  returned a refused or failed drf-mcp call as `{"error": ...}`, the tool's
+  value, which pydantic-ai records as a success. `TOOL_CALL_RESULT` therefore
+  carried no `outcome` for a call the server refused, and a client rendered it as
+  a completed one. 0.23 raises `ToolFailed` with the server's sentence, so the
+  result carries `"outcome": "failed"`, as a `service_specs=` tool's has since
+  the `[spec-tools]` floor reached 0.25. A test drives a refused bridged tool
+  through a whole session and holds the floor.
 
-- **The `[spec-tools]` extra is floored at `djangorestframework-pydantic-ai>=0.28`
-  (was `>=0.27`).** Below it, a `service_specs=` tool advertised a return schema
+- **The `[drf-mcp]` extra is floored at `djangorestframework-mcp-server>=0.45`
+  (was `>=0.37`).** `drf_mcp_server=` reaches the agent through
+  django-pydantic-agent's in-process bridge. Below 0.44, once that server's specs
+  declared drf-services affordances, a chain tool ran a step whose service's own
+  affordances refuse it and reported success, and the `outputSchema` handed to
+  the model as its return schema left out the `affordances` object each rendered
+  item carries. 0.45 serves a refusal's `code`, which the bridge appends to the
+  failed call's text, and resolves a chain tool's `RETRIEVE` step to its row
+  before the object-level permission judges it: below it a selector returning a
+  queryset skipped that check, and a chain step rendered without an output
+  serializer answered with the text of the row the rule refuses. It also refuses
+  a `many=True` service spec at registration. 0.45 floors
+  `djangorestframework-services` at 0.52.1 in turn.
+
+- **The `[spec-tools]` extra is floored at `djangorestframework-pydantic-ai>=0.29`
+  (was `>=0.27`).** Below 0.28, a `service_specs=` tool advertised a return schema
   without the `affordances` object drf-services renders into each item of a spec
-  declaring them, so the model read a key the schema said did not exist. 0.28
-  floors `djangorestframework-services` at 0.51 in turn.
+  declaring them, so the model read a key the schema said did not exist. 0.29
+  ends a refused call's text with the rule's code, worded as the `[drf-mcp]`
+  route words the same refusal, returns `None` where a tool finds nothing rather
+  than a row of empty fields, and refuses a `many=True` service spec when the
+  toolset is built, so `service_specs=` carrying one raises
+  `ImproperlyConfigured`. 0.29 floors `djangorestframework-services` at 0.52.1
+  in turn.
 
   Both dev-group pins move with their extras (the `djangorestframework-pydantic-ai`
   one had stayed at `>=0.24` through the extra's last three raises), and `uv.lock`
-  now resolves `djangorestframework-services` 0.52.0,
-  `djangorestframework-mcp-server` 0.44.0 and `djangorestframework-pydantic-ai`
-  0.28.0.
+  now resolves `django-pydantic-agent` 0.23.0, `djangorestframework-services`
+  0.52.1, `djangorestframework-mcp-server` 0.45.0 and
+  `djangorestframework-pydantic-ai` 0.29.0.
+
+- **The installation page no longer names a `[drf-mcp]` floor**, which had read
+  `djangorestframework-mcp-server>=0.6.1` for many releases; it points at the
+  floor `pyproject.toml` declares instead.
 
 ## [0.59.0] — 2026-09-14
 

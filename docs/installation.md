@@ -78,8 +78,8 @@ tool registry to the agent in-process (no network MCP hop), install the extra:
 pip install "django-ag-ui[drf-mcp]"
 ```
 
-This pulls in `djangorestframework-mcp-server>=0.6.1` (which in turn pulls
-`djangorestframework-services>=0.15.0`). The bridge
+This pulls in `djangorestframework-mcp-server` (which in turn pulls
+`djangorestframework-services`), at the floor `pyproject.toml` declares. The bridge
 ([`DRFMCPToolset`](concepts.md#the-drf-mcp-toolset-bridge)) is imported lazily,
 only when a `drf_mcp_server=` is passed, so the dependency stays
 optional for projects that do not use it. See
