@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from django.test import RequestFactory, override_settings
 from django_pydantic_agent.agent.types.agent_deps import AgentDeps
 from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
@@ -13,7 +15,7 @@ from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
 from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
-from pydantic_ai.models.function import DeltaThinkingPart, FunctionModel
+from pydantic_ai.models.function import DeltaThinkingPart, DeltaToolCall, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.ui.ag_ui import AGUIAdapter
@@ -21,6 +23,8 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.render_untrusted_context import SENTINEL
 from django_ag_ui.agent.run_transcript import RunTranscript
+from django_ag_ui.agent.subagent_observer import SUBAGENT_SINK
+from django_ag_ui.agent.subagent_progress import subagent_progress
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 
@@ -728,6 +732,113 @@ async def test_a_failed_run_keeps_the_prefix_the_completed_run_would_have() -> N
     assert conversation.messages[2]["id"] == "m1"
     assert conversation.messages[2]["attachments"] == ATTACHMENT_MESSAGE[0]["attachments"]
     assert "tool" in [message["role"] for message in conversation.messages]
+
+
+# --- a disconnect while the provider is still streaming ----------------------------
+#
+# Two stages write to the wire while upstream is blocked: sub-agent progress, and
+# the heartbeat. Each drives upstream from a task of its own, so the moment the
+# client can see one of their frames is exactly the moment that task is inside
+# the provider's stream, and an ``aclose`` of that stream raises "already
+# running" instead of closing it. These cut the run at such a frame, through the
+# ``GeneratorExit`` shape of a disconnect, and require the provider's side to
+# have been torn down by the time the close returns rather than whenever garbage
+# collection reaches it.
+
+
+async def _cut_at(session: AgentSession, is_cut: Callable[[str], bool]) -> None:
+    """Consume until ``is_cut`` accepts a chunk, then close the stream."""
+    stream = session.stream()
+    async for chunk in stream:
+        if is_cut(chunk):
+            break
+    await stream.aclose()
+
+
+def _errors(caplog: Any) -> list[str]:
+    return [record.getMessage() for record in caplog.records if record.levelname == "ERROR"]
+
+
+async def test_a_client_gone_at_a_heartbeat_closes_the_provider_stream(caplog: Any) -> None:
+    closed: list[str] = []
+
+    async def stream_fn(messages: list, info: Any) -> Any:
+        try:
+            yield "partial answer"
+            await asyncio.Event().wait()
+        finally:
+            closed.append("provider stream")
+
+    store = _RecordingStore()
+    session = _session(
+        Agent(FunctionModel(stream_function=stream_fn)),
+        conversation_store=store,
+        config=build_ag_ui_config(heartbeat_seconds=0.01),
+    )
+
+    spoke: list[str] = []
+
+    def at_a_beat_after_speaking(chunk: str) -> bool:
+        # ``startswith``, not ``in``: every event frame carries ``data: `` too, so
+        # a looser match cuts at an ordinary event and passes without a beat.
+        if "partial answer" in chunk:
+            spoke.append(chunk)
+        return bool(spoke) and chunk.startswith(":")
+
+    await _cut_at(session, at_a_beat_after_speaking)
+
+    assert closed == ["provider stream"]
+    assert _errors(caplog) == []
+    assert len(store.saved) == 1
+
+
+@pytest.mark.parametrize("heartbeat_seconds", [0, 15.0], ids=["heartbeat off", "heartbeat on"])
+async def test_a_client_gone_during_delegation_progress_closes_the_delegation(
+    caplog: Any, heartbeat_seconds: float
+) -> None:
+    # Both settings, because they fail differently: off, the sub-agent stage's
+    # own task is inside the provider's stream; on, the heartbeat's task has
+    # already handed that progress frame over and is idle, while the sub-agent
+    # stage's task one layer down is still inside it.
+    closed: list[str] = []
+
+    async def stream_fn(messages: list, info: Any) -> Any:
+        yield {0: DeltaToolCall(name="delegate", json_args="{}", tool_call_id="call-1")}
+
+    agent: Agent[Any, Any] = Agent(FunctionModel(stream_function=stream_fn))
+
+    @agent.tool_plain
+    async def delegate() -> str:
+        try:
+            sink = SUBAGENT_SINK.get()
+            assert sink is not None
+            sink.put_nowait(
+                subagent_progress(
+                    delegation_id="call-1",
+                    agent="researcher",
+                    phase="tool_call",
+                    status="calling search_docs",
+                    tool_call_id="sub-1",
+                    tool_name="search_docs",
+                )
+            )
+            await asyncio.Event().wait()
+            return "never reached"
+        finally:
+            closed.append("delegation")
+
+    store = _RecordingStore()
+    session = _session(
+        agent,
+        conversation_store=store,
+        config=build_ag_ui_config(heartbeat_seconds=heartbeat_seconds),
+    )
+
+    await _cut_at(session, lambda chunk: "calling search_docs" in chunk)
+
+    assert closed == ["delegation"]
+    assert _errors(caplog) == []
+    assert len(store.saved) == 1
 
 
 async def test_a_cancelled_run_keeps_the_same_prefix() -> None:

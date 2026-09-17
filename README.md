@@ -73,6 +73,10 @@ browser half is
   `MODEL_SETTINGS`), its chain-of-thought streams to the client as standard
   AG-UI reasoning events (pure pass-through); `FORWARD_REASONING = False` keeps
   it server-side.
+- **Survives an idle proxy** — the SSE response carries a heartbeat comment
+  whenever the run has been silent for `HEARTBEAT_SECONDS` (default 15s), so a
+  load balancer counting idle seconds does not sever a stream mid-answer. An AWS
+  ALB's `idle_timeout` and nginx's `proxy_read_timeout` both default to 60.
 - **Reach external tools** — compose any Pydantic-AI toolset, including an
   in-process [`drf-mcp`](https://github.com/Artui/djangorestframework-mcp-server)
   bridge (the `[drf-mcp]` extra) so the agent can query DRF-exposed data.

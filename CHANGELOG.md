@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The SSE response carries a heartbeat, so an idle-timeout proxy no longer
+  cuts off a run that is still thinking.** A run writes nothing while the model
+  thinks or a slow tool call runs, and every proxy on the path counts that
+  silence: an AWS Application Load Balancer's `idle_timeout` and nginx's
+  `proxy_read_timeout` both default to 60 seconds. Past that the connection is
+  closed mid-run and the answer never arrives. Raising the balancer's timeout
+  works but has the wrong scope, since it is an attribute of the balancer rather
+  than of the route, and the balancer is only one of the proxies between a server
+  and a browser.
+
+  When the stream has been silent for `HEARTBEAT_SECONDS` (default `15.0`), the
+  response gets an SSE comment, `: django-ag-ui heartbeat`. The event-stream
+  specification ignores a line starting with a colon, so no conformant client
+  dispatches it and no client needs changing. The clock restarts on every real
+  frame, so a busy stream is never padded. `0` turns it off and removes the
+  wrapper from the stream entirely. At 15 seconds, three beats in a row can be
+  lost to a blocked event loop before a 60-second timeout is reached, and a
+  silent ten-minute run costs 40 frames of 26 bytes.
+
+  A new test serves a stalled run through uvicorn and reads the socket as bytes
+  arrive. At a 0.1-second interval the longest silence across a one-second stall
+  is about one interval; with the heartbeat off the same harness sees the whole
+  stall. `uvicorn` joins the dev dependency group for it.
+
+### Fixed
+
+- **A client that disconnects while sub-agent progress is streaming now stops
+  the delegation.** Sub-agent progress is written while the provider's stream is
+  still running, so a disconnect that arrived as `aclose()` right after such a
+  frame found that stream "already running": closing it raised, the error was
+  logged, and the delegated run carried on until garbage collection reached it.
+  The disconnect guard now closes the stages that write while upstream is
+  blocked, outermost first, before it closes the provider's stream. The
+  heartbeat is the second such stage, and without this fix it would have hit the
+  same failure on every run that stayed silent longer than one interval.
+
 ## [0.60.0] — 2026-09-17
 
 ### Changed

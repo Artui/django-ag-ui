@@ -207,3 +207,25 @@ def test_the_run_list_ceiling_is_configurable() -> None:
     with override_settings(DJANGO_AG_UI={"RUN_LIST_LIMIT": 5}):
         assert build_ag_ui_config().run_list_limit == 5
     assert build_ag_ui_config(run_list_limit=7).run_list_limit == 7
+
+
+def test_the_heartbeat_interval_is_configurable_and_on_by_default() -> None:
+    """On by default, because the failure it prevents is invisible from here.
+
+    A severed stream looks to the consumer like a dead backend, not like a
+    misconfiguration -- so an opt-in would be found only by whoever already
+    understood the problem. 15s is a quarter of the two defaults that matter
+    (AWS ALB ``idle_timeout`` and nginx ``proxy_read_timeout``, both 60s),
+    leaving room for beats a loop-blocking tool delays.
+    """
+    with override_settings(DJANGO_AG_UI={}):
+        assert build_ag_ui_config().heartbeat_seconds == 15.0
+    with override_settings(DJANGO_AG_UI={"HEARTBEAT_SECONDS": 5}):
+        assert build_ag_ui_config().heartbeat_seconds == 5.0
+    assert build_ag_ui_config(heartbeat_seconds=2.5).heartbeat_seconds == 2.5
+    # Zero disables it; an override of zero is honoured rather than read as
+    # "unset", which is what a falsy-check instead of an ``is None`` check would
+    # have done.
+    with override_settings(DJANGO_AG_UI={"HEARTBEAT_SECONDS": 0}):
+        assert build_ag_ui_config().heartbeat_seconds == 0
+    assert build_ag_ui_config(heartbeat_seconds=0).heartbeat_seconds == 0

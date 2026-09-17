@@ -734,6 +734,74 @@ are ephemeral and never persisted).
     later.
 
 
+## `HEARTBEAT_SECONDS`
+
+How long the SSE response may be silent before the endpoint writes a comment
+frame into it, keeping the connection alive across proxies that close idle ones.
+Defaults to `15.0`; set `0` to disable.
+
+```python title="settings.py"
+DJANGO_AG_UI = {
+    "HEARTBEAT_SECONDS": 15.0,
+}
+```
+
+**The failure this prevents does not look like a timeout.** An agent run is
+silent while the model thinks and while a slow tool call runs — no bytes leave
+the server in that window. Every proxy between you and the browser is counting:
+an AWS Application Load Balancer closes a connection idle for
+`idle_timeout` seconds, **60 by default**, and nginx's `proxy_read_timeout`
+defaults to the same 60. Past that the connection is closed mid-run, and what
+you observe is "long answers never arrive", which points at the model rather
+than at the network.
+
+What goes on the wire is an **SSE comment**:
+
+```text
+: django-ag-ui heartbeat
+
+```
+
+A line beginning with a colon is ignored by the event-stream specification, so
+a conformant parser drops it before any handler sees it. `@ag-ui/client`, which
+reads the stream with its own parser rather than `EventSource`, drops any block
+without a `data:` line. No client needs to be taught about it, and none can
+mistake it for an AG-UI event.
+
+The beat is **silence-triggered, not a metronome**. The clock is the wait for
+the next real frame, so it restarts every time the run emits anything: a busy
+stream is never padded, and the guarantee is the one a proxy cares about — no
+more than `HEARTBEAT_SECONDS` pass with nothing on the wire.
+
+### Why not just raise the proxy's timeout
+
+You can, and it is the wrong shape. `idle_timeout` is an attribute of the **load
+balancer**, not of the route, so raising it for one streaming endpoint changes
+the behaviour of every service sharing that balancer.
+
+More to the point, the load balancer is only the proxy you know about. Corporate
+proxies, mobile carriers and CDNs each impose an idle bound of their own and you
+control none of them. Bytes on the wire are the only fix that reaches all of
+them, which is why this lives in the library that owns the event stream rather
+than in each deployment's infrastructure.
+
+### Choosing an interval
+
+15 seconds is a quarter of the 60 that both common defaults use. The margin is
+deliberate: the beat is a coroutine on the same event loop as the run, so a tool
+that blocks the loop delays it, and at 15s three consecutive beats can be missed
+before the tightest common timeout is reached. Set it lower if something in your
+path closes idle connections sooner than 60 seconds.
+
+The cost is negligible: a silent ten-minute run pays 40 frames of 26 bytes.
+
+Set `0` if you know nothing between the endpoint and the browser times out idle
+connections. That skips the wrapper entirely — the stream is byte-for-byte what
+it was before this setting existed.
+
+Under WSGI the response is buffered whole rather than streamed, so no heartbeat
+reaches a proxy there. The endpoint already warns when it is served that way.
+
 ## `transcription_backend=`
 
 A [`TranscriptionBackend`][django_ag_ui.TranscriptionBackend] instance. Omitted

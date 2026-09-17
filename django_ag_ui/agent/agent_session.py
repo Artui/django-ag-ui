@@ -24,6 +24,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.build_client_context_toolset import build_client_context_toolset
 from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
 from django_ag_ui.agent.guarded_stream import guarded_stream
+from django_ag_ui.agent.heartbeat_stream import heartbeat_stream
 from django_ag_ui.agent.inject_compaction_events import inject_compaction_events
 from django_ag_ui.agent.inject_invalidation_events import inject_invalidation_events
 from django_ag_ui.agent.inject_subagent_events import inject_subagent_events
@@ -147,8 +148,10 @@ class AgentSession:
         # Unconditional for the same reason again, and outermost of the three
         # because it is the only one that has to run *while* upstream is blocked:
         # a delegated sub-agent's whole run happens inside one tool call, which
-        # the AG-UI stream is silent for.
-        events = inject_subagent_events(events)
+        # the AG-UI stream is silent for. Kept by name for the guard, which has to
+        # close it before it can close the provider's stream.
+        subagents = inject_subagent_events(events)
+        events = subagents
         # Only when there is something to say: the wrapper has to track tool-call
         # ids to match an interrupt back to its tool, and an endpoint that gates
         # nothing should not pay for that on every run.
@@ -166,10 +169,19 @@ class AgentSession:
         # error callback, so the terminal event is the only hook a *failing* run
         # can be persisted from.
         observed = self._persist_on_error(events, transcript)
+        encoded = self._adapter.encode_stream(observed)
+        # Outside the encoder because what it writes is not an event: an SSE
+        # comment, which is bytes on the wire and nothing in the protocol. Inside
+        # the guard because the guard is the frame that owns disconnect, and it
+        # closes what it wraps before anything else. Conditional because a
+        # disabled heartbeat should not cost a run the pump task the wrapper needs.
+        if self._config.heartbeat_seconds > 0:
+            encoded = heartbeat_stream(encoded, interval=self._config.heartbeat_seconds)
         return guarded_stream(
-            self._adapter.encode_stream(observed),
+            encoded,
             native_events=native,
             on_cancel=self._on_cancel(transcript),
+            racing_stages=(subagents,),
         )
 
     def _client_context_block(self) -> str | None:

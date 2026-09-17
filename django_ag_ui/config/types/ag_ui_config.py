@@ -151,6 +151,25 @@ class AGUIConfig:
     fails its own call and the turn carries on rather than ending in
     ``RUN_ERROR`` with the answer so far discarded."""
 
+    heartbeat_seconds: float
+    """How long the SSE response may be silent before a comment frame is written
+    into it, or ``0`` to disable the heartbeat.
+
+    An idle-timeout proxy closes a connection with no bytes in either direction
+    for N seconds, and an agent that thinks -- or waits on a slow tool call --
+    for longer than N sends nothing in that window. The client sees a dead
+    connection where an answer was coming. AWS ALB's ``idle_timeout``
+    defaults to 60s and nginx's ``proxy_read_timeout`` to the same.
+
+    The default of 15s is a quarter of that 60, deliberately: the beat is a
+    coroutine on the same event loop as the run, so a tool that blocks the loop
+    delays it, and at 15s three consecutive beats can be lost before the tightest
+    common timeout is reached. A silent ten-minute run costs 40 frames of 26
+    bytes.
+
+    ``0`` disables it, which also skips the wrapper entirely -- an endpoint that
+    is not behind a proxy pays nothing for this."""
+
     run_context: RunContextConfig
     """What client-supplied context reaches the model: the host page's own
     ``RunAgentInput.context`` entries and the attachment refs riding the posted

@@ -68,6 +68,31 @@ The view marks itself as a coroutine function (via
 mounted. When served over WSGI, the view emits a one-time `RuntimeWarning` to
 flag that SSE streaming needs ASGI.
 
+## Streaming through a proxy
+
+Almost every deployment puts something between the ASGI server and the browser —
+a load balancer, nginx, a CDN — and streaming has one requirement of all of
+them: **do not buffer, and do not time out an idle connection.**
+
+Buffering is handled for you. The endpoint sets `X-Accel-Buffering: no` and
+`Cache-Control: no-cache` on every response, which nginx and the proxies that
+copy its conventions honour.
+
+Idle timeouts are the one that bites, because the symptom is misleading. An
+agent run emits nothing while the model thinks and nothing while a slow tool
+call runs. An AWS Application Load Balancer closes a connection idle for
+`idle_timeout` seconds — **60 by default** — and nginx's `proxy_read_timeout`
+defaults to the same. Past that the stream is closed mid-run, and it reads as
+"long answers never arrive".
+
+The endpoint prevents this by writing an SSE comment into the stream whenever it
+has been silent for `HEARTBEAT_SECONDS` (default `15.0`), which a conformant
+client ignores. It is on by default and needs no configuration — see
+[`HEARTBEAT_SECONDS`](configuration.md#heartbeat_seconds) for the reasoning, for
+when to lower it, and for why raising the load balancer's timeout instead is the
+wrong fix.
+
+
 ## The `[drf-mcp]` extra
 
 To expose a
