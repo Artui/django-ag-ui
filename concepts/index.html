@@ -1471,7 +1471,12 @@ Django's auth middleware has no <code>user</code> attribute at all; that is an
 anonymous run (<code>deps.user is None</code>), not an error.
 5. Wraps the agent in a <code>pydantic_ai.ui.ag_ui.AGUIAdapter</code> and streams its
    encoded events as a <code>StreamingHttpResponse</code> with <code>Content-Type:
-   text/event-stream</code>, <code>Cache-Control: no-cache</code>, and <code>X-Accel-Buffering: no</code>.</p>
+   text/event-stream</code>, <code>Cache-Control: no-cache</code>, and <code>X-Accel-Buffering: no</code>.
+   A stream silent for longer than
+   <a href="../configuration/#heartbeat_seconds"><code>HEARTBEAT_SECONDS</code></a> also carries SSE
+   comment frames, so a proxy counting idle seconds does not sever a run that is
+   still thinking. Comments are ignored by every conformant <code>EventSource</code>, so
+   nothing downstream sees them as events.</p>
 </li>
 </ol>
 <p>Non-POST methods get <code>405 Method Not Allowed</code>.</p>
@@ -2027,8 +2032,7 @@ with no network MCP hop.</p>
   the agent acts as the <strong>logged-in AG-UI user</strong>.</li>
 </ul>
 <p>The bridge is imported lazily, only when <code>drf_mcp_server=</code> is set, keeping
-<code>rest_framework_mcp</code> an optional dependency.
-</content></p>
+<code>rest_framework_mcp</code> an optional dependency.</p>
 
 
 

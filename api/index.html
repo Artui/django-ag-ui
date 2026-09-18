@@ -1584,6 +1584,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIConfig.heartbeat_seconds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        heartbeat_seconds
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.AGUIConfig.run_context" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3579,6 +3590,17 @@
     <span class="md-ellipsis">
       
         tool_failure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIConfig.heartbeat_seconds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        heartbeat_seconds
       
     </span>
   </a>
@@ -7238,6 +7260,43 @@ fails its own call and the turn carries on rather than ending in
 
 
 
+<h3 id="django_ag_ui.AGUIConfig.heartbeat_seconds" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">heartbeat_seconds</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.AGUIConfig.heartbeat_seconds" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">heartbeat_seconds</span><span class="p">:</span> <span class="nb">float</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>How long the SSE response may be silent before a comment frame is written
+into it, or <code>0</code> to disable the heartbeat.</p>
+<p>An idle-timeout proxy closes a connection with no bytes in either direction
+for N seconds, and an agent that thinks -- or waits on a slow tool call --
+for longer than N sends nothing in that window. The client sees a dead
+connection where an answer was coming. AWS ALB's <code>idle_timeout</code>
+defaults to 60s and nginx's <code>proxy_read_timeout</code> to the same.</p>
+<p>The default of 15s is a quarter of that 60, deliberately: the beat is a
+coroutine on the same event loop as the run, so a tool that blocks the loop
+delays it, and at 15s three consecutive beats can be lost before the tightest
+common timeout is reached. A silent ten-minute run costs 40 frames of 26
+bytes.</p>
+<p><code>0</code> disables it, which also skips the wrapper entirely -- an endpoint that
+is not behind a proxy pays nothing for this.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="django_ag_ui.AGUIConfig.run_context" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">run_context</span>
 
@@ -7532,11 +7591,12 @@ matters more than the authority boundary.</p>
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">transcription_allowed_types</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">thread_list_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">run_list_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">approval_prompts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">tool_guard</span><span class="p">:</span> <span class="n">ToolGuardConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">tool_failure</span><span class="p">:</span> <span class="n">ToolFailureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>    <span class="n">run_context</span><span class="p">:</span> <span class="n">RunContextConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AGUIConfig</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">heartbeat_seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">approval_prompts</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">tool_guard</span><span class="p">:</span> <span class="n">ToolGuardConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>    <span class="n">tool_failure</span><span class="p">:</span> <span class="n">ToolFailureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>    <span class="n">run_context</span><span class="p">:</span> <span class="n">RunContextConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AGUIConfig</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -11219,7 +11279,7 @@ provider on every model request left in the run.</p>
 
     </div>
 
-</div><p></content></p>
+</div>
 
 
 

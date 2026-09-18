@@ -703,6 +703,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#heartbeat_seconds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HEARTBEAT_SECONDS
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="HEARTBEAT_SECONDS">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-not-just-raise-the-proxys-timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why not just raise the proxy's timeout
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choosing-an-interval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing an interval
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#transcription_backend" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1478,6 +1517,45 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#heartbeat_seconds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HEARTBEAT_SECONDS
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="HEARTBEAT_SECONDS">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-not-just-raise-the-proxys-timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why not just raise the proxy's timeout
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choosing-an-interval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing an interval
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2444,6 +2522,55 @@ the user, and discusses tools it decided not to call. If you have not decided
 that your users should read it, set <code>FORWARD_REASONING</code> to <code>False</code> and decide
 later.</p>
 </div>
+<h2 id="heartbeat_seconds"><code>HEARTBEAT_SECONDS</code><a class="headerlink" href="#heartbeat_seconds" title="Permanent link">&para;</a></h2>
+<p>How long the SSE response may be silent before the endpoint writes a comment
+frame into it, keeping the connection alive across proxies that close idle ones.
+Defaults to <code>15.0</code>; set <code>0</code> to disable.</p>
+<div class="language-python highlight"><span class="filename">settings.py</span><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    <span class="s2">&quot;HEARTBEAT_SECONDS&quot;</span><span class="p">:</span> <span class="mf">15.0</span><span class="p">,</span>
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><strong>The failure this prevents does not look like a timeout.</strong> An agent run is
+silent while the model thinks and while a slow tool call runs — no bytes leave
+the server in that window. Every proxy between you and the browser is counting:
+an AWS Application Load Balancer closes a connection idle for
+<code>idle_timeout</code> seconds, <strong>60 by default</strong>, and nginx's <code>proxy_read_timeout</code>
+defaults to the same 60. Past that the connection is closed mid-run, and what
+you observe is "long answers never arrive", which points at the model rather
+than at the network.</p>
+<p>What goes on the wire is an <strong>SSE comment</strong>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>: django-ag-ui heartbeat
+</span></code></pre></div>
+<p>A line beginning with a colon is ignored by the event-stream specification, so
+a conformant parser drops it before any handler sees it. <code>@ag-ui/client</code>, which
+reads the stream with its own parser rather than <code>EventSource</code>, drops any block
+without a <code>data:</code> line. No client needs to be taught about it, and none can
+mistake it for an AG-UI event.</p>
+<p>The beat is <strong>silence-triggered, not a metronome</strong>. The clock is the wait for
+the next real frame, so it restarts every time the run emits anything: a busy
+stream is never padded, and the guarantee is the one a proxy cares about — no
+more than <code>HEARTBEAT_SECONDS</code> pass with nothing on the wire.</p>
+<h3 id="why-not-just-raise-the-proxys-timeout">Why not just raise the proxy's timeout<a class="headerlink" href="#why-not-just-raise-the-proxys-timeout" title="Permanent link">&para;</a></h3>
+<p>You can, and it is the wrong shape. <code>idle_timeout</code> is an attribute of the <strong>load
+balancer</strong>, not of the route, so raising it for one streaming endpoint changes
+the behaviour of every service sharing that balancer.</p>
+<p>More to the point, the load balancer is only the proxy you know about. Corporate
+proxies, mobile carriers and CDNs each impose an idle bound of their own and you
+control none of them. Bytes on the wire are the only fix that reaches all of
+them, which is why this lives in the library that owns the event stream rather
+than in each deployment's infrastructure.</p>
+<h3 id="choosing-an-interval">Choosing an interval<a class="headerlink" href="#choosing-an-interval" title="Permanent link">&para;</a></h3>
+<p>15 seconds is a quarter of the 60 that both common defaults use. The margin is
+deliberate: the beat is a coroutine on the same event loop as the run, so a tool
+that blocks the loop delays it, and at 15s three consecutive beats can be missed
+before the tightest common timeout is reached. Set it lower if something in your
+path closes idle connections sooner than 60 seconds.</p>
+<p>The cost is negligible: a silent ten-minute run pays 40 frames of 26 bytes.</p>
+<p>Set <code>0</code> if you know nothing between the endpoint and the browser times out idle
+connections. That skips the wrapper entirely — the stream is byte-for-byte what
+it was before this setting existed.</p>
+<p>Under WSGI the response is buffered whole rather than streamed, so no heartbeat
+reaches a proxy there. The endpoint already warns when it is served that way.</p>
 <h2 id="transcription_backend"><code>transcription_backend=</code><a class="headerlink" href="#transcription_backend" title="Permanent link">&para;</a></h2>
 <p>A <a class="autorefs autorefs-internal" title="TranscriptionBackend" href="../api/#django_ag_ui.TranscriptionBackend"><code>TranscriptionBackend</code></a> instance. Omitted
 (the default) keeps <strong>voice input disabled</strong> using
@@ -2455,11 +2582,11 @@ transcribe endpoint answers <code>410 Gone</code>.</p>
 — self-configuring from the <code>OPENAI_API_KEY</code> environment variable (requires the
 <code>[openai]</code> extra). Subclass it to change the model or point at another
 OpenAI-compatible server (Azure OpenAI, Groq, a local Whisper server):</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui.contrib.transcription.openai_transcription_backend</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    <span class="n">OpenAITranscriptionBackend</span><span class="p">,</span>
-</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="p">)</span>
-</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>
-</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">transcription_backend</span><span class="o">=</span><span class="n">OpenAITranscriptionBackend</span><span class="p">())</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui.contrib.transcription.openai_transcription_backend</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>    <span class="n">OpenAITranscriptionBackend</span><span class="p">,</span>
+</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="p">)</span>
+</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>
+</span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">transcription_backend</span><span class="o">=</span><span class="n">OpenAITranscriptionBackend</span><span class="p">())</span>
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title"><code>base_url</code> and <code>api_key</code> travel together</p>
@@ -2468,10 +2595,10 @@ OpenAI-compatible server (Azure OpenAI, Groq, a local Whisper server):</p>
 the environment. Pointing a subclass at another vendor without setting a key
 hands that vendor the OpenAI credential on every clip — and shows only a
 <code>401</code> for it, which is not a hint that a secret has already left.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">GroqTranscription</span><span class="p">(</span><span class="n">OpenAITranscriptionBackend</span><span class="p">):</span>
-</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>    <span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;whisper-large-v3&quot;</span>
-</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>    <span class="n">base_url</span> <span class="o">=</span> <span class="s2">&quot;https://api.groq.com/openai/v1&quot;</span>
-</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>    <span class="n">api_key</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;GROQ_API_KEY&quot;</span><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">GroqTranscription</span><span class="p">(</span><span class="n">OpenAITranscriptionBackend</span><span class="p">):</span>
+</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>    <span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;whisper-large-v3&quot;</span>
+</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>    <span class="n">base_url</span> <span class="o">=</span> <span class="s2">&quot;https://api.groq.com/openai/v1&quot;</span>
+</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>    <span class="n">api_key</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;GROQ_API_KEY&quot;</span><span class="p">]</span>
 </span></code></pre></div>
 </div>
 <p>Guard the endpoint's cost with
@@ -2517,11 +2644,10 @@ and permission checks apply. See
 <a href="../concepts/#tool-metadata-catalog">tool metadata catalog</a> (mounted automatically
 by <code>AGUIServer</code>), which reads each tool's <code>display_name</code> / <code>display_description</code>
 as the web component's card label.</p>
-<p><div class="language-python highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">server</span> <span class="k">as</span> <span class="n">mcp_server</span>
-</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>
-</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">drf_mcp_server</span><span class="o">=</span><span class="n">mcp_server</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">server</span> <span class="k">as</span> <span class="n">mcp_server</span>
+</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">drf_mcp_server</span><span class="o">=</span><span class="n">mcp_server</span><span class="p">)</span>
 </span></code></pre></div>
-</content></p>
 <h2 id="service_specs"><code>service_specs=</code><a class="headerlink" href="#service_specs" title="Permanent link">&para;</a></h2>
 <p>A <code>name -&gt; spec</code> mapping (drf-services <code>ServiceSpec</code> / <code>SelectorSpec</code> objects),
 or a <code>SpecRegistry</code>, exposed to the agent as tools <strong>without an MCP server</strong> via
@@ -2557,34 +2683,34 @@ tool. <code>permission_classes=None</code> means <em>inherit</em> over HTTP — 
 classes, then <code>DEFAULT_PERMISSION_CLASSES</code> — and there is no viewset here to
 inherit from, so a spec that is correctly guarded behind one becomes callable by
 whatever the model decides to call.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># myproject/specs.py</span>
-</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.permissions</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsAuthenticated</span>
-</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectorKind</span><span class="p">,</span> <span class="n">SelectorSpec</span><span class="p">,</span> <span class="n">ServiceSpec</span>
-</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>
-</span><span id="__span-26-5"><a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="n">SPECS</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-26-6"><a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>    <span class="s2">&quot;list_orders&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-26-7"><a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>        <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
-</span><span id="__span-26-8"><a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>        <span class="n">selector</span><span class="o">=</span><span class="n">list_orders</span><span class="p">,</span>
-</span><span id="__span-26-9"><a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>        <span class="n">output_serializer</span><span class="o">=</span><span class="n">OrderSerializer</span><span class="p">,</span>
-</span><span id="__span-26-10"><a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>        <span class="n">permission_classes</span><span class="o">=</span><span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">],</span>
-</span><span id="__span-26-11"><a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>    <span class="p">),</span>
-</span><span id="__span-26-12"><a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a>    <span class="s2">&quot;create_order&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-26-13"><a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a>        <span class="n">service</span><span class="o">=</span><span class="n">create_order</span><span class="p">,</span>
-</span><span id="__span-26-14"><a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">CreateOrderInput</span><span class="p">,</span>
-</span><span id="__span-26-15"><a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a>        <span class="n">permission_classes</span><span class="o">=</span><span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">],</span>
-</span><span id="__span-26-16"><a id="__codelineno-26-16" name="__codelineno-26-16" href="#__codelineno-26-16"></a>    <span class="p">),</span>
-</span><span id="__span-26-17"><a id="__codelineno-26-17" name="__codelineno-26-17" href="#__codelineno-26-17"></a><span class="p">}</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># myproject/specs.py</span>
+</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.permissions</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsAuthenticated</span>
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectorKind</span><span class="p">,</span> <span class="n">SelectorSpec</span><span class="p">,</span> <span class="n">ServiceSpec</span>
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>
+</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="n">SPECS</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>    <span class="s2">&quot;list_orders&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-28-7"><a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>        <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-28-8"><a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>        <span class="n">selector</span><span class="o">=</span><span class="n">list_orders</span><span class="p">,</span>
+</span><span id="__span-28-9"><a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a>        <span class="n">output_serializer</span><span class="o">=</span><span class="n">OrderSerializer</span><span class="p">,</span>
+</span><span id="__span-28-10"><a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a>        <span class="n">permission_classes</span><span class="o">=</span><span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">],</span>
+</span><span id="__span-28-11"><a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a>    <span class="p">),</span>
+</span><span id="__span-28-12"><a id="__codelineno-28-12" name="__codelineno-28-12" href="#__codelineno-28-12"></a>    <span class="s2">&quot;create_order&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-28-13"><a id="__codelineno-28-13" name="__codelineno-28-13" href="#__codelineno-28-13"></a>        <span class="n">service</span><span class="o">=</span><span class="n">create_order</span><span class="p">,</span>
+</span><span id="__span-28-14"><a id="__codelineno-28-14" name="__codelineno-28-14" href="#__codelineno-28-14"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">CreateOrderInput</span><span class="p">,</span>
+</span><span id="__span-28-15"><a id="__codelineno-28-15" name="__codelineno-28-15" href="#__codelineno-28-15"></a>        <span class="n">permission_classes</span><span class="o">=</span><span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">],</span>
+</span><span id="__span-28-16"><a id="__codelineno-28-16" name="__codelineno-28-16" href="#__codelineno-28-16"></a>    <span class="p">),</span>
+</span><span id="__span-28-17"><a id="__codelineno-28-17" name="__codelineno-28-17" href="#__codelineno-28-17"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>Need a <code>SpecToolset</code> option — <code>max_page_size</code>, an <code>exception_map</code>, a
 <code>build_context</code> override, or <code>require_permissions=False</code> while migrating a
 registry too large to guard in one commit? <strong>Build the toolset yourself and pass
 it to <code>service_specs=</code>.</strong></p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
-</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
-</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="n">AGUIServer</span><span class="p">(</span>
-</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>    <span class="n">registry</span><span class="p">,</span>
-</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>    <span class="n">service_specs</span><span class="o">=</span><span class="n">SpecToolset</span><span class="p">(</span><span class="n">SPECS</span><span class="p">,</span> <span class="n">max_page_size</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">require_permissions</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
-</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>    <span class="n">service_specs</span><span class="o">=</span><span class="n">SpecToolset</span><span class="p">(</span><span class="n">SPECS</span><span class="p">,</span> <span class="n">max_page_size</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">require_permissions</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+</span><span id="__span-29-6"><a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>A <code>SpecCapability</code> is accepted the same way, so <code>defer_loading</code> composes too.</p>
 <p><strong>This does not cost you the tool-call card labels.</strong> The endpoint attaches
@@ -2601,23 +2727,23 @@ precedence.</p>
 <code>permission_classes</code> check, and it may have been built with
 <code>require_permissions=False</code> deliberately — validating again on arrival would
 take that decision back and leave no route to it at all.</p>
-<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SPECS</span>
-</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>
-</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">SPECS</span><span class="p">)</span>
+<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SPECS</span>
+</span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>
+</span><span id="__span-30-3"><a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">SPECS</span><span class="p">)</span>
 </span></code></pre></div>
 <h3 id="declaring-specs-once-across-transports">Declaring specs once, across transports<a class="headerlink" href="#declaring-specs-once-across-transports" title="Permanent link">&para;</a></h3>
 <p>If the same specs are also exposed over MCP or as HTTP views, keep them in a
 <a href="https://artui.github.io/djangorestframework-services/recipes/spec-registry/"><code>SpecRegistry</code></a>
 (drf-services 0.27+) and pass that instead — each transport then reads one
 source rather than repeating the list:</p>
-<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">registry</span>
-</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
-</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry_of_tools</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">registry</span><span class="p">)</span>
+<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-31-1"><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">registry</span>
+</span><span id="__span-31-2"><a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>
+</span><span id="__span-31-3"><a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry_of_tools</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">registry</span><span class="p">)</span>
 </span></code></pre></div>
 <p>A filtered view is itself a registry, so two endpoints can be given different
 projections with no shared state:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="n">internal</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">tools</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">spec_registry</span><span class="p">)</span>
-</span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="n">public</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">tools</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">spec_registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">))</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="n">internal</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">tools</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">spec_registry</span><span class="p">)</span>
+</span><span id="__span-32-2"><a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="n">public</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">tools</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">spec_registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">))</span>
 </span></code></pre></div>
 <p>Either shape is normalised into a plain mapping once, at construction.</p>
 <p>The spec tools' card labels are surfaced to the web component through the same
@@ -2628,20 +2754,20 @@ attachments, transcribe) share <strong>one authentication seam</strong>, and it 
 <strong>closed</strong> — <code>require_authenticated</code> is <code>True</code>, so an anonymous visitor gets a
 <code>401</code> from every route without anything being configured. <code>AGUIServer</code> forwards
 the seam to every view it builds, including the agent endpoint:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-31-1"><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.urls</span><span class="w"> </span><span class="kn">import</span> <span class="n">path</span>
-</span><span id="__span-31-2"><a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>
-</span><span id="__span-31-3"><a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGUIServer</span>
-</span><span id="__span-31-4"><a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>
-</span><span id="__span-31-5"><a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
-</span><span id="__span-31-6"><a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>    <span class="n">registry</span><span class="p">,</span>
-</span><span id="__span-31-7"><a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>    <span class="n">csrf_exempt</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># cookie auth: enforce CSRF</span>
-</span><span id="__span-31-8"><a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>    <span class="c1"># require_authenticated=False,          # opt into anonymous runs</span>
-</span><span id="__span-31-9"><a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a>    <span class="c1"># authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user</span>
-</span><span id="__span-31-10"><a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a>    <span class="c1"># get_user=lambda r: token_user(r),     # establish the acting user</span>
-</span><span id="__span-31-11"><a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="p">)</span>
-</span><span id="__span-31-12"><a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-31-13"><a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">agent</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
-</span><span id="__span-31-14"><a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-33-1"><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.urls</span><span class="w"> </span><span class="kn">import</span> <span class="n">path</span>
+</span><span id="__span-33-2"><a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>
+</span><span id="__span-33-3"><a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGUIServer</span>
+</span><span id="__span-33-4"><a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>
+</span><span id="__span-33-5"><a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-33-6"><a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-33-7"><a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a>    <span class="n">csrf_exempt</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># cookie auth: enforce CSRF</span>
+</span><span id="__span-33-8"><a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>    <span class="c1"># require_authenticated=False,          # opt into anonymous runs</span>
+</span><span id="__span-33-9"><a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a>    <span class="c1"># authorize=lambda r: r.user.is_staff,  # 403 for a non-staff user</span>
+</span><span id="__span-33-10"><a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a>    <span class="c1"># get_user=lambda r: token_user(r),     # establish the acting user</span>
+</span><span id="__span-33-11"><a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a><span class="p">)</span>
+</span><span id="__span-33-12"><a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-33-13"><a id="__codelineno-33-13" name="__codelineno-33-13" href="#__codelineno-33-13"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">&quot;agent/&quot;</span><span class="p">,</span> <span class="n">agent</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+</span><span id="__span-33-14"><a id="__codelineno-33-14" name="__codelineno-33-14" href="#__codelineno-33-14"></a><span class="p">]</span>
 </span></code></pre></div>
 <ul>
 <li><strong><code>require_authenticated</code></strong> (default <code>True</code>) → an anonymous request gets
@@ -2696,7 +2822,7 @@ stores (<code>ModelConversationStore</code> / <code>ModelAttachmentStore</code> 
 <code>contrib.store</code> reference implementations) treat anonymous requests. It exists
 because owner scoping alone can't isolate anonymous visitors from one another —
 they have no user id.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">conversation_store</span><span class="o">=</span><span class="n">DefaultConversationStore</span><span class="p">(</span><span class="n">allow_anonymous</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">conversation_store</span><span class="o">=</span><span class="n">DefaultConversationStore</span><span class="p">(</span><span class="n">allow_anonymous</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
 </span></code></pre></div>
 <ul>
 <li><strong><code>False</code> (default)</strong> — anonymous store operations are <strong>refused</strong>
@@ -2728,13 +2854,13 @@ went with it, along with the results of every other tool in the same round. One
 broken integration cost the whole turn.</p>
 <p>With the policy on, the failing call comes back to the model marked failed and
 naming the tool, and the run carries on.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-33-1"><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-33-2"><a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>    <span class="c1"># ...</span>
-</span><span id="__span-33-3"><a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>    <span class="s2">&quot;TOOL_FAILURE&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span id="__span-33-4"><a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>        <span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>  <span class="c1"># default; False restores the failing run</span>
-</span><span id="__span-33-5"><a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>        <span class="s2">&quot;INCLUDE_DETAIL&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>  <span class="c1"># default; True sends the exception text to the model</span>
-</span><span id="__span-33-6"><a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>    <span class="p">},</span>
-</span><span id="__span-33-7"><a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="p">}</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-35-1"><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-35-2"><a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>    <span class="c1"># ...</span>
+</span><span id="__span-35-3"><a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>    <span class="s2">&quot;TOOL_FAILURE&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-35-4"><a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>        <span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>  <span class="c1"># default; False restores the failing run</span>
+</span><span id="__span-35-5"><a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>        <span class="s2">&quot;INCLUDE_DETAIL&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>  <span class="c1"># default; True sends the exception text to the model</span>
+</span><span id="__span-35-6"><a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>    <span class="p">},</span>
+</span><span id="__span-35-7"><a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><strong><code>INCLUDE_DETAIL</code> is off by default, and the split is deliberate.</strong> Whether the
 run survives is a reliability question; whether an exception's text reaches the
@@ -2766,14 +2892,14 @@ mechanism the web component already applies to client-registered destructive
 tools, now for server-side ones. The wire stays vanilla AG-UI. For the full
 end-to-end flow (what the user sees, custom clients, <code>ask_user</code>), see
 <a href="../tool-approval/">Tool approval</a>.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-34-2"><a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>    <span class="c1"># …</span>
-</span><span id="__span-34-3"><a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span id="__span-34-4"><a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>        <span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-34-5"><a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>        <span class="s2">&quot;EXEMPT&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;refresh_cache&quot;</span><span class="p">],</span>  <span class="c1"># never gate these, even if destructive</span>
-</span><span id="__span-34-6"><a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>        <span class="s2">&quot;REQUIRE_APPROVAL&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;export_pii&quot;</span><span class="p">],</span>  <span class="c1"># always gate these, even if not destructive</span>
-</span><span id="__span-34-7"><a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>    <span class="p">},</span>
-</span><span id="__span-34-8"><a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a><span class="p">}</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-36-1"><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-36-2"><a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>    <span class="c1"># …</span>
+</span><span id="__span-36-3"><a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-36-4"><a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>        <span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-36-5"><a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>        <span class="s2">&quot;EXEMPT&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;refresh_cache&quot;</span><span class="p">],</span>  <span class="c1"># never gate these, even if destructive</span>
+</span><span id="__span-36-6"><a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>        <span class="s2">&quot;REQUIRE_APPROVAL&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;export_pii&quot;</span><span class="p">],</span>  <span class="c1"># always gate these, even if not destructive</span>
+</span><span id="__span-36-7"><a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a>    <span class="p">},</span>
+</span><span id="__span-36-8"><a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -2828,10 +2954,10 @@ AG-UI client handles the interrupt itself.</p>
 <p>What a gated tool's approval card <strong>asks</strong>, by tool name. Without one, the
 question is the call spelled out — <code>Approve export_pii({"scope": "all"})?</code> —
 which is accurate and not something to put in front of a person.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-35-1"><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-35-2"><a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>    <span class="c1"># …</span>
-</span><span id="__span-35-3"><a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>    <span class="s2">&quot;APPROVAL_PROMPTS&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;export_pii&quot;</span><span class="p">:</span> <span class="s2">&quot;Export every personal record in scope?&quot;</span><span class="p">},</span>
-</span><span id="__span-35-4"><a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="p">}</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-37-1"><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-37-2"><a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>    <span class="c1"># …</span>
+</span><span id="__span-37-3"><a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a>    <span class="s2">&quot;APPROVAL_PROMPTS&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;export_pii&quot;</span><span class="p">:</span> <span class="s2">&quot;Export every personal record in scope?&quot;</span><span class="p">},</span>
+</span><span id="__span-37-4"><a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>A registry tool's own <code>@tool(confirm=...)</code> is folded in automatically, so this
 only needs entries for tools whose schema carries none — a spec tool reaching the

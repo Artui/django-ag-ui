@@ -389,6 +389,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#streaming-through-a-proxy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Streaming through a proxy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-drf-mcp-extra" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -818,6 +829,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#streaming-through-a-proxy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Streaming through a proxy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-drf-mcp-extra" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -942,6 +964,25 @@ under an ASGI server such as <a href="https://www.uvicorn.org/">Uvicorn</a> or
 <code>asgiref.sync.markcoroutinefunction</code>) so Django's request handler awaits it when
 mounted. When served over WSGI, the view emits a one-time <code>RuntimeWarning</code> to
 flag that SSE streaming needs ASGI.</p>
+<h2 id="streaming-through-a-proxy">Streaming through a proxy<a class="headerlink" href="#streaming-through-a-proxy" title="Permanent link">&para;</a></h2>
+<p>Almost every deployment puts something between the ASGI server and the browser —
+a load balancer, nginx, a CDN — and streaming has one requirement of all of
+them: <strong>do not buffer, and do not time out an idle connection.</strong></p>
+<p>Buffering is handled for you. The endpoint sets <code>X-Accel-Buffering: no</code> and
+<code>Cache-Control: no-cache</code> on every response, which nginx and the proxies that
+copy its conventions honour.</p>
+<p>Idle timeouts are the one that bites, because the symptom is misleading. An
+agent run emits nothing while the model thinks and nothing while a slow tool
+call runs. An AWS Application Load Balancer closes a connection idle for
+<code>idle_timeout</code> seconds — <strong>60 by default</strong> — and nginx's <code>proxy_read_timeout</code>
+defaults to the same. Past that the stream is closed mid-run, and it reads as
+"long answers never arrive".</p>
+<p>The endpoint prevents this by writing an SSE comment into the stream whenever it
+has been silent for <code>HEARTBEAT_SECONDS</code> (default <code>15.0</code>), which a conformant
+client ignores. It is on by default and needs no configuration — see
+<a href="../configuration/#heartbeat_seconds"><code>HEARTBEAT_SECONDS</code></a> for the reasoning, for
+when to lower it, and for why raising the load balancer's timeout instead is the
+wrong fix.</p>
 <h2 id="the-drf-mcp-extra">The <code>[drf-mcp]</code> extra<a class="headerlink" href="#the-drf-mcp-extra" title="Permanent link">&para;</a></h2>
 <p>To expose a
 <a href="https://github.com/Artui/djangorestframework-mcp-server"><code>djangorestframework-mcp-server</code></a>
@@ -953,8 +994,7 @@ tool registry to the agent in-process (no network MCP hop), install the extra:</
 (<a href="../concepts/#the-drf-mcp-toolset-bridge"><code>DRFMCPToolset</code></a>) is imported lazily,
 only when a <code>drf_mcp_server=</code> is passed, so the dependency stays
 optional for projects that do not use it. See
-<a href="../configuration/#drf_mcp_server">Configuration → <code>drf_mcp_server=</code></a>.
-</content></p>
+<a href="../configuration/#drf_mcp_server">Configuration → <code>drf_mcp_server=</code></a>.</p>
 
 
 
