@@ -294,7 +294,9 @@ async def test_a_refused_drf_mcp_tool_reaches_the_browser_marked_failed() -> Non
     server's refusal as ``{"error": ...}``, the tool's value, which pydantic-ai
     records as a success: the result above reached the browser with no
     ``outcome`` at all, and a refused call rendered as a completed one. This is
-    the test holding the ``django-pydantic-agent>=0.23`` floor.
+    the test holding that constraint. The declared floor has moved past 0.23 and
+    subsumes it, so this names the release the behaviour arrived in rather than
+    the band the pin currently states.
     """
     from tests.integrations.drf_server import server as drf_server
 

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.0] — 2026-09-18
+
 ### Added
 
 - **The SSE response carries a heartbeat, so an idle-timeout proxy no longer
@@ -32,6 +34,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   arrive. At a 0.1-second interval the longest silence across a one-second stall
   is about one interval; with the heartbeat off the same harness sees the whole
   stall. `uvicorn` joins the dev dependency group for it.
+
+### Changed
+
+- **The `[drf-mcp]` extra is floored at `djangorestframework-mcp-server>=0.46`
+  (was `>=0.45`) and the `[spec-tools]` extra at
+  `djangorestframework-pydantic-ai>=0.30` (was `>=0.29`), and these two move
+  together.** Both siblings reversed the same refusal in the same release: a
+  `ServiceSpec` declaring `many=True` is now a tool taking its list under one
+  named argument, `items` unless the spec names another, where the registry and
+  the toolset each used to refuse it when they were built.
+
+  The practical effect here is that a `drf_mcp_server=` registry or a
+  `service_specs=` list carrying a bulk spec now offers a tool, and its result
+  streams to the browser as a list. Previously `service_specs=` raised
+  `ImproperlyConfigured` at build and `drf_mcp_server=` simply listed nothing for
+  the spec, which is the shape both pin comments described.
+
+  Raising one floor alone is what the pairing prevents. This package is where
+  that would surface, because a browser transcript is one stream whichever route
+  a tool arrived by, so a spec that is a working tool on one route and an
+  `ImproperlyConfigured` on the other reads as a defect in the spec rather than
+  in the versions installed.
+
+- **Floored at `django-pydantic-agent>=0.24` (was `>=0.23`), which buys no
+  behaviour and is stated anyway.** 0.24 changes no code in that package; it
+  raises its own `[drf-mcp]` and `[spec-tools]` extras onto the bands this
+  package now declares. Without it the bridge's own backing package still
+  advertises the band in which a bulk spec is refused, while this package's extra
+  says it is offered, and the resolver quietly taking the stricter of the two is
+  not the same as the claim being stated. This is the reason the 0.21 floor was
+  taken, and the pin's comment says so.
+
+- **Both extras floor `djangorestframework-services` at 0.53.0 in turn, and that
+  floor is hard.** Every service dispatch on either route passes
+  `many_as_argument`, which first exists there, so below it a tool call raises
+  `TypeError` rather than failing to resolve -- the package imports fine and dies
+  at the call.
 
 ### Fixed
 
@@ -3567,7 +3606,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.60.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.61.0...HEAD
+[0.61.0]: https://github.com/Artui/django-ag-ui/compare/v0.60.0...v0.61.0
 [0.60.0]: https://github.com/Artui/django-ag-ui/compare/v0.59.0...v0.60.0
 [0.59.0]: https://github.com/Artui/django-ag-ui/compare/v0.58.0...v0.59.0
 [0.58.0]: https://github.com/Artui/django-ag-ui/compare/v0.57.0...v0.58.0
