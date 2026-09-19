@@ -76,7 +76,7 @@ dependencies = [
     # own extras too, so the resolver would take the stricter of the two either
     # way -- the floor is here so the claim is not left resting on that, and so a
     # reader is not asked to work out which sibling is carrying it.
-    # 0.23 is the floor now, and it is what makes this package's outcome
+    # 0.23 was the previous floor, and it is what makes this package's outcome
     # forwarding truthful for ``drf_mcp_server=``. That bridge is
     # django-pydantic-agent's, and below 0.23 it *returned* a refused or failed
     # drf-mcp call as ``{"error": ...}``, the tool's value, which pydantic-ai
@@ -86,7 +86,16 @@ dependencies = [
     # raises ``ToolFailed`` instead, carrying the server's sentence and the
     # refusal's code. Held by the test driving a refused bridged tool through a
     # whole session.
-    "django-pydantic-agent>=0.23",
+    # 0.24 is the floor now, and it is the one floor here that buys no behaviour
+    # of its own. That release changes no code in django-pydantic-agent at all --
+    # it raises that package's own ``[drf-mcp]`` and ``[spec-tools]`` extras onto
+    # the same bands this package's extras declare below. It is taken for the
+    # reason 0.21 was taken: the resolver would pick the stricter of the two
+    # either way, and the floor is here so the claim does not rest on that, and so
+    # a reader is not asked to work out which sibling is carrying it. Without it
+    # the bridge's own backing package still advertises the band in which a bulk
+    # spec is refused, while this package's extra says it is offered.
+    "django-pydantic-agent>=0.24",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
@@ -123,16 +132,31 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
-# Floored at 0.45, the release that serves a refusal's ``code`` in a tool's error
-# result, which the bridge carries to the model and, through ``outcome``-marked
+# Floored at 0.46, where a ``ServiceSpec`` declaring ``many=True`` registers as a
+# tool and takes its list under one named argument, ``items`` unless the spec
+# names another. A ``drf_mcp_server=`` registry carrying a bulk spec therefore
+# offers a tool whose result streams to the browser as a list, where the
+# registration below this floor refused the spec and listed nothing for it. This
+# floor and the ``[spec-tools]`` one below move together -- see that comment for
+# why a mismatched pair is worse than either old band. 0.46 also stops a
+# ``many=True`` chain step collapsing its list to one row through an output
+# re-fetch, and refuses a chain that inherits such a step's ``input_serializer``
+# rather than handing the bulk service one item as its whole data. It floors
+# drf-services at 0.53.0 in turn, and hard: every service dispatch passes
+# ``many_as_argument``, which first exists there, so below it a bridged tool call
+# raises ``TypeError`` at the call while the package still imports.
+#
+# 0.45 was the previous floor, the release that serves a refusal's ``code`` in a
+# tool's error result, which the bridge carries to the model and, through
+# ``outcome``-marked
 # results, to the browser. 0.45 also resolves a chain tool's RETRIEVE step to its
 # row before the object-level permission judges it: below it a selector returning
 # a queryset skipped that check, and a chain step rendered without an output
-# serializer answered with the text of the row the rule refuses. And it refuses a
-# ``many=True`` service spec at registration. 0.45 floors drf-services at 0.52.1
-# in turn.
+# serializer answered with the text of the row the rule refuses. And it refused a
+# ``many=True`` service spec at registration, which is exactly what 0.46 reverses.
+# It floored drf-services at 0.52.1 in turn. Subsumed.
 #
-# 0.44 was the previous floor, where the tools that bridge lists and calls caught
+# 0.44 was the floor before that, where the tools that bridge lists and calls caught
 # up with drf-services' affordances: below it a chain tool ran a step whose
 # service's own affordances refuse it, and reported success, and the
 # ``outputSchema`` handed to the model left out the ``affordances`` object.
@@ -143,7 +167,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 #
 # 0.37 was the previous floor, the first release carrying drf-services>=0.49
 # after a serializer that nests itself crashed the catalog walk. Subsumed.
-drf-mcp = ["djangorestframework-mcp-server>=0.45"]
+drf-mcp = ["djangorestframework-mcp-server>=0.46"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
 # pydantic-ai's SpecCapability -- no MCP server in the path (service_specs=).
 # Floored at 0.25, the release that raises ToolFailed for a terminal failure
@@ -180,18 +204,32 @@ drf-mcp = ["djangorestframework-mcp-server>=0.45"]
 # item of a spec declaring them. Below it the model was handed items carrying a
 # key the schema said did not exist.
 #
-# 0.29 is the floor now. A refused call's text ends with the rule's code, worded
+# 0.29 was the previous floor. A refused call's text ends with the rule's code, worded
 # as the ``[drf-mcp]`` bridge words the same refusal, so a browser rendering a
 # failed call reads one sentence whichever route the tool came by. A tool that
 # finds nothing returns ``None`` rather than a row of empty fields. And a
-# ``many=True`` service spec is refused when the toolset is built, so
-# ``service_specs=`` carrying one raises ``ImproperlyConfigured`` instead of
-# offering a tool no call can satisfy. 0.29 floors drf-services at 0.52.1 in turn.
+# ``many=True`` service spec was refused when the toolset is built, so
+# ``service_specs=`` carrying one raised ``ImproperlyConfigured`` instead of
+# offering a tool no call can satisfy. It floored drf-services at 0.52.1 in turn.
+#
+# 0.30 is the floor now, and it withdraws that last refusal: a ``many=True``
+# service spec is a tool taking its list under one named argument, so
+# ``service_specs=`` carrying one offers a bulk tool where it raised at build. A
+# ``QueryParam`` or ``UrlKwarg`` named after that argument is refused instead, and
+# refused at build, rather than making every call come back asking for the
+# argument the model had just sent. This floor and the ``[drf-mcp]`` one above
+# move together: both siblings reversed the same refusal in the same release, so
+# raising one alone leaves the same spec a working tool on one route and an
+# ``ImproperlyConfigured`` on the other -- and this package is where that
+# disagreement would surface, since a browser transcript is one stream whichever
+# route a tool came by. 0.30 floors drf-services at 0.53.0 in turn, and hard:
+# every spec call passes ``many_as_argument``, so below it a tool call raises
+# ``TypeError`` once a model calls one.
 #
 # 0.24 was the floor before these, the first release carrying drf-services>=0.49
 # after a self-nesting serializer took SpecToolset down at construction. That
 # constraint still holds and is subsumed.
-spec-tools = ["djangorestframework-pydantic-ai>=0.29"]
+spec-tools = ["djangorestframework-pydantic-ai>=0.30"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via capabilities=.
@@ -227,9 +265,9 @@ dev = [
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
-    "djangorestframework-mcp-server>=0.45",
+    "djangorestframework-mcp-server>=0.46",
     # The [spec-tools] extra's backing package, so its capability + tests run in dev.
-    "djangorestframework-pydantic-ai>=0.29",
+    "djangorestframework-pydantic-ai>=0.30",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
@@ -329,7 +367,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.60.0"
+current_version = "0.61.0"
 allow_dirty = false
 commit = false
 tag = false
