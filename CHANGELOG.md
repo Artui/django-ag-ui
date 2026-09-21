@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.0] — 2026-09-21
+
 ### Changed
 
 - **Floored at `django-pydantic-agent>=0.25` (was `>=0.24`), the release that
@@ -3643,7 +3645,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.61.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.62.0...HEAD
+[0.62.0]: https://github.com/Artui/django-ag-ui/compare/v0.61.0...v0.62.0
 [0.61.0]: https://github.com/Artui/django-ag-ui/compare/v0.60.0...v0.61.0
 [0.60.0]: https://github.com/Artui/django-ag-ui/compare/v0.59.0...v0.60.0
 [0.59.0]: https://github.com/Artui/django-ag-ui/compare/v0.58.0...v0.59.0
