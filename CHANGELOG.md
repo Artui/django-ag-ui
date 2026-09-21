@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.0] — 2026-09-21
+
+### Changed
+
+- **Floored at `django-pydantic-agent>=0.25` (was `>=0.24`), the release that
+  keeps a bridged agent's tools in step with the registry while a session
+  runs.** Its `DRFMCPToolset` used to list a drf-mcp registry once per run and
+  memoise the result, so a tool an operation-scope condition refused when the
+  run started stayed missing for the whole run, and one that closed mid-run
+  stayed on offer until a call was refused. From 0.25 the bridge builds every
+  tool definition once and asks only availability on each model step.
+
+  It also names what is missing. Each tool an unmet condition left out is listed
+  in that step's instructions with the condition's own `reason`, in the wording
+  the `[spec-tools]` route already used. In a browser that is the difference
+  between a user hearing why an operation cannot run right now and hearing
+  whatever the model infers from a tool's absence.
+
+  No code here changed: this package constructs `DRFMCPToolset` and hands it to
+  the agent, so the behaviour arrives with the floor.
+
+- **The `[drf-mcp]` extra is floored at
+  `djangorestframework-mcp-server>=0.48` (was `>=0.46`) and the `[spec-tools]`
+  extra at `djangorestframework-pydantic-ai>=0.31` (was `>=0.30`), and these
+  two move together as they did last release.** drf-mcp 0.48 is what the bridge
+  above is built on: a server answers in process which tools a listing leaves
+  out and why (`unavailable_tools` / `aunavailable_tools`) and, on request,
+  lists every tool the caller may see whether or not a condition refuses it
+  (`include_unavailable`). The second exists because a bridge that memoises
+  definitions from a filtered listing has no definition for a tool that becomes
+  available later. Neither is a wire change.
+
+  pydantic-ai 0.31 is the other half of the pair, naming each operation an unmet
+  condition left out, with its reason, on the `service_specs=` route. Raising
+  one alone is what the pairing prevents, for the reason it always has here: a
+  browser transcript is one stream whichever route a tool arrived by, so a
+  session that explains a missing tool on one route and stays silent on the
+  other reads as a defect in the rule rather than in the versions installed.
+
 ## [0.61.0] — 2026-09-18
 
 ### Added
@@ -3606,7 +3645,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.61.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.62.0...HEAD
+[0.62.0]: https://github.com/Artui/django-ag-ui/compare/v0.61.0...v0.62.0
 [0.61.0]: https://github.com/Artui/django-ag-ui/compare/v0.60.0...v0.61.0
 [0.60.0]: https://github.com/Artui/django-ag-ui/compare/v0.59.0...v0.60.0
 [0.59.0]: https://github.com/Artui/django-ag-ui/compare/v0.58.0...v0.59.0
