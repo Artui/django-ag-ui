@@ -2667,6 +2667,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_pydantic_agent.integrations.drf_mcp.DRFMCPToolset.get_instructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_instructions
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4674,6 +4685,17 @@
     <span class="md-ellipsis">
       
         get_tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_pydantic_agent.integrations.drf_mcp.DRFMCPToolset.get_instructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_instructions
       
     </span>
   </a>
@@ -11093,6 +11115,15 @@ parameters, serializer validation and permissions match the HTTP transport
 exactly — without the network hop. Tool definitions carry the default
 <code>kind="function"</code>, the in-process kind the run loop calls itself; an
 <code>external</code> tool would instead be deferred to the client and never run.</p>
+<p><strong>Definitions once, availability every step.</strong> drf-mcp leaves a tool out of
+<code>tools/list</code> while an operation-scope affordance refuses it, and whether one
+does can change mid-run — an admin closes the books. So the definitions are
+listed once, with every tool the user may see, and each step asks drf-mcp
+which of them a fresh listing would leave out (<code>aunavailable_tools</code>,
+drf-mcp 0.48+): those are not offered that step, and the instructions name
+each with its <code>reason</code>, so a model asked for one can say why rather than
+guess or deny the operation exists. A server declaring no such condition
+answers that without leaving the event loop.</p>
 <p>Failures split three ways, along MCP's protocol-vs-tool boundary:</p>
 <ul>
 <li>JSON-RPC <code>-32602</code> and tool-level <code>validation_error</code> and
@@ -11232,7 +11263,47 @@ pydantic-ai's own function-tool default.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Load tool defs from drf-mcp's <code>tools/list</code> once, then wrap them.</p>
+        <p>The tools this step may call: every definition, less the unavailable.</p>
+<p>Definitions come from drf-mcp's <code>tools/list</code> once per toolset, which is
+once per request. Availability is asked again here every step, because
+pydantic-ai calls this once per step and a condition may flip between
+two: offering a tool drf-mcp would leave out only invites a refusal, and
+withholding one that became available hides an operation the model could
+now perform. The call enforces every condition whatever was offered.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_pydantic_agent.integrations.drf_mcp.DRFMCPToolset.get_instructions" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_instructions</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_pydantic_agent.integrations.drf_mcp.DRFMCPToolset.get_instructions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_instructions</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Name each tool left out this step, with the reason its condition gives.</p>
+<p><code>get_tools</code> withholds such a tool, so without this the model sees
+neither it nor any sign it exists, and a user asking for it gets a guess
+where a sentence was available. <code>None</code> when nothing is left out, which
+is every step for a server declaring no operation condition.</p>
+<p>Asked separately from <code>get_tools</code>, as the spec-tools route asks: the
+run context carries no key that could safely scope one answer to one
+step, and asking twice costs a second evaluation of conditions that read
+only seeds. A condition flipping between the two reads can leave one
+step's tools and instructions disagreeing about a tool; the call's own
+enforcement is authoritative either way.</p>
 
 
     </div>
