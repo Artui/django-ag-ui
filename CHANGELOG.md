@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A tool call's outcome now also rides `TOOL_CALL_RESULT` at
+  `metadata.outcome`, and attachment refs are read from a user message's
+  `metadata.attachments`.** Both keys used to travel only as fields AG-UI does
+  not declare, and `@ag-ui/client` 1.0 strips every undeclared key: from each
+  inbound event after parsing (`outcome`), and from the outgoing run input
+  (`attachments`). `metadata` is the slot 1.0 declares on events and messages,
+  and it carries both intact. The web component's adoption of AG-UI 1.0 reads
+  and sends only these metadata keys, so it needs this release to mark a failed
+  or denied tool call and to give the model a manifest of the files a user
+  attached.
+
+  The outcome is merged into any `metadata` a result event already carries,
+  under exactly the condition the top-level key is written, and a successful
+  call still writes neither. The stamp is `stamp_outcome` in
+  `django_ag_ui.agent.stamp_outcome`, so a fixture recorder can produce the
+  bytes this server writes rather than a copy of them.
+
+  Nothing an earlier web component relies on changes. The top-level `outcome`
+  is still written, because every release up to 0.40 runs `@ag-ui/client` 0.x
+  and reads nothing else. A top-level `attachments` array is still read
+  whenever a message's `metadata` has no `attachments` key, which is what those
+  releases send. When both are present `metadata` wins, and a
+  malformed value there degrades to no refs for that message, as a malformed
+  top-level one always has, rather than falling back. A stored thread keeps
+  refs on either carrier, so a thread written by one web component reloads with
+  its attachments in the other.
+
 ### Changed
 
 - **Floored at `ag-ui-protocol>=1.0` (was `>=0.1.21`), the protocol's first

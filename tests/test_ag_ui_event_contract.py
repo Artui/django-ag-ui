@@ -9,15 +9,10 @@ review.
 
 A parallel ``CANONICAL_AG_UI_EVENTS`` list is asserted in the web component's
 suite (`tests/ag_ui_event_contract.test.ts`) and documented in the ecosystem
-``architecture.md``. The two lists differ by exactly the five ``THINKING_*``
-events for as long as the web component resolves a ``@ag-ui/core`` below 1.0:
-this side dropped them with the protocol's 1.0, and the JS side still declares
-them. That difference is one-directional and harmless -- nothing in the family
-emits ``THINKING_*`` (pydantic-ai emits ``REASONING_*`` at every protocol
-version this package admits), and a reader declaring five events no producer
-sends loses nothing. Any other difference is the review this test exists to
-force. When the web component adopts ``@ag-ui/core`` 1.0 the two lists become
-identical again; update all three together.
+``architecture.md``, and the lists are identical: both ends resolve the
+protocol's 1.0, which removed the five ``THINKING_*`` events from each SDK's
+catalogue. Any difference between them is the review this test exists to
+force. Update all three together.
 """
 
 from __future__ import annotations
@@ -78,7 +73,10 @@ def test_python_event_set_matches_the_canonical_contract() -> None:
 
 def test_reasoning_family_is_present() -> None:
     # The stack forwards a reasoning model's chain-of-thought on this family, all
-    # seven REASONING_* events of it. The legacy THINKING_* family the JS client
-    # used to map onto it left the protocol in 1.0.
+    # seven REASONING_* events of it. The legacy THINKING_* family left the
+    # protocol's event set in 1.0, but not the JS client's reach: @ag-ui/client
+    # 1.0 still converts an inbound THINKING_* event onto REASONING_*, with a
+    # console warning, for a deprecation window. Nothing in the family emits
+    # one, so that shim only matters to a producer outside it.
     reasoning = {e for e in CANONICAL_AG_UI_EVENTS if e.startswith("REASONING")}
     assert len(reasoning) == 7

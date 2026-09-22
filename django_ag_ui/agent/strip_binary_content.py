@@ -36,8 +36,9 @@ def strip_binary_content(messages: Sequence[Message]) -> list[Message]:
 
     Copies are made with ``model_copy``, **never by re-validating**: a round-trip
     through ``load_messages`` / ``dump_messages`` regenerates every message id and
-    discards ``model_extra``, which is what drops the client's ``attachments``
-    refs.
+    discards both ``metadata`` and ``model_extra``, which between them are where
+    a client's ``attachments`` refs ride -- ``metadata`` from the web component's
+    AG-UI 1.0 client, the top-level field before it.
     """
     kept: list[Message] = []
     for message in messages:

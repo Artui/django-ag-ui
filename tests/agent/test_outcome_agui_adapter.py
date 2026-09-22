@@ -26,11 +26,8 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.agui_view import DjangoAGUIView
-from django_ag_ui.agent.outcome_agui_adapter import (
-    OUTCOME_FIELD,
-    OutcomeAGUIAdapter,
-    _OutcomeEventStream,
-)
+from django_ag_ui.agent.outcome_agui_adapter import OutcomeAGUIAdapter, _OutcomeEventStream
+from django_ag_ui.agent.stamp_outcome import OUTCOME_FIELD
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.authed_request_factory import AuthedRequestFactory
 
@@ -119,8 +116,11 @@ async def test_a_successful_call_carries_no_outcome_field() -> None:
     result = next(e for e in events if isinstance(e, ToolCallResultEvent))
     assert OUTCOME_FIELD not in _extras(result)
     # Asserted on the encoded event as well, because the wire is what a client
-    # parses and the field is absent there or it is not absent at all.
+    # parses and the field is absent there or it is not absent at all. The
+    # substring covers the metadata carrier too, and so does the second line:
+    # success writes no ``metadata`` at all, not an empty one.
     assert OUTCOME_FIELD not in EventEncoder().encode(result)
+    assert "metadata" not in EventEncoder().encode(result)
 
 
 async def test_a_retry_prompt_is_not_a_failure() -> None:
@@ -206,6 +206,67 @@ async def test_the_outcome_survives_encoding() -> None:
     assert '"outcome":"failed"' in EventEncoder().encode(result)
 
 
+# --- the metadata carrier ------------------------------------------------------
+#
+# ``@ag-ui/client`` 1.0 strips every key its schemas do not declare, the
+# top-level ``outcome`` included, so a 1.0 client only sees the outcome in the
+# event's declared ``metadata``. The top-level key stays for 0.x clients. Each
+# test here is about one carrier or the pair, and each reads the frame the
+# encoder writes where it can, because that is what a client parses.
+
+
+def _served(event: BaseEvent) -> dict[str, Any]:
+    """The event as a client receives it, read off the encoder's own frame.
+
+    Not the model: ``metadata`` is a declared field and the top-level key is an
+    extra, and the two reach the wire by different routes -- a stamp could land
+    on the instance and still be left off the bytes.
+    """
+    return json.loads(EventEncoder().encode(event).removeprefix("data: "))
+
+
+async def _failed_result(**kwargs: Any) -> list[ToolCallResultEvent]:
+    """Every ``TOOL_CALL_RESULT`` one failed function-tool return produces."""
+    events = await _drain(
+        _stream().handle_function_tool_result(
+            FunctionToolResultEvent(part=_tool_return(outcome="failed", **kwargs))
+        )
+    )
+    return [e for e in events if isinstance(e, ToolCallResultEvent)]
+
+
+async def test_a_failed_result_carries_its_outcome_in_metadata() -> None:
+    """The carrier a 1.0 client keeps. Upstream builds the result event with no
+    ``metadata``, so the stamp is the whole of it."""
+    (result,) = await _failed_result()
+    assert result.metadata == {OUTCOME_FIELD: "failed"}
+
+
+async def test_the_encoded_frame_carries_the_outcome_on_both_carriers() -> None:
+    """Both keys, in the bytes: ``metadata`` for a 1.0 client and the top-level
+    key for the 0.x client every web component release up to 0.40 runs.
+    Dropping either loses the marking for one of the two, and neither client
+    reports it -- a missing outcome reads as success."""
+    (result,) = await _failed_result()
+    frame = _served(result)
+    assert frame["metadata"] == {"outcome": "failed"}
+    assert frame["outcome"] == "failed"
+
+
+async def test_the_outcome_is_merged_into_metadata_the_event_already_carries() -> None:
+    """A tool may return an AG-UI event of its own, which pydantic-ai forwards
+    verbatim and this stream stamps like the result it describes. A key its
+    author put in ``metadata`` survives the stamp rather than being replaced by
+    it."""
+    own = ToolCallResultEvent(
+        message_id="own", tool_call_id="call-1", content="c", metadata={"trace": "t-1"}
+    )
+    results = await _failed_result(metadata=own)
+    (stamped,) = [e for e in results if e.message_id == "own"]
+    assert _served(stamped)["metadata"] == {"trace": "t-1", "outcome": "failed"}
+    assert _served(stamped)["outcome"] == "failed"
+
+
 def test_the_adapter_builds_the_outcome_forwarding_stream() -> None:
     """The stock adapter is what a session used to build, and the substitution
     is the whole wiring -- so it is asserted rather than assumed."""
@@ -285,6 +346,24 @@ async def test_a_failed_call_reaches_the_browser_marked_failed() -> None:
     # The run survived the failure -- the model answered after reading it, which
     # is what separates a failed *call* from a failed run.
     assert "RUN_ERROR" not in joined
+
+
+async def test_a_failed_call_reaches_the_browser_with_the_outcome_on_both_carriers() -> None:
+    """The same, parsed rather than substring-matched.
+
+    ``'"outcome":"failed"' in joined`` above cannot tell the two carriers apart:
+    it matches inside ``"metadata":{"outcome":"failed"}`` as readily as at the
+    top level, so it would pass with either one gone. This reads the frame.
+    """
+    joined = "".join([chunk async for chunk in _failing_session().stream()])
+
+    (result,) = [
+        json.loads(line.removeprefix("data: "))
+        for line in joined.splitlines()
+        if line.startswith("data: ") and '"TOOL_CALL_RESULT"' in line
+    ]
+    assert result["metadata"] == {"outcome": "failed"}
+    assert result["outcome"] == "failed"
 
 
 async def test_a_refused_drf_mcp_tool_reaches_the_browser_marked_failed() -> None:

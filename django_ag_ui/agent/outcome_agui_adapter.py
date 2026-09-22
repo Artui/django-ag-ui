@@ -16,15 +16,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.ui import UIEventStream
 from pydantic_ai.ui.ag_ui import AGUIAdapter, AGUIEventStream
 
-OUTCOME_FIELD = "outcome"
-"""The field name carrying a tool call's outcome on ``TOOL_CALL_RESULT``.
-
-Not a field AG-UI declares. The protocol's event models are ``extra="allow"``
-(both the Python ``ag_ui.core`` models and the TypeScript zod ``passthrough``
-schemas), so an unknown key survives parsing and reaches a client instead of
-being stripped or raising -- which is what makes an additive field possible at
-all here.
-"""
+from django_ag_ui.agent.stamp_outcome import stamp_outcome
 
 
 class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
@@ -47,10 +39,14 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
     a failure marked -- the one that turned chain-of-thought off -- is the one
     that could not see it.
 
-    So the outcome is forwarded as an additive field on the result event itself.
-    **Absent means success**, which is what every server that does not do this
-    emits, so a client reading the field needs no version negotiation and one
-    that ignores it is unaffected.
+    So the outcome is forwarded on the result event itself, twice: in the
+    event's ``metadata``, the open slot AG-UI 1.0 declares and the only place a
+    1.0 client keeps it, and as a top-level key for 0.x clients, which read
+    that and nothing else -- every web component release up to 0.40 is one.
+    ``stamp_outcome`` writes both and says why each is needed. **Absent means
+    success**, which is what every server that does not do this emits, so a
+    client reading either carrier needs no version negotiation and one that
+    ignores both is unaffected.
 
     **Why a subclass rather than another stream wrapper.** Everything else this
     package adds to the stream (``inject_subagent_events``,
@@ -146,9 +142,11 @@ async def _with_outcome(
 ) -> AsyncIterator[BaseEvent]:
     """Forward ``events``, stamping ``outcome`` onto every tool result among them.
 
-    ``model_copy`` rather than assignment: the event models allow extras, so the
-    key lands in ``__pydantic_extra__`` and encodes as ``"outcome"``, and the
-    original instance is left alone.
+    The stamp itself is ``stamp_outcome``, which copies rather than assigns, so
+    the instance upstream built is left alone. It is a module of its own rather
+    than a private helper here because a wire-fixture recorder outside this
+    repository calls it, and a fixture recorded through a copy of this logic
+    would agree with the copy rather than with the server.
 
     One handler's events all describe one tool call, so "every result event"
     and "the result event" are the same set in practice -- a tool that returns
@@ -165,8 +163,8 @@ async def _with_outcome(
     """
     async for event in events:
         if outcome is not None and isinstance(event, ToolCallResultEvent):
-            event = event.model_copy(update={OUTCOME_FIELD: outcome})
+            event = stamp_outcome(event, outcome)
         yield event
 
 
-__all__ = ["OUTCOME_FIELD", "OutcomeAGUIAdapter"]
+__all__ = ["OutcomeAGUIAdapter"]

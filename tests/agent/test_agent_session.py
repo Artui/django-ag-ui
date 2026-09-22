@@ -540,6 +540,18 @@ ATTACHMENT_MESSAGE: list[dict[str, Any]] = [
     }
 ]
 
+# The same refs where the web component sends them from its adoption of
+# ``@ag-ui/client`` 1.0, which strips the undeclared top-level field from every
+# request it sends.
+METADATA_ATTACHMENT_MESSAGE: list[dict[str, Any]] = [
+    {
+        "id": "m1",
+        "role": "user",
+        "content": "what is the budget?",
+        "metadata": {"attachments": ATTACHMENT_MESSAGE[0]["attachments"]},
+    }
+]
+
 
 def _delivered_instructions(seen: dict[str, Any]) -> str:
     """What actually reached the model as this request's instructions."""
@@ -569,6 +581,14 @@ async def test_attachment_refs_on_a_message_reach_the_model_as_a_manifest() -> N
     assert "report.pdf" in instructions
     assert "a1f3" in instructions
     assert "read_attachment" in instructions
+
+
+async def test_attachment_refs_in_metadata_reach_the_model_as_a_manifest() -> None:
+    seen: dict[str, Any] = {}
+    await _events(_session(_capturing_agent(seen), _run_input(METADATA_ATTACHMENT_MESSAGE)))
+    instructions = _delivered_instructions(seen)
+    assert "report.pdf" in instructions
+    assert "a1f3" in instructions
 
 
 @override_settings(DJANGO_AG_UI={"RUN_CONTEXT": {"CLIENT_CONTEXT": False}})
@@ -695,6 +715,19 @@ async def test_a_completed_run_stores_the_client_turn_exactly_once_as_sent() -> 
     # was told about has to still resolve after a reload.
     assert conversation.messages[0]["id"] == "m1"
     assert conversation.messages[0]["attachments"] == ATTACHMENT_MESSAGE[0]["attachments"]
+
+
+async def test_a_completed_run_stores_refs_in_metadata_as_sent() -> None:
+    # The verbatim rule covers the declared ``metadata`` slot the same way it
+    # covers the top-level extra: both die in a re-dump, both survive this.
+    store = _RecordingStore()
+    await _events(
+        _session(run_input=_run_input(METADATA_ATTACHMENT_MESSAGE), conversation_store=store)
+    )
+
+    (conversation,) = store.saved
+    assert conversation.messages[0]["id"] == "m1"
+    assert conversation.messages[0]["metadata"] == METADATA_ATTACHMENT_MESSAGE[0]["metadata"]
 
 
 async def test_a_resumed_run_stores_server_history_then_the_client_turn() -> None:

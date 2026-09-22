@@ -117,3 +117,29 @@ def test_stored_records_in_the_old_spelling_come_back_on_the_wire_shape() -> Non
 
     assert wire[0]["toolCalls"][0]["id"] == "call_1"
     assert wire[1]["toolCallId"] == "call_1"
+
+
+def test_attachment_refs_survive_a_store_round_trip_on_either_carrier() -> None:
+    """A stored thread comes back with its attachment refs, wherever they rode.
+
+    The web component sends them in a user message's ``metadata`` from its
+    adoption of AG-UI 1.0 and as an undeclared top-level field before that, and a
+    thread written by one is reloaded by the other. The codec keeps the first as
+    a declared field and the second as an extra, so both reach the thread
+    endpoint's response -- which is where the chips, and the ids the model was
+    told about, are restored from.
+    """
+    refs = [{"id": "a1", "name": "report.pdf", "mime": "application/pdf", "size": 2300}]
+    messages = [
+        UserMessage.model_validate(
+            {"id": "u1", "role": "user", "content": "hi", "metadata": {"attachments": refs}}
+        ),
+        UserMessage.model_validate(
+            {"id": "u2", "role": "user", "content": "and", "attachments": refs}
+        ),
+    ]
+
+    served = stored_messages_to_wire(messages_to_jsonable(messages))
+
+    assert served[0]["metadata"] == {"attachments": refs}
+    assert served[1]["attachments"] == refs
