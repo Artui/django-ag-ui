@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import warnings
 from typing import Any
 
 from ag_ui.core import AssistantMessage, Message, ToolMessage, UserMessage
@@ -27,13 +26,6 @@ def _url_image_part() -> dict[str, Any]:
 
 def _user(content: Any, **extra: Any) -> UserMessage:
     return UserMessage.model_validate({"id": "m1", "role": "user", "content": content, **extra})
-
-
-def _binary_part(**fields: Any) -> Any:
-    """A deprecated ``binary`` part, built without tripping its own warning."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        return _user([{"type": "binary", "mimeType": "application/pdf", **fields}]).content[0]
 
 
 def test_an_empty_message_list_stays_empty() -> None:
@@ -95,17 +87,17 @@ def test_a_url_referenced_part_is_a_reference_and_is_kept() -> None:
     assert kept is message
 
 
-def test_the_deprecated_binary_part_is_dropped_when_it_carries_data() -> None:
-    message = _user("caption").model_copy(
-        update={"content": [_binary_part(data=_PDF_B64)]},
-    )
-
-    assert strip_binary_content([message]) == []
-
-
-def test_the_deprecated_binary_part_is_kept_when_it_only_references() -> None:
-    message = _user("caption").model_copy(
-        update={"content": [_binary_part(url="https://example.test/x.pdf")]},
+def test_a_part_naming_a_provider_file_is_a_reference_and_is_kept() -> None:
+    # The third kind of source: a handle a model provider issued for bytes it
+    # already holds. Nothing travels in the row, so there is nothing to strip,
+    # and dropping it would lose the only way back to the file.
+    message = _user(
+        [
+            {
+                "type": "document",
+                "source": {"type": "file", "value": "file-abc123", "provider": "openai"},
+            }
+        ]
     )
 
     (kept,) = strip_binary_content([message])

@@ -4,12 +4,13 @@ from collections.abc import AsyncIterator
 
 from ag_ui.core import BaseEvent, EventType
 
-# Every reasoning / thinking event type, across AG-UI protocol versions: the
-# adapter emits the ``THINKING_*`` family below 0.1.13 and the ``REASONING_*``
-# family at/above it (see pydantic-ai's version-gated thinking handlers). Keyed
-# off the enum member names so the set stays correct as the protocol evolves.
+# Every reasoning event type. The protocol's 1.0 removed the older
+# ``THINKING_*`` family, which pydantic-ai's adapter had already stopped
+# emitting at the protocol versions this package supports, so ``REASONING_*``
+# is the whole of it. Keyed off the enum member names so a reasoning event the
+# protocol adds later is filtered without a change here.
 REASONING_EVENT_TYPES: frozenset[EventType] = frozenset(
-    event_type for event_type in EventType if event_type.name.startswith(("THINKING", "REASONING"))
+    event_type for event_type in EventType if event_type.name.startswith("REASONING")
 )
 
 

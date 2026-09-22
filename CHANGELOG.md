@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Floored at `ag-ui-protocol>=1.0` (was `>=0.1.21`), the protocol's first
+  stable release.** The old window already admitted it, so a fresh install of
+  any earlier release of this package has resolved 1.0 since it was published.
+  What reaches a browser is unchanged but for one field. A recorded run through
+  tool calls, a retry, and one delegation that succeeds and one that fails
+  encodes byte for byte as it did under 0.1.22, except that
+  `TEXT_MESSAGE_START` no longer carries `"role": "assistant"`: 1.0 made the
+  role optional with no default, and optional fields with no value are left
+  off the wire. Every client already reads an absent role as the assistant, and
+  the web component's pinned `@ag-ui/core` parses each event of the
+  regenerated sub-agent fixture and restores it, which was checked rather than
+  assumed. A chart delta encodes to the same bytes.
+
+  The floor is load-bearing rather than tidy. That fixture is generated from
+  this endpoint and differs on either side of 1.0, and so does the event
+  catalogue, so a window spanning both would leave each true of only one end.
+
+- **`REASONING_EVENT_TYPES` no longer looks for a `THINKING_*` event.** 1.0
+  removed that deprecated family, which the pydantic-ai adapter had already
+  stopped emitting at every protocol version this package supported, so the
+  set holds the same seven `REASONING_*` events it held before.
+
+- **`strip_binary_content` no longer handles the flat `binary` input part.**
+  1.0 retired it, so a message that validates cannot carry one. A part with a
+  provider `file` source, which 1.0 added, is a reference and is kept, as a
+  `url` source always was.
+
 ## [0.62.0] — 2026-09-21
 
 ### Changed

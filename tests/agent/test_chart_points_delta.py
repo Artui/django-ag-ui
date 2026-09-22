@@ -2,10 +2,25 @@
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 import pytest
-from ag_ui.core import EventType
+from ag_ui.core import ActivityDeltaEvent, EventType
+from ag_ui.encoder import EventEncoder
 
 from django_ag_ui import CHART_ACTIVITY_TYPE, ChartSeries, ChartSpec, chart_points_delta
+
+
+def _served_patch(delta: ActivityDeltaEvent) -> list[dict[str, Any]]:
+    """The patch as the browser receives it, read off the encoder's own frame.
+
+    Not ``delta.patch``: that is the model's view, and it changed shape under
+    the protocol's 1.0 (plain dicts became typed operation models) while the
+    bytes on the wire stayed identical. The client applies the bytes.
+    """
+    frame = EventEncoder().encode(delta)
+    return json.loads(frame.removeprefix("data: "))["patch"]
 
 
 def test_a_delta_moves_one_series_without_re_sending_the_chart() -> None:
@@ -13,17 +28,24 @@ def test_a_delta_moves_one_series_without_re_sending_the_chart() -> None:
     assert delta.type == EventType.ACTIVITY_DELTA
     assert delta.message_id == "c1"
     assert delta.activity_type == CHART_ACTIVITY_TYPE
-    assert delta.patch == [{"op": "replace", "path": "/series/0/points", "value": [3.0, 4.0]}]
+    assert _served_patch(delta) == [
+        {"op": "replace", "path": "/series/0/points", "value": [3.0, 4.0]}
+    ]
 
 
 def test_a_delta_can_name_a_series_other_than_the_first() -> None:
     delta = chart_points_delta("c1", series=2, points=(9.0,))
-    assert delta.patch[0]["path"] == "/series/2/points"
+    assert _served_patch(delta)[0]["path"] == "/series/2/points"
 
 
 def test_a_delta_accepts_a_tuple_and_sends_a_list() -> None:
     # JSON has no tuples, and a patch value has to survive serialisation.
-    assert chart_points_delta("c1", points=(1.0, 2.0)).patch[0]["value"] == [1.0, 2.0]
+    delta = chart_points_delta("c1", points=(1.0, 2.0))
+    assert _served_patch(delta)[0]["value"] == [1.0, 2.0]
+    # The encoder turns a tuple into an array by itself, so the frame alone
+    # cannot tell whether the helper converted; the model can, and a caller
+    # re-serialising the event any other way is reading the model.
+    assert delta.model_dump()["patch"][0]["value"] == [1.0, 2.0]
 
 
 def test_a_negative_series_index_is_refused() -> None:
@@ -86,7 +108,9 @@ def test_a_declared_spec_refuses_a_series_index_past_the_end() -> None:
 
 def test_a_delta_matching_the_declared_spec_is_built_as_usual() -> None:
     delta = chart_points_delta("c1", series=1, points=(7.0, 8.0, 9.0), spec=_spec())
-    assert delta.patch == [{"op": "replace", "path": "/series/1/points", "value": [7.0, 8.0, 9.0]}]
+    assert _served_patch(delta) == [
+        {"op": "replace", "path": "/series/1/points", "value": [7.0, 8.0, 9.0]}
+    ]
 
 
 def test_a_caller_that_declares_nothing_behaves_exactly_as_before() -> None:
@@ -94,4 +118,4 @@ def test_a_caller_that_declares_nothing_behaves_exactly_as_before() -> None:
     # know the shape, so a wrong-length delta still goes out. Declaring is the
     # only way to be told, and not declaring must stay a working call.
     delta = chart_points_delta("c1", points=(7.0, 8.0))
-    assert delta.patch[0]["value"] == [7.0, 8.0]
+    assert _served_patch(delta)[0]["value"] == [7.0, 8.0]

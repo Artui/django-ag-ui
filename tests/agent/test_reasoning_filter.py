@@ -13,11 +13,12 @@ from ag_ui.core import (
 from django_ag_ui.agent.reasoning_filter import REASONING_EVENT_TYPES, drop_reasoning_events
 
 
-def test_set_covers_both_event_families_but_not_text() -> None:
-    # The adapter emits REASONING_* (>= 0.1.13) or THINKING_* (older); both must
-    # be recognised, while ordinary text events must not be.
+def test_set_covers_the_reasoning_family_but_not_text() -> None:
+    # Every REASONING_* event must be recognised, including the encrypted value
+    # a provider sends in place of readable thoughts, while ordinary text events
+    # must not be.
     assert EventType.REASONING_START in REASONING_EVENT_TYPES
-    assert EventType.THINKING_START in REASONING_EVENT_TYPES
+    assert EventType.REASONING_ENCRYPTED_VALUE in REASONING_EVENT_TYPES
     assert EventType.TEXT_MESSAGE_CONTENT not in REASONING_EVENT_TYPES
 
 
