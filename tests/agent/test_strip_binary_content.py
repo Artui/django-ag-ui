@@ -124,6 +124,22 @@ def test_ids_and_the_attachments_extra_survive_the_strip() -> None:
     assert kept.model_dump(by_alias=True)["attachments"] == attachments
 
 
+def test_attachment_refs_in_metadata_survive_the_strip() -> None:
+    """The same guard for the carrier the web component moved the refs to.
+
+    ``metadata`` is a declared field rather than an extra, so ``model_copy``
+    keeps it for a different reason -- and the re-validating round-trip drops it
+    all the same, which is what this holds against.
+    """
+    metadata = {"attachments": [{"id": "a1", "name": "report.pdf"}]}
+    message = _user([_text_part(), _document_part()], metadata=metadata)
+
+    (kept,) = strip_binary_content([message])
+
+    assert kept.id == "m1"
+    assert kept.model_dump(by_alias=True)["metadata"] == metadata
+
+
 def test_only_the_emptied_message_is_dropped_from_a_thread() -> None:
     kept_before = _user("what is in the file?")
     tool_note = ToolMessage(

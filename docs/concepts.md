@@ -178,12 +178,19 @@ that succeeded — and every client renders both as a completed call. Pydantic-A
 knows the difference (`ToolReturnPart.outcome`) and has nowhere in the event to
 put it.
 
-This package adds it, as an optional field on the result event:
+This package adds it to the result event, in two places under the same key:
 
 ```json
 {"type": "TOOL_CALL_RESULT", "messageId": "…", "toolCallId": "…",
- "content": "that name is already taken", "role": "tool", "outcome": "failed"}
+ "content": "that name is already taken", "role": "tool",
+ "metadata": {"outcome": "failed"}, "outcome": "failed"}
 ```
+
+Read `metadata.outcome`. `metadata` is the open slot AG-UI 1.0 declares on
+every event and message, and `@ag-ui/client` 1.0 folds a result event's
+`metadata` onto the tool message it appends, so the outcome is on the message a
+renderer draws. The top-level `outcome` is the same value for clients on
+`@ag-ui/client` 0.x, which is what the web component ran up to 0.40.
 
 | Value | What it means |
 | --- | --- |
@@ -192,11 +199,14 @@ This package adds it, as an optional field on the result event:
 | `"denied"` | The call was refused by a person or a guard, and never attempted. This is what a denied [tool approval](tool-approval.md) produces. |
 | anything else | Treat as success. `"interrupted"` reaches the wire because the value is forwarded verbatim, but it is not part of the rendering contract, and neither is any value pydantic-ai adds later. |
 
-The field is additive rather than a protocol change: AG-UI's event schemas allow
-unknown keys (`extra="allow"` on the Python models, `passthrough` on the
-TypeScript zod schemas), so it survives parsing on a client that has never heard
-of it. A client that reads it needs no version negotiation, and one that ignores
-it sees exactly the stream it saw before.
+Both are additive rather than a protocol change, and each survives on the
+client it is there for. `metadata` is declared, so every 1.0 client keeps it.
+The top-level key is not: the 0.x client parsed events with zod `passthrough`
+schemas and kept it, while the 1.0 client strips every key a schema does not
+declare and logs the removal, which is why the value is written twice rather
+than moved. A client that reads either needs no version negotiation, and one
+that ignores both sees exactly the stream it would from any other AG-UI
+server.
 
 Only a **server-side** tool has an outcome here: a frontend tool executes in the
 browser and its result comes back in the next request, so the browser already
@@ -445,7 +455,7 @@ describing what was read, so the thread still reads as a record of the exchange.
 The rule is deliberately one-sided: **the server never persists bytes it
 generated, and never discards bytes the client sent.** Inline content a front end
 posts is stored exactly as it arrived, the same way message ids and the
-`attachments` field are. See [File uploads](#file-uploads) for what that means
+attachment refs are. See [File uploads](#file-uploads) for what that means
 for a follow-up question, and for how rows written before this existed are
 cleaned.
 
@@ -515,9 +525,12 @@ The lifecycle:
 1. The composer uploads each file (multipart `POST <prefix>attachments/`) and
    gets back an [`AttachmentRef`][django_ag_ui.AttachmentRef] — a durable handle,
    not bytes.
-2. The user sends a message carrying the refs. They ride the message as an
-   `attachments` field — AG-UI does not declare one, but `ag_ui.core` validates
-   with `extra="allow"`, so it arrives intact. The server derives a **manifest**
+2. The user sends a message carrying the refs, as an array at
+   `metadata.attachments` — `metadata` is the open slot AG-UI 1.0 declares on a
+   message, so every 1.0 client sends it intact. Web components up to 0.40 send
+   the same array as a top-level `attachments` field instead, which AG-UI does
+   not declare but `ag_ui.core` keeps (`extra="allow"`), and the server reads it
+   whenever `metadata` has no `attachments` key. The server derives a **manifest**
    from the posted messages (see [`RUN_CONTEXT`](configuration.md#run_context))
    and gives it to the model as fenced context, so the model knows a file exists
    and what id reads it.
@@ -528,8 +541,8 @@ The lifecycle:
 The manifest is derived from the message list rather than from the current
 request's uploads, because the client clears its per-run list once a run settles
 — so refs stay visible on follow-up turns about the same file. A stored thread
-keeps the client's messages as posted, ids and `attachments` field included, so
-the chips (and the ids) survive a page reload.
+keeps the client's messages as posted, ids and attachment refs included on
+either carrier, so the chips (and the ids) survive a page reload.
 
 ### Bytes reach the model, not the row
 
@@ -562,8 +575,8 @@ rewrites it, and that something is a management command rather than the next run
 with django-pydantic-agent 0.15.0 or newer and its
 `django_pydantic_agent.contrib.store` app installed, `manage.py
 agent_store_strip_inline_bytes` (`--dry-run` to see what it would reclaim) does
-structural JSON surgery on the stored rows, keeping every message id and the
-`attachments` array intact. The attachments themselves are untouched in the
+structural JSON surgery on the stored rows, keeping every message id and every
+attachment ref intact. The attachments themselves are untouched in the
 attachment store, so the model still reaches every file by id.
 
 **What changes for a reader.** A follow-up question about the same file, asked
