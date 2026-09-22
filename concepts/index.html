@@ -1486,10 +1486,16 @@ how the call went, so a tool that failed reaches a client byte-identical to one
 that succeeded — and every client renders both as a completed call. Pydantic-AI
 knows the difference (<code>ToolReturnPart.outcome</code>) and has nowhere in the event to
 put it.</p>
-<p>This package adds it, as an optional field on the result event:</p>
+<p>This package adds it to the result event, in two places under the same key:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TOOL_CALL_RESULT&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;messageId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;…&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;toolCallId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;…&quot;</span><span class="p">,</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w"> </span><span class="nt">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;that name is already taken&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tool&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;outcome&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;failed&quot;</span><span class="p">}</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w"> </span><span class="nt">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;that name is already taken&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tool&quot;</span><span class="p">,</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w"> </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;outcome&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;failed&quot;</span><span class="p">},</span><span class="w"> </span><span class="nt">&quot;outcome&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;failed&quot;</span><span class="p">}</span>
 </span></code></pre></div>
+<p>Read <code>metadata.outcome</code>. <code>metadata</code> is the open slot AG-UI 1.0 declares on
+every event and message, and <code>@ag-ui/client</code> 1.0 folds a result event's
+<code>metadata</code> onto the tool message it appends, so the outcome is on the message a
+renderer draws. The top-level <code>outcome</code> is the same value for clients on
+<code>@ag-ui/client</code> 0.x, which is what the web component ran up to 0.40.</p>
 <table>
 <thead>
 <tr>
@@ -1516,11 +1522,14 @@ put it.</p>
 </tr>
 </tbody>
 </table>
-<p>The field is additive rather than a protocol change: AG-UI's event schemas allow
-unknown keys (<code>extra="allow"</code> on the Python models, <code>passthrough</code> on the
-TypeScript zod schemas), so it survives parsing on a client that has never heard
-of it. A client that reads it needs no version negotiation, and one that ignores
-it sees exactly the stream it saw before.</p>
+<p>Both are additive rather than a protocol change, and each survives on the
+client it is there for. <code>metadata</code> is declared, so every 1.0 client keeps it.
+The top-level key is not: the 0.x client parsed events with zod <code>passthrough</code>
+schemas and kept it, while the 1.0 client strips every key a schema does not
+declare and logs the removal, which is why the value is written twice rather
+than moved. A client that reads either needs no version negotiation, and one
+that ignores both sees exactly the stream it would from any other AG-UI
+server.</p>
 <p>Only a <strong>server-side</strong> tool has an outcome here: a frontend tool executes in the
 browser and its result comes back in the next request, so the browser already
 knows how it went. The view marks itself as a
@@ -1779,7 +1788,7 @@ describing what was read, so the thread still reads as a record of the exchange.
 <p>The rule is deliberately one-sided: <strong>the server never persists bytes it
 generated, and never discards bytes the client sent.</strong> Inline content a front end
 posts is stored exactly as it arrived, the same way message ids and the
-<code>attachments</code> field are. See <a href="#file-uploads">File uploads</a> for what that means
+attachment refs are. See <a href="#file-uploads">File uploads</a> for what that means
 for a follow-up question, and for how rows written before this existed are
 cleaned.</p>
 <h3 id="thread-history">Thread history<a class="headerlink" href="#thread-history" title="Permanent link">&para;</a></h3>
@@ -1876,9 +1885,12 @@ catalog</a> uses to keep schemas off the wire.</p>
       dataclass
   " href="../api/#django_ag_ui.AttachmentRef"><code>AttachmentRef</code></a> — a durable handle,
    not bytes.</li>
-<li>The user sends a message carrying the refs. They ride the message as an
-   <code>attachments</code> field — AG-UI does not declare one, but <code>ag_ui.core</code> validates
-   with <code>extra="allow"</code>, so it arrives intact. The server derives a <strong>manifest</strong>
+<li>The user sends a message carrying the refs, as an array at
+   <code>metadata.attachments</code> — <code>metadata</code> is the open slot AG-UI 1.0 declares on a
+   message, so every 1.0 client sends it intact. Web components up to 0.40 send
+   the same array as a top-level <code>attachments</code> field instead, which AG-UI does
+   not declare but <code>ag_ui.core</code> keeps (<code>extra="allow"</code>), and the server reads it
+   whenever <code>metadata</code> has no <code>attachments</code> key. The server derives a <strong>manifest</strong>
    from the posted messages (see <a href="../configuration/#run_context"><code>RUN_CONTEXT</code></a>)
    and gives it to the model as fenced context, so the model knows a file exists
    and what id reads it.</li>
@@ -1889,8 +1901,8 @@ catalog</a> uses to keep schemas off the wire.</p>
 <p>The manifest is derived from the message list rather than from the current
 request's uploads, because the client clears its per-run list once a run settles
 — so refs stay visible on follow-up turns about the same file. A stored thread
-keeps the client's messages as posted, ids and <code>attachments</code> field included, so
-the chips (and the ids) survive a page reload.</p>
+keeps the client's messages as posted, ids and attachment refs included on
+either carrier, so the chips (and the ids) survive a page reload.</p>
 <h3 id="bytes-reach-the-model-not-the-row">Bytes reach the model, not the row<a class="headerlink" href="#bytes-reach-the-model-not-the-row" title="Permanent link">&para;</a></h3>
 <p>Step 3 is where the wire's "refs, never bytes" rule meets its one exception: for
 a PDF or an image inside the size cap, <code>read_attachment</code> returns the file itself,
@@ -1918,8 +1930,8 @@ rewrites it, and that something is a management command rather than the next run
 with django-pydantic-agent 0.15.0 or newer and its
 <code>django_pydantic_agent.contrib.store</code> app installed, <code>manage.py
 agent_store_strip_inline_bytes</code> (<code>--dry-run</code> to see what it would reclaim) does
-structural JSON surgery on the stored rows, keeping every message id and the
-<code>attachments</code> array intact. The attachments themselves are untouched in the
+structural JSON surgery on the stored rows, keeping every message id and every
+attachment ref intact. The attachments themselves are untouched in the
 attachment store, so the model still reaches every file by id.</p>
 <p><strong>What changes for a reader.</strong> A follow-up question about the same file, asked
 after a page reload, makes the model call <code>read_attachment</code> again instead of
