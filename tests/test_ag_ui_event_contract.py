@@ -1,27 +1,40 @@
 """Cross-repo AG-UI event-set contract.
 
-The Python (`ag-ui-protocol`) and JS (`@ag-ui/core`) event sets are identical
-today, and the trio relies on that — e.g. reasoning rides the ``REASONING_*``
-family on both sides. Nothing else in CI would catch them drifting
-when either dependency bumps, so this test pins the canonical set: if a bump
-adds, removes, or renames an event, this fails and forces a deliberate review.
+The trio relies on the Python (`ag-ui-protocol`) and JS (`@ag-ui/core`) event
+sets agreeing on every event a producer here emits -- e.g. reasoning rides the
+``REASONING_*`` family on both sides. Nothing else in CI would catch them
+drifting when either dependency bumps, so this test pins the canonical set: if
+a bump adds, removes, or renames an event, this fails and forces a deliberate
+review.
 
-The **same** ``CANONICAL_AG_UI_EVENTS`` list is asserted in the web component's
+A parallel ``CANONICAL_AG_UI_EVENTS`` list is asserted in the web component's
 suite (`tests/ag_ui_event_contract.test.ts`) and documented in the ecosystem
-``architecture.md`` ("Events the trio relies on"). Update all three together.
+``architecture.md``. The two lists differ by exactly the five ``THINKING_*``
+events for as long as the web component resolves a ``@ag-ui/core`` below 1.0:
+this side dropped them with the protocol's 1.0, and the JS side still declares
+them. That difference is one-directional and harmless -- nothing in the family
+emits ``THINKING_*`` (pydantic-ai emits ``REASONING_*`` at every protocol
+version this package admits), and a reader declaring five events no producer
+sends loses nothing. Any other difference is the review this test exists to
+force. When the web component adopts ``@ag-ui/core`` 1.0 the two lists become
+identical again; update all three together.
 """
 
 from __future__ import annotations
 
 from ag_ui.core import EventType
 
-# The 36 AG-UI event types, as of ag-ui-protocol 0.1.21 / @ag-ui/core 0.0.59.
+# The 31 AG-UI event types of ag-ui-protocol 1.0.
 #
-# Two bumps moved through here without touching the set, and one moved it. The
+# Two bumps moved through here without touching the set, and two moved it. The
 # 0.1.18 -> 0.1.19 bump (tool-approval interrupt/resume) rides RUN_FINISHED
 # *outcomes* + the RunAgentInput.resume field, and 0.1.20 added TokenUsage on
-# RUN_FINISHED / RUN_ERROR -- neither is an EventType member. 0.1.21 is the one
-# that grew the catalogue, adding the three SUBAGENT_* events below.
+# RUN_FINISHED / RUN_ERROR -- neither is an EventType member. 0.1.21 grew the
+# catalogue, adding the three SUBAGENT_* events below. 1.0 shrank it, removing
+# the deprecated THINKING_* family (THINKING_START / _END and
+# THINKING_TEXT_MESSAGE_START / _CONTENT / _END) in favour of REASONING_*; the
+# `cancelled` RUN_FINISHED outcome it added is, like 0.1.19's outcomes, not an
+# EventType member.
 CANONICAL_AG_UI_EVENTS = frozenset(
     {
         "ACTIVITY_DELTA",
@@ -50,11 +63,6 @@ CANONICAL_AG_UI_EVENTS = frozenset(
         "TEXT_MESSAGE_CONTENT",
         "TEXT_MESSAGE_END",
         "TEXT_MESSAGE_START",
-        "THINKING_END",
-        "THINKING_START",
-        "THINKING_TEXT_MESSAGE_CONTENT",
-        "THINKING_TEXT_MESSAGE_END",
-        "THINKING_TEXT_MESSAGE_START",
         "TOOL_CALL_ARGS",
         "TOOL_CALL_CHUNK",
         "TOOL_CALL_END",
@@ -69,8 +77,8 @@ def test_python_event_set_matches_the_canonical_contract() -> None:
 
 
 def test_reasoning_family_is_present() -> None:
-    # The stack forwards a reasoning model's chain-of-thought on this family; the
-    # pinned stack emits REASONING_* (>= 0.1.13, 7 events) and the legacy
-    # THINKING_* (5 events) the JS client maps onto it.
-    reasoning = {e for e in CANONICAL_AG_UI_EVENTS if e.startswith(("REASONING", "THINKING"))}
-    assert len(reasoning) == 12
+    # The stack forwards a reasoning model's chain-of-thought on this family, all
+    # seven REASONING_* events of it. The legacy THINKING_* family the JS client
+    # used to map onto it left the protocol in 1.0.
+    reasoning = {e for e in CANONICAL_AG_UI_EVENTS if e.startswith("REASONING")}
+    assert len(reasoning) == 7

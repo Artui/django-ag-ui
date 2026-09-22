@@ -28,10 +28,11 @@ def strip_binary_content(messages: Sequence[Message]) -> list[Message]:
     untouched.
 
     Textual parts survive, so a mixed message loses only its payload, and a part
-    carrying a ``url`` rather than inline ``data`` is a reference, not a payload,
-    and is kept. A message left with no content at all is dropped rather than
-    stored as a blank chat row. A message whose content is a plain string is
-    returned unchanged — the same object, not a copy.
+    carrying a ``url`` or a provider ``file`` handle rather than inline ``data``
+    is a reference, not a payload, and is kept. A message left with no content
+    at all is dropped rather than stored as a blank chat row. A message whose
+    content is a plain string is returned unchanged — the same object, not a
+    copy.
 
     Copies are made with ``model_copy``, **never by re-validating**: a round-trip
     through ``load_messages`` / ``dump_messages`` regenerates every message id and
@@ -58,15 +59,12 @@ def _is_inline_binary(part: Any) -> bool:
     """Whether ``part`` carries bytes inline rather than a reference to them."""
     if part.type == _TEXT_PART:
         return False
-    source = getattr(part, "source", None)
-    if source is None:
-        # The deprecated ``binary`` part predates ``InputContentSource`` and
-        # holds its alternatives flat: ``data`` is a payload, ``id`` / ``url``
-        # are references.
-        return part.data is not None
     # ``image`` / ``audio`` / ``video`` / ``document`` parts, whose source is
-    # either inline base64 (``data``) or a ``url`` pointing at the bytes.
-    return source.type == _INLINE_SOURCE
+    # inline base64 (``data``), a ``url`` pointing at the bytes, or a ``file``
+    # handle a model provider issued for bytes it already holds. Only the first
+    # puts the bytes in the row. The flat ``binary`` part that predated sources
+    # left the protocol in its 1.0, so every non-text part carries one.
+    return part.source.type == _INLINE_SOURCE
 
 
 __all__ = ["strip_binary_content"]

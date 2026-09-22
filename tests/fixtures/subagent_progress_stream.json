@@ -16,8 +16,7 @@
     {
       "type": "TEXT_MESSAGE_START",
       "timestamp": 1735689600000,
-      "messageId": "message-1",
-      "role": "assistant"
+      "messageId": "message-1"
     },
     {
       "type": "TEXT_MESSAGE_END",
@@ -129,8 +128,7 @@
     {
       "type": "TEXT_MESSAGE_START",
       "timestamp": 1735689600000,
-      "messageId": "message-3",
-      "role": "assistant"
+      "messageId": "message-3"
     },
     {
       "type": "TEXT_MESSAGE_END",
@@ -179,8 +177,7 @@
     {
       "type": "TEXT_MESSAGE_START",
       "timestamp": 1735689600000,
-      "messageId": "message-5",
-      "role": "assistant"
+      "messageId": "message-5"
     },
     {
       "type": "TEXT_MESSAGE_CONTENT",
