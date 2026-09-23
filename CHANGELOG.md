@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A stored thread now keeps each tool call's outcome, so a denied or failed
+  call no longer replays as done.** The live `TOOL_CALL_RESULT` has carried the
+  outcome since 0.63.0, but the persisted thread was written by pydantic-ai's
+  dump, which keeps it only on `error` and the opaque `encryptedValue`. A web
+  component given `data-threads-url` replays the server's copy on reload, found
+  no outcome there, and marked a call the user had just refused as done. All
+  three routes a run is stored by now write the outcome on the carriers the
+  stream uses, `metadata.outcome` and the top-level `outcome`: the completed
+  run's dump, a resumed run's server-loaded history, and the transcript a
+  failed or cancelled run is saved from, which lost it the same way.
+  Pydantic-ai's own carriers stay as they were, so a run resumed from the
+  thread still tells the model the call was refused. A successful call is
+  stored with no outcome, as before.
+
+  `OutcomeAGUIAdapter.dump_messages` is where this happens, beside the stream
+  stamp it mirrors, and `stamp_outcome` now accepts a `ToolMessage` as well as
+  a `ToolCallResultEvent`. A provider-executed tool's return is not matched,
+  because its dumped id is rewritten, and no model pydantic-ai ships reports
+  one as anything but a success. Threads stored before this release are not
+  rewritten: a call refused in one of them still reloads as done.
+
 ## [0.63.0] — 2026-09-22
 
 ### Added

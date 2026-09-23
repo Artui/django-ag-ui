@@ -1,11 +1,17 @@
-"""``stamp_outcome`` — write a tool call's outcome onto its ``TOOL_CALL_RESULT``."""
+"""``stamp_outcome`` — write a tool call's outcome onto its result, live or stored."""
 
 from __future__ import annotations
 
-from ag_ui.core import ToolCallResultEvent
+from typing import TypeVar
+
+from ag_ui.core import ToolCallResultEvent, ToolMessage
 
 OUTCOME_FIELD = "outcome"
 """The key naming a tool call's outcome on ``TOOL_CALL_RESULT``, on both carriers.
+
+The stored tool message a thread keeps for the call carries it the same way, so
+a client replaying the thread reads what the stream told it: a web component
+fed from the thread endpoint replays the server's copy, not its own.
 
 AG-UI declares no outcome on the event, so the value is written twice, under
 this one key:
@@ -26,8 +32,16 @@ this one key:
 """
 
 
-def stamp_outcome(event: ToolCallResultEvent, outcome: str) -> ToolCallResultEvent:
+_Stamped = TypeVar("_Stamped", ToolCallResultEvent, ToolMessage)
+
+
+def stamp_outcome(event: _Stamped, outcome: str) -> _Stamped:
     """A copy of ``event`` carrying ``outcome`` on both carriers ``OUTCOME_FIELD`` names.
+
+    ``event`` is the live ``TOOL_CALL_RESULT`` or the ``ToolMessage`` a stored
+    thread keeps for the same call. One function for both, because the stored
+    copy has to be written exactly as the stream was: both models declare
+    ``metadata`` and allow extras, so the two carriers land the same way on each.
 
     The outcome is **merged** into whatever ``metadata`` the event already
     carries rather than replacing it. Upstream builds its own result events with
@@ -44,9 +58,11 @@ def stamp_outcome(event: ToolCallResultEvent, outcome: str) -> ToolCallResultEve
 
     ``outcome`` is written as given. Which outcomes are worth stamping -- none on
     a success, since absent means success -- is the caller's decision, and it is
-    made once, in ``OutcomeAGUIAdapter``'s stream. This is the part a wire-fixture
-    recorder outside this repository imports, so that the fixture a client is
-    tested against carries exactly the bytes this server writes.
+    made once, in ``OutcomeAGUIAdapter``, for its stream and its dump alike; a
+    transcript rebuilt from the stream only copies what the stream was stamped
+    with. This is the part a wire-fixture recorder outside this repository
+    imports, so that the fixture a client is tested against carries exactly the
+    bytes this server writes.
     """
     metadata = {**(event.metadata or {}), OUTCOME_FIELD: outcome}
     return event.model_copy(update={OUTCOME_FIELD: outcome, "metadata": metadata})

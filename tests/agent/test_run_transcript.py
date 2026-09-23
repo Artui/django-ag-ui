@@ -17,6 +17,7 @@ from ag_ui.core import (
 )
 
 from django_ag_ui.agent.run_transcript import RunTranscript
+from django_ag_ui.agent.stamp_outcome import OUTCOME_FIELD, stamp_outcome
 
 
 def test_empty_transcript_yields_no_messages() -> None:
@@ -146,3 +147,44 @@ def test_reasoning_events_are_tolerated_and_not_persisted() -> None:
 
     (message,) = transcript.messages()
     assert (message.id, message.content) == ("m1", "answer")
+
+
+# --- the outcome a result streamed with -------------------------------------------
+#
+# A failed run is persisted from this transcript rather than from a dump, so the
+# outcome the stream stamped has to survive the rebuild or the call is stored as
+# a success.
+
+
+def _result(**kwargs: object) -> ToolCallResultEvent:
+    return ToolCallResultEvent(message_id="t1", tool_call_id="c1", content="no", **kwargs)
+
+
+def test_a_stamped_result_is_recorded_with_its_outcome() -> None:
+    transcript = RunTranscript()
+    transcript.add(stamp_outcome(_result(), "failed"))
+
+    (tool,) = transcript.messages()
+    assert tool.metadata == {OUTCOME_FIELD: "failed"}
+    assert (tool.__pydantic_extra__ or {})[OUTCOME_FIELD] == "failed"
+
+
+def test_an_unstamped_result_is_recorded_with_no_outcome() -> None:
+    # Absent means success, and ``metadata`` stays absent rather than empty.
+    transcript = RunTranscript()
+    transcript.add(_result())
+
+    (tool,) = transcript.messages()
+    assert tool.metadata is None
+    assert OUTCOME_FIELD not in (tool.__pydantic_extra__ or {})
+
+
+def test_only_the_outcome_is_carried_over_from_the_event() -> None:
+    # The dump that stores a completed run has no event metadata to copy, so a
+    # transcript that copied the rest would store a thread differently depending
+    # on how its run ended.
+    transcript = RunTranscript()
+    transcript.add(stamp_outcome(_result(metadata={"trace": "t-1"}), "denied"))
+
+    (tool,) = transcript.messages()
+    assert tool.metadata == {OUTCOME_FIELD: "denied"}
