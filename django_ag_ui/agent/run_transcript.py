@@ -18,6 +18,8 @@ from ag_ui.core import (
     ToolMessage,
 )
 
+from django_ag_ui.agent.stamp_outcome import OUTCOME_FIELD, stamp_outcome
+
 
 @dataclass
 class _Draft:
@@ -86,14 +88,7 @@ class RunTranscript:
                 call,
             )
         elif isinstance(event, ToolCallResultEvent):
-            self._items.append(
-                ToolMessage(
-                    id=event.message_id,
-                    role="tool",
-                    content=event.content,
-                    tool_call_id=event.tool_call_id,
-                ),
-            )
+            self._items.append(_tool_message(event))
 
     def messages(self) -> list[Message]:
         """The reconstructed messages, in stream order.
@@ -128,6 +123,28 @@ class RunTranscript:
         draft = _Draft(message_id=message_id)
         self._items.append(draft)
         return draft
+
+
+def _tool_message(event: ToolCallResultEvent) -> ToolMessage:
+    """The stored tool message for a result event, carrying its outcome if it had one.
+
+    The outcome is copied off the event rather than decided here: the stream has
+    already been through ``OutcomeAGUIAdapter``, which stamped the calls worth
+    stamping, and the completed run's dump stamps the same calls the same way.
+    Only the outcome is copied, not the rest of the event's ``metadata``, so this
+    exit stores what the other two store and a thread does not read differently
+    depending on how its run ended.
+    """
+    message = ToolMessage(
+        id=event.message_id,
+        role="tool",
+        content=event.content,
+        tool_call_id=event.tool_call_id,
+    )
+    outcome = (event.metadata or {}).get(OUTCOME_FIELD)
+    if outcome is None:
+        return message
+    return stamp_outcome(message, outcome)
 
 
 __all__ = ["RunTranscript"]

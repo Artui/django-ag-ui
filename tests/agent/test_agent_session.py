@@ -1040,6 +1040,93 @@ async def test_a_resumed_runs_server_history_is_dumped_without_its_bytes() -> No
     assert contents[:3] == ["older question", "older answer", "hi"]
 
 
+# --- a tool call's outcome, as the stored thread keeps it ------------------------
+#
+# The live ``TOOL_CALL_RESULT`` says whether a call succeeded, and a client that
+# replays a thread from the server reads the stored tool message instead. Each of
+# a run's three exits writes that message by a different route -- the completed
+# run and a resumed run's snapshot are dumped from pydantic-ai's types, a failed
+# run's are rebuilt from the events -- and a route that drops the outcome shows a
+# refused call as done after a reload. These read the persisted payload, which is
+# what the thread endpoint serves.
+
+
+def _stored_tool_message(conversation: Any) -> dict[str, Any]:
+    (message,) = [m for m in conversation.messages if m["role"] == "tool"]
+    return message
+
+
+async def test_a_denied_call_is_stored_marked_denied() -> None:
+    store = _RecordingStore()
+    resume = [{"interruptId": "int-call-1", "status": "cancelled"}]
+    session = _session(
+        _approval_agent([]), _approval_run_input(resume=resume), conversation_store=store
+    )
+
+    await _events(session)
+
+    (conversation,) = store.saved
+    stored = _stored_tool_message(conversation)
+    assert stored["metadata"] == {"outcome": "denied"}
+    assert stored["outcome"] == "denied"
+
+
+async def test_an_approved_call_is_stored_with_no_outcome() -> None:
+    # Absent means success on the stored copy exactly as on the stream, so a
+    # thread written by this server reads the same as one written before it.
+    store = _RecordingStore()
+    resume = [{"interruptId": "int-call-1", "status": "resolved", "payload": {"approved": True}}]
+    session = _session(
+        _approval_agent([]), _approval_run_input(resume=resume), conversation_store=store
+    )
+
+    await _events(session)
+
+    (conversation,) = store.saved
+    stored = _stored_tool_message(conversation)
+    assert "metadata" not in stored
+    assert "outcome" not in stored
+
+
+async def test_a_call_a_run_error_closed_is_stored_marked_failed() -> None:
+    # The error exit persists what the transcript rebuilt from the events, and
+    # the adapter closes the pending call with a result it marks ``failed``.
+    store = _RecordingStore()
+
+    await _events(_session(_failing_agent(), conversation_store=store))
+
+    (conversation,) = store.saved
+    stored = _stored_tool_message(conversation)
+    assert stored["metadata"] == {"outcome": "failed"}
+    assert stored["outcome"] == "failed"
+
+
+async def test_a_resumed_runs_server_history_keeps_its_outcomes() -> None:
+    # The snapshot is dumped from pydantic-ai's types too, by the other call site.
+    from pydantic_ai.messages import ToolCallPart, ToolReturnPart
+
+    store = _RecordingStore()
+    history = [
+        *_server_history(),
+        ModelResponse(parts=[ToolCallPart(tool_name="t", args={}, tool_call_id="old-call")]),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_name="t", content="no", tool_call_id="old-call", outcome="denied"
+                )
+            ]
+        ),
+    ]
+    session = _session(conversation_store=store, message_history=history)
+
+    await _events(session)
+
+    (conversation,) = store.saved
+    stored = _stored_tool_message(conversation)
+    assert stored["toolCallId"] == "old-call"
+    assert stored["metadata"] == {"outcome": "denied"}
+
+
 # --- what a run pays for when nothing reads it back ------------------------------
 
 

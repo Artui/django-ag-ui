@@ -19,7 +19,6 @@ from django_pydantic_agent.policy.audit.types.audit_event import AuditEvent
 from django_pydantic_agent.policy.audit.types.audit_logger import AuditLogger
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
-from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.build_client_context_toolset import build_client_context_toolset
 from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
@@ -100,10 +99,11 @@ class AgentSession:
         self._prior: list[Message] | None = None
         self._forward_reasoning = config.forward_reasoning
         # ``OutcomeAGUIAdapter`` rather than ``AGUIAdapter``: identical in every
-        # respect except that its ``TOOL_CALL_RESULT`` events say whether the
-        # call succeeded. Unconditional, because the field is additive and absent
-        # means success -- a client that does not read it sees the stream it saw
-        # before, so there is nothing for a setting to protect.
+        # respect except that its ``TOOL_CALL_RESULT`` events, and the tool
+        # messages it dumps for storage, say whether the call succeeded.
+        # Unconditional, because the field is additive and absent means success
+        # -- a client that does not read it sees the stream it saw before, so
+        # there is nothing for a setting to protect.
         self._adapter = OutcomeAGUIAdapter(
             agent,
             run_input,
@@ -328,7 +328,9 @@ class AgentSession:
         """
         if self._prior is None:
             self._prior = [
-                *strip_binary_content(AGUIAdapter.dump_messages(self._message_history or [])),
+                *strip_binary_content(
+                    OutcomeAGUIAdapter.dump_messages(self._message_history or [])
+                ),
                 *self._run_input.messages,
             ]
         return self._prior
@@ -347,13 +349,19 @@ class AgentSession:
         anywhere the model reads: those bytes are the server's own doing (a
         ``read_attachment`` handing the model a PDF) and the model has to see
         them.
+
+        Both dumps go through ``OutcomeAGUIAdapter`` rather than the stock
+        adapter, so a tool result is stored with the outcome its
+        ``TOOL_CALL_RESULT`` streamed with. A client replaying the thread from
+        the server reads this copy, not its own, and the stock dump keeps the
+        outcome only where a client is told not to look.
         """
         save = self._message_saver()
         if save is None:
             return None
 
         async def _on_complete(result: Any) -> None:
-            new = strip_binary_content(AGUIAdapter.dump_messages(result.new_messages()))
+            new = strip_binary_content(OutcomeAGUIAdapter.dump_messages(result.new_messages()))
             await save([*self._prior_messages(), *new])
 
         return _on_complete

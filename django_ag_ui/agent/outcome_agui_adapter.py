@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
 
-from ag_ui.core import BaseEvent, RunAgentInput, ToolCallResultEvent
+from ag_ui.core import BaseEvent, Message, RunAgentInput, ToolCallResultEvent, ToolMessage
 from pydantic_ai.messages import (
     FunctionToolResultEvent,
+    ModelMessage,
     NativeToolReturnPart,
     OutputToolResultEvent,
     RetryPromptPart,
@@ -60,6 +61,12 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
     is the adapter's documented seam and is where the part and the event it
     produced are in the same frame, so the correlation is an identity rather than
     a lookup.
+
+    **The stored copy says it too.** A thread is persisted by dumping the run's
+    messages, and a client that replays it from the server reads that dump rather
+    than the events it saw. ``dump_messages`` is overridden for the same reason
+    the stream is, so a refused call does not come back as a completed one after
+    a reload.
     """
 
     def build_event_stream(self) -> UIEventStream[RunAgentInput, BaseEvent, Any, Any]:
@@ -77,6 +84,35 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
         return _OutcomeEventStream(
             self.run_input, accept=self.accept, ag_ui_version=self.ag_ui_version
         )
+
+    @classmethod
+    def dump_messages(cls, messages: Sequence[ModelMessage], **kwargs: Any) -> list[Message]:
+        """``AGUIAdapter.dump_messages``, each tool result stamped as the stream stamps it.
+
+        Upstream's dump keeps a non-success outcome on ``error`` and on the
+        ``encryptedValue`` carrier -- the same opaque envelope the class
+        docstring declines to hand a client on the stream, and ``error`` alone
+        cannot tell ``denied`` from ``failed``, or either from a retry prompt,
+        which upstream also writes an ``error`` for. Both are left as upstream
+        wrote them, since that is what ``load_messages`` reads the outcome back
+        from, and the outcome is added beside them on the carriers the live
+        ``TOOL_CALL_RESULT`` used: a stored thread replays the way it streamed.
+
+        Correlated by ``tool_call_id``, which the dump keeps verbatim for a
+        function or output tool. A call's id is unique within a thread; the web
+        component keys a replayed tool card by it, so a thread where it was not
+        would already replay wrongly. A provider-executed tool's return is not
+        matched: its dumped id is rewritten by a rule upstream keeps private, and
+        no model pydantic-ai ships reports a native return as anything but a
+        success, so there is nothing to match yet. Should one start to, it is
+        stored as upstream wrote it, where the stream would have marked it.
+
+        ``**kwargs`` are upstream's keyword arguments, passed through untouched
+        so that none of their defaults is restated here.
+        """
+        outcomes = _outcomes_by_call(messages)
+        dumped = super().dump_messages(messages, **kwargs)
+        return [_with_stored_outcome(message, outcomes) for message in dumped]
 
 
 class _OutcomeEventStream(AGUIEventStream[Any, Any]):
@@ -135,6 +171,35 @@ def _forwardable_outcome(
     if part.outcome == "success":
         return None
     return part.outcome
+
+
+def _outcomes_by_call(messages: Sequence[ModelMessage]) -> dict[str, str]:
+    """Each function or output tool call's forwardable outcome, keyed by call id.
+
+    Only calls whose outcome would be stamped on the stream appear, so a lookup
+    that misses means success -- the same rule as an absent field. A
+    ``NativeToolReturnPart`` is a sibling of ``ToolReturnPart`` rather than a
+    subclass, so the ``isinstance`` leaves it out; see ``dump_messages`` for why.
+    """
+    outcomes: dict[str, str] = {}
+    for message in messages:
+        for part in message.parts:
+            if not isinstance(part, ToolReturnPart):
+                continue
+            outcome = _forwardable_outcome(part)
+            if outcome is not None:
+                outcomes[part.tool_call_id] = outcome
+    return outcomes
+
+
+def _with_stored_outcome(message: Message, outcomes: Mapping[str, str]) -> Message:
+    """``message``, stamped when it is the result of a call ``outcomes`` names."""
+    if not isinstance(message, ToolMessage):
+        return message
+    outcome = outcomes.get(message.tool_call_id)
+    if outcome is None:
+        return message
+    return stamp_outcome(message, outcome)
 
 
 async def _with_outcome(

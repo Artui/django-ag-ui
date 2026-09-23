@@ -208,6 +208,16 @@ than moved. A client that reads either needs no version negotiation, and one
 that ignores both sees exactly the stream it would from any other AG-UI
 server.
 
+**The stored thread carries it the same way.** With a conversation store
+configured, the tool message a thread keeps for the call has the outcome at
+`metadata.outcome` and at the top level, beside the `error` and
+`encryptedValue` pydantic-ai writes there for itself. That holds however the run
+ended — completed, failed, cancelled, or resumed from server-loaded history —
+so a client that replays a thread from the thread endpoint, as the web
+component does under `data-threads-url`, reads what the stream told it rather
+than marking a refused call as done. A thread stored by an earlier release has
+no outcome on its tool messages, and is not rewritten.
+
 Only a **server-side** tool has an outcome here: a frontend tool executes in the
 browser and its result comes back in the next request, so the browser already
 knows how it went. The view marks itself as a

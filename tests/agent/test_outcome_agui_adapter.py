@@ -13,11 +13,13 @@ from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai import Agent, ToolFailed
 from pydantic_ai.messages import (
     FunctionToolResultEvent,
+    ModelRequest,
     ModelResponse,
     NativeToolCallPart,
     NativeToolReturnPart,
     OutputToolResultEvent,
     RetryPromptPart,
+    ToolCallPart,
     ToolReturnPart,
 )
 from pydantic_ai.models.function import DeltaToolCall, FunctionModel
@@ -465,3 +467,114 @@ async def test_the_outcome_survives_the_reasoning_filter() -> None:
 
     assert "REASONING" not in joined, "the filter under test has to actually be on"
     assert '"outcome":"failed"' in joined
+
+
+# --- the dump a stored thread is written from ----------------------------------
+#
+# ``AgentSession`` persists a run by dumping its messages, and a client replaying
+# the thread from the server reads that dump rather than the events it saw. Each
+# test dumps pydantic-ai's own types and reads the AG-UI messages that come back,
+# by alias, because that is the spelling the thread endpoint serves.
+
+
+def _dumped_tools(*parts: Any) -> list[dict[str, Any]]:
+    """The tool messages ``OutcomeAGUIAdapter.dump_messages`` writes for ``parts``.
+
+    Each part is answered by a request following a response that made the call,
+    which is the shape a real run's history has -- and a history that carries
+    messages other than tool results, so the dump's ``isinstance`` arm is
+    exercised on every call rather than only when a test remembers to.
+    """
+    history: list[Any] = []
+    for part in parts:
+        history.append(
+            ModelResponse(
+                parts=[ToolCallPart(tool_name="t", args={}, tool_call_id=part.tool_call_id)]
+            )
+        )
+        history.append(ModelRequest(parts=[part]))
+    dumped = OutcomeAGUIAdapter.dump_messages(history)
+    return [
+        message.model_dump(by_alias=True, exclude_none=True)
+        for message in dumped
+        if message.role == "tool"
+    ]
+
+
+def test_a_dumped_denied_result_carries_its_outcome_on_both_carriers() -> None:
+    (stored,) = _dumped_tools(_tool_return(outcome="denied"))
+    assert stored["metadata"] == {OUTCOME_FIELD: "denied"}
+    assert stored[OUTCOME_FIELD] == "denied"
+
+
+def test_upstreams_own_carriers_are_left_in_place() -> None:
+    """``load_messages`` reads a stored outcome back from ``error`` and
+    ``encryptedValue``, so a resumed run seeded from this thread still tells the
+    model the call was refused. The stamp is added beside them, never instead."""
+    (stored,) = _dumped_tools(_tool_return(outcome="denied"))
+    assert "error" in stored
+    assert json.loads(stored["encryptedValue"]) == {"pydantic_ai": {"outcome": "denied"}}
+
+
+def test_a_dumped_successful_result_carries_no_outcome() -> None:
+    (stored,) = _dumped_tools(_tool_return(outcome="success"))
+    assert "metadata" not in stored
+    assert OUTCOME_FIELD not in stored
+
+
+def test_a_dumped_retry_prompt_carries_no_outcome() -> None:
+    """Upstream writes an ``error`` on a retry prompt's tool message as well, which
+    is one reason ``error`` cannot stand in for the outcome: the stream does not
+    mark a retry, and the stored copy must not mark it either."""
+    (stored,) = _dumped_tools(
+        RetryPromptPart(tool_name="t", content="again", tool_call_id="call-1")
+    )
+    assert "error" in stored
+    assert OUTCOME_FIELD not in stored
+
+
+def test_each_call_is_stamped_with_its_own_outcome() -> None:
+    """A lookup keyed on the wrong thing -- position, or the last outcome seen --
+    passes every single-call test above. Two calls with different outcomes, and a
+    success between them, is the smallest history that can tell."""
+    stored = _dumped_tools(
+        ToolReturnPart(tool_name="t", content="c", tool_call_id="a", outcome="failed"),
+        ToolReturnPart(tool_name="t", content="c", tool_call_id="b"),
+        ToolReturnPart(tool_name="t", content="c", tool_call_id="c", outcome="denied"),
+    )
+    assert [(m["toolCallId"], m.get(OUTCOME_FIELD)) for m in stored] == [
+        ("a", "failed"),
+        ("b", None),
+        ("c", "denied"),
+    ]
+
+
+def test_a_native_tool_return_is_stored_as_upstream_wrote_it() -> None:
+    """The documented gap, pinned so that closing it is a decision: a native
+    return is dumped under a rewritten id, so it is not matched. No model
+    pydantic-ai ships reports one as anything but a success today."""
+    history = [
+        ModelResponse(
+            parts=[
+                NativeToolCallPart(tool_name="search", args={}, tool_call_id="call-1"),
+                NativeToolReturnPart(
+                    tool_name="search", content="c", tool_call_id="call-1", outcome="failed"
+                ),
+            ]
+        )
+    ]
+    (stored,) = [m for m in OutcomeAGUIAdapter.dump_messages(history) if m.role == "tool"]
+    assert stored.metadata is None
+
+
+def test_upstreams_keyword_arguments_reach_the_dump() -> None:
+    # Passed through rather than restated, so a keyword upstream accepts is one
+    # this accepts: below 0.1.11 there is no ``encryptedValue`` carrier at all.
+    history = [
+        ModelResponse(parts=[ToolCallPart(tool_name="t", args={}, tool_call_id="call-1")]),
+        ModelRequest(parts=[_tool_return(outcome="denied")]),
+    ]
+    dumped = OutcomeAGUIAdapter.dump_messages(history, ag_ui_version="0.1.10")
+    (stored,) = [m for m in dumped if m.role == "tool"]
+    assert stored.encrypted_value is None
+    assert stored.metadata == {OUTCOME_FIELD: "denied"}
