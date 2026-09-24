@@ -151,7 +151,24 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
-# Floored at 0.48, where a server answers in process which tools a listing
+# Floored at 0.49, where a read-shaping ``QueryParam`` value the output
+# serializer refuses while rendering is a ``validation_error`` result naming the
+# argument, which django-pydantic-agent's bridge raises as a retry. Below it the
+# refusal was an unhandled exception out of the tool: under the default
+# ``TOOL_FAILURE`` policy a failed call whose text is withheld, so the model was
+# told the tool failed but not why and could not correct the selection, and
+# with the policy off a ``RUN_ERROR``. That moves the serializer's text from
+# withheld to streamed: a retry is a ``TOOL_CALL_RESULT`` with no ``outcome``,
+# sent as it is, and ``INCLUDE_DETAIL`` does not govern it. The text is the
+# serializer's ``ValidationError`` message, DRF's client-facing wording and the
+# same kind every argument-validation retry already streams, and it is produced
+# only for a value the model itself sent; anything else a serializer raises is
+# still a failure the policy withholds. It moves in lockstep
+# with the ``[spec-tools]`` floor below, which fixed the same render on that
+# route; the test driving a refused selection through a session on each route
+# holds both.
+#
+# 0.48 was the previous floor, where a server answers in process which tools a listing
 # leaves out and why (``aunavailable_tools``) and, on request, lists every tool
 # the caller may see whether or not a condition refuses it right now
 # (``include_unavailable``). That pair is what django-pydantic-agent's bridge
@@ -160,9 +177,9 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # lower stated here would advertise a band in which the bridge a
 # ``drf_mcp_server=`` agent configures cannot be built. It moves in lockstep
 # with the ``[spec-tools]`` floor below, which is the same explanation written
-# for the other route.
+# for the other route. Subsumed.
 #
-# 0.46 was the previous floor, where a ``ServiceSpec`` declaring ``many=True`` registers
+# 0.46 was the floor before that, where a ``ServiceSpec`` declaring ``many=True`` registers
 # as a tool and takes its list under one named argument, ``items`` unless the spec
 # names another. A ``drf_mcp_server=`` registry carrying a bulk spec therefore
 # offers a tool whose result streams to the browser as a list, where the
@@ -198,7 +215,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 #
 # 0.37 was the previous floor, the first release carrying drf-services>=0.49
 # after a serializer that nests itself crashed the catalog walk. Subsumed.
-drf-mcp = ["djangorestframework-mcp-server>=0.48"]
+drf-mcp = ["djangorestframework-mcp-server>=0.49"]
 # Expose drf-services specs directly as agent tools via djangorestframework-
 # pydantic-ai's SpecCapability -- no MCP server in the path (service_specs=).
 # Floored at 0.25, the release that raises ToolFailed for a terminal failure
@@ -257,7 +274,7 @@ drf-mcp = ["djangorestframework-mcp-server>=0.48"]
 # every spec call passes ``many_as_argument``, so below it a tool call raises
 # ``TypeError`` once a model calls one.
 #
-# 0.31 is the floor now, and it is about what the model is told when a tool is
+# 0.31 was the previous floor, and it is about what the model is told when a tool is
 # missing rather than about which tools exist: each operation an unmet operation
 # condition left out is named in that step's instructions, with that condition's
 # reason, so a user who asks for one is answered in the sentence the rule's
@@ -269,10 +286,17 @@ drf-mcp = ["djangorestframework-mcp-server>=0.48"]
 # disagreement would surface, since a browser transcript is one stream whichever
 # route a tool came by.
 #
+# 0.32 is the floor now, the same fix as the ``[drf-mcp]`` floor above on this
+# route: a read-shaping value the output serializer refuses while rendering is a
+# retry naming the argument rather than a ``RUN_ERROR``, and an explicit
+# ``null`` for one is omitted rather than reaching the serializer as ``None``.
+# The browser-facing consequence is the one written above, and the two floors
+# move together so a transcript reads the same whichever route the tool came by.
+#
 # 0.24 was the floor before these, the first release carrying drf-services>=0.49
 # after a self-nesting serializer took SpecToolset down at construction. That
 # constraint still holds and is subsumed.
-spec-tools = ["djangorestframework-pydantic-ai>=0.31"]
+spec-tools = ["djangorestframework-pydantic-ai>=0.32"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via capabilities=.
@@ -308,9 +332,9 @@ dev = [
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
-    "djangorestframework-mcp-server>=0.48",
+    "djangorestframework-mcp-server>=0.49",
     # The [spec-tools] extra's backing package, so its capability + tests run in dev.
-    "djangorestframework-pydantic-ai>=0.31",
+    "djangorestframework-pydantic-ai>=0.32",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised

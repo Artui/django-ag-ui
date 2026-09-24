@@ -15,8 +15,17 @@ from django_pydantic_agent import AttachmentInlineConfig
 from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
 from django_pydantic_agent.registry.decorator import tool
 from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from pydantic_ai.models.function import DeltaToolCall, FunctionModel
 from pydantic_ai.models.test import TestModel
+from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import AllowAny
+from rest_framework_mcp import MCPServer, QueryParam
+from rest_framework_pydantic_ai import SpecToolset
+from rest_framework_services.types.selector_kind import SelectorKind
+from rest_framework_services.types.selector_spec import SelectorSpec
 
+from django_ag_ui.agent.agui_server import _resolve_spec_source
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.authed_request_factory import AuthedRequestFactory
@@ -1350,3 +1359,109 @@ class TestHeartbeat:
         await _cancel_mid_stream(response, self.HEARTBEAT)
 
         assert model_stream_closed.is_set()
+
+
+# --- a selection the serializer refuses while rendering ---------------------
+#
+# A read-shaping ``QueryParam`` is read by the output serializer, after the tool
+# has run, and both transports now answer a value it refuses with a retry naming
+# the argument rather than an exception out of the tool. For this package that
+# moves the refusal from one event to another. It was a failed call under the
+# default ``TOOL_FAILURE`` policy, its text withheld from the model and the
+# browser alike, so the model could not correct the selection; it is now a
+# retry, a ``TOOL_CALL_RESULT`` with no ``outcome``, sent as it is. The text is
+# the serializer's ``ValidationError`` message, DRF's client-facing wording,
+# and only ever about a value the model sent; anything else a serializer raises
+# is still a failure the policy withholds.
+
+
+class _SelectableRow(serializers.Serializer):
+    """A row reading its own ``?fields=id,name``; no selection library behind it."""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+    def to_representation(self, instance: Any) -> Any:
+        data = super().to_representation(instance)
+        raw = self.context["request"].query_params.get("fields")
+        if not raw:
+            return data
+        wanted = [name.strip() for name in raw.split(",")]
+        for name in wanted:
+            if name not in data:
+                raise ValidationError(f"Unknown field `{name}`.", code="unknown_field")
+        return {name: data[name] for name in wanted}
+
+
+_ROWS_SPEC = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=lambda: [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}],
+    output_serializer=_SelectableRow,
+    permission_classes=[AllowAny],
+)
+
+
+def _bridged_rows() -> dict[str, Any]:
+    server = MCPServer(name="paged")
+    server.register_selector_tool(
+        name="list_rows",
+        description="List rows.",
+        spec=_ROWS_SPEC,
+        paginate=True,
+        query_params=[QueryParam("fields")],
+    )
+    return {"drf_mcp_server": server}
+
+
+def _spec_rows() -> dict[str, Any]:
+    # Through the server's own normalising, as ``AGUIServer(service_specs=...)``
+    # hands a pre-built toolset to the view: the ``QueryParam`` is declared on
+    # the toolset, which is the only place this route can carry one.
+    toolset = SpecToolset(
+        {"list_rows": _ROWS_SPEC},
+        query_params=[QueryParam("fields")],
+        descriptions={"list_rows": "List rows."},
+    )
+    specs, capability, source = _resolve_spec_source(toolset)
+    return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
+
+
+def _selecting_model() -> FunctionModel:
+    """Selects the page envelope first, the way the tool's result documents it,
+    then one row's field once told what the selection applies to."""
+    selections = iter(["items", "name"])
+
+    async def stream_fn(messages, info):  # noqa: ANN001, ANN202
+        if any(part.part_kind == "tool-return" for part in messages[-1].parts):
+            yield "done"
+            return
+        args = json.dumps({"fields": next(selections)})
+        yield {0: DeltaToolCall(name="list_rows", json_args=args, tool_call_id="c1")}
+
+    return FunctionModel(stream_function=stream_fn)
+
+
+@pytest.mark.parametrize("route", [_bridged_rows, _spec_rows], ids=["drf-mcp", "spec-tools"])
+async def test_a_selection_refused_while_rendering_streams_as_a_retry_on_both_routes(
+    route: Any,
+) -> None:
+    view = DjangoAGUIView(ToolRegistry(), model=_selecting_model(), **route())
+
+    body = await _drain(await view(_post(_run_input("list the rows"))))
+
+    events = [json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: ")]
+    assert "RUN_ERROR" not in [event["type"] for event in events]
+    assert events[-1]["type"] == "RUN_FINISHED"
+    results = [event for event in events if event["type"] == "TOOL_CALL_RESULT"]
+    # A retry is not a failed call, so neither result carries an ``outcome``.
+    # Before both transports answered with a retry, this was one result marked
+    # ``failed``, with the serializer's words withheld and nothing to correct.
+    # Absent, not ``null``: a stamped ``None`` is a value a client would read.
+    assert [event.get("outcome", "absent") for event in results] == ["absent", "absent"]
+    retry, page = results
+    # The same sentence whichever route the tool came by, sent as it is.
+    assert (
+        "`fields` was rejected while rendering the result: Unknown field `items`."
+        in retry["content"]
+    )
+    assert json.loads(page["content"])["items"] == [{"name": "a"}, {"name": "b"}]
