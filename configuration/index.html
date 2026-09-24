@@ -2878,6 +2878,17 @@ used to deliver its own words to the browser. It is the same disclosure
 question, so it gets the same answer: with <code>INCLUDE_DETAIL</code> off the client is
 told the run failed and that the failure was recorded, and the exception stays
 in the audit record and the server log.</p>
+<p><strong>A retry is not a failure, so <code>INCLUDE_DETAIL</code> does not govern it.</strong> When a
+tool answers that the model's own argument was wrong, the model gets a retry
+carrying the validation message, and the browser receives that as a
+<code>TOOL_CALL_RESULT</code> with no <code>outcome</code>, sent as it is. That covers a malformed
+argument and, with <code>djangorestframework-mcp-server</code> 0.49+ and
+<code>djangorestframework-pydantic-ai</code> 0.32+, a read-shaping value (a <code>fields</code>
+selection, say) that the output serializer refuses while rendering. The text is
+a DRF <code>ValidationError</code> message, which DRF itself writes for the caller (it is
+the body of a <code>400</code> over HTTP), and it is only ever about a value the model
+sent. Anything else a tool or serializer raises is still a failure, and still
+withheld.</p>
 <p>Note it spends no retry budget, so a model may call a persistently broken tool
 again. Bound that with run-level <code>UsageLimits</code>, not with this.</p>
 <h3 id="tool_guard"><code>TOOL_GUARD</code><a class="headerlink" href="#tool_guard" title="Permanent link">&para;</a></h3>
