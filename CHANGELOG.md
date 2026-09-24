@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.65.0] — 2026-09-24
+
+### Changed
+
+- **The `[drf-mcp]` extra is floored at `djangorestframework-mcp-server>=0.49`
+  (was `>=0.48`) and the `[spec-tools]` extra at
+  `djangorestframework-pydantic-ai>=0.32` (was `>=0.31`), and these two floors
+  move together.** Both releases fix the same failure on their own route: a
+  read-shaping `QueryParam` value the output serializer refuses while rendering,
+  most often a selection written against a paged tool's envelope, was an
+  unhandled exception out of the tool. Under the default `TOOL_FAILURE` policy
+  that made it a failed call with its text withheld, so the model was told the
+  tool failed but not why and could not correct the selection. It is now a retry
+  naming the argument and quoting the serializer, and the model's next call gets
+  the page.
+
+  **This moves the serializer's text from withheld to streamed.** A retry is a
+  `TOOL_CALL_RESULT` with no `outcome`, sent as it is, and `INCLUDE_DETAIL` does
+  not govern it. The text is a DRF `ValidationError` message, the same kind
+  every argument-validation retry already streams, and it is produced only for a
+  value the model sent; anything else a serializer raises is still a failure the
+  policy withholds. A session test drives a refused selection through each
+  route and asserts the same sentence on both.
+- **`django-pydantic-agent` is floored at `>=0.26` (was `>=0.25`).** That
+  release changes no code; it raises its own `[drf-mcp]` and `[spec-tools]`
+  extras onto the bands above, so the package behind the `drf_mcp_server=`
+  bridge no longer advertises the ones this package's extras rule out.
+
 ## [0.64.0] — 2026-09-23
 
 ### Fixed
@@ -3730,7 +3758,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.64.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.65.0...HEAD
+[0.65.0]: https://github.com/Artui/django-ag-ui/compare/v0.64.0...v0.65.0
 [0.64.0]: https://github.com/Artui/django-ag-ui/compare/v0.63.0...v0.64.0
 [0.63.0]: https://github.com/Artui/django-ag-ui/compare/v0.62.0...v0.63.0
 [0.62.0]: https://github.com/Artui/django-ag-ui/compare/v0.61.0...v0.62.0
