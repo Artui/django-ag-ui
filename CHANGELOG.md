@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   value the model sent; anything else a serializer raises is still a failure the
   policy withholds. A session test drives a refused selection through each
   route and asserts the same sentence on both.
+- **`django-pydantic-agent` is floored at `>=0.26` (was `>=0.25`).** That
+  release changes no code; it raises its own `[drf-mcp]` and `[spec-tools]`
+  extras onto the bands above, so the package behind the `drf_mcp_server=`
+  bridge no longer advertises the ones this package's extras rule out.
 
 ## [0.64.0] — 2026-09-23
 

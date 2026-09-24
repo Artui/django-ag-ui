@@ -95,7 +95,7 @@ dependencies = [
     # a reader is not asked to work out which sibling is carrying it. Without it
     # the bridge's own backing package still advertises the band in which a bulk
     # spec is refused, while this package's extra says it is offered. Subsumed.
-    # 0.25 is the floor now, and unlike 0.24 it is one the browser feels.
+    # 0.25 was the previous floor, and unlike 0.24 it is one the browser feels.
     # django-pydantic-agent's drf-mcp bridge now follows tool availability on
     # every model step and names each tool an unmet operation condition left
     # out, with that condition's reason, in the step's instructions. So a user
@@ -106,7 +106,13 @@ dependencies = [
     # closing mid-session left the tool offered until the call refused it. It
     # raises that package's own ``[drf-mcp]`` and ``[spec-tools]`` extras to
     # 0.48 and 0.31, which is why the bands below move with it.
-    "django-pydantic-agent>=0.25",
+    # 0.26 is the floor now, and like 0.24 it buys no behaviour of its own: it
+    # raises that package's ``[drf-mcp]`` and ``[spec-tools]`` extras to 0.49 and
+    # 0.32, the bands below, in which a read-shaping query param the serializer
+    # refuses while rendering comes back as one retry rather than a failed call.
+    # Taken for the reason 0.21 and 0.24 were: so the bridge's own backing
+    # package does not advertise the band this package's extras rule out.
+    "django-pydantic-agent>=0.26",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
