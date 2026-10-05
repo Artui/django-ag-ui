@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The `[drf-mcp]` extra is floored at `djangorestframework-mcp-server>=0.50`
+  (was `>=0.49`) and the `[spec-tools]` extra at
+  `djangorestframework-pydantic-ai>=0.33` (was `>=0.32`), and these two floors
+  move together.** Both releases make a tool's input schema require what a call
+  needs. A service tool changing one row now advertises the lookup that row is
+  resolved through, typically `pk`, as a required argument; its schema used to
+  be the input serializer's fields alone, so the model was never told which
+  argument names the row. A call that left such an argument out raised the
+  lookup's `TypeError` out of the tool. Under the default `TOOL_FAILURE` policy
+  that made a failed call with its text withheld: the model was told the tool
+  failed and not to retry, and never which argument was missing. It is now a
+  retry naming the argument, and the model's next call reaches the row. Both
+  releases need `djangorestframework-services` 0.55, below which listing the
+  tools or building the toolset raises `TypeError`.
+
+  **This moves text from withheld to streamed.** A retry is a
+  `TOOL_CALL_RESULT` with no `outcome`, sent as it is, and `INCLUDE_DETAIL` does
+  not govern it. The text names only the arguments the model left out, never a
+  value it sent, and each route words it its own way:
+  `Invalid arguments: {"pk": ["This field is required."]}` through
+  `drf_mcp_server=`, and ``Missing required argument(s): `pk`.`` through
+  `service_specs=`. The `drf_mcp_server=` route moves one more refusal the same
+  way: a filter value the spec's `FilterSet` refuses was a DRF `ValidationError`
+  raised out of the tool, so a withheld failure, and is now a retry quoting the
+  filter, such as `Invalid arguments: {"id": ["Enter a number."]}`. The
+  `service_specs=` route already retried that one. A session test drives a call
+  missing its row lookup through each route and asserts that route's sentence,
+  the corrected call's result, and `pk` advertised as required.
+
 ## [0.65.0] — 2026-09-24
 
 ### Changed

@@ -1178,13 +1178,16 @@ in the audit record and the server log.
 tool answers that the model's own argument was wrong, the model gets a retry
 carrying the validation message, and the browser receives that as a
 `TOOL_CALL_RESULT` with no `outcome`, sent as it is. That covers a malformed
-argument and, with `djangorestframework-mcp-server` 0.49+ and
-`djangorestframework-pydantic-ai` 0.32+, a read-shaping value (a `fields`
-selection, say) that the output serializer refuses while rendering. The text is
-a DRF `ValidationError` message, which DRF itself writes for the caller (it is
-the body of a `400` over HTTP), and it is only ever about a value the model
-sent. Anything else a tool or serializer raises is still a failure, and still
-withheld.
+argument, a read-shaping value (a `fields` selection, say) that the output
+serializer refuses while rendering, and a required argument the model left out,
+such as the `pk` naming the row a service tool changes. For a value the model
+sent, the text is a DRF `ValidationError` message, which DRF itself writes for
+the caller (it is the body of a `400` over HTTP). For an argument it left out,
+the text names the missing argument and nothing else, in each route's own
+words: `Invalid arguments: {"pk": ["This field is required."]}` through
+`drf_mcp_server=`, and ``Missing required argument(s): `pk`.`` through
+`service_specs=`. Anything else a tool or serializer raises is still a failure,
+and still withheld.
 
 Note it spends no retry budget, so a model may call a persistently broken tool
 again. Bound that with run-level `UsageLimits`, not with this.
