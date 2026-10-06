@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.0] — 2026-10-06
+
+### Changed
+
+- **The `[drf-mcp]` extra is floored at `djangorestframework-mcp-server>=0.50`
+  (was `>=0.49`) and the `[spec-tools]` extra at
+  `djangorestframework-pydantic-ai>=0.33` (was `>=0.32`), and these two floors
+  move together.** Both releases make a tool's input schema require what a call
+  needs. A service tool changing one row now advertises the lookup that row is
+  resolved through, typically `pk`, as a required argument; its schema used to
+  be the input serializer's fields alone, so the model was never told which
+  argument names the row. A selector tool's parameter with no default, which
+  nothing fills, is now required too, where a selector reading one row by `pk`
+  advertised it as optional. A call that left such an argument out raised the
+  lookup's `TypeError` out of the tool. Under the default `TOOL_FAILURE` policy
+  that made a failed call with its text withheld: the model was told the tool
+  failed and not to retry, and never which argument was missing. It is now a
+  retry naming the argument, and the model's next call reaches the row. Both
+  releases need `djangorestframework-services` 0.55, below which listing the
+  tools or building the toolset raises `TypeError`.
+
+  **This moves text from withheld to streamed.** A retry is a
+  `TOOL_CALL_RESULT` with no `outcome`, sent as it is, and `INCLUDE_DETAIL` does
+  not govern it. The text names only the arguments the model left out, never a
+  value it sent, and each route words it its own way:
+  `Invalid arguments: {"pk": ["This field is required."]}` through
+  `drf_mcp_server=`, and ``Missing required argument(s): `pk`.`` through
+  `service_specs=`. The `drf_mcp_server=` route moves one more refusal the same
+  way: a filter value the spec's `FilterSet` refuses was a DRF `ValidationError`
+  raised out of the tool, so a withheld failure, and is now a retry quoting the
+  filter, such as `Invalid arguments: {"id": ["Enter a number."]}`. The
+  `service_specs=` route already retried that one. A session test drives a call
+  missing its row lookup through each route, for a service tool and a selector
+  tool, and asserts that route's sentence, the corrected call's result, and
+  `pk` advertised as required.
+- **`django-pydantic-agent` is floored at `>=0.27` (was `>=0.26`), so a
+  capability passed as `capabilities=` is handed the tool's own exception.**
+  Below 0.27 that package appended its failure policy after them with no
+  position of its own, so the policy sat inside every capability passed here
+  that does not pin itself innermost, and pydantic-ai runs error hooks
+  innermost first. Each such capability was handed the policy's redacted
+  `ToolFailed` in place of what the tool raised, so a step recorder recorded
+  the copy, and a capability that recovers by returning a value recovered from
+  the copy while the policy logged a failure the run had recovered from. 0.27
+  pins the policy outermost, so it converts last and the model is still
+  answered with the same failed result. A test passes a capability that
+  records the failure it is handed, and fails on 0.26. The step persistence a
+  `step_store=` attaches to each run was never affected, because its error
+  hook runs before the agent's: a second test holds that its ledger records
+  the tool's exception, so a later reordering cannot quietly hand it the copy.
+  0.27 also raises that package's own `[drf-mcp]` and `[spec-tools]` extras
+  onto the bands above.
+
+  **It also changes what an `audit_logger=` receives.** Audit is pinned
+  innermost from 0.27, so a record describes the tool's own execution, and a
+  call that never runs the tool has no record. A tool that defers itself, by
+  raising `ApprovalRequired` or `CallDeferred`, used to be recorded as a
+  failure reading `ApprovalRequired: `; it is now recorded once it is resumed
+  and runs, and a call deferred to external execution is not recorded at all.
+  A call `TOOL_GUARD` holds for approval was never recorded before it ran. The
+  `django_pydantic_agent.failure` logger now hears only about the failures the
+  policy converts, so a call a passed capability recovered or answered for is
+  no longer logged there. The configuration and tool-approval pages said audit
+  pins itself outermost and that the full exception reaches both sinks either
+  way; both now say what 0.27 does.
+
 ## [0.65.0] — 2026-09-24
 
 ### Changed
@@ -3758,7 +3824,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.65.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.66.0...HEAD
+[0.66.0]: https://github.com/Artui/django-ag-ui/compare/v0.65.0...v0.66.0
 [0.65.0]: https://github.com/Artui/django-ag-ui/compare/v0.64.0...v0.65.0
 [0.64.0]: https://github.com/Artui/django-ag-ui/compare/v0.63.0...v0.64.0
 [0.63.0]: https://github.com/Artui/django-ag-ui/compare/v0.62.0...v0.63.0

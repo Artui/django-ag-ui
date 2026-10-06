@@ -1161,9 +1161,15 @@ model is a disclosure one. A traceback message can carry a query, a path or a
 credential, and anything handed to the model is also handed to whatever renders
 the transcript in a browser.
 
-The operator's copy is never redacted. The full exception reaches your
-`AuditLogger` and the `django_pydantic_agent.failure` Python logger either way,
-recorded against the tool that raised it.
+The operator's copy is never redacted. Your `AuditLogger` records the exception
+the tool raised, in full, against the tool that raised it, unless a capability
+that sorts after audit, such as one pinned innermost, changes it. Whenever the policy
+converts a failure it first logs the exception, with its traceback, to the
+`django_pydantic_agent.failure` Python logger. That logger hears only about the
+failures the policy converts: nothing when a capability you passed as
+`capabilities=` recovered the call or answered for the model with its own
+`ModelRetry` or `ToolFailed`. A call that never runs the tool, such as one held
+for approval or deferred, has no audit record until it is resumed and runs.
 
 **`INCLUDE_DETAIL` governs the run-level `RUN_ERROR` event as well**, not just
 the model-facing tool result. Pydantic-AI builds that event out of
@@ -1178,13 +1184,16 @@ in the audit record and the server log.
 tool answers that the model's own argument was wrong, the model gets a retry
 carrying the validation message, and the browser receives that as a
 `TOOL_CALL_RESULT` with no `outcome`, sent as it is. That covers a malformed
-argument and, with `djangorestframework-mcp-server` 0.49+ and
-`djangorestframework-pydantic-ai` 0.32+, a read-shaping value (a `fields`
-selection, say) that the output serializer refuses while rendering. The text is
-a DRF `ValidationError` message, which DRF itself writes for the caller (it is
-the body of a `400` over HTTP), and it is only ever about a value the model
-sent. Anything else a tool or serializer raises is still a failure, and still
-withheld.
+argument, a read-shaping value (a `fields` selection, say) that the output
+serializer refuses while rendering, and a required argument the model left out,
+such as the `pk` naming the row a service tool changes. For a value the model
+sent, the text is a DRF `ValidationError` message, which DRF itself writes for
+the caller (it is the body of a `400` over HTTP). For an argument it left out,
+the text names the missing argument and nothing else, in each route's own
+words: `Invalid arguments: {"pk": ["This field is required."]}` through
+`drf_mcp_server=`, and ``Missing required argument(s): `pk`.`` through
+`service_specs=`. Anything else a tool or serializer raises is still a failure,
+and still withheld.
 
 Note it spends no retry budget, so a model may call a persistently broken tool
 again. Bound that with run-level `UsageLimits`, not with this.

@@ -24,6 +24,7 @@ from rest_framework_mcp import MCPServer, QueryParam
 from rest_framework_pydantic_ai import SpecToolset
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
+from rest_framework_services.types.service_spec import ServiceSpec
 
 from django_ag_ui.agent.agui_server import _resolve_spec_source
 from django_ag_ui.agent.agui_view import DjangoAGUIView
@@ -907,6 +908,96 @@ async def test_step_store_records_the_run_end_to_end() -> None:
     assert await StoredToolEffect.objects.filter(owner_id=owner, run_id="r1").aexists()
 
 
+@pytest.mark.django_db(transaction=True)
+async def test_step_store_records_the_tools_own_exception() -> None:
+    # The step ledger records a failed call from ``StepPersistence``'s error
+    # hook, and django-pydantic-agent's failure policy converts the same
+    # exception into the redacted ``ToolFailed`` the model is shown. The ledger
+    # is what an operator reads to find out why a run went wrong, so it must
+    # hold what the tool raised rather than the policy's copy with the text
+    # withheld. It does on both sides of the ``django-pydantic-agent>=0.27``
+    # floor: this view attaches ``StepPersistence`` per run, and a per-run
+    # capability's error hook runs before the agent's own, so the policy's
+    # move to outermost in 0.27 changes nothing here. The test holds that, so
+    # a later reordering on either side cannot quietly hand the ledger the copy.
+    # A capability passed to the view as ``capabilities=`` is the case 0.27
+    # does change; the next test covers it.
+    from asgiref.sync import sync_to_async
+    from django.contrib.auth import get_user_model
+    from django_pydantic_agent.contrib.store.models import StoredStepEvent, StoredToolEffect
+
+    reg = ToolRegistry()
+
+    @tool(reg)
+    def reconcile(n: int) -> int:
+        """Reconcile a ledger."""
+        raise ValueError("ledger 7 is locked by another job")
+
+    user = await sync_to_async(get_user_model().objects.create)(username="ledger")
+    view = DjangoAGUIView(
+        reg,
+        model=TestModel(),
+        step_store=DefaultStepStore,
+        get_user=lambda _request: user,
+    )
+    body = await _drain(await view(_post(_run_input("reconcile 7"))))
+    # The policy still answers the model: a failed result, not a failed run.
+    assert "RUN_FINISHED" in body
+    assert "RUN_ERROR" not in body
+    assert "ledger 7 is locked" not in body
+
+    owner = str(user.pk)
+    effect = await StoredToolEffect.objects.aget(owner_id=owner, run_id="r1", tool_name="reconcile")
+    assert effect.status == "failed"
+    assert effect.effect_summary == repr(ValueError("ledger 7 is locked by another job"))
+    event = await StoredStepEvent.objects.aget(
+        owner_id=owner, run_id="r1", kind="tool_call_failed", tool_name="reconcile"
+    )
+    assert event.error == effect.effect_summary
+
+
+@pytest.mark.django_db
+async def test_a_capability_passed_to_the_view_sees_the_tools_own_exception() -> None:
+    # Below 0.27 django-pydantic-agent appended its failure policy after
+    # ``capabilities=`` with no position, so it sat inside every capability
+    # passed here that does not pin itself innermost, and pydantic-ai runs
+    # error hooks innermost first: each such capability, this one included,
+    # was handed the policy's redacted ``ToolFailed`` instead of what the tool
+    # raised, so a step recorder
+    # recorded the copy and a capability that recovers by returning a value
+    # recovered from the copy. From 0.27 the policy is pinned outermost and
+    # converts last. This is what the ``django-pydantic-agent>=0.27`` floor
+    # buys this package, and it fails on 0.26.
+    from pydantic_ai.capabilities import AbstractCapability
+
+    seen: list[Exception] = []
+
+    class RecordsFailures(AbstractCapability[Any]):
+        async def on_tool_execute_error(
+            self, ctx: Any, *, call: Any, tool_def: Any, args: Any, error: Exception
+        ) -> Any:
+            seen.append(error)
+            raise error
+
+    reg = ToolRegistry()
+
+    @tool(reg)
+    def reconcile(n: int) -> int:
+        """Reconcile a ledger."""
+        raise ValueError("ledger 7 is locked by another job")
+
+    view = DjangoAGUIView(reg, model=TestModel(), capabilities=[RecordsFailures()])
+    body = await _drain(await view(_post(_run_input("reconcile 7"))))
+    # The policy still answers the model after the capability has seen the
+    # failure: a failed result with the text withheld, and the run ends normally.
+    assert "RUN_FINISHED" in body
+    assert "ledger 7 is locked" not in body
+
+    assert len(seen) == 1
+    assert type(seen[0]) is ValueError
+    assert str(seen[0]) == "ledger 7 is locked by another job"
+
+
 # --- Resume / fork ------------------------------------------------------------
 
 
@@ -1465,3 +1556,134 @@ async def test_a_selection_refused_while_rendering_streams_as_a_retry_on_both_ro
         in retry["content"]
     )
     assert json.loads(page["content"])["items"] == [{"name": "a"}, {"name": "b"}]
+
+
+# --- a call that leaves out the argument naming its row ---------------------
+#
+# A service tool changing one row resolves that row through a lookup, here
+# ``row_by_pk(*, pk)``, and both transports now advertise the lookup's ``pk``
+# as a required argument. Before, the input schema was the input serializer's
+# fields alone, so the model was never told which argument names the row. A
+# selector tool reading one row through the same lookup moves the same way:
+# its ``pk`` has no default and nothing fills it, and it was advertised as
+# optional. A call that leaves it out is now a retry naming what is missing.
+# It used to be the lookup's ``TypeError`` raised out of the tool, which under
+# the default ``TOOL_FAILURE`` policy was a failed call with its text withheld:
+# the model heard the tool failed and was told not to retry, with nothing
+# saying why.
+#
+# For this package that moves the refusal from withheld to streamed, as a
+# ``TOOL_CALL_RESULT`` with no ``outcome``, sent as it is. Each route writes
+# its own sentence, and both name only the arguments the model left out, never
+# a value it sent.
+
+
+def _row_by_pk(*, pk: int) -> dict[str, Any]:
+    return {"id": pk, "name": "a"}
+
+
+def _rename_row(*, instance: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
+    """Rename a row."""
+    return {**instance, **data}
+
+
+class _RenameRow(serializers.Serializer):
+    name = serializers.CharField()
+
+
+_RENAME_SPEC = ServiceSpec(
+    service=_rename_row,
+    atomic=False,
+    input_serializer=_RenameRow,
+    instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_row_by_pk),
+    permission_classes=[AllowAny],
+)
+
+
+def _bridged_rename() -> dict[str, Any]:
+    server = MCPServer(name="rows")
+    server.register_service_tool(name="rename_row", description="Rename a row.", spec=_RENAME_SPEC)
+    return {"drf_mcp_server": server}
+
+
+def _spec_rename() -> dict[str, Any]:
+    # A plain mapping, normalised as ``AGUIServer(service_specs=...)`` does it.
+    specs, capability, source = _resolve_spec_source({"rename_row": _RENAME_SPEC})
+    return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
+
+
+_ROW_SPEC = SelectorSpec(
+    kind=SelectorKind.RETRIEVE,
+    selector=_row_by_pk,
+    permission_classes=[AllowAny],
+)
+
+
+def _bridged_row() -> dict[str, Any]:
+    server = MCPServer(name="rows")
+    server.register_selector_tool(name="get_row", description="Read a row.", spec=_ROW_SPEC)
+    return {"drf_mcp_server": server}
+
+
+def _spec_row() -> dict[str, Any]:
+    specs, capability, source = _resolve_spec_source({"get_row": _ROW_SPEC})
+    return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
+
+
+def _model_omitting_pk(
+    tool_name: str, args: dict[str, Any], advertised: dict[str, Any]
+) -> FunctionModel:
+    """Calls the tool without naming the row, then names it once told what is missing.
+
+    Records each tool's advertised parameters as the model is handed them.
+    """
+    calls = iter([args, {"pk": 1, **args}])
+
+    async def stream_fn(messages, info):  # noqa: ANN001, ANN202
+        advertised.update({tool.name: tool.parameters_json_schema for tool in info.function_tools})
+        if any(part.part_kind == "tool-return" for part in messages[-1].parts):
+            yield "done"
+            return
+        call_args = json.dumps(next(calls))
+        yield {0: DeltaToolCall(name=tool_name, json_args=call_args, tool_call_id="c1")}
+
+    return FunctionModel(stream_function=stream_fn)
+
+
+_BRIDGED_SENTENCE = 'Invalid arguments: {"pk": ["This field is required."]}'
+_SPEC_SENTENCE = "Missing required argument(s): `pk`."
+
+
+@pytest.mark.parametrize(
+    ("route", "tool_name", "args", "row", "sentence"),
+    [
+        (_bridged_rename, "rename_row", {"name": "b"}, {"id": 1, "name": "b"}, _BRIDGED_SENTENCE),
+        (_spec_rename, "rename_row", {"name": "b"}, {"id": 1, "name": "b"}, _SPEC_SENTENCE),
+        (_bridged_row, "get_row", {}, {"id": 1, "name": "a"}, _BRIDGED_SENTENCE),
+        (_spec_row, "get_row", {}, {"id": 1, "name": "a"}, _SPEC_SENTENCE),
+    ],
+    ids=["service-drf-mcp", "service-spec-tools", "selector-drf-mcp", "selector-spec-tools"],
+)
+async def test_a_call_missing_its_row_lookup_streams_as_a_retry_on_both_routes(
+    route: Any, tool_name: str, args: dict[str, Any], row: dict[str, Any], sentence: str
+) -> None:
+    advertised: dict[str, Any] = {}
+    model = _model_omitting_pk(tool_name, args, advertised)
+    view = DjangoAGUIView(ToolRegistry(), model=model, **route())
+
+    body = await _drain(await view(_post(_run_input("work on the row"))))
+
+    events = [json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: ")]
+    assert "RUN_ERROR" not in [event["type"] for event in events]
+    assert events[-1]["type"] == "RUN_FINISHED"
+    results = [event for event in events if event["type"] == "TOOL_CALL_RESULT"]
+    # Below the floors this was one result marked ``failed``, carrying the
+    # policy's withheld sentence, and the model stopped there.
+    assert [event.get("outcome", "absent") for event in results] == ["absent", "absent"]
+    retry, answered = results
+    # The route's own sentence, sent as it is, naming only the missing ``pk``:
+    # ``name``, which the rename did send, appears nowhere in it.
+    assert retry["content"].split("\n\n")[0] == sentence
+    assert json.loads(answered["content"]) == row
+    # What made the retry avoidable: the lookup is advertised, and required.
+    assert "pk" in advertised[tool_name]["required"]
