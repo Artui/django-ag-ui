@@ -1738,6 +1738,50 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AuditCapability.wrap_tool_execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wrap_tool_execute
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AuditCapability.before_tool_execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        before_tool_execute
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AuditCapability.on_tool_execute_error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        on_tool_execute_error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AuditCapability.after_tool_execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        after_tool_execute
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3756,6 +3800,50 @@
     <span class="md-ellipsis">
       
         get_ordering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AuditCapability.wrap_tool_execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wrap_tool_execute
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AuditCapability.before_tool_execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        before_tool_execute
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AuditCapability.on_tool_execute_error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        on_tool_execute_error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AuditCapability.after_tool_execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        after_tool_execute
       
     </span>
   </a>
@@ -6311,9 +6399,14 @@ alike — a <a class="autorefs autorefs-external" href="https://artui.github.io/
 destructive tools to require approval, and a
 <a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/policy/#django_pydantic_agent.ToolFailurePolicy"><code>ToolFailurePolicy</code></a>, on unless
 turned off, so a raising tool fails its own call rather than the whole run.
-Each declares its position through
-<code>get_ordering</code> and pydantic-ai sorts them, so the list needs no
-pre-ordering.</p>
+Each declares its position through <code>get_ordering</code> and pydantic-ai sorts
+them: audit innermost, so it records the tool's own execution, and the
+policy outermost, so it converts a failure only after every other
+capability has seen it. Within a tier list order breaks ties, so audit is
+appended after <code>config.capabilities</code> and the policy placed before them.
+What sorts after audit regardless, such as an innermost capability passed
+to a single run, can still reach the record; <code>AuditCapability</code> states
+that exception.</p>
 <p><strong>A destructive tool is not confirmed unless a config asks for it.</strong> The
 approval interrupt exists only when <code>config.tool_guard</code> is enabled, and
 even then it reaches a tool only if that tool's source declares the mutation
@@ -7724,12 +7817,115 @@ its transport's <code>audit_logger=</code>.</p>
 
         <p>Records every tool execution to an
 <a class="autorefs autorefs-internal" title="AuditLogger" href="#django_ag_ui.AuditLogger"><code>AuditLogger</code></a> sink.</p>
-<p>A Pydantic-AI capability on the <code>wrap_tool_execute</code> lifecycle hook, so it
-times and records <strong>every</strong> tool the agent runs: registry tools, the drf-mcp
-and spec bridges, attachment and skill tools alike.</p>
+<p>A Pydantic-AI capability on the tool-execution hooks, so it records
+<strong>every</strong> tool the agent runs: registry tools, the drf-mcp and spec
+bridges, attachment and skill tools alike.</p>
+<p><strong>One record per execution, describing the tool's own execution</strong>, whatever
+other capabilities sort ahead of it and on every supported pydantic-ai.
+That is everything composed through <code>AgentConfig.capabilities</code> unless
+its own ordering places it inside audit. A capability that sorts after
+audit is the exception, below.</p>
+<ul>
+<li><code>arguments_repr</code> holds the arguments the tool received, after every
+  other capability's <code>before_tool_execute</code> has rewritten them.</li>
+<li><code>success</code> and <code>error</code> describe what the tool did. <code>error</code> is
+  <code>Type: message</code> of the exception the tool raised, before any capability
+  converts it (as <a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/policy/#django_pydantic_agent.ToolFailurePolicy"><code>ToolFailurePolicy</code></a>
+  does) or recovers from it with an <code>on_tool_execute_error</code> that returns a
+  value. A recovered failure is still recorded as the failure: recovering is
+  a decision about the run, not about the tool. On an ordinary call the
+  exceptions pydantic-ai routes past every error hook are recorded as they
+  arrive: a tool's own <code>ToolFailed</code> as the <code>ToolFailedError</code>
+  pydantic-ai converts it into, with the same message, and <code>ModelRetry</code>
+  as <code>ToolRetryError</code>. From a code-mode sandbox, whose nested tool
+  manager converts neither, they are recorded as raised:
+  <code>ToolFailed: &lt;message&gt;</code> and <code>ModelRetry: &lt;message&gt;</code>. A
+  <code>ToolFailed</code> keeps its own message either way; its cause and context
+  are never read. A <code>ModelRetry</code> on an ordinary call with the tool's
+  retry budget spent is different: pydantic-ai raises
+  <code>UnexpectedModelBehavior</code> in its place, which does reach the error
+  hooks, and that is what is recorded.</li>
+<li><code>result_size</code> is the length of the tool's own result, before any
+  <code>after_tool_execute</code> rewrites it.</li>
+<li><code>duration_ms</code> spans the tool alone: from the last moment audit sees
+  before the tool runs, which is after every other capability's
+  <code>before_tool_execute</code>, to the first moment it sees the outcome, which
+  is before every other capability's <code>on_tool_execute_error</code> or
+  <code>after_tool_execute</code>. Other capabilities' hooks are not in it.</li>
+</ul>
+<p><strong>A call that never runs the tool produces no record.</strong> That is a call
+stopped before audit's <code>before_tool_execute</code>, by any exception, and one
+whose outcome is what pydantic-ai treats as not executed:
+<code>SkipToolExecution</code>, <code>CallDeferred</code> or <code>ApprovalRequired</code>, from
+wherever it is raised. So a veto such as pydantic-ai-harness's guardrails
+and tool-call judge raise, a destructive call the
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-pydantic-agent/reference/policy/#django_pydantic_agent.ToolGuard"><code>ToolGuard</code></a> holds for approval, a call a
+tool or a toolset such as pydantic-ai's <code>approval_required()</code> defers for
+approval, and a call deferred to external execution are not executions. A
+call held for approval is recorded when it is resumed and runs, like any
+other; a call deferred to external execution never runs in this process,
+so it has no record here.</p>
+<p><strong>How it gets the same record on every release.</strong> pydantic-ai 2.54 moved
+every capability's <code>before_tool_execute</code>, <code>on_tool_execute_error</code> and
+<code>after_tool_execute</code> inside the <code>wrap_tool_execute</code> chain, where
+earlier releases ran them around it, so no wrapper position sees the raw
+outcome on both. Audit is pinned <strong>innermost</strong>, which makes its
+<code>before_tool_execute</code> the last to run and its <code>on_tool_execute_error</code>
+and <code>after_tool_execute</code> the first, and observes the tool from all four
+hooks. Its wrapper is the only one that writes the record, once, as it
+exits, preferring what the hooks captured over what it saw itself. Before
+2.54 the innermost wrapper encloses the tool alone and what it sees is
+already the raw outcome; from 2.54 it encloses every hook, and for what
+sorts ahead of audit the captures are what keep the record the tool's.</p>
+<p><strong>A capability that sorts after audit runs between audit and the tool.</strong>
+One does when it is innermost and passed to a single run, since
+pydantic-ai sorts those after the agent's own capabilities whatever
+<code>build_agent</code> did; when it is composed by hand after audit in the
+innermost tier; and wherever it is composed, when its own ordering places
+it inside audit, as an innermost <code>CapabilityOrdering</code> with
+<code>wrapped_by=[AuditCapability]</code> does. What such a capability does can
+reach the record, on every pydantic-ai and through any of its hooks, and
+the record is then not the tool's own. These are measured examples, not
+a list of the only ways:</p>
+<ul>
+<li>From 2.54, through its <code>before_tool_execute</code>,
+  <code>on_tool_execute_error</code> and <code>after_tool_execute</code>: a record misses
+  its argument rewrite, records a <code>ModelRetry</code> its
+  <code>before_tool_execute</code> raises as a failure though the tool never ran,
+  records its recovery as a success and an exception it raises in place
+  of the tool's, records a <code>ModelRetry</code> its <code>after_tool_execute</code>
+  raises as a failure though the tool succeeded, measures its result
+  rewrite, and times its hooks with the tool.</li>
+<li>From 2.54, through its <code>wrap_tool_execute</code>, when the tool raised
+  <code>ModelRetry</code> or <code>ToolFailed</code>, which pydantic-ai routes past every
+  error and result hook, audit's included: a record carries its rewrite
+  of the message, as pydantic-ai-harness's <code>result_guard</code> does,
+  records its recovery as a success, and records an exception it raises
+  in their place. If it runs the tool again, the record describes the
+  later run alone and the failed run has none; with that rerun refused
+  ahead of audit, the record pairs the first run's arguments with the
+  refusal. Run again after a failure audit's error hook saw, or after a
+  success, the tool gets one record, of its first run. Reruns it makes
+  concurrently share one record, which can pair one run's arguments with
+  another's result.</li>
+<li>Before 2.54, through its <code>wrap_tool_execute</code>: a record misses an
+  argument rewrite there, records a recovery as a success, an exception
+  of its own in place of the tool's and a <code>ModelRetry</code> raised before
+  the tool runs as a failure, measures a result rewrite, carries a
+  rewrite of a failed tool's message, and times the wrapper with the
+  tool. If it runs the tool again, the one record holds the last run's
+  outcome, with the arguments audit passed on and the time of every run.</li>
+</ul>
+<p>A <code>SkipToolExecution</code> veto from it is still not recorded. Everything
+composed through <code>AgentConfig.capabilities</code> is unaffected unless its own
+ordering places it inside audit: <code>build_agent</code> appends audit after all
+of it, so audit sorts last among the innermost capabilities there.
+pydantic-ai-harness's tool guardrail and tool-call judge are innermost,
+so passed to a single run they sort after audit like any other.</p>
 <p>Recording is <strong>non-raising</strong>. A sink that throws is caught and logged to the
 <code>django_pydantic_agent.audit</code> Python logger, so a broken audit backend
-costs audit records rather than the run.</p>
+costs audit records rather than the run. Audit's own error hook re-raises
+what it is handed, and the exception the run sees is never changed by it.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -7839,12 +8035,172 @@ host.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Pin audit as the <strong>outermost</strong> capability in the chain.</p>
-<p>Its <code>wrap_tool_execute</code> has to surround every other capability's
-execution hooks so the tool is recorded whatever else composes the run.
-Declaring it here rather than relying on list order at the
-<code>build_agent</code> call site keeps that true however the capabilities are
-inserted, since pydantic-ai sorts by these constraints.</p>
+        <p>Pin audit as an <strong>innermost</strong> capability.</p>
+<p>pydantic-ai runs <code>before_tool_execute</code> hooks outermost first and
+<code>on_tool_execute_error</code> / <code>after_tool_execute</code> hooks innermost
+first, so innermost is the one position whose hooks sit directly either
+side of the tool: after every other capability's argument rewrite and
+veto, and before any other capability converts, recovers or rewrites
+the outcome, unless a capability sorts after audit even so (see the
+class). Declared here rather than left to list order at the
+<code>build_agent</code> call site, since pydantic-ai sorts by these
+constraints.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_ag_ui.AuditCapability.wrap_tool_execute" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">wrap_tool_execute</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_ag_ui.AuditCapability.wrap_tool_execute" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">wrap_tool_execute</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">ctx</span><span class="p">:</span> <span class="n">RunContext</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">call</span><span class="p">:</span> <span class="n">ToolCallPart</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">tool_def</span><span class="p">:</span> <span class="n">ToolDefinition</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">handler</span><span class="p">:</span> <span class="n">WrapToolExecuteHandler</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Write the call's one record on the way out, and hand the result back as is.</p>
+<p>What this wrapper sees depends on the release: the tool alone before
+2.54, every capability's hooks around it from 2.54. Either way the
+hooks below have recorded the tool's side first where they could, and
+<code>settle</code> keeps the first account it is given, so what is written is
+the tool's whenever nothing sorts between audit and the tool (see the
+class). A call whose <code>before_tool_execute</code> never ran here never
+reached the tool, and is not recorded.</p>
+<p>Every entry starts a fresh execution, because pydantic-ai lets an outer
+wrapper call its handler more than once and each call runs the tool
+again. Before 2.54 <code>before_tool_execute</code> runs once, ahead of every
+wrapper, so whether the call reached the tool is carried over from what
+it left in this context. From 2.54 it runs again inside each entry and
+says so itself, unless a capability ahead of audit stops that entry
+first. The reset on the way out is what keeps the previous entry's
+"reached" from carrying into one stopped that way, which would record
+a call that never ran. Coverage cannot see it go missing, since the
+line runs either way; from 2.54
+<code>test_a_rerun_refused_ahead_of_audit_is_not_recorded</code> fails without
+it. Before 2.54 there is no such entry, because audit's
+<code>before_tool_execute</code> has run ahead of every one.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_ag_ui.AuditCapability.before_tool_execute" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">before_tool_execute</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_ag_ui.AuditCapability.before_tool_execute" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">before_tool_execute</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">ctx</span><span class="p">:</span> <span class="n">RunContext</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">call</span><span class="p">:</span> <span class="n">ToolCallPart</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">tool_def</span><span class="p">:</span> <span class="n">ToolDefinition</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Note that the call reached the tool, with the arguments it gets.</p>
+<p>Innermost, so this runs after every other capability's
+<code>before_tool_execute</code>, and nothing else stands between it and the
+tool, unless a capability sorts after audit (see the class). Bound to
+the context here as well as in the wrapper because before 2.54 this
+hook runs first, and the wrapper reads it from there.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_ag_ui.AuditCapability.on_tool_execute_error" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">on_tool_execute_error</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_ag_ui.AuditCapability.on_tool_execute_error" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">on_tool_execute_error</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">ctx</span><span class="p">:</span> <span class="n">RunContext</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">call</span><span class="p">:</span> <span class="n">ToolCallPart</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">tool_def</span><span class="p">:</span> <span class="n">ToolDefinition</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">args</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">error</span><span class="p">:</span> <span class="ne">Exception</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Keep the tool's own exception, then pass it on unchanged.</p>
+<p>Innermost, so this is the first error hook to run, before any other
+capability converts or recovers, unless one sorts after audit (see the
+class). Re-raising is what keeps the chain going: the next
+capability's hook is handed the same exception.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_ag_ui.AuditCapability.after_tool_execute" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">after_tool_execute</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_ag_ui.AuditCapability.after_tool_execute" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">after_tool_execute</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">ctx</span><span class="p">:</span> <span class="n">RunContext</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">call</span><span class="p">:</span> <span class="n">ToolCallPart</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">tool_def</span><span class="p">:</span> <span class="n">ToolDefinition</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Keep the tool's own result, then pass it on unchanged.</p>
+<p>Innermost, so this is the first result hook to run, before any other
+capability rewrites the result, unless one sorts after audit (see the
+class). After a recovery it is handed the recovered value instead,
+which <code>settle</code> ignores: the error hook settled the call first.</p>
 
 
     </div>

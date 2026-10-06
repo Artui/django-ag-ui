@@ -2867,9 +2867,15 @@ run survives is a reliability question; whether an exception's text reaches the
 model is a disclosure one. A traceback message can carry a query, a path or a
 credential, and anything handed to the model is also handed to whatever renders
 the transcript in a browser.</p>
-<p>The operator's copy is never redacted. The full exception reaches your
-<code>AuditLogger</code> and the <code>django_pydantic_agent.failure</code> Python logger either way,
-recorded against the tool that raised it.</p>
+<p>The operator's copy is never redacted. Your <code>AuditLogger</code> records the exception
+the tool raised, in full, against the tool that raised it, unless a capability
+that sorts after audit, such as one pinned innermost, changes it. Whenever the policy
+converts a failure it first logs the exception, with its traceback, to the
+<code>django_pydantic_agent.failure</code> Python logger. That logger hears only about the
+failures the policy converts: nothing when a capability you passed as
+<code>capabilities=</code> recovered the call or answered for the model with its own
+<code>ModelRetry</code> or <code>ToolFailed</code>. A call that never runs the tool, such as one held
+for approval or deferred, has no audit record until it is resumed and runs.</p>
 <p><strong><code>INCLUDE_DETAIL</code> governs the run-level <code>RUN_ERROR</code> event as well</strong>, not just
 the model-facing tool result. Pydantic-AI builds that event out of
 <code>str(exception)</code>, so a failure the policy never sees — one raised by the store,
@@ -2882,13 +2888,16 @@ in the audit record and the server log.</p>
 tool answers that the model's own argument was wrong, the model gets a retry
 carrying the validation message, and the browser receives that as a
 <code>TOOL_CALL_RESULT</code> with no <code>outcome</code>, sent as it is. That covers a malformed
-argument and, with <code>djangorestframework-mcp-server</code> 0.49+ and
-<code>djangorestframework-pydantic-ai</code> 0.32+, a read-shaping value (a <code>fields</code>
-selection, say) that the output serializer refuses while rendering. The text is
-a DRF <code>ValidationError</code> message, which DRF itself writes for the caller (it is
-the body of a <code>400</code> over HTTP), and it is only ever about a value the model
-sent. Anything else a tool or serializer raises is still a failure, and still
-withheld.</p>
+argument, a read-shaping value (a <code>fields</code> selection, say) that the output
+serializer refuses while rendering, and a required argument the model left out,
+such as the <code>pk</code> naming the row a service tool changes. For a value the model
+sent, the text is a DRF <code>ValidationError</code> message, which DRF itself writes for
+the caller (it is the body of a <code>400</code> over HTTP). For an argument it left out,
+the text names the missing argument and nothing else, in each route's own
+words: <code>Invalid arguments: {"pk": ["This field is required."]}</code> through
+<code>drf_mcp_server=</code>, and <code>Missing required argument(s): `pk`.</code> through
+<code>service_specs=</code>. Anything else a tool or serializer raises is still a failure,
+and still withheld.</p>
 <p>Note it spends no retry budget, so a model may call a persistently broken tool
 again. Bound that with run-level <code>UsageLimits</code>, not with this.</p>
 <h3 id="tool_guard"><code>TOOL_GUARD</code><a class="headerlink" href="#tool_guard" title="Permanent link">&para;</a></h3>

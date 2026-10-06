@@ -1099,8 +1099,11 @@ loaded, and nothing has gone wrong from either end's point of view.</p>
 <h3 id="ordering-note">Ordering note<a class="headerlink" href="#ordering-note" title="Permanent link">&para;</a></h3>
 <p><code>TOOL_GUARD</code> composes a <code>ToolGuard</code> capability alongside the audit capability.
 <code>build_agent</code> relies on each capability declaring its own ordering
-(<code>AuditCapability</code> pins itself outermost so it still records every tool
-execution) — you don't need to order them yourself.</p>
+(<code>AuditCapability</code> pins itself innermost, so its record describes the tool's own
+execution, and <code>ToolFailurePolicy</code> outermost, so it converts a failure last) —
+you don't need to order them yourself. A call the guard holds for approval runs
+no tool until it is approved, so audit records it only once it is resumed and
+runs.</p>
 <h2 id="custom-clients">Custom clients<a class="headerlink" href="#custom-clients" title="Permanent link">&para;</a></h2>
 <p>The gate is pure AG-UI, so any client can drive it — you don't need the web
 component. A bespoke client:</p>
