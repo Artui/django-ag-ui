@@ -10,10 +10,11 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from opentelemetry.trace import NoOpTracer
+from pydantic_ai import RunContext
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 from pydantic_ai_harness.compaction import SlidingWindowCompaction
 
 from django_ag_ui.agent.compaction_observer import (
@@ -29,11 +30,16 @@ from django_ag_ui.agent.compaction_observer import (
 _MODEL = TestModel()
 
 
-class _Ctx:
-    """The slice of ``RunContext`` a compaction strategy actually touches."""
+def _run_context(messages: list[Any]) -> RunContext[None]:
+    """The genuine upstream run context, for the reason the request context is.
 
-    tracer = NoOpTracer()
-    model = _MODEL
+    A double carrying only the ``tracer`` and ``model`` a strategy then touched
+    stood in here, and it broke when pydantic-ai-harness started reading
+    ``messages`` and ``run_id`` off the run context -- a failure about our
+    double again, not about the observer. The real dataclass needs three
+    keywords and shares the request context's history.
+    """
+    return RunContext(deps=None, model=_MODEL, usage=RunUsage(), messages=messages)
 
 
 def _request_context(messages: list[Any]) -> ModelRequestContext:
@@ -67,6 +73,12 @@ def _messages(count: int) -> list[Any]:
         else ModelResponse(parts=[TextPart(content=f"model {index}")])
         for index in range(count)
     ]
+
+
+def _contexts(count: int) -> tuple[RunContext[None], ModelRequestContext]:
+    """A run context and a request context over one history of ``count`` messages."""
+    messages = _messages(count)
+    return _run_context(messages), _request_context(messages)
 
 
 class _Stub:
@@ -106,7 +118,7 @@ def sink() -> Any:
 
 async def test_records_a_real_compaction(sink: list[Compaction]) -> None:
     observer = CompactionObserver(SlidingWindowCompaction(max_messages=4, keep_messages=2))
-    result = await observer.before_model_request(_Ctx(), _request_context(_messages(10)))
+    result = await observer.before_model_request(*_contexts(10))
     after = len(result.messages)
     assert len(sink) == 1
     # How long a tail the window keeps is upstream's policy, and it has already
@@ -122,7 +134,7 @@ async def test_records_a_real_compaction(sink: list[Compaction]) -> None:
 
 async def test_below_the_threshold_records_nothing(sink: list[Compaction]) -> None:
     observer = CompactionObserver(SlidingWindowCompaction(max_messages=100))
-    await observer.before_model_request(_Ctx(), _request_context(_messages(3)))
+    await observer.before_model_request(*_contexts(3))
     assert sink == []
 
 
@@ -130,13 +142,13 @@ async def test_a_capability_that_does_not_shorten_records_nothing(sink: list[Com
     # The seam only exposes message counts, so an in-place rewrite is invisible —
     # which is honest: the indicator claims turns were dropped, and none were.
     observer = CompactionObserver(_Rewriter())
-    await observer.before_model_request(_Ctx(), _request_context(_messages(5)))
+    await observer.before_model_request(*_contexts(5))
     assert sink == []
 
 
 async def test_passthrough_capability_records_nothing(sink: list[Compaction]) -> None:
     observer = CompactionObserver(_Passthrough())
-    await observer.before_model_request(_Ctx(), _request_context(_messages(5)))
+    await observer.before_model_request(*_contexts(5))
     assert sink == []
 
 
@@ -145,16 +157,15 @@ async def test_without_a_sink_the_observer_is_inert() -> None:
     # has no stream to report to; recording must not blow up or leak.
     assert COMPACTION_SINK.get() is None
     observer = CompactionObserver(SlidingWindowCompaction(max_messages=4, keep_messages=2))
-    request_context = _request_context(_messages(10))
-    result = await observer.before_model_request(_Ctx(), request_context)
+    result = await observer.before_model_request(*_contexts(10))
     assert len(result.messages) < 10
 
 
 async def test_wrapping_does_not_change_the_compaction_itself(sink: list[Compaction]) -> None:
     bare = SlidingWindowCompaction(max_messages=4, keep_messages=2)
     wrapped = CompactionObserver(SlidingWindowCompaction(max_messages=4, keep_messages=2))
-    bare_result = await bare.before_model_request(_Ctx(), _request_context(_messages(10)))
-    wrapped_result = await wrapped.before_model_request(_Ctx(), _request_context(_messages(10)))
+    bare_result = await bare.before_model_request(*_contexts(10))
+    wrapped_result = await wrapped.before_model_request(*_contexts(10))
     assert len(wrapped_result.messages) == len(bare_result.messages)
 
 

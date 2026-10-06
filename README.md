@@ -95,8 +95,9 @@ pip install "django-ag-ui[anthropic]"   # or [openai], or [google]
 uv add "django-ag-ui[anthropic]"
 ```
 
-> The core dep is `pydantic-ai-slim[ag-ui]`, which ships no model-provider
-> library — pick one via a provider extra (`anthropic` / `openai` / `google`).
+> The core deps are `pydantic-ai-slim[ui]` and `ag-ui-protocol`. Slim ships no
+> model-provider library — pick one via a provider extra (`anthropic` /
+> `openai` / `google`).
 
 > **ASGI required.** The agent endpoint streams Server-Sent Events, which the
 > sync WSGI worker can't serve — deploy under Daphne / Uvicorn.

@@ -51,7 +51,8 @@ the bridge, with no admin specifics:
 | **`django-admin-agent`** | Depends on both. Ships the admin-specific server tools, the admin-aware frontend handlers, and the admin-site plumbing. |
 
 The wire between them stays vanilla AG-UI. This package never re-implements the
-AG-UI wire types; they come from `pydantic-ai-slim[ag-ui]`.
+AG-UI wire types; they come from `ag-ui-protocol`, and the adapter that writes
+them from `pydantic-ai-slim`.
 
 ## How a turn flows
 
