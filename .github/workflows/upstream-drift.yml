@@ -79,9 +79,10 @@ jobs:
       # PyPI, fails on one held below a release that has been out longer than
       # the Dependabot cooldown, and asks uv what holds it. A ceiling declared
       # in pyproject.toml is honoured, which is how a hold is accepted on purpose.
+      # One copy for every repo, pinned like any action.
       - name: Check no direct dependency is held back
         id: held-back
-        run: uv run --no-sync python scripts/check_held_back.py --report "${RUNNER_TEMP}/held-back.md"
+        uses: Artui/held-back-check@b64bbb88fd63c9c96675caba477cce13714de93e # v0.1.0
 
       # Runs whether or not the check above failed: they answer different
       # questions, and a hold is no reason to stop measuring what did resolve.
@@ -98,7 +99,7 @@ jobs:
         env:
           HELD_BACK: ${{ steps.held-back.outcome }}
           TESTS: ${{ steps.test.outcome }}
-          REPORT: ${{ runner.temp }}/held-back.md
+          REPORT: ${{ steps.held-back.outputs.report }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
