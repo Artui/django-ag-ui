@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.http import StreamingHttpResponse
 from django.test import RequestFactory, override_settings
@@ -148,6 +149,44 @@ async def test_invalid_body_returns_400() -> None:
     assert response.status_code == 400
     payload = json.loads(response.content)
     assert payload["error"] == "invalid RunAgentInput"
+
+
+@pytest.mark.parametrize("where", ["bare", "inside_messages"])
+async def test_body_nested_past_the_decoder_returns_400(where: str) -> None:
+    """A body nested deeper than ``json.loads`` can follow is an invalid run input.
+
+    This is a guard on pydantic-ai, not on this package: the view catches only
+    ``ValidationError`` from ``AGUIAdapter.build_run_input``, and the 400 rests
+    on two things upstream does. ``RunAgentInput.model_validate_json`` stops at
+    its own depth limit and reports a ``ValidationError`` rather than
+    recursing. ``_forward_compat.skip_unknown_tagged_items``, which re-reads a
+    rejected body with ``json.loads``, catches the ``RecursionError`` that
+    re-read raises. If a pydantic-ai release stops doing either, the overflow
+    escapes this view as a 500 and this test fails. It passes on the tree
+    before the thread rename got the same fix, by design: the agent endpoint
+    never had the gap.
+
+    The body is sized and its premise asserted as in the threads view's test of
+    the same name. A million closed levels outgrows every stack the suite runs
+    on, including the 64 MB one under macOS ``make``, and ``json.loads`` is
+    shown to overflow on this thread, which is where the view decodes: it is
+    awaited here directly. The ``messages`` form is the one the re-read looks
+    inside.
+    """
+    depth = 1_000_000
+    nested = "[" * depth + "]" * depth
+    if where == "bare":
+        body = nested
+    else:
+        body = '{"threadId": "t", "runId": "r", "messages": ' + nested + "}"
+    with pytest.raises(RecursionError):
+        json.loads(body)
+    # Under the cap, so the body is read rather than refused for its size.
+    assert len(body) < settings.DATA_UPLOAD_MAX_MEMORY_SIZE
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    response = await view(_post(body.encode()))
+    assert response.status_code == 400
+    assert json.loads(response.content)["error"] == "invalid RunAgentInput"
 
 
 async def test_csrf_exempt_attribute_default_and_override() -> None:
