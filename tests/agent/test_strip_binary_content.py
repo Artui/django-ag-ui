@@ -110,9 +110,11 @@ def test_ids_and_the_attachments_extra_survive_the_strip() -> None:
 
     Stripping by re-validating through ``AGUIAdapter.load_messages`` /
     ``dump_messages`` is the convenient implementation and the wrong one: the
-    round-trip regenerates every message id and discards ``model_extra``,
-    silently reverting the fix that keeps a client's attachment refs resolvable
-    after a reload. ``model_copy`` is what this asserts.
+    round-trip discards ``model_extra``, silently reverting the fix that keeps a
+    client's attachment refs resolvable after a reload. ``model_copy`` is what
+    this asserts. The extra is what holds it on every version: the round-trip
+    keeps the id from pydantic-ai-slim 2.48, so the id assertion tells the two
+    apart only in the floor job.
     """
     attachments = [{"id": "a1", "name": "report.pdf", "mime": "application/pdf", "size": 2300}]
     message = _user([_text_part(), _document_part()], attachments=attachments)

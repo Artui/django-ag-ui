@@ -34,6 +34,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the resolver again settles on 2.46 without a word. Once pydantic-ai#8627
   lifts the cap, `[ag-ui]` can return.
 
+  **Upgrading django-ag-ui alone does not move an existing install.** 2.46
+  still satisfies `>=2.37`, so a lockfile or an environment that already
+  resolved it keeps it: `uv lock --upgrade-package django-ag-ui` adopts this
+  release and leaves pydantic-ai-slim at 2.46. Upgrade it by name, together
+  with pydantic-ai-harness if you use the `[harness]` or `[code-mode]` extra,
+  which the cap held at 0.36 because every later harness pins a newer
+  pydantic-ai-slim: `uv lock --upgrade-package pydantic-ai-slim
+  --upgrade-package pydantic-ai-harness`, or `pip install -U pydantic-ai-slim
+  pydantic-ai-harness`.
+
   `uv.lock` now resolves pydantic-ai-slim 2.54.0 and pydantic-ai-harness 0.54.0
   (were 2.42.0 and 0.31.0). The compaction tests built a stand-in for the run
   context carrying only the attributes a strategy then read; harness 0.54 reads

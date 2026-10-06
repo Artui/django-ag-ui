@@ -4,8 +4,8 @@
 pip install django-ag-ui
 ```
 
-Core dependencies are `django>=4.2`, `pydantic-ai-slim[ui]>=2.37,<3` and
-`ag-ui-protocol>=1.0`. The `AGUIAdapter` comes from pydantic-ai-slim and the
+Core dependencies are `django>=4.2`, `django-pydantic-agent>=0.27`,
+`pydantic-ai-slim[ui]>=2.37,<3` and `ag-ui-protocol>=1.0`. The `AGUIAdapter` comes from pydantic-ai-slim and the
 AG-UI wire types from `ag-ui-protocol`; this package does not re-implement
 either. The **slim** package ships the adapter but **no model-provider
 library** — pick one via a provider extra (see below).
@@ -17,6 +17,16 @@ package needs 1.0, so asking for both would quietly hold pydantic-ai-slim at
 `pydantic-ai[ag-ui]`, it brings the cap back, and the resolver again settles on
 pydantic-ai-slim 2.46 without saying so. Depend on the `[ui]` extra instead, as
 this package does.
+
+Upgrading from 0.66 or earlier does not move pydantic-ai on its own. 2.46 still
+satisfies this package's floor, so a lockfile or environment that already
+resolved it keeps it until you upgrade it by name, together with
+`pydantic-ai-harness` if you use the `[harness]` or `[code-mode]` extra (the
+cap held it at 0.36, since every later release pins a newer pydantic-ai-slim):
+
+```bash
+uv lock --upgrade-package pydantic-ai-slim --upgrade-package pydantic-ai-harness
+```
 
 ## Compatibility
 

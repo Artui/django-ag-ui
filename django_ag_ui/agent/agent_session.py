@@ -302,12 +302,14 @@ class AgentSession:
         way the run did.
 
         **The client's messages are stored verbatim, never re-dumped** from the
-        model's history: a round-trip through pydantic-ai's types regenerates
-        every message id and drops the attachment refs the web component rides
+        model's history: a round-trip through pydantic-ai's types drops the
+        attachment refs the web component rides
         on a user message -- on both of the carriers ``attachment_context_items``
         reads, ``metadata["attachments"]`` and the older top-level
-        ``attachments`` field alike -- so a reloaded thread loses its attachment
-        chips and the ids the model was told about match nothing stored. Two
+        ``attachments`` field alike, and below pydantic-ai-slim 2.48 it
+        regenerates every message id too -- so a reloaded thread loses its
+        attachment chips, and on those versions the ids the model was told about
+        match nothing stored. Two
         consequences: a client-posted system message reaches the row
         (inert — ``sanitize_messages`` still strips it before the model under the
         default ``MANAGE_SYSTEM_PROMPT="server"``), and stored user messages keep
