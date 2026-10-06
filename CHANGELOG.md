@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.0] — 2026-10-06
+
 ### Changed
 
 - **The `[drf-mcp]` extra is floored at `djangorestframework-mcp-server>=0.50`
@@ -3805,7 +3807,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.65.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.66.0...HEAD
+[0.66.0]: https://github.com/Artui/django-ag-ui/compare/v0.65.0...v0.66.0
 [0.65.0]: https://github.com/Artui/django-ag-ui/compare/v0.64.0...v0.65.0
 [0.64.0]: https://github.com/Artui/django-ag-ui/compare/v0.63.0...v0.64.0
 [0.63.0]: https://github.com/Artui/django-ag-ui/compare/v0.62.0...v0.63.0
