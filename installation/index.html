@@ -878,11 +878,25 @@
 <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-ag-ui
 </span></code></pre></div>
-<p>Core dependencies are <code>django&gt;=4.2</code> and <code>pydantic-ai-slim[ag-ui]&gt;=2.37,&lt;3</code>. The
-AG-UI wire types and the <code>AGUIAdapter</code> come from the <code>pydantic-ai-slim[ag-ui]</code>
-extra; this package does not re-implement them. The <strong>slim</strong> package ships the
-AG-UI adapter and wire types but <strong>no model-provider library</strong> — pick one via a
-provider extra (see below).</p>
+<p>Core dependencies are <code>django&gt;=4.2</code>, <code>django-pydantic-agent&gt;=0.27</code>,
+<code>pydantic-ai-slim[ui]&gt;=2.37,&lt;3</code> and <code>ag-ui-protocol&gt;=1.0</code>. The <code>AGUIAdapter</code> comes from pydantic-ai-slim and the
+AG-UI wire types from <code>ag-ui-protocol</code>; this package does not re-implement
+either. The <strong>slim</strong> package ships the adapter but <strong>no model-provider
+library</strong> — pick one via a provider extra (see below).</p>
+<p>The <code>[ui]</code> extra rather than <code>[ag-ui]</code> is deliberate. From 2.47,
+pydantic-ai-slim's <code>[ag-ui]</code> extra caps <code>ag-ui-protocol</code> below 1.0, and this
+package needs 1.0, so asking for both would quietly hold pydantic-ai-slim at
+2.46. If your own project depends on <code>pydantic-ai-slim[ag-ui]</code> or
+<code>pydantic-ai[ag-ui]</code>, it brings the cap back, and the resolver again settles on
+pydantic-ai-slim 2.46 without saying so. Depend on the <code>[ui]</code> extra instead, as
+this package does.</p>
+<p>Upgrading from 0.66 or earlier does not move pydantic-ai on its own. 2.46 still
+satisfies this package's floor, so a lockfile or environment that already
+resolved it keeps it until you upgrade it by name, together with
+<code>pydantic-ai-harness</code> if you use the <code>[harness]</code> or <code>[code-mode]</code> extra (the
+cap held it at 0.36, since every later release pins a newer pydantic-ai-slim):</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>lock<span class="w"> </span>--upgrade-package<span class="w"> </span>pydantic-ai-slim<span class="w"> </span>--upgrade-package<span class="w"> </span>pydantic-ai-harness
+</span></code></pre></div>
 <h2 id="compatibility">Compatibility<a class="headerlink" href="#compatibility" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -905,7 +919,7 @@ provider extra (see below).</p>
 </tr>
 <tr>
 <td>Pydantic-AI</td>
-<td>2.37 (with the <code>pydantic-ai-slim[ag-ui]</code> extra)</td>
+<td>2.37 (with the <code>pydantic-ai-slim[ui]</code> extra)</td>
 <td>latest in the CI matrix</td>
 </tr>
 </tbody>
@@ -913,7 +927,7 @@ provider extra (see below).</p>
 <h2 id="model-provider-extras">Model provider extras<a class="headerlink" href="#model-provider-extras" title="Permanent link">&para;</a></h2>
 <p>Because <code>pydantic-ai-slim</code> ships no provider library, install the one matching
 your model via a <code>django-ag-ui</code> provider extra:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[anthropic]&quot;</span><span class="w">   </span><span class="c1"># or [openai], or [google]</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[anthropic]&quot;</span><span class="w">   </span><span class="c1"># or [openai], or [google]</span>
 </span></code></pre></div>
 <p>Each maps to the corresponding <code>pydantic-ai-slim</code> provider extra:</p>
 <table>
@@ -958,7 +972,7 @@ needs an event loop, which the synchronous WSGI worker does not provide. Deploy
 under an ASGI server such as <a href="https://www.uvicorn.org/">Uvicorn</a> or
 <a href="https://github.com/django/daphne">Daphne</a> and point it at your project's
 <code>asgi.py</code>:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>uvicorn<span class="w"> </span>myproject.asgi:application
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>uvicorn<span class="w"> </span>myproject.asgi:application
 </span></code></pre></div>
 <p>The view marks itself as a coroutine function (via
 <code>asgiref.sync.markcoroutinefunction</code>) so Django's request handler awaits it when
@@ -987,7 +1001,7 @@ wrong fix.</p>
 <p>To expose a
 <a href="https://github.com/Artui/djangorestframework-mcp-server"><code>djangorestframework-mcp-server</code></a>
 tool registry to the agent in-process (no network MCP hop), install the extra:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[drf-mcp]&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[drf-mcp]&quot;</span>
 </span></code></pre></div>
 <p>This pulls in <code>djangorestframework-mcp-server</code> (which in turn pulls
 <code>djangorestframework-services</code>), at the floor <code>pyproject.toml</code> declares. The bridge

@@ -915,7 +915,8 @@ the bridge, with no admin specifics:</p>
 </tbody>
 </table>
 <p>The wire between them stays vanilla AG-UI. This package never re-implements the
-AG-UI wire types; they come from <code>pydantic-ai-slim[ag-ui]</code>.</p>
+AG-UI wire types; they come from <code>ag-ui-protocol</code>, and the adapter that writes
+them from <code>pydantic-ai-slim</code>.</p>
 <h2 id="how-a-turn-flows">How a turn flows<a class="headerlink" href="#how-a-turn-flows" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Browser (AG-UI client)
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>   │  POST RunAgentInput { messages, tools, context, state }
