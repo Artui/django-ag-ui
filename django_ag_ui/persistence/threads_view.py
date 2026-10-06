@@ -238,10 +238,17 @@ def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
 
 
 def _parse_title(request: HttpRequest) -> str | None:
-    """The stripped, capped, non-empty ``title`` from a JSON PATCH body, else ``None``."""
+    """The stripped, capped, non-empty ``title`` from a JSON PATCH body, else ``None``.
+
+    Every way the decode refuses a client's body is the same bad request. A
+    body nested deeper than the decoder can follow raises ``RecursionError``,
+    which is not a ``ValueError``, so it is named here; without it the overflow
+    escapes the view as a 500, and
+    ``test_detail_patch_body_nested_past_the_decoder_is_400`` fails.
+    """
     try:
         body = json.loads(request.body)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, RecursionError):
         return None
     title = body.get("title") if isinstance(body, dict) else None
     if isinstance(title, str) and title.strip():
