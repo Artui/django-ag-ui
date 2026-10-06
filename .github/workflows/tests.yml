@@ -112,10 +112,21 @@ jobs:
       #
       # So the floor claim has to be checked on the install shape that has the
       # fewest constraints: the package alone, no extras, no dev group.
+      #
+      # One release is excluded, and not one this package chose. griffelib
+      # 2.3.1, which pydantic-ai imports, declares Python >=3.10 but imports
+      # enum.StrEnum, which arrived in 3.11. 2.3.2 corrected the declaration
+      # rather than the import, so 2.3.1 stays the newest release a 3.10
+      # resolve can pick, and it has not been yanked. A constraint rather than
+      # a requirement: a requirement would make griffelib direct, and
+      # lowest-direct would pin it to its oldest release. Remove it once 2.3.1
+      # is yanked or the floor Python is 3.11.
       - name: Import the package installed alone, at its floors
         run: |
           uv venv --python 3.10 .venv-floor
-          uv pip install --python .venv-floor/bin/python --resolution lowest-direct --refresh -e .
+          echo 'griffelib!=2.3.1' > "$RUNNER_TEMP/floor-constraints.txt"
+          uv pip install --python .venv-floor/bin/python --resolution lowest-direct --refresh \
+            --constraint "$RUNNER_TEMP/floor-constraints.txt" -e .
           uv pip list --python .venv-floor/bin/python
           .venv-floor/bin/python - <<'PY'
           import django
