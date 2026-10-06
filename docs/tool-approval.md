@@ -174,8 +174,11 @@ Two channels close that gap, and they are not interchangeable:
 
 `TOOL_GUARD` composes a `ToolGuard` capability alongside the audit capability.
 `build_agent` relies on each capability declaring its own ordering
-(`AuditCapability` pins itself outermost so it still records every tool
-execution) — you don't need to order them yourself.
+(`AuditCapability` pins itself innermost, so its record describes the tool's own
+execution, and `ToolFailurePolicy` outermost, so it converts a failure last) —
+you don't need to order them yourself. A call the guard holds for approval runs
+no tool until it is approved, so audit records it only once it is resumed and
+runs.
 
 ## Custom clients
 

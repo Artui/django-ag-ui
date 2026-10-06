@@ -958,11 +958,12 @@ async def test_step_store_records_the_tools_own_exception() -> None:
 
 @pytest.mark.django_db
 async def test_a_capability_passed_to_the_view_sees_the_tools_own_exception() -> None:
-    # ``capabilities=`` is composed into the agent ahead of the failure policy
-    # django-pydantic-agent appends. Below 0.27 the policy declared no position
-    # and so sat innermost, and pydantic-ai runs error hooks innermost first:
-    # every capability passed here was handed the policy's redacted
-    # ``ToolFailed`` instead of what the tool raised, so a step recorder
+    # Below 0.27 django-pydantic-agent appended its failure policy after
+    # ``capabilities=`` with no position, so it sat inside every capability
+    # passed here that does not pin itself innermost, and pydantic-ai runs
+    # error hooks innermost first: each such capability, this one included,
+    # was handed the policy's redacted ``ToolFailed`` instead of what the tool
+    # raised, so a step recorder
     # recorded the copy and a capability that recovers by returning a value
     # recovered from the copy. From 0.27 the policy is pinned outermost and
     # converts last. This is what the ``django-pydantic-agent>=0.27`` floor
@@ -1563,10 +1564,13 @@ async def test_a_selection_refused_while_rendering_streams_as_a_retry_on_both_ro
 # ``row_by_pk(*, pk)``, and both transports now advertise the lookup's ``pk``
 # as a required argument. Before, the input schema was the input serializer's
 # fields alone, so the model was never told which argument names the row. A
-# call that leaves it out is now a retry naming what is missing. It used to be
-# the lookup's ``TypeError`` raised out of the tool, which under the default
-# ``TOOL_FAILURE`` policy was a failed call with its text withheld: the model
-# heard the tool failed and was told not to retry, with nothing saying why.
+# selector tool reading one row through the same lookup moves the same way:
+# its ``pk`` has no default and nothing fills it, and it was advertised as
+# optional. A call that leaves it out is now a retry naming what is missing.
+# It used to be the lookup's ``TypeError`` raised out of the tool, which under
+# the default ``TOOL_FAILURE`` policy was a failed call with its text withheld:
+# the model heard the tool failed and was told not to retry, with nothing
+# saying why.
 #
 # For this package that moves the refusal from withheld to streamed, as a
 # ``TOOL_CALL_RESULT`` with no ``outcome``, sent as it is. Each route writes
@@ -1608,39 +1612,66 @@ def _spec_rename() -> dict[str, Any]:
     return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
 
 
-def _renaming_model(advertised: dict[str, Any]) -> FunctionModel:
-    """Renames a row without naming it, then names it once told what is missing.
+_ROW_SPEC = SelectorSpec(
+    kind=SelectorKind.RETRIEVE,
+    selector=_row_by_pk,
+    permission_classes=[AllowAny],
+)
+
+
+def _bridged_row() -> dict[str, Any]:
+    server = MCPServer(name="rows")
+    server.register_selector_tool(name="get_row", description="Read a row.", spec=_ROW_SPEC)
+    return {"drf_mcp_server": server}
+
+
+def _spec_row() -> dict[str, Any]:
+    specs, capability, source = _resolve_spec_source({"get_row": _ROW_SPEC})
+    return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
+
+
+def _model_omitting_pk(
+    tool_name: str, args: dict[str, Any], advertised: dict[str, Any]
+) -> FunctionModel:
+    """Calls the tool without naming the row, then names it once told what is missing.
 
     Records each tool's advertised parameters as the model is handed them.
     """
-    calls = iter([{"name": "b"}, {"pk": 1, "name": "b"}])
+    calls = iter([args, {"pk": 1, **args}])
 
     async def stream_fn(messages, info):  # noqa: ANN001, ANN202
         advertised.update({tool.name: tool.parameters_json_schema for tool in info.function_tools})
         if any(part.part_kind == "tool-return" for part in messages[-1].parts):
             yield "done"
             return
-        args = json.dumps(next(calls))
-        yield {0: DeltaToolCall(name="rename_row", json_args=args, tool_call_id="c1")}
+        call_args = json.dumps(next(calls))
+        yield {0: DeltaToolCall(name=tool_name, json_args=call_args, tool_call_id="c1")}
 
     return FunctionModel(stream_function=stream_fn)
 
 
+_BRIDGED_SENTENCE = 'Invalid arguments: {"pk": ["This field is required."]}'
+_SPEC_SENTENCE = "Missing required argument(s): `pk`."
+
+
 @pytest.mark.parametrize(
-    ("route", "sentence"),
+    ("route", "tool_name", "args", "row", "sentence"),
     [
-        (_bridged_rename, 'Invalid arguments: {"pk": ["This field is required."]}'),
-        (_spec_rename, "Missing required argument(s): `pk`."),
+        (_bridged_rename, "rename_row", {"name": "b"}, {"id": 1, "name": "b"}, _BRIDGED_SENTENCE),
+        (_spec_rename, "rename_row", {"name": "b"}, {"id": 1, "name": "b"}, _SPEC_SENTENCE),
+        (_bridged_row, "get_row", {}, {"id": 1, "name": "a"}, _BRIDGED_SENTENCE),
+        (_spec_row, "get_row", {}, {"id": 1, "name": "a"}, _SPEC_SENTENCE),
     ],
-    ids=["drf-mcp", "spec-tools"],
+    ids=["service-drf-mcp", "service-spec-tools", "selector-drf-mcp", "selector-spec-tools"],
 )
 async def test_a_call_missing_its_row_lookup_streams_as_a_retry_on_both_routes(
-    route: Any, sentence: str
+    route: Any, tool_name: str, args: dict[str, Any], row: dict[str, Any], sentence: str
 ) -> None:
     advertised: dict[str, Any] = {}
-    view = DjangoAGUIView(ToolRegistry(), model=_renaming_model(advertised), **route())
+    model = _model_omitting_pk(tool_name, args, advertised)
+    view = DjangoAGUIView(ToolRegistry(), model=model, **route())
 
-    body = await _drain(await view(_post(_run_input("rename the row to b"))))
+    body = await _drain(await view(_post(_run_input("work on the row"))))
 
     events = [json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: ")]
     assert "RUN_ERROR" not in [event["type"] for event in events]
@@ -1649,10 +1680,10 @@ async def test_a_call_missing_its_row_lookup_streams_as_a_retry_on_both_routes(
     # Below the floors this was one result marked ``failed``, carrying the
     # policy's withheld sentence, and the model stopped there.
     assert [event.get("outcome", "absent") for event in results] == ["absent", "absent"]
-    retry, renamed = results
+    retry, answered = results
     # The route's own sentence, sent as it is, naming only the missing ``pk``:
-    # ``name``, which the model did send, appears nowhere in it.
+    # ``name``, which the rename did send, appears nowhere in it.
     assert retry["content"].split("\n\n")[0] == sentence
-    assert json.loads(renamed["content"]) == {"id": 1, "name": "b"}
+    assert json.loads(answered["content"]) == row
     # What made the retry avoidable: the lookup is advertised, and required.
-    assert "pk" in advertised["rename_row"]["required"]
+    assert "pk" in advertised[tool_name]["required"]

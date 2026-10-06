@@ -1161,9 +1161,15 @@ model is a disclosure one. A traceback message can carry a query, a path or a
 credential, and anything handed to the model is also handed to whatever renders
 the transcript in a browser.
 
-The operator's copy is never redacted. The full exception reaches your
-`AuditLogger` and the `django_pydantic_agent.failure` Python logger either way,
-recorded against the tool that raised it.
+The operator's copy is never redacted. Your `AuditLogger` records the exception
+the tool raised, in full, against the tool that raised it, unless a capability
+that sorts after audit, such as one pinned innermost, changes it. Whenever the policy
+converts a failure it first logs the exception, with its traceback, to the
+`django_pydantic_agent.failure` Python logger. That logger hears only about the
+failures the policy converts: nothing when a capability you passed as
+`capabilities=` recovered the call or answered for the model with its own
+`ModelRetry` or `ToolFailed`. A call that never runs the tool, such as one held
+for approval or deferred, has no audit record until it is resumed and runs.
 
 **`INCLUDE_DETAIL` governs the run-level `RUN_ERROR` event as well**, not just
 the model-facing tool result. Pydantic-AI builds that event out of
