@@ -908,6 +908,95 @@ async def test_step_store_records_the_run_end_to_end() -> None:
     assert await StoredToolEffect.objects.filter(owner_id=owner, run_id="r1").aexists()
 
 
+@pytest.mark.django_db(transaction=True)
+async def test_step_store_records_the_tools_own_exception() -> None:
+    # The step ledger records a failed call from ``StepPersistence``'s error
+    # hook, and django-pydantic-agent's failure policy converts the same
+    # exception into the redacted ``ToolFailed`` the model is shown. The ledger
+    # is what an operator reads to find out why a run went wrong, so it must
+    # hold what the tool raised rather than the policy's copy with the text
+    # withheld. It does on both sides of the ``django-pydantic-agent>=0.27``
+    # floor: this view attaches ``StepPersistence`` per run, and a per-run
+    # capability's error hook runs before the agent's own, so the policy's
+    # move to outermost in 0.27 changes nothing here. The test holds that, so
+    # a later reordering on either side cannot quietly hand the ledger the copy.
+    # A capability passed to the view as ``capabilities=`` is the case 0.27
+    # does change; the next test covers it.
+    from asgiref.sync import sync_to_async
+    from django.contrib.auth import get_user_model
+    from django_pydantic_agent.contrib.store.models import StoredStepEvent, StoredToolEffect
+
+    reg = ToolRegistry()
+
+    @tool(reg)
+    def reconcile(n: int) -> int:
+        """Reconcile a ledger."""
+        raise ValueError("ledger 7 is locked by another job")
+
+    user = await sync_to_async(get_user_model().objects.create)(username="ledger")
+    view = DjangoAGUIView(
+        reg,
+        model=TestModel(),
+        step_store=DefaultStepStore,
+        get_user=lambda _request: user,
+    )
+    body = await _drain(await view(_post(_run_input("reconcile 7"))))
+    # The policy still answers the model: a failed result, not a failed run.
+    assert "RUN_FINISHED" in body
+    assert "RUN_ERROR" not in body
+    assert "ledger 7 is locked" not in body
+
+    owner = str(user.pk)
+    effect = await StoredToolEffect.objects.aget(owner_id=owner, run_id="r1", tool_name="reconcile")
+    assert effect.status == "failed"
+    assert effect.effect_summary == repr(ValueError("ledger 7 is locked by another job"))
+    event = await StoredStepEvent.objects.aget(
+        owner_id=owner, run_id="r1", kind="tool_call_failed", tool_name="reconcile"
+    )
+    assert event.error == effect.effect_summary
+
+
+@pytest.mark.django_db
+async def test_a_capability_passed_to_the_view_sees_the_tools_own_exception() -> None:
+    # ``capabilities=`` is composed into the agent ahead of the failure policy
+    # django-pydantic-agent appends. Below 0.27 the policy declared no position
+    # and so sat innermost, and pydantic-ai runs error hooks innermost first:
+    # every capability passed here was handed the policy's redacted
+    # ``ToolFailed`` instead of what the tool raised, so a step recorder
+    # recorded the copy and a capability that recovers by returning a value
+    # recovered from the copy. From 0.27 the policy is pinned outermost and
+    # converts last. This is what the ``django-pydantic-agent>=0.27`` floor
+    # buys this package, and it fails on 0.26.
+    from pydantic_ai.capabilities import AbstractCapability
+
+    seen: list[Exception] = []
+
+    class RecordsFailures(AbstractCapability[Any]):
+        async def on_tool_execute_error(
+            self, ctx: Any, *, call: Any, tool_def: Any, args: Any, error: Exception
+        ) -> Any:
+            seen.append(error)
+            raise error
+
+    reg = ToolRegistry()
+
+    @tool(reg)
+    def reconcile(n: int) -> int:
+        """Reconcile a ledger."""
+        raise ValueError("ledger 7 is locked by another job")
+
+    view = DjangoAGUIView(reg, model=TestModel(), capabilities=[RecordsFailures()])
+    body = await _drain(await view(_post(_run_input("reconcile 7"))))
+    # The policy still answers the model after the capability has seen the
+    # failure: a failed result with the text withheld, and the run ends normally.
+    assert "RUN_FINISHED" in body
+    assert "ledger 7 is locked" not in body
+
+    assert len(seen) == 1
+    assert type(seen[0]) is ValueError
+    assert str(seen[0]) == "ledger 7 is locked by another job"
+
+
 # --- Resume / fork ------------------------------------------------------------
 
 

@@ -106,14 +106,22 @@ dependencies = [
     # closing mid-session left the tool offered until the call refused it. It
     # raises that package's own ``[drf-mcp]`` and ``[spec-tools]`` extras to
     # 0.48 and 0.31, which is why the bands below move with it.
-    # 0.26 is the floor now, and like 0.24 it buys no behaviour of its own: it
-    # raises that package's ``[drf-mcp]`` and ``[spec-tools]`` extras to 0.49 and
-    # 0.32, the bands below until their latest raise, in which a read-shaping
-    # query param the serializer refuses while rendering comes back as one retry
-    # rather than a failed call. Taken for the reason 0.21 and 0.24 were: so the
-    # bridge's own backing package does not advertise the band this package's
-    # extras rule out.
-    "django-pydantic-agent>=0.26",
+    # 0.26 was the previous floor, and like 0.24 it bought no behaviour of its
+    # own: it raised that package's ``[drf-mcp]`` and ``[spec-tools]`` extras to
+    # 0.49 and 0.32, in which a read-shaping query param the serializer refuses
+    # while rendering comes back as one retry rather than a failed call.
+    # 0.27 is the floor now, and it is one a ``capabilities=`` consumer feels.
+    # Those capabilities are composed ahead of the failure policy that package
+    # appends, and below 0.27 the policy sat innermost, where pydantic-ai runs
+    # error hooks first: every capability passed here was handed the policy's
+    # redacted ``ToolFailed`` in place of the tool's exception, so a step
+    # recorder recorded the copy and a capability that recovers recovered from
+    # it. 0.27 pins the policy outermost, so it converts last. Held by the test
+    # passing a capability that records the failure it is handed. The per-run
+    # step persistence this package attaches itself was never affected: its
+    # error hook runs before the agent's, on both sides of the floor. 0.27 also
+    # raises that package's own extras to 0.50 and 0.33, the bands below.
+    "django-pydantic-agent>=0.27",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).

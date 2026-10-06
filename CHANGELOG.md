@@ -37,6 +37,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `service_specs=` route already retried that one. A session test drives a call
   missing its row lookup through each route and asserts that route's sentence,
   the corrected call's result, and `pk` advertised as required.
+- **`django-pydantic-agent` is floored at `>=0.27` (was `>=0.26`), so a
+  capability passed as `capabilities=` is handed the tool's own exception.**
+  Those capabilities are composed ahead of the failure policy that package
+  appends, and below 0.27 the policy sat innermost, where pydantic-ai runs
+  error hooks first. Every capability passed here was handed the policy's
+  redacted `ToolFailed` in place of what the tool raised, so a step recorder
+  recorded the copy, and a capability that recovers by returning a value
+  recovered from the copy while the policy logged a failure the run had
+  recovered from. 0.27 pins the policy outermost, so it converts last and the
+  model is still answered with the same failed result. A test passes a
+  capability that records the failure it is handed, and fails on 0.26. The
+  step persistence a `step_store=` attaches to each run was never affected,
+  because its error hook runs before the agent's: a second test holds that
+  its ledger records the tool's exception, so a later reordering cannot
+  quietly hand it the copy. 0.27 also raises that package's own `[drf-mcp]` and
+  `[spec-tools]` extras onto the bands above.
 
 ## [0.65.0] — 2026-09-24
 
