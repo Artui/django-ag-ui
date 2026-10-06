@@ -7,10 +7,11 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from ag_ui.core import BaseEvent, EventType, TextMessageStartEvent
-from opentelemetry.trace import NoOpTracer
+from pydantic_ai import RunContext
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 from pydantic_ai_harness.compaction import SlidingWindowCompaction
 
 from django_ag_ui.agent.compaction_observer import COMPACTION_SINK, Compaction, CompactionObserver
@@ -22,9 +23,9 @@ from django_ag_ui.agent.inject_compaction_events import (
 _MODEL = TestModel()
 
 
-class _Ctx:
-    tracer = NoOpTracer()
-    model = _MODEL
+def _run_context(messages: list[Any]) -> RunContext[None]:
+    """The genuine upstream run context — see ``test_compaction_observer`` for why."""
+    return RunContext(deps=None, model=_MODEL, usage=RunUsage(), messages=messages)
 
 
 def _request_context(messages: list[Any]) -> ModelRequestContext:
@@ -153,7 +154,10 @@ async def test_end_to_end_with_a_real_compaction_capability() -> None:
 
     async def upstream() -> AsyncIterator[BaseEvent]:
         yield _text("a")
-        result = await observer.before_model_request(_Ctx(), _request_context(_messages(10)))
+        messages = _messages(10)
+        result = await observer.before_model_request(
+            _run_context(messages), _request_context(messages)
+        )
         retained.append(len(result.messages))
         yield _text("b")
 

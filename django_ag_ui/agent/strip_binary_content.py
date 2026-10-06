@@ -35,8 +35,9 @@ def strip_binary_content(messages: Sequence[Message]) -> list[Message]:
     copy.
 
     Copies are made with ``model_copy``, **never by re-validating**: a round-trip
-    through ``load_messages`` / ``dump_messages`` regenerates every message id and
-    discards both ``metadata`` and ``model_extra``, which between them are where
+    through ``load_messages`` / ``dump_messages`` discards both ``metadata`` and
+    ``model_extra`` (and below pydantic-ai-slim 2.48 regenerates every message
+    id as well), which between them are where
     a client's ``attachments`` refs ride -- ``metadata`` from the web component's
     AG-UI 1.0 client, the top-level field before it.
     """

@@ -646,9 +646,9 @@ async def test_the_delivered_block_is_never_persisted() -> None:
 # --- what a stored thread is made of ---------------------------------------------
 #
 # The run's own history is the model's, not the client's: dumping all of it back
-# out regenerated every message id and dropped the ``attachments`` field riding a
-# user message, so a reloaded thread lost its chips and referred to files by ids
-# nothing recognised. The prior turns are therefore stored as posted, and only the
+# out dropped the ``attachments`` field riding a user message, and below
+# pydantic-ai-slim 2.48 regenerated every message id too, so a reloaded thread
+# lost its chips and referred to files by ids nothing recognised. The prior turns are therefore stored as posted, and only the
 # run's *new* messages are dumped.
 
 

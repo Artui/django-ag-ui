@@ -4,11 +4,29 @@
 pip install django-ag-ui
 ```
 
-Core dependencies are `django>=4.2` and `pydantic-ai-slim[ag-ui]>=2.37,<3`. The
-AG-UI wire types and the `AGUIAdapter` come from the `pydantic-ai-slim[ag-ui]`
-extra; this package does not re-implement them. The **slim** package ships the
-AG-UI adapter and wire types but **no model-provider library** — pick one via a
-provider extra (see below).
+Core dependencies are `django>=4.2`, `django-pydantic-agent>=0.27`,
+`pydantic-ai-slim[ui]>=2.37,<3` and `ag-ui-protocol>=1.0`. The `AGUIAdapter` comes from pydantic-ai-slim and the
+AG-UI wire types from `ag-ui-protocol`; this package does not re-implement
+either. The **slim** package ships the adapter but **no model-provider
+library** — pick one via a provider extra (see below).
+
+The `[ui]` extra rather than `[ag-ui]` is deliberate. From 2.47,
+pydantic-ai-slim's `[ag-ui]` extra caps `ag-ui-protocol` below 1.0, and this
+package needs 1.0, so asking for both would quietly hold pydantic-ai-slim at
+2.46. If your own project depends on `pydantic-ai-slim[ag-ui]` or
+`pydantic-ai[ag-ui]`, it brings the cap back, and the resolver again settles on
+pydantic-ai-slim 2.46 without saying so. Depend on the `[ui]` extra instead, as
+this package does.
+
+Upgrading from 0.66 or earlier does not move pydantic-ai on its own. 2.46 still
+satisfies this package's floor, so a lockfile or environment that already
+resolved it keeps it until you upgrade it by name, together with
+`pydantic-ai-harness` if you use the `[harness]` or `[code-mode]` extra (the
+cap held it at 0.36, since every later release pins a newer pydantic-ai-slim):
+
+```bash
+uv lock --upgrade-package pydantic-ai-slim --upgrade-package pydantic-ai-harness
+```
 
 ## Compatibility
 
@@ -16,7 +34,7 @@ provider extra (see below).
 | --- | --- | --- |
 | Python | 3.10 | 3.10, 3.11, 3.12, 3.13, 3.14 |
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0 |
-| Pydantic-AI | 2.37 (with the `pydantic-ai-slim[ag-ui]` extra) | latest in the CI matrix |
+| Pydantic-AI | 2.37 (with the `pydantic-ai-slim[ui]` extra) | latest in the CI matrix |
 
 ## Model provider extras
 

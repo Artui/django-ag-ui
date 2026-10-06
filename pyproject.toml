@@ -135,7 +135,20 @@ dependencies = [
     # and closed there instead. Load-bearing rather than tidy: the wire fixture
     # the browser lane builds against is generated from this endpoint, and below
     # this version it regenerates differently.
-    "pydantic-ai-slim[ag-ui]>=2.37,<3",
+    # ``[ui]`` rather than ``[ag-ui]``, and the two differ only by a cap. Both
+    # bring starlette for the adapter; ``[ag-ui]`` adds ag-ui-protocol, which
+    # this package declares itself below, and from 2.47 it caps that protocol
+    # below 1.0. With the floor below at 1.0, a resolver asked for both held
+    # pydantic-ai-slim at 2.46 without a word, so every install of this package
+    # and of everything built on it ran a pydantic-ai older than the one its
+    # siblings lock, while the drift job stayed green. ``[ui]`` asks nothing of
+    # the protocol, which leaves the floor below the only statement about it.
+    # Upstream capped it because its own tests assume the pre-1.0 wire; this
+    # endpoint has written the 1.0 wire since that floor was set, and the
+    # adapter forwards the installed protocol version rather than pinning an
+    # older one. Once pydantic-ai#8627 lifts the cap, ``[ag-ui]`` can return
+    # and nothing else moves.
+    "pydantic-ai-slim[ui]>=2.37,<3",
     # The floor is the protocol's 1.0, and it is load-bearing for the same
     # reason the pydantic-ai floor above is: 1.0 changed what this endpoint
     # writes. It made TEXT_MESSAGE_START's role optional with no default, and an
@@ -485,7 +498,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.66.0"
+current_version = "0.67.0"
 allow_dirty = false
 commit = false
 tag = false

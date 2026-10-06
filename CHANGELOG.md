@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.67.0] — 2026-10-06
+
+### Changed
+
+- **The pydantic-ai dependency is `pydantic-ai-slim[ui]` (was
+  `pydantic-ai-slim[ag-ui]`), so an install resolves the current pydantic-ai
+  rather than stopping at 2.46.** From 2.47, the `[ag-ui]` extra caps
+  `ag-ui-protocol` below 1.0, and since 0.63.0 this package has required 1.0. A
+  resolver satisfies both by holding pydantic-ai-slim at 2.46 and says nothing:
+  the install succeeds, the suite passes, and the upstream drift job, which
+  resolves everything unpinned, reported a green run on 2.46 with 2.54 already
+  published. So every install of 0.63.0 through 0.66.0, and of everything built
+  on this package, has run an older pydantic-ai than the one its siblings test
+  against. `[ui]` brings the same starlette the adapter needs and asks nothing
+  of the protocol, which this package declares itself. The floor stays at 2.37,
+  where `[ui]` already exists.
+
+  Upstream caps the protocol because its own tests assume the pre-1.0 wire.
+  This endpoint has written the 1.0 wire since 0.63.0, and the checked-in
+  sub-agent fixture, which the suite regenerates from the real endpoint on
+  every run, comes out byte for byte the same on 2.54.
+
+  **If your own project depends on `pydantic-ai-slim[ag-ui]` or
+  `pydantic-ai[ag-ui]`, switch it to `[ui]`.** Either one brings the cap back,
+  and the resolver again settles on 2.46 without a word. Once pydantic-ai#8627
+  lifts the cap, `[ag-ui]` can return.
+
+  **Upgrading django-ag-ui alone does not move an existing install.** 2.46
+  still satisfies `>=2.37`, so a lockfile or an environment that already
+  resolved it keeps it: `uv lock --upgrade-package django-ag-ui` adopts this
+  release and leaves pydantic-ai-slim at 2.46. Upgrade it by name, together
+  with pydantic-ai-harness if you use the `[harness]` or `[code-mode]` extra,
+  which the cap held at 0.36 because every later harness pins a newer
+  pydantic-ai-slim: `uv lock --upgrade-package pydantic-ai-slim
+  --upgrade-package pydantic-ai-harness`, or `pip install -U pydantic-ai-slim
+  pydantic-ai-harness`.
+
+  `uv.lock` now resolves pydantic-ai-slim 2.54.0 and pydantic-ai-harness 0.54.0
+  (were 2.42.0 and 0.31.0). The compaction tests built a stand-in for the run
+  context carrying only the attributes a strategy then read; harness 0.54 reads
+  the history and the run id off it as well, so they build the real
+  `RunContext` now.
+
 ## [0.66.0] — 2026-10-06
 
 ### Changed
@@ -3824,7 +3867,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.66.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.67.0...HEAD
+[0.67.0]: https://github.com/Artui/django-ag-ui/compare/v0.66.0...v0.67.0
 [0.66.0]: https://github.com/Artui/django-ag-ui/compare/v0.65.0...v0.66.0
 [0.65.0]: https://github.com/Artui/django-ag-ui/compare/v0.64.0...v0.65.0
 [0.64.0]: https://github.com/Artui/django-ag-ui/compare/v0.63.0...v0.64.0
