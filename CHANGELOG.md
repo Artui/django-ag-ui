@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A run's `preview` in `GET runs/` is now the prompt that run answered, so two
+  runs in one conversation can be told apart.** It was the first user message in
+  the run's snapshot, and a snapshot holds the whole thread: an AG-UI client
+  posts every earlier turn with each run, and `resume/` and `fork/` seed the
+  source run's history ahead of the new turn. So every run in a conversation,
+  resumed and forked ones included, was previewed with the conversation's
+  opening line, and a picker built on the field could not pick a run inside a
+  thread, which is the case it exists for. This has been so since the field was
+  added in 0.44.0, whose entry here said the opposite.
+
+  The preview is now the **newest** user prompt in the snapshot. A run continued
+  past a tool approval or a deferred result posts no new user message, so it
+  keeps the question it is still answering, and lineage stays `parent_run_id`'s
+  to show. A newest prompt with no words in it, such as an image with no
+  caption, previews as `null` rather than borrowing an earlier run's prompt. The
+  row's shape is unchanged.
+
 ## [0.68.0] — 2026-10-07
 
 ### Changed

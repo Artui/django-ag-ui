@@ -1,24 +1,32 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from django.http import HttpRequest
+import pytest
+from django.http import HttpRequest, StreamingHttpResponse
 from django.test import RequestFactory, override_settings
+from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
 from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
+from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai.messages import (
     BinaryContent,
     ModelRequest,
     ModelResponse,
     TextPart,
+    ToolCallPart,
+    ToolReturnPart,
     UserPromptPart,
 )
+from pydantic_ai.models.test import TestModel
 from pydantic_ai_harness.step_persistence import ContinuableSnapshot, RunRecord
 
+from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.runs_view import RunsView
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
-from tests.authed_request_factory import AuthedRequestFactory
+from tests.authed_request_factory import AuthedAsyncRequestFactory, AuthedRequestFactory
 
 _STARTED = datetime(2026, 7, 27, 12, 0, tzinfo=timezone.utc)
 
@@ -36,19 +44,27 @@ def _record(
     )
 
 
-def _snapshot(run_id: str, *, said: Any = None) -> ContinuableSnapshot:
+def _snapshot(run_id: str, *, said: Any = None, earlier: Sequence[str] = ()) -> ContinuableSnapshot:
     """A snapshot, optionally holding the user prompt the row previews.
 
     ``said`` is the ``UserPromptPart`` content verbatim, so a test can hand over
-    the multi-modal sequence form as readily as a string.
+    the multi-modal sequence form as readily as a string. ``earlier`` are the
+    prompts of the thread's previous turns, each with its answer: an AG-UI client
+    posts the whole thread on every run, so this is the shape a snapshot from any
+    run after the first has.
     """
     messages: list[Any] = []
+    for prompt in earlier:
+        messages += [
+            ModelRequest(parts=[UserPromptPart(content=prompt)]),
+            ModelResponse(parts=[TextPart(content="done")]),
+        ]
     if said is not None:
-        # An assistant turn first, so finding the prompt is a search rather than
-        # reading ``messages[0]``.
-        messages = [
-            ModelResponse(parts=[TextPart(content="working on it")]),
+        # The answer after the prompt, as a finished run leaves it, so finding the
+        # prompt is a search rather than reading ``messages[-1]``.
+        messages += [
             ModelRequest(parts=[UserPromptPart(content=said)]),
+            ModelResponse(parts=[TextPart(content="working on it")]),
         ]
     return ContinuableSnapshot(
         run_id=run_id,
@@ -159,12 +175,21 @@ class TestListing:
 class TestPreview:
     """The row's only human-readable field, from the snapshot already loaded."""
 
-    async def test_previews_the_first_user_message(self) -> None:
+    async def test_two_runs_in_one_thread_preview_their_own_prompts(self) -> None:
+        """Each run is named by the prompt it was started to answer.
+
+        The second run's snapshot carries the first run's prompt too, because the
+        client posts the whole thread every time. Naming a run by the first
+        prompt in it named every run in a conversation after its opening line,
+        which is the one case the field exists to tell apart.
+        """
         store = _FakeStore(
             [_record("r1"), _record("r2", minutes=1)],
             {
                 "r1": _snapshot("r1", said="What is on the board?"),
-                "r2": _snapshot("r2", said="Import these three events"),
+                "r2": _snapshot(
+                    "r2", earlier=["What is on the board?"], said="Import these three events"
+                ),
             },
         )
         rows = (await _body(await RunsView(_factory(store))(_get())))["runs"]
@@ -173,6 +198,48 @@ class TestPreview:
             "r1": "What is on the board?",
             "r2": "Import these three events",
         }
+
+    async def test_a_tool_round_does_not_move_the_preview(self) -> None:
+        """An approval or a tool's result is not something the person said.
+
+        A run that continues past an approval is posted with no new user message,
+        only the tool's outcome, so it is still answering the last thing the
+        person asked.
+        """
+        snapshot = _snapshot("r2", earlier=["What is on the board?"], said="Clear the board")
+        snapshot.messages.extend(
+            [
+                ModelResponse(parts=[ToolCallPart(tool_name="clear", tool_call_id="c1")]),
+                ModelRequest(
+                    parts=[ToolReturnPart(tool_name="clear", content="cleared", tool_call_id="c1")]
+                ),
+                ModelResponse(parts=[TextPart(content="The board is clear.")]),
+            ]
+        )
+        store = _FakeStore([_record("r2")], {"r2": snapshot})
+        (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert row["preview"] == "Clear the board"
+
+    async def test_a_newest_prompt_with_no_words_does_not_borrow_an_older_one(self) -> None:
+        """No words in the run's own prompt is ``null``, never the turn before.
+
+        Falling back to an earlier prompt would name this run after a previous
+        run's question, which is the mislabelling this field must not do.
+        """
+        store = _FakeStore(
+            [_record("r2")],
+            {
+                "r2": _snapshot(
+                    "r2",
+                    earlier=["What is on the board?"],
+                    said=[BinaryContent(data=b"x", media_type="image/png")],
+                )
+            },
+        )
+        (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert row["preview"] is None
 
     async def test_costs_no_extra_query(self) -> None:
         """One snapshot read per row, the one ``continuable`` already needed."""
@@ -188,7 +255,7 @@ class TestPreview:
 
         assert (row["continuable"], row["preview"]) == (False, None)
 
-    async def test_a_run_seeded_from_history_alone_previews_nothing(self) -> None:
+    async def test_a_snapshot_with_no_prompt_previews_nothing(self) -> None:
         store = _FakeStore([_record("r1")], {"r1": _snapshot("r1")})
         (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
 
@@ -270,6 +337,87 @@ class TestPreview:
         await RunsView(factory)(request)
 
         assert seen == [request]
+
+
+def _turns(*turns: tuple[str, str], run_id: str) -> bytes:
+    """A ``RunAgentInput`` posting a thread, as the client does on every run.
+
+    Each turn is ``(role, content)``, so a test states the thread it posts rather
+    than only the newest message.
+    """
+    return json.dumps(
+        {
+            "threadId": "t1",
+            "runId": run_id,
+            "state": {},
+            "messages": [
+                {"id": f"m{index}", "role": role, "content": content}
+                for index, (role, content) in enumerate(turns)
+            ],
+            "tools": [],
+            "context": [],
+            "forwardedProps": {},
+        }
+    ).encode()
+
+
+async def _run(view: DjangoAGUIView, body: bytes, *, resume_from: str | None = None) -> None:
+    request = AuthedAsyncRequestFactory().post(
+        "/agent/", data=body, content_type="application/json"
+    )
+    response = await view(request, resume_from=resume_from)
+    assert isinstance(response, StreamingHttpResponse)
+    async for _chunk in response.streaming_content:
+        pass
+
+
+@pytest.mark.django_db(transaction=True)
+class TestPreviewOfRecordedRuns:
+    """The previews of runs the endpoint really recorded, not hand-built snapshots.
+
+    The unit tests above build a snapshot by hand, so they agree with whatever
+    shape the test author believed a snapshot has. These post real turns through
+    the run endpoint into the reference step store and read the index back, which
+    is the only place it is shown that a snapshot holds the whole thread.
+    """
+
+    async def test_each_run_in_a_thread_is_named_by_its_own_prompt(self) -> None:
+        view = DjangoAGUIView(ToolRegistry(), model=TestModel(), step_store=DefaultStepStore)
+        await _run(view, _turns(("user", "What is on the board?"), run_id="r1"))
+        await _run(
+            view,
+            _turns(
+                ("user", "What is on the board?"),
+                ("assistant", "Three cards."),
+                ("user", "Import these three events"),
+                run_id="r2",
+            ),
+        )
+
+        rows = (await _body(await RunsView(DefaultStepStore)(_get())))["runs"]
+
+        assert {row["run_id"]: row["preview"] for row in rows} == {
+            "r1": "What is on the board?",
+            "r2": "Import these three events",
+        }
+
+    async def test_a_resumed_run_is_named_by_its_new_turn(self) -> None:
+        """Resume and fork seed the source's history server-side, ahead of the turn.
+
+        So the new run's snapshot opens with the source thread's prompts, and its
+        own prompt is the one after them. Lineage is ``parent_run_id``'s job; a
+        child named by its parent's prompt could not be told from it.
+        """
+        view = DjangoAGUIView(ToolRegistry(), model=TestModel(), step_store=DefaultStepStore)
+        await _run(view, _turns(("user", "What is on the board?"), run_id="r1"))
+        await _run(view, _turns(("user", "Move standup to Friday"), run_id="r2"), resume_from="r1")
+
+        rows = (await _body(await RunsView(DefaultStepStore)(_get())))["runs"]
+
+        assert [(row["run_id"], row["parent_run_id"], row["preview"]) for row in rows] == [
+            ("r2", "r1", "Move standup to Friday"),
+            ("r1", None, "What is on the board?"),
+        ]
 
 
 class TestMethodAndAuth:

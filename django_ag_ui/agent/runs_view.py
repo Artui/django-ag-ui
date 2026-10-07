@@ -42,9 +42,11 @@ class RunsView:
     that never reached a provider-valid boundary is informational only.
     ``parent_run_id`` exposes fork lineage.
 
-    ``preview`` is the run's first user message, whitespace-collapsed and
-    truncated: the one field in the row a person can actually recognise a
-    conversation by. It comes out of the snapshot this view already loads to
+    ``preview`` is the run's own prompt, the newest user message in its
+    snapshot, whitespace-collapsed and truncated: the one field in the row a
+    person can actually recognise a run by. Two runs in one thread have
+    different previews, because each names the turn it answered rather than the
+    thread's opening line. It comes out of the snapshot this view already loads to
     answer ``continuable``, so it costs no extra query — and it is ``null``
     exactly where that snapshot is absent, which is where ``continuable`` is
     ``false`` and there is nothing to offer anyway. Without it a picker can only
@@ -163,20 +165,27 @@ def _run_to_json(record: Any, *, snapshot: Any) -> dict[str, Any]:
 
 
 def _preview(snapshot: Any) -> str | None:
-    """The first thing the user said in this run, or ``None`` if they said nothing.
+    """The prompt this run was started to answer, or ``None`` if it holds no words.
 
-    A snapshot's messages are the run's own history, so the opening user prompt is
-    what the conversation is *about* — every later turn is an answer to it. ``None``
-    covers the shapes carrying no words to show: a run seeded from history alone,
-    or a first prompt that is an image with no caption.
+    That is the **newest** user prompt in the snapshot, not the first. A snapshot
+    holds everything the run was handed, and an AG-UI client posts the whole
+    thread on every run, so the first prompt in any run after a thread's opening
+    one is that opening line, and every run in a conversation would be named
+    after it. A ``resume/`` or ``fork/`` run is no different: the source run's
+    history is seeded ahead of the turn the client sends, so the newest prompt is
+    still the new turn, and lineage is ``parent_run_id``'s to show.
+
+    Only a ``UserPromptPart`` counts, so a run continued past an approval or a
+    deferred tool result, which posts no new user message, keeps the question it
+    is still answering. ``None`` covers a snapshot with no prompt at all, and a
+    newest prompt with no words, such as an image with no caption. It does not
+    fall back to an older prompt, which would name this run after an earlier
+    run's question.
     """
-    for message in snapshot.messages:
-        for part in message.parts:
-            if not isinstance(part, UserPromptPart):
-                continue
-            text = _one_line(part.content)
-            if text is not None:
-                return text
+    for message in reversed(snapshot.messages):
+        for part in reversed(message.parts):
+            if isinstance(part, UserPromptPart):
+                return _one_line(part.content)
     return None
 
 

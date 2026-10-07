@@ -232,12 +232,23 @@ a provider-valid boundary has no snapshot, so resuming it would start from
 nothing: offer the action only where this is `true`, and treat the other rows as
 informational (a crashed run worth showing, not worth resuming).
 
-**`preview` is the field a person reads.** It is the run's first user message,
-collapsed to one line and truncated, and it comes out of the snapshot the view
-already loaded to answer `continuable` — so it costs no extra query, and it is
-`null` exactly where that snapshot is missing. Without it a picker can only offer
-a time and an opaque id, which is not a choice: two runs a minute apart both read
-"just now", and the id is not something a person recognises. Rows arrive **newest
+**`preview` is the field a person reads.** It is the run's own prompt, the
+newest user message in its snapshot, collapsed to one line and truncated. It
+comes out of the snapshot the view already loaded to answer `continuable`, so it
+costs no extra query, and it is `null` exactly where that snapshot is missing.
+Without it a picker can only offer a time and an opaque id, which is not a
+choice: two runs a minute apart both read "just now", and the id is not
+something a person recognises.
+
+It is the *newest* prompt because a snapshot holds the whole thread: an AG-UI
+client posts every earlier turn with each run, and `resume` and `fork` seed the
+source run's history ahead of the new turn. So two runs in one conversation are
+named by the turns they answered rather than both by its opening line, and a
+resumed or forked run is named by its own turn, with `parent_run_id` showing
+where it came from. A run that continues past a tool approval posts no new user
+message, so it keeps the question it is still answering. A newest prompt with no
+words in it, such as an image with no caption, gives `null` rather than an
+earlier run's prompt. Rows arrive **newest
 first**, which is the view's doing rather than the store's — a `StepStore` answers
 oldest-first because the harness protocol says so.
 
