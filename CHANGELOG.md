@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The `[drf-mcp]` extra is floored at `djangorestframework-mcp-server>=0.52`
+  (was `>=0.50`) and the `[spec-tools]` extra at
+  `djangorestframework-pydantic-ai>=0.35` (was `>=0.33`), and these two floors
+  move together.** A call refused for leaving out a required argument is now
+  worded the same way on both routes. The server behind `drf_mcp_server=`
+  answers it with ``Missing required argument(s): `pk`.``, the sentence
+  `service_specs=` already wrote, where it said `Invalid arguments` and left
+  the names to the field detail. The session test driving a call missing its
+  row lookup through each route, for a service tool and a selector tool, now
+  asserts that one sentence on both.
+
+  **What the model is told can be reworded, and only through an object you
+  built.** Both releases add an `AgentConventions` of their own, a frozen value
+  with one field per sentence the transport writes for a model: the
+  instructions block, a handle's description, the retry for an argument left
+  out. A run gets yours through a `SpecToolset` or `SpecCapability` built with
+  `conventions=` and passed as `service_specs=`, or through an `MCPServer`
+  built with `conventions=` and passed as `drf_mcp_server=`. A mapping or a
+  `SpecRegistry` passed as `service_specs=` gets the default wording, because
+  the endpoint builds that capability itself. A test drives a run through each
+  of the four and asserts whose sentence the retry carries, and
+  [Configuration](https://artui.github.io/django-ag-ui/configuration/#service_specs)
+  documents it.
+
+  **More refusals stream as retries rather than as withheld failures.** Both
+  releases need `djangorestframework-services` 0.56, under which a required
+  parameter nothing filled, such as one a `kwargs=` provider declined, is a
+  retry naming it on both routes. It was the callable's `TypeError`, which the
+  default `TOOL_FAILURE` policy turned into a failed call with its text
+  withheld. On the `drf_mcp_server=` route a chain step's DRF
+  `ValidationError` is now a retry too, as is an argument that a service tool
+  with no input serializer does not declare, which used to be dropped unread.
+  A spec permission reading `view.kwargs` now sees the route the call names,
+  where it saw none and denied a caller it admits.
+
+  **A tool that could never serve a call is refused at startup** with
+  `ImproperlyConfigured` naming it, rather than failing every call. On both
+  routes that covers a list selector taking `page` or `limit`, a tool input
+  that a `QueryParam` also names, and a `ServiceSpec` declaring a target lookup
+  that dispatch never calls. On the `drf_mcp_server=` route it also covers a
+  required `data` with no input serializer, a selector taking `data` or
+  `serializer`, a selector's input serializer under `BUNDLE`, and a required
+  positional-only parameter. Nothing this package ships or documents declares
+  one. A project of yours that does will now fail when it starts.
+
+  `uv.lock` resolves 0.52.0 and 0.35.0, and `djangorestframework-services`
+  0.56.0 (were 0.50.0, 0.33.0 and 0.55.0).
+
 ### Fixed
 
 - **A thread rename whose body is nested too deeply to decode is now a 400,

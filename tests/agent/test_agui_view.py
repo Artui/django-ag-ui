@@ -21,8 +21,10 @@ from pydantic_ai.models.test import TestModel
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny
+from rest_framework_mcp import AgentConventions as MCPAgentConventions
 from rest_framework_mcp import MCPServer, QueryParam
-from rest_framework_pydantic_ai import SpecToolset
+from rest_framework_pydantic_ai import AgentConventions, SpecCapability, SpecToolset
+from rest_framework_services import SpecRegistry
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -1612,9 +1614,11 @@ async def test_a_selection_refused_while_rendering_streams_as_a_retry_on_both_ro
 # saying why.
 #
 # For this package that moves the refusal from withheld to streamed, as a
-# ``TOOL_CALL_RESULT`` with no ``outcome``, sent as it is. Each route writes
-# its own sentence, and both name only the arguments the model left out, never
-# a value it sent.
+# ``TOOL_CALL_RESULT`` with no ``outcome``, sent as it is. Both routes write
+# the same sentence, naming only the arguments the model left out, never a
+# value it sent: drf-mcp words its missing-argument refusal as the Pydantic-AI
+# toolset does, and django-pydantic-agent's bridge sends it without appending
+# a detail that only repeats it.
 
 
 def _row_by_pk(*, pk: int) -> dict[str, Any]:
@@ -1689,22 +1693,22 @@ def _model_omitting_pk(
     return FunctionModel(stream_function=stream_fn)
 
 
-_BRIDGED_SENTENCE = 'Invalid arguments: {"pk": ["This field is required."]}'
-_SPEC_SENTENCE = "Missing required argument(s): `pk`."
+# What the model reads on either route, once.
+_MISSING_PK = "Missing required argument(s): `pk`."
 
 
 @pytest.mark.parametrize(
-    ("route", "tool_name", "args", "row", "sentence"),
+    ("route", "tool_name", "args", "row"),
     [
-        (_bridged_rename, "rename_row", {"name": "b"}, {"id": 1, "name": "b"}, _BRIDGED_SENTENCE),
-        (_spec_rename, "rename_row", {"name": "b"}, {"id": 1, "name": "b"}, _SPEC_SENTENCE),
-        (_bridged_row, "get_row", {}, {"id": 1, "name": "a"}, _BRIDGED_SENTENCE),
-        (_spec_row, "get_row", {}, {"id": 1, "name": "a"}, _SPEC_SENTENCE),
+        (_bridged_rename, "rename_row", {"name": "b"}, {"id": 1, "name": "b"}),
+        (_spec_rename, "rename_row", {"name": "b"}, {"id": 1, "name": "b"}),
+        (_bridged_row, "get_row", {}, {"id": 1, "name": "a"}),
+        (_spec_row, "get_row", {}, {"id": 1, "name": "a"}),
     ],
     ids=["service-drf-mcp", "service-spec-tools", "selector-drf-mcp", "selector-spec-tools"],
 )
 async def test_a_call_missing_its_row_lookup_streams_as_a_retry_on_both_routes(
-    route: Any, tool_name: str, args: dict[str, Any], row: dict[str, Any], sentence: str
+    route: Any, tool_name: str, args: dict[str, Any], row: dict[str, Any]
 ) -> None:
     advertised: dict[str, Any] = {}
     model = _model_omitting_pk(tool_name, args, advertised)
@@ -1720,9 +1724,81 @@ async def test_a_call_missing_its_row_lookup_streams_as_a_retry_on_both_routes(
     # policy's withheld sentence, and the model stopped there.
     assert [event.get("outcome", "absent") for event in results] == ["absent", "absent"]
     retry, answered = results
-    # The route's own sentence, sent as it is, naming only the missing ``pk``:
-    # ``name``, which the rename did send, appears nowhere in it.
-    assert retry["content"].split("\n\n")[0] == sentence
+    # One sentence, sent as it is, naming only the missing ``pk``: ``name``,
+    # which the rename did send, appears nowhere in it, and nothing follows it
+    # that says the same thing again.
+    assert retry["content"].split("\n\n")[0] == _MISSING_PK
     assert json.loads(answered["content"]) == row
     # What made the retry avoidable: the lookup is advertised, and required.
     assert "pk" in advertised[tool_name]["required"]
+
+
+# --- whose wording the model reads ------------------------------------------
+#
+# Each transport rewords what it tells the model through its own
+# ``AgentConventions``, given to the object that writes the sentences. The
+# endpoint passes none when it builds that object itself, so custom wording
+# reaches a run only through an object the consumer built: a ``SpecToolset``
+# or ``SpecCapability`` given as ``service_specs=``, or the ``MCPServer`` given
+# as ``drf_mcp_server=``. A mapping or a ``SpecRegistry`` is built into a
+# capability here, with the default wording.
+
+_ASK_AGAIN = "Send {names} as well."
+_ASKED_AGAIN = "Send `pk` as well."
+
+
+def _toolset_reworded() -> dict[str, Any]:
+    toolset = SpecToolset(
+        {"get_row": _ROW_SPEC}, conventions=AgentConventions(missing_arguments=_ASK_AGAIN)
+    )
+    specs, capability, source = _resolve_spec_source(toolset)
+    return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
+
+
+def _capability_reworded() -> dict[str, Any]:
+    built = SpecCapability(
+        {"get_row": _ROW_SPEC}, conventions=AgentConventions(missing_arguments=_ASK_AGAIN)
+    )
+    specs, capability, source = _resolve_spec_source(built)
+    return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
+
+
+def _server_reworded() -> dict[str, Any]:
+    server = MCPServer(name="rows", conventions=MCPAgentConventions(missing_arguments=_ASK_AGAIN))
+    server.register_selector_tool(name="get_row", description="Read a row.", spec=_ROW_SPEC)
+    return {"drf_mcp_server": server}
+
+
+def _registry_row() -> dict[str, Any]:
+    registry = SpecRegistry()
+    registry.register("get_row", _ROW_SPEC)
+    specs, capability, source = _resolve_spec_source(registry)
+    return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
+
+
+@pytest.mark.parametrize(
+    ("route", "sentence"),
+    [
+        (_toolset_reworded, _ASKED_AGAIN),
+        (_capability_reworded, _ASKED_AGAIN),
+        (_server_reworded, _ASKED_AGAIN),
+        (_registry_row, _MISSING_PK),
+    ],
+    ids=["spec-toolset", "spec-capability", "mcp-server", "spec-registry"],
+)
+async def test_custom_wording_reaches_a_run_only_through_a_built_object(
+    route: Any, sentence: str
+) -> None:
+    advertised: dict[str, Any] = {}
+    model = _model_omitting_pk("get_row", {}, advertised)
+    view = DjangoAGUIView(ToolRegistry(), model=model, **route())
+
+    body = await _drain(await view(_post(_run_input("read the row"))))
+
+    events = [json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: ")]
+    retry = next(event for event in events if event["type"] == "TOOL_CALL_RESULT")
+    # The retry opens with the sentence its route's conventions write, and the
+    # other wording appears nowhere in it.
+    assert retry["content"].startswith(sentence)
+    other = _MISSING_PK if sentence == _ASKED_AGAIN else _ASKED_AGAIN
+    assert other not in retry["content"]
