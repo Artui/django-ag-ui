@@ -635,7 +635,7 @@ docs = [
 requires-dist = [
     { name = "ag-ui-protocol", specifier = ">=1.0" },
     { name = "django", specifier = ">=4.2" },
-    { name = "django-pydantic-agent", specifier = ">=0.27" },
+    { name = "django-pydantic-agent", specifier = ">=0.28" },
     { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.52" },
     { name = "djangorestframework-pydantic-ai", marker = "extra == 'spec-tools'", specifier = ">=0.35" },
     { name = "pydantic-ai-harness", marker = "extra == 'harness'", specifier = ">=0.13" },
@@ -673,16 +673,16 @@ docs = [
 
 [[package]]
 name = "django-pydantic-agent"
-version = "0.27.0"
+version = "0.28.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django", version = "5.2.17", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "django", version = "6.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pydantic-ai-slim" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/be/76/40b5f3f8d324c9877f5f324f2a16555393e662b6b7b341a07b5e06f17f2c/django_pydantic_agent-0.27.0.tar.gz", hash = "sha256:3686c203153296235827f28d0b18cdd8eb9afae1b727708c99b808c6f91c8413", size = 386541, upload-time = "2026-10-06T05:20:00.177Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8a/84/7c288a66688cae1a1f9dbc6ef3a13b3ca1e24e2e17dd2b6bd27970f49af6/django_pydantic_agent-0.28.0.tar.gz", hash = "sha256:ff7039369b77cb16f23b506c5aa24d7c22efe78c20358333d8d77c53c85a5b13", size = 393931, upload-time = "2026-10-07T13:20:42.772Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f3/e6/ded761b91a86639fe724bdce1321e03e0985cd5ccdfe29d1fdf1fa90b5a5/django_pydantic_agent-0.27.0-py3-none-any.whl", hash = "sha256:a33c834a599d89e34ce42f05326883ee2413c26a4bf53a81b1d68b969e4066e7", size = 121134, upload-time = "2026-10-06T05:19:58.826Z" },
+    { url = "https://files.pythonhosted.org/packages/61/b6/700b57f3a8d53999df6b2174717a44d4f6ff61606e42d39b3971872eca20/django_pydantic_agent-0.28.0-py3-none-any.whl", hash = "sha256:649f7872ce614fe117c03dcb89606d740f00e652a9744b37551392c121ec61f9", size = 122377, upload-time = "2026-10-07T13:20:41.285Z" },
 ]
 
 [[package]]

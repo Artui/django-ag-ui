@@ -110,7 +110,7 @@ dependencies = [
     # own: it raised that package's ``[drf-mcp]`` and ``[spec-tools]`` extras to
     # 0.49 and 0.32, in which a read-shaping query param the serializer refuses
     # while rendering comes back as one retry rather than a failed call.
-    # 0.27 is the floor now, and it is one a ``capabilities=`` consumer feels.
+    # 0.27 was the previous floor, and it is one a ``capabilities=`` consumer feels.
     # Below 0.27 that package appended its failure policy after them with no
     # position, so it sat inside every capability passed here that does not pin
     # itself innermost, and pydantic-ai runs error hooks innermost first: each
@@ -123,7 +123,19 @@ dependencies = [
     # error hook runs before the agent's, on both sides of the floor. 0.27 also
     # raises that package's own extras to 0.50 and 0.33; the bands below are
     # higher.
-    "django-pydantic-agent>=0.27",
+    # 0.28 is the floor now, and it is the one that makes a browser transcript
+    # read the same whichever route a tool came by. django-pydantic-agent's
+    # drf-mcp bridge appended the server's field detail to every refusal as
+    # JSON, so once the ``[drf-mcp]`` floor below named a missing argument in
+    # its own sentence, a call leaving out its row lookup streamed
+    # ``Missing required argument(s): `pk`.`` followed by a detail saying the
+    # same thing, where ``service_specs=`` streams the sentence once. 0.28
+    # leaves the detail off when the message already names everything in it,
+    # and keeps it whole otherwise. Held by the test driving a call missing its
+    # row lookup through a session on each route. 0.28 also raises that
+    # package's own extras to the same bands this package's extras declare
+    # below.
+    "django-pydantic-agent>=0.28",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).

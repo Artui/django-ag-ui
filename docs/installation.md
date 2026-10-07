@@ -4,7 +4,7 @@
 pip install django-ag-ui
 ```
 
-Core dependencies are `django>=4.2`, `django-pydantic-agent>=0.27`,
+Core dependencies are `django>=4.2`, `django-pydantic-agent>=0.28`,
 `pydantic-ai-slim[ui]>=2.37,<3` and `ag-ui-protocol>=1.0`. The `AGUIAdapter` comes from pydantic-ai-slim and the
 AG-UI wire types from `ag-ui-protocol`; this package does not re-implement
 either. The **slim** package ships the adapter but **no model-provider

@@ -57,6 +57,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `uv.lock` resolves 0.52.0 and 0.35.0, and `djangorestframework-services`
   0.56.0 (were 0.50.0, 0.33.0 and 0.55.0).
 
+- **`django-pydantic-agent` is floored at `>=0.28` (was `>=0.27`), so the
+  two routes stream that refusal in the same words.** On the
+  `drf_mcp_server=` route that package's bridge appended the server's field
+  detail to every refusal as JSON. With the server now naming a missing
+  argument in its own sentence, a call leaving out its row lookup streamed
+  ``Missing required argument(s): `pk`.`` and then a detail saying the same
+  thing, where `service_specs=` streams the sentence once. 0.28 leaves the
+  detail off when the message already names everything in it, and keeps it
+  whole otherwise, so `Invalid arguments` still carries its field detail.
+  The session test above asserts that nothing follows the sentence on either
+  route. `uv.lock` resolves 0.28.0 (was 0.27.0).
+
 ### Fixed
 
 - **A thread rename whose body is nested too deeply to decode is now a 400,
