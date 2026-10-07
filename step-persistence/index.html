@@ -1134,14 +1134,34 @@ saved snapshot to seed from, answered by making the same <code>latest_snapshot</
 a provider-valid boundary has no snapshot, so resuming it would start from
 nothing: offer the action only where this is <code>true</code>, and treat the other rows as
 informational (a crashed run worth showing, not worth resuming).</p>
-<p><strong><code>preview</code> is the field a person reads.</strong> It is the run's first user message,
-collapsed to one line and truncated, and it comes out of the snapshot the view
-already loaded to answer <code>continuable</code> — so it costs no extra query, and it is
-<code>null</code> exactly where that snapshot is missing. Without it a picker can only offer
-a time and an opaque id, which is not a choice: two runs a minute apart both read
-"just now", and the id is not something a person recognises. Rows arrive <strong>newest
-first</strong>, which is the view's doing rather than the store's — a <code>StepStore</code> answers
-oldest-first because the harness protocol says so.</p>
+<p><strong><code>preview</code> is the field a person reads.</strong> It is the run's own prompt, the
+newest user message in its snapshot, collapsed to one line and truncated. It
+comes out of the snapshot the view already loaded to answer <code>continuable</code>, so it
+costs no extra query, and it is <code>null</code> wherever that snapshot is missing, as
+well as where the run's prompt has no words in it. Without it a picker can only
+offer a time and an opaque id, which is not a choice: two runs a minute apart
+both read "just now", and the id is not something a person recognises.</p>
+<p>It is the <em>newest</em> prompt because a snapshot holds the whole thread: an AG-UI
+client posts every earlier turn with each run, and <code>resume</code> and <code>fork</code> seed the
+source run's history ahead of the new turn. So two runs in one conversation are
+named by the turns they answered rather than both by its opening line, and a
+resumed or forked run is named by its own turn, with <code>parent_run_id</code> showing
+where it came from. A run that continues past a tool approval posts no new user
+message, so it keeps the question it is still answering. A newest prompt with no
+words in it, such as an image with no caption, gives <code>null</code> rather than an
+earlier run's prompt.</p>
+<p>A file a tool opens for the model is not the person's prompt either, though it
+reaches the snapshot as a user message: <code>read_attachment</code> hands an image or a
+PDF over that way, beside the tool's return. A wordless user message in the
+same request as a tool's return is passed over, so a run that read an
+attachment is named by the question that asked for it. A tool that hands the
+model text this way, rather than a file, names the run by that text; no tool in
+this package or django-pydantic-agent does.</p>
+<p>The preview is computed when <code>runs/</code> is read, not stored with the run, so runs
+recorded before an upgrade are named by the current rule with no migration.</p>
+<p>Rows arrive <strong>newest first</strong>, which is the view's doing rather than the
+store's — a <code>StepStore</code> answers oldest-first because the harness protocol says
+so.</p>
 <p><code>parent_run_id</code> exposes fork lineage, so a UI can show that a run branched from
 another rather than listing near-identical transcripts side by side.</p>
 <p>Rows are owner-scoped by the store, and nothing on the wire names an owner —
