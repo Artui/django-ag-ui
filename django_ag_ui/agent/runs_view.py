@@ -7,7 +7,7 @@ from django.http import HttpRequest, HttpResponseNotAllowed, JsonResponse
 from django.http.response import HttpResponseBase
 from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
 from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
-from pydantic_ai.messages import UserPromptPart
+from pydantic_ai.messages import ToolReturnPart, UserPromptPart
 
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
@@ -42,14 +42,18 @@ class RunsView:
     that never reached a provider-valid boundary is informational only.
     ``parent_run_id`` exposes fork lineage.
 
-    ``preview`` is the run's first user message, whitespace-collapsed and
-    truncated: the one field in the row a person can actually recognise a
-    conversation by. It comes out of the snapshot this view already loads to
-    answer ``continuable``, so it costs no extra query — and it is ``null``
-    exactly where that snapshot is absent, which is where ``continuable`` is
-    ``false`` and there is nothing to offer anyway. Without it a picker can only
-    show the time and an opaque id, and two runs a minute apart are
-    indistinguishable.
+    ``preview`` is the run's own prompt, the newest user message in its
+    snapshot, whitespace-collapsed and truncated: the one field in the row a
+    person can actually recognise a run by. Two runs in one thread have
+    different previews, because each names the turn it answered rather than the
+    thread's opening line. It comes out of the snapshot this view already loads to
+    answer ``continuable``, so it costs no extra query, and it is computed when
+    the index is read, so runs recorded before a change to it read the new way
+    too. It is ``null`` wherever that snapshot is absent, which is where
+    ``continuable`` is ``false`` and there is nothing to offer anyway, and also
+    where the run's prompt has no words, such as an image sent with no caption.
+    Without it a picker can only show the time and an opaque id, and two runs a
+    minute apart are indistinguishable.
 
     **Bounded by ``RUN_LIST_LIMIT``, newest first.** A row is not cheap: each one
     loads that run's last snapshot and holds its whole message list resident
@@ -163,21 +167,57 @@ def _run_to_json(record: Any, *, snapshot: Any) -> dict[str, Any]:
 
 
 def _preview(snapshot: Any) -> str | None:
-    """The first thing the user said in this run, or ``None`` if they said nothing.
+    """The prompt this run was started to answer, or ``None`` if it holds no words.
 
-    A snapshot's messages are the run's own history, so the opening user prompt is
-    what the conversation is *about* — every later turn is an answer to it. ``None``
-    covers the shapes carrying no words to show: a run seeded from history alone,
-    or a first prompt that is an image with no caption.
+    That is the **newest** user prompt in the snapshot, not the first. A snapshot
+    holds everything the run was handed, and an AG-UI client posts the whole
+    thread on every run, so the first prompt in any run after a thread's opening
+    one is that opening line, and every run in a conversation would be named
+    after it. A ``resume/`` or ``fork/`` run is no different: the source run's
+    history is seeded ahead of the turn the client sends, so the newest prompt is
+    still the new turn, and lineage is ``parent_run_id``'s to show.
+
+    Only a ``UserPromptPart`` counts, so a run continued past an approval or a
+    deferred tool result, which posts no new user message, keeps the question it
+    is still answering. ``None`` covers a snapshot with no prompt at all, and a
+    newest prompt with no words, such as an image with no caption. It does not
+    fall back to an older prompt, which would name this run after an earlier
+    run's question.
+
+    The one user part passed over is a tool's, not a person's. A tool can hand the
+    model a file to read (``read_attachment`` does, for an image or a PDF), and
+    pydantic-ai files that as a ``UserPromptPart`` in the request carrying the
+    tool's return. Taken at its word it would turn the preview of every run that
+    read an attachment ``null``. So a wordless user part in a request that also
+    answers a tool is skipped, and only a wordless one: the request a run resumed
+    after a tool round sends holds that round's returns *and* the person's new
+    turn, merged by pydantic-ai, so passing over every user part beside a tool
+    return would name the resumed run after the run it resumed. The cost is a
+    tool that hands the model text rather than a file, which names the run by
+    that text; no tool in this package or django-pydantic-agent does.
+
+    Each half of that guard is held by its own test, because an ``and``-chain is
+    one branch arc and coverage stays at 100% with either deleted. Without the
+    word check, every user part beside a tool return is skipped and
+    ``test_a_run_resumed_after_a_tool_round_is_named_by_its_new_turn`` fails.
+    Without the tool check, every wordless prompt is skipped, a captionless image
+    borrows the prompt before it, and
+    ``test_a_newest_prompt_with_no_words_does_not_borrow_an_older_one`` fails.
     """
-    for message in snapshot.messages:
-        for part in message.parts:
+    for message in reversed(snapshot.messages):
+        for part in reversed(message.parts):
             if not isinstance(part, UserPromptPart):
                 continue
-            text = _one_line(part.content)
-            if text is not None:
-                return text
+            preview = _one_line(part.content)
+            if preview is None and _answers_a_tool(message):
+                continue
+            return preview
     return None
+
+
+def _answers_a_tool(message: Any) -> bool:
+    """Whether a message carries a tool's return, which is where a tool's file lands."""
+    return any(isinstance(part, ToolReturnPart) for part in message.parts)
 
 
 def _one_line(content: Any) -> str | None:
