@@ -17,14 +17,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   resumed and forked ones included, was previewed with the conversation's
   opening line, and a picker built on the field could not pick a run inside a
   thread, which is the case it exists for. This has been so since the field was
-  added in 0.44.0, whose entry here said the opposite.
+  added in 0.44.0, whose entry here promised it would tell two runs apart.
 
   The preview is now the **newest** user prompt in the snapshot. A run continued
   past a tool approval or a deferred result posts no new user message, so it
   keeps the question it is still answering, and lineage stays `parent_run_id`'s
   to show. A newest prompt with no words in it, such as an image with no
-  caption, previews as `null` rather than borrowing an earlier run's prompt. The
-  row's shape is unchanged.
+  caption, previews as `null` rather than borrowing an earlier run's prompt.
+
+  A file a tool opens for the model is not counted as the person's prompt,
+  though pydantic-ai records it as a user message beside the tool's return: a
+  run whose model read an image or a PDF with `read_attachment` is named by the
+  question that asked for it, rather than previewing as `null`. Only a wordless
+  user message beside a tool's return is passed over, because a run resumed
+  after a tool round carries the person's new turn in that same request.
+
+  The row's shape is unchanged, and the preview is computed when `runs/` is
+  read, so runs recorded before the upgrade are named correctly too, with no
+  migration.
 
 ## [0.68.0] — 2026-10-07
 

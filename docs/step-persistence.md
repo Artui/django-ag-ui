@@ -235,10 +235,10 @@ informational (a crashed run worth showing, not worth resuming).
 **`preview` is the field a person reads.** It is the run's own prompt, the
 newest user message in its snapshot, collapsed to one line and truncated. It
 comes out of the snapshot the view already loaded to answer `continuable`, so it
-costs no extra query, and it is `null` exactly where that snapshot is missing.
-Without it a picker can only offer a time and an opaque id, which is not a
-choice: two runs a minute apart both read "just now", and the id is not
-something a person recognises.
+costs no extra query, and it is `null` wherever that snapshot is missing, as
+well as where the run's prompt has no words in it. Without it a picker can only
+offer a time and an opaque id, which is not a choice: two runs a minute apart
+both read "just now", and the id is not something a person recognises.
 
 It is the *newest* prompt because a snapshot holds the whole thread: an AG-UI
 client posts every earlier turn with each run, and `resume` and `fork` seed the
@@ -248,9 +248,22 @@ resumed or forked run is named by its own turn, with `parent_run_id` showing
 where it came from. A run that continues past a tool approval posts no new user
 message, so it keeps the question it is still answering. A newest prompt with no
 words in it, such as an image with no caption, gives `null` rather than an
-earlier run's prompt. Rows arrive **newest
-first**, which is the view's doing rather than the store's — a `StepStore` answers
-oldest-first because the harness protocol says so.
+earlier run's prompt.
+
+A file a tool opens for the model is not the person's prompt either, though it
+reaches the snapshot as a user message: `read_attachment` hands an image or a
+PDF over that way, beside the tool's return. A wordless user message in the
+same request as a tool's return is passed over, so a run that read an
+attachment is named by the question that asked for it. A tool that hands the
+model text this way, rather than a file, names the run by that text; no tool in
+this package or django-pydantic-agent does.
+
+The preview is computed when `runs/` is read, not stored with the run, so runs
+recorded before an upgrade are named by the current rule with no migration.
+
+Rows arrive **newest first**, which is the view's doing rather than the
+store's — a `StepStore` answers oldest-first because the harness protocol says
+so.
 
 `parent_run_id` exposes fork lineage, so a UI can show that a run branched from
 another rather than listing near-identical transcripts side by side.

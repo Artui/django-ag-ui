@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import dataclasses
+import io
 import json
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
@@ -10,6 +12,8 @@ from django.http import HttpRequest, StreamingHttpResponse
 from django.test import RequestFactory, override_settings
 from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
 from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
+from django_pydantic_agent.persistence.types.attachment_ref import AttachmentRef
+from django_pydantic_agent.persistence.types.opened_attachment import OpenedAttachment
 from django_pydantic_agent.registry.tool_registry import ToolRegistry
 from pydantic_ai.messages import (
     BinaryContent,
@@ -199,27 +203,62 @@ class TestPreview:
             "r2": "Import these three events",
         }
 
-    async def test_a_tool_round_does_not_move_the_preview(self) -> None:
+    @pytest.mark.parametrize(
+        "handed_back",
+        [None, [BinaryContent(data=b"x", media_type="image/png")]],
+        ids=["result-only", "file-for-the-model"],
+    )
+    async def test_a_tool_round_does_not_move_the_preview(self, handed_back: Any) -> None:
         """An approval or a tool's result is not something the person said.
 
         A run that continues past an approval is posted with no new user message,
         only the tool's outcome, so it is still answering the last thing the
-        person asked.
+        person asked. A tool may also hand the model a file to read, as
+        ``read_attachment`` does with an image, and pydantic-ai files that as a
+        ``UserPromptPart`` in the request carrying the tool's return. It is the
+        tool's, so having no words it does not turn the preview ``null``.
         """
-        snapshot = _snapshot("r2", earlier=["What is on the board?"], said="Clear the board")
+        tool_round: list[Any] = [
+            ToolReturnPart(tool_name="read", content="read it", tool_call_id="c1")
+        ]
+        if handed_back is not None:
+            tool_round.append(UserPromptPart(content=handed_back))
+        snapshot = _snapshot("r2", earlier=["What is on the board?"], said="Read the chart")
         snapshot.messages.extend(
             [
-                ModelResponse(parts=[ToolCallPart(tool_name="clear", tool_call_id="c1")]),
-                ModelRequest(
-                    parts=[ToolReturnPart(tool_name="clear", content="cleared", tool_call_id="c1")]
-                ),
-                ModelResponse(parts=[TextPart(content="The board is clear.")]),
+                ModelResponse(parts=[ToolCallPart(tool_name="read", tool_call_id="c1")]),
+                ModelRequest(parts=tool_round),
+                ModelResponse(parts=[TextPart(content="It shows three events.")]),
             ]
         )
         store = _FakeStore([_record("r2")], {"r2": snapshot})
         (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
 
-        assert row["preview"] == "Clear the board"
+        assert row["preview"] == "Read the chart"
+
+    async def test_two_messages_in_a_row_preview_the_later(self) -> None:
+        """Consecutive user messages load into one request; the run answers the last.
+
+        A run that failed before replying leaves the person's message unanswered,
+        and the next one follows it with no assistant turn between, so the
+        adapter merges both into a single request.
+        """
+        snapshot = _snapshot("r2", earlier=["What is on the board?"])
+        snapshot.messages.extend(
+            [
+                ModelRequest(
+                    parts=[
+                        UserPromptPart(content="Import these three events"),
+                        UserPromptPart(content="Actually, only the first one"),
+                    ]
+                ),
+                ModelResponse(parts=[TextPart(content="Imported one.")]),
+            ]
+        )
+        store = _FakeStore([_record("r2")], {"r2": snapshot})
+        (row,) = (await _body(await RunsView(_factory(store))(_get())))["runs"]
+
+        assert row["preview"] == "Actually, only the first one"
 
     async def test_a_newest_prompt_with_no_words_does_not_borrow_an_older_one(self) -> None:
         """No words in the run's own prompt is ``null``, never the turn before.
@@ -371,6 +410,27 @@ async def _run(view: DjangoAGUIView, body: bytes, *, resume_from: str | None = N
         pass
 
 
+_PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+
+
+class _ChartStore:
+    """An attachment store in which every id opens as a small PNG.
+
+    An image is the case ``read_attachment`` hands the model as file content
+    rather than text, which is what puts a wordless user part into the snapshot.
+    """
+
+    async def save(self, upload: Any, *, request: Any) -> AttachmentRef:
+        raise NotImplementedError
+
+    async def open(self, attachment_id: str, *, request: Any) -> OpenedAttachment:
+        ref = AttachmentRef(id=attachment_id, name="chart.png", mime="image/png", size=len(_PNG))
+        return OpenedAttachment(ref=ref, content=io.BytesIO(_PNG))
+
+    async def delete(self, attachment_id: str, *, request: Any) -> None:
+        return None
+
+
 @pytest.mark.django_db(transaction=True)
 class TestPreviewOfRecordedRuns:
     """The previews of runs the endpoint really recorded, not hand-built snapshots.
@@ -417,6 +477,70 @@ class TestPreviewOfRecordedRuns:
         assert [(row["run_id"], row["parent_run_id"], row["preview"]) for row in rows] == [
             ("r2", "r1", "Move standup to Friday"),
             ("r1", None, "What is on the board?"),
+        ]
+
+    async def test_a_run_that_reads_an_attachment_is_named_by_its_prompt(self) -> None:
+        """The file a tool opens for the model lands in the snapshot as a user part.
+
+        So the newest user part in this run's snapshot is the chart, not anything
+        the person typed, and it has no words. The preview still names the
+        question, because a user part that follows a tool's return in the same
+        request is the tool's.
+        """
+        view = DjangoAGUIView(
+            ToolRegistry(),
+            model=TestModel(call_tools=["read_attachment"]),
+            step_store=DefaultStepStore,
+            attachment_store=_ChartStore(),
+        )
+        await _run(view, _turns(("user", "What does the attached chart show?"), run_id="r1"))
+
+        (row,) = (await _body(await RunsView(DefaultStepStore)(_get())))["runs"]
+
+        assert row["preview"] == "What does the attached chart show?"
+
+    async def test_a_run_resumed_after_a_tool_round_is_named_by_its_new_turn(self) -> None:
+        """The resumed run's request holds the tool's file and the person's turn.
+
+        A worker killed between a tool round and the model's reply leaves the
+        boundary snapshot taken after the round as the run's last, ending on the
+        request that carries the tool's return and the file it opened. Resuming
+        sends that request again with the new turn, and pydantic-ai merges the
+        two, so the person's words share a request with a tool return. Passing
+        over every user part there would name the resumed run after its parent.
+        """
+        reader = DjangoAGUIView(
+            ToolRegistry(),
+            model=TestModel(call_tools=["read_attachment"]),
+            step_store=DefaultStepStore,
+            attachment_store=_ChartStore(),
+        )
+        await _run(reader, _turns(("user", "What does the attached chart show?"), run_id="r1"))
+        store = DefaultStepStore(_get())
+        finished = await store.latest_snapshot(run_id="r1")
+        assert finished is not None
+        # What the kill leaves: the same run, its reply never written.
+        await store.save_snapshot(
+            dataclasses.replace(
+                finished, messages=finished.messages[:-1], step_index=finished.step_index + 1
+            )
+        )
+        view = DjangoAGUIView(ToolRegistry(), model=TestModel(), step_store=DefaultStepStore)
+        await _run(view, _turns(("user", "Move standup to Friday"), run_id="r2"), resume_from="r1")
+        resumed = await store.latest_snapshot(run_id="r2")
+        assert resumed is not None
+        # The premise: one request holds the tool's return, its file and the turn.
+        assert any(
+            [type(part) for part in message.parts]
+            == [ToolReturnPart, UserPromptPart, UserPromptPart]
+            for message in resumed.messages
+        )
+
+        rows = (await _body(await RunsView(DefaultStepStore)(_get())))["runs"]
+
+        assert [(row["run_id"], row["preview"]) for row in rows] == [
+            ("r2", "Move standup to Friday"),
+            ("r1", "What does the attached chart show?"),
         ]
 
 
