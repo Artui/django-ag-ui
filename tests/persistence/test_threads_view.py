@@ -5,7 +5,9 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Any
 
+import pytest
 from ag_ui.core import ActivitySnapshotEvent, Message
+from django.conf import settings
 from django.contrib.sessions.backends.signed_cookies import SessionStore
 from django.http import HttpRequest
 from django.test import RequestFactory
@@ -236,6 +238,41 @@ async def test_detail_patch_non_object_body_is_400() -> None:
     )
     response = await ThreadsView(store)(request, thread_id="t1")
     assert response.status_code == 400
+    assert store.renamed == []
+
+
+async def test_detail_patch_body_nested_past_the_decoder_is_400() -> None:
+    """A body nested deeper than ``json.loads`` can follow is refused like any bad body.
+
+    The body has to outgrow every stack the suite runs on. From Python 3.14 the
+    decoder's reach is the decoding thread's real C stack rather than a counter,
+    and the deepest measured is about 599,000 levels, on the main thread under
+    macOS ``make``, which raises its children's stack to 64 MB. A million closed
+    levels is past that, and at two million bytes it stays under Django's
+    default ``DATA_UPLOAD_MAX_MEMORY_SIZE`` of 2.5 MB.
+
+    The premise is asserted first, on this thread, because the view decodes on
+    the coroutine that awaits it. That assertion is what gives the test its
+    subject. A body that decoded would come back as a list, and a list is
+    refused as "not an object" with the very same 400, so without it the test
+    would pass on a view that lets the overflow escape as a 500.
+    """
+    depth = 1_000_000
+    body = "[" * depth + "]" * depth
+    with pytest.raises(RecursionError):
+        json.loads(body)
+    store = _FakeStore(conversations={"t1": Conversation(thread_id="t1")})
+    request = AuthedRequestFactory().patch(
+        "/agent/threads/t1/", data=body, content_type="application/json"
+    )
+    # Under the cap, so the body is read rather than refused for its size: a
+    # ``RequestDataTooBig`` also becomes a 400 once Django's handler maps it,
+    # and that 400 is not this view's answer.
+    assert int(request.META["CONTENT_LENGTH"]) == len(body)
+    assert len(body) < settings.DATA_UPLOAD_MAX_MEMORY_SIZE
+    response = await ThreadsView(store)(request, thread_id="t1")
+    assert response.status_code == 400
+    assert _body(response) == {"error": "a non-empty 'title' is required"}
     assert store.renamed == []
 
 

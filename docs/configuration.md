@@ -977,6 +977,38 @@ AGUIServer(
 
 A `SpecCapability` is accepted the same way, so `defer_loading` composes too.
 
+**Custom wording reaches the model only through an object you built.** Each
+transport rewords what it tells the model (the instructions block, a handle's
+description, the retry for an argument left out) through its own
+`AgentConventions`, given to the object that writes those sentences. A run gets
+yours only through one of these:
+
+- a `SpecToolset` or `SpecCapability` built with `conventions=` and passed as
+  `service_specs=`;
+- an `MCPServer` built with `conventions=` and passed as
+  [`drf_mcp_server=`](#drf_mcp_server).
+
+A mapping or a `SpecRegistry` passed directly gets the default wording, because
+the endpoint builds that capability itself and passes no `conventions=`. To keep
+a registry's declarations and reword, wrap the registry rather than flattening
+it:
+
+```python
+from rest_framework_pydantic_ai import AgentConventions, SpecToolset
+
+AGUIServer(
+    registry,
+    service_specs=SpecToolset(
+        spec_registry,
+        conventions=AgentConventions(missing_arguments="Send {names} as well."),
+    ),
+)
+```
+
+The two packages each export their own `AgentConventions`, configured
+separately: `rest_framework_pydantic_ai`'s for `service_specs=`, and
+`rest_framework_mcp`'s for the server behind `drf_mcp_server=`.
+
 **This does not cost you the tool-call card labels.** The endpoint attaches
 the object as-is *and* reads its `specs` for the tool catalog and the tool-name
 dedup — so the powerful form and the labelled form are the same form. (Before,
@@ -1189,10 +1221,9 @@ serializer refuses while rendering, and a required argument the model left out,
 such as the `pk` naming the row a service tool changes. For a value the model
 sent, the text is a DRF `ValidationError` message, which DRF itself writes for
 the caller (it is the body of a `400` over HTTP). For an argument it left out,
-the text names the missing argument and nothing else, in each route's own
-words: `Invalid arguments: {"pk": ["This field is required."]}` through
-`drf_mcp_server=`, and ``Missing required argument(s): `pk`.`` through
-`service_specs=`. Anything else a tool or serializer raises is still a failure,
+the text names the missing argument and nothing else, in the same words on
+both routes, ``Missing required argument(s): `pk`.``, unless the route's
+[`AgentConventions`](#service_specs) reword it. Anything else a tool or serializer raises is still a failure,
 and still withheld.
 
 Note it spends no retry budget, so a model may call a persistently broken tool

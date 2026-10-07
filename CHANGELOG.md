@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.0] — 2026-10-07
+
+### Changed
+
+- **The `[drf-mcp]` extra is floored at `djangorestframework-mcp-server>=0.52`
+  (was `>=0.50`) and the `[spec-tools]` extra at
+  `djangorestframework-pydantic-ai>=0.35` (was `>=0.33`), and these two floors
+  move together.** A call refused for leaving out a required argument is now
+  worded the same way on both routes. The server behind `drf_mcp_server=`
+  answers it with ``Missing required argument(s): `pk`.``, the sentence
+  `service_specs=` already wrote, where it said `Invalid arguments` and left
+  the names to the field detail. The session test driving a call missing its
+  row lookup through each route, for a service tool and a selector tool, now
+  asserts that one sentence on both.
+
+  **What the model is told can be reworded, and only through an object you
+  built.** Both releases add an `AgentConventions` of their own, a frozen value
+  with one field per sentence the transport writes for a model: the
+  instructions block, a handle's description, the retry for an argument left
+  out. A run gets yours through a `SpecToolset` or `SpecCapability` built with
+  `conventions=` and passed as `service_specs=`, or through an `MCPServer`
+  built with `conventions=` and passed as `drf_mcp_server=`. A mapping or a
+  `SpecRegistry` passed as `service_specs=` gets the default wording, because
+  the endpoint builds that capability itself. A test drives a run through each
+  of the four and asserts whose sentence the retry carries, and
+  [Configuration](https://artui.github.io/django-ag-ui/configuration/#service_specs)
+  documents it.
+
+  **More refusals stream as retries rather than as withheld failures.** Both
+  releases need `djangorestframework-services` 0.56, under which a required
+  parameter nothing filled, such as one a `kwargs=` provider declined, is a
+  retry naming it on both routes. It was the callable's `TypeError`, which the
+  default `TOOL_FAILURE` policy turned into a failed call with its text
+  withheld. On the `drf_mcp_server=` route a chain step's DRF
+  `ValidationError` is now a retry too, as is an argument that a service tool
+  with no input serializer does not declare, which used to be dropped unread.
+  A spec permission reading `view.kwargs` now sees the route the call names,
+  where it saw none and denied a caller it admits.
+
+  **A tool that could never serve a call is refused at startup** with
+  `ImproperlyConfigured` naming it, rather than failing every call. On both
+  routes that covers a list selector taking `page` or `limit`, a tool input
+  that a `QueryParam` also names, and a `ServiceSpec` declaring a target lookup
+  that dispatch never calls. On the `drf_mcp_server=` route it also covers a
+  required `data` with no input serializer, a selector taking `data` or
+  `serializer`, a selector's input serializer under `BUNDLE`, and a required
+  positional-only parameter. Nothing this package ships or documents declares
+  one. A project of yours that does will now fail when it starts.
+
+  `uv.lock` resolves 0.52.0 and 0.35.0, and `djangorestframework-services`
+  0.56.0 (were 0.50.0, 0.33.0 and 0.55.0).
+
+- **`django-pydantic-agent` is floored at `>=0.28` (was `>=0.27`), so the
+  two routes stream that refusal in the same words.** On the
+  `drf_mcp_server=` route that package's bridge appended the server's field
+  detail to every refusal as JSON. With the server now naming a missing
+  argument in its own sentence, a call leaving out its row lookup streamed
+  ``Missing required argument(s): `pk`.`` and then a detail saying the same
+  thing, where `service_specs=` streams the sentence once. 0.28 leaves the
+  detail off when the message already names everything in it, and keeps it
+  whole otherwise, so `Invalid arguments` still carries its field detail.
+  The session test above asserts that nothing follows the sentence on either
+  route. `uv.lock` resolves 0.28.0 (was 0.27.0).
+
+### Fixed
+
+- **A thread rename whose body is nested too deeply to decode is now a 400,
+  not a 500.** The `PATCH <prefix>threads/<id>/` route answers a body it cannot
+  read with `400 {"error": "a non-empty 'title' is required"}`, but it caught
+  only `ValueError` and `TypeError` from the decode. A body nested past what
+  `json.loads` can follow raises `RecursionError`, which is neither, so it
+  escaped the view as a server error. On Python 3.14 the depth that does this
+  is set by the decoding thread's stack rather than a fixed counter, so the
+  same body could decode on one server and fail on another. The rename now
+  answers that body with the same 400 as any other unreadable one.
+
 ## [0.67.0] — 2026-10-06
 
 ### Changed
@@ -3867,7 +3943,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.67.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.68.0...HEAD
+[0.68.0]: https://github.com/Artui/django-ag-ui/compare/v0.67.0...v0.68.0
 [0.67.0]: https://github.com/Artui/django-ag-ui/compare/v0.66.0...v0.67.0
 [0.66.0]: https://github.com/Artui/django-ag-ui/compare/v0.65.0...v0.66.0
 [0.65.0]: https://github.com/Artui/django-ag-ui/compare/v0.64.0...v0.65.0
