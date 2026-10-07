@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A thread rename whose body is nested too deeply to decode is now a 400,
+  not a 500.** The `PATCH <prefix>threads/<id>/` route answers a body it cannot
+  read with `400 {"error": "a non-empty 'title' is required"}`, but it caught
+  only `ValueError` and `TypeError` from the decode. A body nested past what
+  `json.loads` can follow raises `RecursionError`, which is neither, so it
+  escaped the view as a server error. On Python 3.14 the depth that does this
+  is set by the decoding thread's stack rather than a fixed counter, so the
+  same body could decode on one server and fail on another. The rename now
+  answers that body with the same 400 as any other unreadable one.
+
 ## [0.67.0] — 2026-10-06
 
 ### Changed
