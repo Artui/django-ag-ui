@@ -267,27 +267,46 @@ class TestReachesTheViews:
 
 
 class TestUnguardedSpecs:
-    """The refusal happens at construction, which is the point of doing it here.
+    """A spec with no permissions never gets as far as serving.
 
-    ``SpecCapability`` already refuses an unguarded spec, but this transport
-    builds its capability per request, so the upstream check alone would turn a
-    misconfiguration into a 500 on the first agent call instead of a failure to
-    start.
+    Which layer says so depends on the shape and on the installed
+    ``djangorestframework-services``. A plain mapping reaches this transport's own
+    check, at construction. A ``SpecRegistry`` built on a release that admits an
+    unguarded spec reaches it too; a newer one refuses the spec itself, at
+    ``register``, before this transport sees it. ``SpecCapability`` also refuses
+    one, but this transport builds its capability per request, so that check
+    alone would turn a misconfiguration into a 500 on the first agent call
+    instead of a failure to start. The mapping tests below pin this transport's
+    own check on every release; the registry test pins the outcome.
     """
 
-    def test_a_spec_with_no_permission_classes_refuses_to_construct(self) -> None:
-        registry = SpecRegistry()
-        registry.register(
-            "list_widgets", SelectorSpec(kind=SelectorKind.LIST, selector=_list_widgets)
-        )
+    def test_a_registry_spec_with_no_permissions_never_reaches_serving(self) -> None:
+        """Refused by whichever layer answers first, and named either way.
 
+        ``register`` sits inside the ``raises`` scope because a newer kernel
+        refuses there, before ``AGUIServer`` exists. The wording asserted depends
+        on where the exception was raised, not on its text, so a third
+        ``ImproperlyConfigured`` that happens to name the spec cannot satisfy
+        this test. The mapping tests below fail if this transport's check is
+        deleted; this one fails if neither layer refuses.
+        """
         with pytest.raises(ImproperlyConfigured) as excinfo:
+            registry = SpecRegistry()
+            registry.register(
+                "list_widgets", SelectorSpec(kind=SelectorKind.LIST, selector=_list_widgets)
+            )
             AGUIServer(ToolRegistry(), model=TestModel(), service_specs=registry)
 
         message = str(excinfo.value)
         # Naming the spec is what makes this actionable against a large registry.
         assert "'list_widgets'" in message
-        assert "permission_classes" in message
+        raised_in = pathlib.Path(str(excinfo.traceback[-1].path))
+        if raised_in.name == "agui_server.py":
+            assert "permission_classes" in message
+        elif "django_service_specs" in raised_in.parts:
+            assert "declares no permissions" in message
+        else:  # pragma: no cover - only reached by a refusal from a third layer
+            pytest.fail(f"refused from an unexpected layer: {raised_in}")
 
     def test_the_refusal_points_at_the_migration_path(self) -> None:
         """A large registry cannot be guarded in one commit, so say what to do.
