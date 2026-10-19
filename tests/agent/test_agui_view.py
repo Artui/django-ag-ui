@@ -1530,6 +1530,8 @@ _ROWS_SPEC = SelectorSpec(
     selector=lambda: [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}],
     output_serializer=_SelectableRow,
     permission_classes=[AllowAny],
+    # Declared on the spec, so both routes read the one declaration.
+    reads=[QueryParam("fields")],
 )
 
 
@@ -1540,18 +1542,19 @@ def _bridged_rows() -> dict[str, Any]:
         description="List rows.",
         spec=_ROWS_SPEC,
         paginate=True,
-        query_params=[QueryParam("fields")],
     )
     return {"drf_mcp_server": server}
 
 
 def _spec_rows() -> dict[str, Any]:
     # Through the server's own normalising, as ``AGUIServer(service_specs=...)``
-    # hands a pre-built toolset to the view: the ``QueryParam`` is declared on
-    # the toolset, which is the only place this route can carry one.
+    # hands a pre-built toolset to the view. The ``QueryParam`` is declared on
+    # the spec, which both routes read. A registry rather than a bare mapping,
+    # because only a registry's toolset advertises a spec's reads.
+    registry = SpecRegistry()
+    registry.register("list_rows", _ROWS_SPEC)
     toolset = SpecToolset(
-        {"list_rows": _ROWS_SPEC},
-        query_params=[QueryParam("fields")],
+        registry,
         descriptions={"list_rows": "List rows."},
     )
     specs, capability, source = _resolve_spec_source(toolset)

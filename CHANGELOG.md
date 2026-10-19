@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The `[drf-mcp]` extra is floored at `djangorestframework-mcp-server>=0.53`
+  (was `>=0.52`) and the `[spec-tools]` extra at
+  `djangorestframework-pydantic-ai>=0.36` (was `>=0.35`), and these two floors
+  move together.** The earlier builds of the pair declare no ceiling on
+  `djangorestframework-services`, so a fresh install of either extra resolved
+  them beside the release that makes it the DRF adapter over
+  `django-service-specs`, which retires the `SPREAD_CALLER_WINS` binding and the
+  `PASSTHROUGH` unknown-argument policy they still pass, and a good part of
+  their own suite fails against it. The patch of each that capped
+  `djangorestframework-services` below that release is the band the new floors
+  leave. The pair also reads a spec's own `reads`: a `QueryParam` or `UrlKwarg`
+  declared once on the spec is advertised and routed on both routes, and
+  declaring it again at the mount (`query_params=` / `url_kwargs=` on the
+  bridge's registrars) is deprecated. Nothing in the package changes; the
+  session test of a selection the output serializer refuses now declares its
+  `QueryParam` on the spec, and builds the `service_specs=` route from a
+  registry, since a toolset built from a bare mapping advertises none of a
+  spec's reads. The dev group moves with the extras. The
+  `django-pydantic-agent` floor does not move.
+
 ## [0.68.1] — 2026-10-07
 
 ### Fixed
