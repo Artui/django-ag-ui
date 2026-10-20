@@ -319,6 +319,7 @@ def test_results_for_a_reused_call_id_pair_off_in_order() -> None:
 def test_reasoning_pairs_by_position_and_other_messages_are_untouched() -> None:
     transcript = RunTranscript()
     transcript.add(ReasoningStartEvent(message_id="z1"))
+    transcript.add(ReasoningMessageContentEvent(message_id="z1", delta="hmm"))
     user = UserMessage(id="u1", role="user", content="hi")
 
     restamped = transcript.with_streamed_ids(
@@ -341,3 +342,56 @@ def test_a_restamped_tool_message_keeps_its_outcome() -> None:
     assert tool.id == "r1"
     assert tool.metadata == {OUTCOME_FIELD: "denied"}
     assert (tool.__pydantic_extra__ or {})[OUTCOME_FIELD] == "denied"
+
+
+def test_reasoning_whose_text_disagrees_keeps_the_dumped_id() -> None:
+    # One reasoning message each side, so the count alone would pair them.
+    transcript = RunTranscript()
+    transcript.add(ReasoningStartEvent(message_id="z1"))
+    transcript.add(ReasoningMessageContentEvent(message_id="z1", delta="something else"))
+
+    restamped = transcript.with_streamed_ids(
+        [ReasoningMessage(id="d1", role="reasoning", content="hmm")]
+    )
+
+    assert _ids(restamped) == ["d1"]
+
+
+def test_an_answer_whose_parts_the_dump_joined_still_pairs() -> None:
+    # Consecutive text parts stream as one run of deltas and dump joined by a
+    # newline, which the text check must not read as a different answer.
+    transcript = RunTranscript()
+    _streamed_text(transcript, "s1", "first part")
+    transcript.add(TextMessageContentEvent(message_id="s1", delta="second part"))
+
+    restamped = transcript.with_streamed_ids(
+        [AssistantMessage(id="d1", role="assistant", content="first part\nsecond part")]
+    )
+
+    assert _ids(restamped) == ["s1"]
+
+
+def test_calls_whose_parent_streamed_other_text_keep_the_dumped_id() -> None:
+    # Text, thinking, then a call: the parent streamed the text with the call,
+    # and the dump holds the call alone.
+    transcript = RunTranscript()
+    _streamed_text(transcript, "p", "A")
+    _streamed_call(transcript, "c1", "p")
+
+    restamped = transcript.with_streamed_ids([_calls_message("d1", "c1")])
+
+    assert _ids(restamped) == ["d1"]
+
+
+def test_a_signature_only_reasoning_still_pairs() -> None:
+    # A thinking part carrying only a signature opens and closes reasoning with
+    # no text inside, and is still dumped as a reasoning message.
+    transcript = RunTranscript()
+    transcript.add(ReasoningStartEvent(message_id="z1"))
+    transcript.add(ReasoningEndEvent(message_id="z1"))
+
+    restamped = transcript.with_streamed_ids(
+        [ReasoningMessage(id="d1", role="reasoning", content="")]
+    )
+
+    assert _ids(restamped) == ["z1"]

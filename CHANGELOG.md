@@ -20,9 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TEXT_MESSAGE_START` id, a tool-call-only response the `parentMessageId` of its
   calls, a tool result its `TOOL_CALL_RESULT` id and forwarded reasoning its
   `REASONING_START` id. The dump is still what is stored, so reasoning
-  signatures, tool outcomes and the binary strip are unchanged; a message the
-  stream announced no id for, or whose correspondence is ambiguous, keeps a
-  fresh one rather than borrowing a neighbour's.
+  signatures, tool outcomes and the binary strip are unchanged. A stored
+  message takes a streamed id only when it holds the text that id streamed, so
+  no message is ever stored under another message's id: where the stored copy
+  splits or joins messages differently from the stream (text, thinking and then
+  tool calls in one response; a file part between two texts; a tool that streams
+  a text message of its own), or the stream announced no id at all, the message
+  keeps a fresh one. The earlier turns a resumed or forked run is seeded with are
+  stored from the step store's snapshot as before, and an answer an earlier run
+  generated is named afresh on each save of the resumed thread.
 
 ## [0.68.2] — 2026-10-19
 

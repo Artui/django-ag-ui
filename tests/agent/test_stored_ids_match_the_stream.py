@@ -19,11 +19,19 @@ import json
 from typing import Any
 
 import pytest
+from ag_ui.core import TextMessageContentEvent, TextMessageEndEvent, TextMessageStartEvent
 from django.test import RequestFactory, override_settings
 from django_pydantic_agent.agent.types.agent_deps import AgentDeps
 from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
-from pydantic_ai import Agent
-from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
+from pydantic_ai import Agent, BinaryContent, ToolReturn
+from pydantic_ai.messages import (
+    FilePart,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    UserPromptPart,
+)
+from pydantic_ai.models import function as function_module
 from pydantic_ai.models.function import DeltaThinkingPart, DeltaToolCall, FunctionModel
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
@@ -293,8 +301,8 @@ async def test_a_resumed_run_keeps_the_ids_upstream_restores() -> None:
 
 
 async def test_a_resumed_run_from_a_bare_snapshot_still_streams_its_new_ids() -> None:
-    # A snapshot carrying no UI ids is dumped under fresh ones, as before; what
-    # this run produced is still stored the way it streamed.
+    # What this run produced is stored the way it streamed, whatever the
+    # snapshot carries.
     store = _Store()
     history = [
         ModelRequest(parts=[UserPromptPart(content="older question")]),
@@ -307,6 +315,28 @@ async def test_a_resumed_run_from_a_bare_snapshot_still_streams_its_new_ids() ->
     (conversation,) = store.saved
     assert conversation.messages[-1]["id"] == streamed
     _assert_unique(conversation)
+
+
+async def test_a_snapshots_generated_turns_are_named_afresh_on_every_save() -> None:
+    # The documented limit, pinned so it is noticed when it lifts: an earlier
+    # run's answer reaches a snapshot as a ``ModelResponse`` carrying no UI id,
+    # and pydantic-ai's dump mints a new one each time, so two resumed runs from
+    # one snapshot store the same earlier answer under two ids. Nothing this run
+    # streamed names it, so there is no id here to keep.
+    store = _Store()
+
+    def history() -> list[Any]:
+        return [
+            ModelRequest(parts=[UserPromptPart(content="older question")]),
+            ModelResponse(parts=[TextPart(content="older answer")]),
+        ]
+
+    await _run(_session(_answering_agent(), store, message_history=history()))
+    await _run(_session(_answering_agent(), store, message_history=history()))
+
+    first, second = store.saved
+    assert first.messages[1]["content"] == second.messages[1]["content"] == "older answer"
+    assert first.messages[1]["id"] != second.messages[1]["id"]
 
 
 async def test_an_approved_call_resumes_under_the_ids_it_streamed() -> None:
@@ -334,6 +364,139 @@ async def test_an_approved_call_resumes_under_the_ids_it_streamed() -> None:
     assert [m["id"] for m in posted] == ["m1", "a1"]
     assert (result["role"], result["id"]) == ("tool", result_id)
     assert (answer["role"], answer["id"]) == ("assistant", answer_id)
+    _assert_unique(conversation)
+
+
+# --- a dump that splits and joins differently from the stream ---------------------
+#
+# Where the dump and the stream disagree about how many text messages a run held,
+# two disagreements in opposite directions leave the counts equal and the
+# positions shifted. The answer there is a fresh id, never a neighbour's: a rating
+# keyed by one answer's id must not land on another after a reload.
+
+
+def _streamed_texts(frames: list[dict[str, Any]]) -> dict[str, str]:
+    """Each streamed text message's whole text, by its ``messageId``."""
+    texts: dict[str, str] = {}
+    for frame in frames:
+        if frame["type"] == "TEXT_MESSAGE_START":
+            texts.setdefault(frame["messageId"], "")
+        elif frame["type"] == "TEXT_MESSAGE_CONTENT":
+            texts[frame["messageId"]] = texts.get(frame["messageId"], "") + frame["delta"]
+    return texts
+
+
+def _borrowed(frames: list[dict[str, Any]], stored: list[dict[str, Any]]) -> list[str]:
+    """Each stored assistant message under a streamed id whose text it does not hold."""
+    streamed = _streamed_texts(frames)
+    return [
+        f"{message['id']}: stored {message.get('content')!r}, streamed {streamed[message['id']]!r}"
+        for message in stored
+        if message["role"] == "assistant"
+        and message["id"] in streamed
+        and (message.get("content") or "") != streamed[message["id"]]
+    ]
+
+
+def _after_a_tool_return(messages: list) -> bool:
+    return isinstance(messages[-1], ModelRequest) and any(
+        part.part_kind == "tool-return" for part in messages[-1].parts
+    )
+
+
+async def test_a_split_answer_and_a_tool_spoken_text_borrow_no_id() -> None:
+    # [Text A, Thinking, ToolCall]: the stream announces A and the calls as one
+    # message, the dump flushes A at the thinking part into one of its own, so
+    # the dump holds a text message the stream never announced alone. The tool
+    # then speaks a text message of its own through its return metadata, which
+    # the stream announces and the dump never holds. The counts agree.
+    async def stream_fn(messages: list, info: Any) -> Any:
+        if _after_a_tool_return(messages):
+            yield "final"
+            return
+        yield "A"
+        yield {0: DeltaThinkingPart(content="hm")}
+        yield {1: DeltaToolCall(name="lookup", json_args="{}", tool_call_id="c1")}
+
+    agent: Agent[None, Any] = Agent(FunctionModel(stream_function=stream_fn))
+
+    @agent.tool_plain
+    def lookup() -> ToolReturn:
+        return ToolReturn(
+            return_value="ok",
+            metadata=[
+                TextMessageStartEvent(message_id="tool-said"),
+                TextMessageContentEvent(message_id="tool-said", delta="from the tool"),
+                TextMessageEndEvent(message_id="tool-said"),
+            ],
+        )
+
+    store = _Store()
+
+    frames = await _run(_session(agent, store))
+
+    (conversation,) = store.saved
+    stored = _new(conversation, after=1)
+    assert [m["role"] for m in stored] == [
+        "assistant",
+        "reasoning",
+        "assistant",
+        "tool",
+        "assistant",
+    ]
+    assert _borrowed(frames, stored) == []
+    _assert_unique(conversation)
+
+
+async def test_a_split_answer_and_a_joined_answer_borrow_no_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The same split, cancelled this time by a join: [Text B, FilePart, Text C]
+    # streams as two text messages, and the dump drops the file part without a
+    # flush, so it holds one ``"B\nC"``. Positionally A would take B's id.
+    #
+    # ``FunctionModel`` streams no file part of its own, so its event iterator is
+    # taught to hand a whole part to the parts manager.
+    original = function_module.FunctionStreamedResponse._get_event_iterator
+
+    async def _one(item: Any) -> Any:
+        yield item
+
+    async def _iterator(self: Any) -> Any:
+        async for item in self._iter:
+            if isinstance(item, TextPart | FilePart):
+                yield self._parts_manager.handle_part(vendor_part_id=None, part=item)
+            else:
+                self._iter = _one(item)
+                async for event in original(self):
+                    yield event
+
+    monkeypatch.setattr(function_module.FunctionStreamedResponse, "_get_event_iterator", _iterator)
+
+    async def stream_fn(messages: list, info: Any) -> Any:
+        if _after_a_tool_return(messages):
+            yield TextPart(content="B")
+            yield FilePart(content=BinaryContent(data=b"png", media_type="image/png"))
+            yield TextPart(content="C")
+            return
+        yield TextPart(content="A")
+        yield {0: DeltaThinkingPart(content="hm")}
+        yield {1: DeltaToolCall(name="lookup", json_args="{}", tool_call_id="c1")}
+
+    agent: Agent[None, Any] = Agent(FunctionModel(stream_function=stream_fn))
+
+    @agent.tool_plain
+    def lookup() -> str:
+        return "ok"
+
+    store = _Store()
+
+    frames = await _run(_session(agent, store))
+
+    (conversation,) = store.saved
+    stored = _new(conversation, after=1)
+    assert [m.get("content") for m in stored if m["role"] == "assistant"] == ["A", None, "B\nC"]
+    assert _borrowed(frames, stored) == []
     _assert_unique(conversation)
 
 
