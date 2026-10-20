@@ -456,18 +456,20 @@ When a non-null store is configured, the view persists the run's full message
 history when the run finishes streaming, scoped to the authenticated user
 (`owner_id`).
 
-**A stored message carries the id its stream announced.** An answer is stored
-under the `messageId` of its `TEXT_MESSAGE_START`, a response that only called
-tools under the `parentMessageId` its `TOOL_CALL_START`s named, a tool result
-under the `messageId` of its `TOOL_CALL_RESULT`, and forwarded reasoning under
-the `messageId` of its `REASONING_START`, so anything a client keys by message
-id still finds its message after the thread is reloaded, and a later turn that
-posts those ids back stores the same message under the same id. That holds
-whichever way the run ends: completed, failed or cancelled. A message the stream
-announced no id for keeps one of its own: reasoning withheld by
+**A message a run streams is stored under the id the stream announced.** An
+answer is stored under the `messageId` of its `TEXT_MESSAGE_START`, a response
+that only called tools under the `parentMessageId` its `TOOL_CALL_START`s named,
+a tool result under the `messageId` of its `TOOL_CALL_RESULT`, and forwarded
+reasoning under the `messageId` of its `REASONING_START`, so anything a client
+keys by message id still finds its message after the thread is reloaded, and a
+later turn that posts those ids back stores the same message under the same id.
+That holds whichever way the run ends: completed, failed or cancelled. A message
+the stream announced no id for keeps one of its own: reasoning withheld by
 `FORWARD_REASONING`, and the rare response whose shape the stored copy splits
 differently from the stream, where the server keeps a fresh id rather than lend
-one message's id to another.
+one message's id to another. The earlier turns a [resumed or forked
+run](step-persistence.md) is seeded with are not this run's to name: they are
+stored as pydantic-ai's dump of the step store's snapshot gives them.
 
 **A stored thread holds no file bytes the server itself produced.** The base64 a
 `read_attachment` return serialises into is removed before the run's messages

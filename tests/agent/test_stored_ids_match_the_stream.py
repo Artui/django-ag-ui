@@ -18,6 +18,7 @@ import asyncio
 import json
 from typing import Any
 
+import pytest
 from django.test import RequestFactory, override_settings
 from django_pydantic_agent.agent.types.agent_deps import AgentDeps
 from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
@@ -28,6 +29,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from tests.agent.test_agent_session import _approval_agent, _approval_run_input
 
 
 class _Store:
@@ -236,31 +238,54 @@ async def test_the_next_turn_stores_the_earlier_answer_under_the_same_id() -> No
     assert [m["id"] for m in first.messages] == [m["id"] for m in second.messages[:2]]
 
 
-async def test_a_resumed_run_keeps_the_prior_ids_and_streams_the_new_ones() -> None:
-    # The snapshot a resumed run is seeded with carries the UI id of each message
-    # it was loaded from, the way ``load_messages`` leaves it. Those are restored
-    # by the dump; the restamping touches only what this run produced.
-    store = _Store()
-    history = AGUIAdapter.load_messages(
-        AGUIAdapter.build_run_input(
-            json.dumps(
-                {
-                    "threadId": "t1",
-                    "runId": "r0",
-                    "messages": [
-                        {"id": "u0", "role": "user", "content": "older question"},
-                        {"id": "a0", "role": "assistant", "content": "older answer"},
-                    ],
-                    "tools": [],
-                    "context": [],
-                    "state": None,
-                    "forwardedProps": None,
-                }
-            ).encode()
-        ).messages
+def _loaded_history() -> list[Any]:
+    """A resumed run's snapshot, loaded from the client's messages as upstream loads them."""
+    run_input = AGUIAdapter.build_run_input(
+        json.dumps(
+            {
+                "threadId": "t1",
+                "runId": "r0",
+                "messages": [
+                    {"id": "u0", "role": "user", "content": "older question"},
+                    {"id": "a0", "role": "assistant", "content": "older answer"},
+                ],
+                "tools": [],
+                "context": [],
+                "state": None,
+                "forwardedProps": None,
+            }
+        ).encode()
     )
+    return AGUIAdapter.load_messages(run_input.messages)
 
-    frames = await _run(_session(_answering_agent(), store, message_history=history))
+
+async def test_a_resumed_run_leaves_the_prior_ids_to_the_dump() -> None:
+    # The restamping is scoped to what this run produced: the snapshot's prefix
+    # is stored under whatever ids the dump gives it, and never under one of the
+    # ids this run streamed.
+    store = _Store()
+
+    frames = await _run(_session(_answering_agent(), store, message_history=_loaded_history()))
+
+    (streamed,) = _ids(frames, "TEXT_MESSAGE_START")
+    (conversation,) = store.saved
+    prior, (posted, answer) = conversation.messages[:2], conversation.messages[2:]
+    assert [m["content"] for m in prior] == ["older question", "older answer"]
+    assert streamed not in [m["id"] for m in prior]
+    assert (posted["id"], answer["id"]) == ("u1", streamed)
+    _assert_unique(conversation)
+
+
+async def test_a_resumed_run_keeps_the_ids_upstream_restores() -> None:
+    # pydantic-ai restores a loaded message's id on dump from 2.48; below that it
+    # mints fresh ones and there is no prior id left to keep. Probed rather than
+    # read off a version string, so the assertion follows the behaviour.
+    restores = [m.id for m in AGUIAdapter.dump_messages(_loaded_history())] == ["u0", "a0"]
+    if not restores:
+        pytest.skip("this pydantic-ai does not restore a loaded message's id on dump")
+    store = _Store()
+
+    frames = await _run(_session(_answering_agent(), store, message_history=_loaded_history()))
 
     (streamed,) = _ids(frames, "TEXT_MESSAGE_START")
     (conversation,) = store.saved
@@ -281,6 +306,34 @@ async def test_a_resumed_run_from_a_bare_snapshot_still_streams_its_new_ids() ->
     (streamed,) = _ids(frames, "TEXT_MESSAGE_START")
     (conversation,) = store.saved
     assert conversation.messages[-1]["id"] == streamed
+    _assert_unique(conversation)
+
+
+async def test_an_approved_call_resumes_under_the_ids_it_streamed() -> None:
+    # The one path where the client re-posts a message this run then answers:
+    # the approved call's result and the answer after it are new, the tool-call
+    # message they follow is the client's, and no id names two of them.
+    store = _Store()
+    resume = [{"interruptId": "int-call-1", "status": "resolved", "payload": {"approved": True}}]
+    session = AgentSession(
+        _approval_agent([]),
+        _approval_run_input(resume=resume),
+        RequestFactory().post("/agent/"),
+        deps=AgentDeps(user=None),
+        audit_logger=NullAuditLogger(),
+        config=build_ag_ui_config(),
+        conversation_store=store,
+    )
+
+    frames = await _run(session)
+
+    (result_id,) = _ids(frames, "TOOL_CALL_RESULT")
+    (answer_id,) = _ids(frames, "TEXT_MESSAGE_START")
+    (conversation,) = store.saved
+    posted, (result, answer) = conversation.messages[:2], conversation.messages[2:]
+    assert [m["id"] for m in posted] == ["m1", "a1"]
+    assert (result["role"], result["id"]) == ("tool", result_id)
+    assert (answer["role"], answer["id"]) == ("assistant", answer_id)
     _assert_unique(conversation)
 
 
