@@ -133,7 +133,7 @@ class AgentSession:
             toolsets=self._run_toolsets(),
             capabilities=self._capabilities,
         )
-        events = self._adapter.transform_stream(native, on_complete=self._on_complete())
+        events = self._adapter.transform_stream(native, on_complete=self._on_complete(transcript))
         if not self._forward_reasoning:
             events = drop_reasoning_events(events)
         # Unconditional: a no-op unless a ``CompactionObserver`` is in the
@@ -160,8 +160,9 @@ class AgentSession:
         # Recording costs the run's whole output — every text and tool-argument
         # delta held as its own object for the length of the stream — so it is
         # paid for only where something reads it back. The transcript exists to
-        # persist a run that never completes, and with the default
-        # ``NullConversationStore`` there is nowhere to persist it to.
+        # persist a run that never completes, and to lend a run that does the
+        # ids it streamed under, and with the default ``NullConversationStore``
+        # there is nowhere to persist either to.
         if self._persists():
             events = transcript.observe(events)
         # The third exit. ``on_complete`` covers a run that finishes and the
@@ -337,7 +338,7 @@ class AgentSession:
             ]
         return self._prior
 
-    def _on_complete(self) -> Callable[[Any], Awaitable[None]] | None:
+    def _on_complete(self, transcript: RunTranscript) -> Callable[[Any], Awaitable[None]] | None:
         """The adapter's ``on_complete`` callback persisting the conversation.
 
         ``None`` when persistence is off (the default ``NullConversationStore``),
@@ -357,13 +358,26 @@ class AgentSession:
         ``TOOL_CALL_RESULT`` streamed with. A client replaying the thread from
         the server reads this copy, not its own, and the stock dump keeps the
         outcome only where a client is told not to look.
+
+        The dump then takes the ids the stream announced, from the ``transcript``
+        that watched it, because pydantic-ai mints a fresh one for every message
+        it did not load: stored as dumped, the answer a client rated or quoted by
+        its ``TEXT_MESSAGE_START`` id is a different message after a reload, and
+        a session that was not reloaded posts the streamed id back on its next
+        turn, so one message is stored under two ids across two saves. That
+        happens before the strip, which may drop a message the correspondence
+        has to count. The transcript has seen every event by the time this runs:
+        each stage between the adapter and the observer hands an event on before
+        asking for the next, so the result the adapter calls back with comes
+        after the last of them was recorded.
         """
         save = self._message_saver()
         if save is None:
             return None
 
         async def _on_complete(result: Any) -> None:
-            new = strip_binary_content(OutcomeAGUIAdapter.dump_messages(result.new_messages()))
+            dumped = OutcomeAGUIAdapter.dump_messages(result.new_messages())
+            new = strip_binary_content(transcript.with_streamed_ids(dumped))
             await save([*self._prior_messages(), *new])
 
         return _on_complete

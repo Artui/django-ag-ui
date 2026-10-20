@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.3] — 2026-10-20
+
+### Fixed
+
+- **A completed run stores each message under the id its stream announced.**
+  The stored copy of a finished run is pydantic-ai's dump of the run's messages,
+  and the dump mints a fresh id for every message the server generated, so an
+  answer streamed as one `messageId` was stored as another: anything a client
+  keyed by that id lost its message on reload, and on the next turn of a session
+  that was not reloaded the client posted the streamed id back, so one message
+  was stored under two ids across two saves. A run that failed or was cancelled
+  already stored the streamed ids. Now all three exits do: an answer takes its
+  `TEXT_MESSAGE_START` id, a tool-call-only response the `parentMessageId` of its
+  calls, a tool result its `TOOL_CALL_RESULT` id and forwarded reasoning its
+  `REASONING_START` id. The dump is still what is stored, so reasoning
+  signatures, tool outcomes and the binary strip are unchanged. A stored
+  message takes a streamed id only when it holds the text that id streamed, so
+  no message is ever stored under another message's id: where the stored copy
+  splits or joins messages differently from the stream (text, thinking and then
+  tool calls in one response; a file part between two texts; a tool that streams
+  a text message of its own), or the stream announced no id at all, the message
+  keeps a fresh one. The earlier turns a resumed or forked run is seeded with are
+  stored from the step store's snapshot as before, and an answer an earlier run
+  generated is named afresh on each save of the resumed thread.
+
 ## [0.68.2] — 2026-10-19
 
 ### Changed
@@ -3998,7 +4023,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.68.2...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.68.3...HEAD
+[0.68.3]: https://github.com/Artui/django-ag-ui/compare/v0.68.2...v0.68.3
 [0.68.2]: https://github.com/Artui/django-ag-ui/compare/v0.68.1...v0.68.2
 [0.68.1]: https://github.com/Artui/django-ag-ui/compare/v0.68.0...v0.68.1
 [0.68.0]: https://github.com/Artui/django-ag-ui/compare/v0.67.0...v0.68.0

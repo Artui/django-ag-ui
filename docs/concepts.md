@@ -456,6 +456,32 @@ When a non-null store is configured, the view persists the run's full message
 history when the run finishes streaming, scoped to the authenticated user
 (`owner_id`).
 
+**A message a run streams is stored under the id the stream announced.** An
+answer is stored under the `messageId` of its `TEXT_MESSAGE_START`, a response
+that only called tools under the `parentMessageId` its `TOOL_CALL_START`s named,
+a tool result under the `messageId` of its `TOOL_CALL_RESULT`, and forwarded
+reasoning under the `messageId` of its `REASONING_START`, so anything a client
+keys by message id still finds its message after the thread is reloaded, and a
+later turn that posts those ids back stores the same message under the same id.
+That holds whichever way the run ends: completed, failed or cancelled.
+
+**A stored message never carries another message's id.** Where the server cannot
+tell for certain which streamed message a stored one is, it gives the stored one
+a fresh id instead: reasoning withheld by `FORWARD_REASONING`, which was never
+announced, and the rare run whose stored copy splits or joins messages
+differently from the stream -- text, thinking and then tool calls in one
+response, a file part between two texts, or a tool that streams a text message
+of its own. An id the client keys something by is then lost for that message
+rather than lent to its neighbour, so a rating never lands on the wrong answer.
+The check covers the run as a whole, since the stream marks no boundary between
+one model response and the next: when it fails for one answer, every text-only
+answer of that run keeps a fresh id.
+
+The earlier turns a [resumed or forked run](step-persistence.md) is seeded with
+are not covered, at any pydantic-ai version. They are stored from the step
+store's snapshot, where an answer an earlier run generated carries no id of its
+own, so each save of a resumed thread names those earlier answers afresh.
+
 **A stored thread holds no file bytes the server itself produced.** The base64 a
 `read_attachment` return serialises into is removed before the run's messages
 reach the store, and a message that was *only* those bytes is dropped rather than
