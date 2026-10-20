@@ -1,19 +1,25 @@
 from __future__ import annotations
 
+from typing import Any
+
 from ag_ui.core import (
     AssistantMessage,
+    FunctionCall,
     ReasoningEndEvent,
+    ReasoningMessage,
     ReasoningMessageContentEvent,
     ReasoningStartEvent,
     RunStartedEvent,
     TextMessageContentEvent,
     TextMessageEndEvent,
     TextMessageStartEvent,
+    ToolCall,
     ToolCallArgsEvent,
     ToolCallEndEvent,
     ToolCallResultEvent,
     ToolCallStartEvent,
     ToolMessage,
+    UserMessage,
 )
 
 from django_ag_ui.agent.run_transcript import RunTranscript
@@ -188,3 +194,150 @@ def test_only_the_outcome_is_carried_over_from_the_event() -> None:
 
     (tool,) = transcript.messages()
     assert tool.metadata == {OUTCOME_FIELD: "denied"}
+
+
+# --- lending a completed run's dump the ids the stream announced -------------------
+#
+# The shapes the session tests cannot reach through a ``FunctionModel``: each is
+# a dump the stream does not line up with one-for-one, where the right answer is
+# the dumped id rather than a neighbour's streamed one.
+
+
+def _call(call_id: str) -> ToolCall:
+    return ToolCall(id=call_id, type="function", function=FunctionCall(name="f", arguments="{}"))
+
+
+def _calls_message(message_id: str, *call_ids: str) -> AssistantMessage:
+    return AssistantMessage(
+        id=message_id, role="assistant", tool_calls=[_call(c) for c in call_ids]
+    )
+
+
+def _streamed_call(transcript: RunTranscript, call_id: str, parent: str | None) -> None:
+    transcript.add(
+        ToolCallStartEvent(tool_call_id=call_id, tool_call_name="f", parent_message_id=parent)
+    )
+    transcript.add(ToolCallEndEvent(tool_call_id=call_id))
+
+
+def _streamed_text(transcript: RunTranscript, message_id: str, text: str = "") -> None:
+    transcript.add(TextMessageStartEvent(message_id=message_id, role="assistant"))
+    if text:
+        transcript.add(TextMessageContentEvent(message_id=message_id, delta=text))
+    transcript.add(TextMessageEndEvent(message_id=message_id))
+
+
+def _ids(messages: list[Any]) -> list[str]:
+    return [message.id for message in messages]
+
+
+def test_a_streamed_id_is_lent_to_one_message_only() -> None:
+    # A thinking part between two calls of one response: both calls streamed
+    # under one parent, and the dump flushes them into two assistant messages.
+    transcript = RunTranscript()
+    _streamed_text(transcript, "p")
+    _streamed_call(transcript, "c1", "p")
+    _streamed_call(transcript, "c2", "p")
+
+    restamped = transcript.with_streamed_ids(
+        [_calls_message("d1", "c1"), _calls_message("d2", "c2")]
+    )
+
+    assert _ids(restamped) == ["p", "d2"]
+
+
+def test_calls_streamed_under_different_parents_keep_the_dumped_id() -> None:
+    transcript = RunTranscript()
+    _streamed_call(transcript, "c1", "p1")
+    _streamed_call(transcript, "c2", "p2")
+
+    restamped = transcript.with_streamed_ids([_calls_message("d1", "c1", "c2")])
+
+    assert _ids(restamped) == ["d1"]
+
+
+def test_a_call_with_no_parent_keeps_the_dumped_id() -> None:
+    # The protocol allows it, and the stream then announced no message id.
+    transcript = RunTranscript()
+    _streamed_call(transcript, "c1", None)
+
+    restamped = transcript.with_streamed_ids([_calls_message("d1", "c1")])
+
+    assert _ids(restamped) == ["d1"]
+
+
+def test_text_answers_whose_counts_disagree_all_keep_the_dumped_ids() -> None:
+    # Pairing the one streamed id with the first answer would be a guess, and a
+    # wrong guess names a different message.
+    transcript = RunTranscript()
+    _streamed_text(transcript, "s1", "only one")
+
+    restamped = transcript.with_streamed_ids(
+        [
+            AssistantMessage(id="d1", role="assistant", content="one"),
+            AssistantMessage(id="d2", role="assistant", content="two"),
+        ]
+    )
+
+    assert _ids(restamped) == ["d1", "d2"]
+
+
+def test_an_announced_empty_text_still_counts_by_position() -> None:
+    # ``messages()`` skips an empty draft; the dump keeps the empty text part, so
+    # the count has to read the drafts or every answer after it falls back.
+    transcript = RunTranscript()
+    _streamed_text(transcript, "s1")
+    _streamed_text(transcript, "s2", "answer")
+
+    restamped = transcript.with_streamed_ids(
+        [
+            AssistantMessage(id="d1", role="assistant", content=""),
+            AssistantMessage(id="d2", role="assistant", content="answer"),
+        ]
+    )
+
+    assert _ids(restamped) == ["s1", "s2"]
+
+
+def test_results_for_a_reused_call_id_pair_off_in_order() -> None:
+    transcript = RunTranscript()
+    transcript.add(ToolCallResultEvent(message_id="r1", tool_call_id="c1", content="first"))
+    transcript.add(ToolCallResultEvent(message_id="r2", tool_call_id="c1", content="second"))
+
+    restamped = transcript.with_streamed_ids(
+        [
+            ToolMessage(id="d1", role="tool", tool_call_id="c1", content="first"),
+            ToolMessage(id="d2", role="tool", tool_call_id="c1", content="second"),
+            ToolMessage(id="d3", role="tool", tool_call_id="c1", content="third"),
+            ToolMessage(id="d4", role="tool", tool_call_id="never-streamed", content="x"),
+        ]
+    )
+
+    assert _ids(restamped) == ["r1", "r2", "d3", "d4"]
+
+
+def test_reasoning_pairs_by_position_and_other_messages_are_untouched() -> None:
+    transcript = RunTranscript()
+    transcript.add(ReasoningStartEvent(message_id="z1"))
+    user = UserMessage(id="u1", role="user", content="hi")
+
+    restamped = transcript.with_streamed_ids(
+        [user, ReasoningMessage(id="d1", role="reasoning", content="hmm")]
+    )
+
+    assert restamped[0] is user
+    assert _ids(restamped) == ["u1", "z1"]
+
+
+def test_a_restamped_tool_message_keeps_its_outcome() -> None:
+    transcript = RunTranscript()
+    transcript.add(ToolCallResultEvent(message_id="r1", tool_call_id="c1", content="no"))
+    dumped = stamp_outcome(
+        ToolMessage(id="d1", role="tool", tool_call_id="c1", content="no"), "denied"
+    )
+
+    (tool,) = transcript.with_streamed_ids([dumped])
+
+    assert tool.id == "r1"
+    assert tool.metadata == {OUTCOME_FIELD: "denied"}
+    assert (tool.__pydantic_extra__ or {})[OUTCOME_FIELD] == "denied"

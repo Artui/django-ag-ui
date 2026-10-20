@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A completed run stores each message under the id its stream announced.**
+  The stored copy of a finished run is pydantic-ai's dump of the run's messages,
+  and the dump mints a fresh id for every message the server generated, so an
+  answer streamed as one `messageId` was stored as another: anything a client
+  keyed by that id lost its message on reload, and on the next turn of a session
+  that was not reloaded the client posted the streamed id back, so one message
+  was stored under two ids across two saves. A run that failed or was cancelled
+  already stored the streamed ids. Now all three exits do: an answer takes its
+  `TEXT_MESSAGE_START` id, a tool-call-only response the `parentMessageId` of its
+  calls, a tool result its `TOOL_CALL_RESULT` id and forwarded reasoning its
+  `REASONING_START` id. The dump is still what is stored, so reasoning
+  signatures, tool outcomes and the binary strip are unchanged; a message the
+  stream announced no id for, or whose correspondence is ambiguous, keeps a
+  fresh one rather than borrowing a neighbour's.
+
 ## [0.68.2] — 2026-10-19
 
 ### Changed
