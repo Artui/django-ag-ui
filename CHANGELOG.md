@@ -39,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   finally agree. Anything that named such a tool by its function name,
   `TOOL_GUARD`'s `REQUIRE_APPROVAL` or `EXEMPT`, `approval_prompts` or an audit
   query, must use the registered name.
+- **`[drf-mcp]` requires `djangorestframework-mcp-server>=0.53.1` and
+  `[spec-tools]` `djangorestframework-pydantic-ai>=0.36.1`**, the pair in which a
+  selector raising `Http404` answers not found, as it does through `[specs]`.
 
 ## [0.68.3] — 2026-10-20
 

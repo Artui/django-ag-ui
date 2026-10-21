@@ -118,7 +118,13 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
-# Floored where the server is built for drf-services as the DRF adapter over
+# Floored at 0.53.1, where a selector raising ``Http404`` answers not found: a
+# missing row, as it is through ``[specs]``, where 0.53.0 served a LIST's as a
+# successful empty list. django-spec-agents' own ``[drf-mcp]`` extra floors it
+# there, and it moves in lockstep with the ``[spec-tools]`` floor below, which
+# is the same fix on the other route.
+#
+# 0.53 was the floor before that, where the server is built for drf-services as the DRF adapter over
 # django-service-specs, and where a declared range stops admitting a build that
 # is not. The builds before it carry no ceiling on drf-services, so a fresh
 # install resolved them beside the adapter release, which retires the
@@ -133,7 +139,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # a selection the output serializer refuses declares its ``QueryParam`` on the
 # spec and drives a session on each route, which only this floor and the one
 # below allow. It floors drf-services at 0.58.0 in turn, and hard: the server
-# imports at module level what first exists there.
+# imports at module level what first exists there. Subsumed.
 #
 # 0.52 was the previous floor, where a call refused for leaving out a required
 # argument reads ``Missing required argument(s): `pk`.``, the sentence the
@@ -245,7 +251,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 #
 # 0.37 was the previous floor, the first release carrying drf-services>=0.49
 # after a serializer that nests itself crashed the catalog walk. Subsumed.
-drf-mcp = ["djangorestframework-mcp-server>=0.53"]
+drf-mcp = ["djangorestframework-mcp-server>=0.53.1"]
 # Expose drf-services specs directly as agent tools via django-spec-agents'
 # ``spec_tools.SpecCapability`` -- no MCP server in the path (service_specs=).
 # Floored at 0.1.0, where the toolset is djangorestframework-pydantic-ai 0.36.1's
@@ -256,6 +262,9 @@ specs = ["django-spec-agents[specs]>=0.1.0"]
 # ``service_specs=`` path now imports, so a project naming it keeps working and a
 # toolset or capability it builds from the old package is still served. The
 # floors below are that package's, and each still holds through ``[specs]``.
+#
+# Floored at 0.36.1, where a selector raising ``Http404`` answers not found,
+# in lockstep with the ``[drf-mcp]`` floor above.
 #
 # Floored at 0.25, the release that raises ToolFailed for a terminal failure
 # instead of returning {"error": ...}. That is what this package's outcome
@@ -383,7 +392,7 @@ specs = ["django-spec-agents[specs]>=0.1.0"]
 # constraint still holds and is subsumed.
 spec-tools = [
     "django-spec-agents[specs]>=0.1.0",
-    "djangorestframework-pydantic-ai>=0.36",
+    "djangorestframework-pydantic-ai>=0.36.1",
 ]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
@@ -420,7 +429,7 @@ dev = [
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
-    "djangorestframework-mcp-server>=0.53",
+    "djangorestframework-mcp-server>=0.53.1",
     # The [specs] extra's backing package, so its capability + tests run in dev.
     "django-spec-agents[specs]>=0.1.0",
     # Declared directly because the tests declare drf-services specs, and
@@ -430,7 +439,7 @@ dev = [
     "djangorestframework-services>=0.58.0",
     # Backs the transitional [spec-tools] test, which builds a toolset and a
     # capability from the old package and serves them; leaves with that extra.
-    "djangorestframework-pydantic-ai>=0.36",
+    "djangorestframework-pydantic-ai>=0.36.1",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
