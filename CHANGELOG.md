@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   package with `djangorestframework-pydantic-ai`: the host keeps its layout under
   `django_spec_agents`, and the spec toolset is `django_spec_agents.spec_tools`.
   0.1.0 is held equal in behaviour to django-pydantic-agent 0.28.2 and
-  djangorestframework-pydantic-ai 0.36.1, so the endpoint behaves as it did. The
+  djangorestframework-pydantic-ai 0.36.1, so the endpoint behaves as it did,
+  apart from the registered tool names below. The
   names this package re-exports keep their spelling, so
   `from django_ag_ui import ToolRegistry` needs no edit; a project importing
   either old package directly moves those imports to `django_spec_agents` and
