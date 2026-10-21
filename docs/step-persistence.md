@@ -31,7 +31,7 @@ conversation store uses):
 # settings.py
 INSTALLED_APPS = [
     # ...
-    "django_pydantic_agent.contrib.store",
+    "django_spec_agents.contrib.store",
 ]
 ```
 
@@ -51,7 +51,7 @@ the store binds one and is built fresh per run. `DefaultStepStore`'s constructor
 from django.urls import path
 
 from django_ag_ui import AGUIServer
-from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 
 from myproject.agent import registry
 
@@ -256,7 +256,7 @@ PDF over that way, beside the tool's return. A wordless user message in the
 same request as a tool's return is passed over, so a run that read an
 attachment is named by the question that asked for it. A tool that hands the
 model text this way, rather than a file, names the run by that text; no tool in
-this package or django-pydantic-agent does.
+this package or django-spec-agents does.
 
 The preview is computed when `runs/` is read, not stored with the run, so runs
 recorded before an upgrade are named by the current rule with no migration.

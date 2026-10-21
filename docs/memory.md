@@ -6,7 +6,7 @@ in Berlin" — without the client re-sending it every run.
 **This package adds nothing for it.** `pydantic-ai-harness` ships a complete
 memory capability, and `capabilities=` already carries it. What follows is a
 recipe, not a feature: the parts are upstream's and
-[django-pydantic-agent](https://github.com/Artui/django-pydantic-agent)'s, and
+[django-spec-agents](https://github.com/Artui/django-spec-agents)', and
 the only thing worth writing down is how they fit together here and what to turn
 on first.
 
@@ -43,8 +43,8 @@ wrong together.
 ## The wiring
 
 ```python
-from django_pydantic_agent import memory_namespace_for_user
-from django_pydantic_agent.contrib.store.default_memory_store import (
+from django_spec_agents import memory_namespace_for_user
+from django_spec_agents.contrib.store.default_memory_store import (
     DefaultMemoryStore,
 )
 from pydantic_ai_harness.memory import Memory
@@ -116,11 +116,11 @@ request there is no session to key a per-visitor bucket on.
 
 Any object satisfying the harness's `MemoryStore` protocol. The harness bundles
 `InMemoryStore`, `FileStore`, `SqliteMemoryStore` and `PostgresMemoryStore`;
-django-pydantic-agent's `DefaultMemoryStore` is the Django one, and the one to
+django-spec-agents' `DefaultMemoryStore` is the Django one, and the one to
 reach for here — it neutralises the fence tags on write, applies per-owner file
 and byte ceilings the capability does not have, and carries a `purge(owner_id)`
 for erasure. See its
-[storage docs](https://artui.github.io/django-pydantic-agent/storage/) for the
+[storage docs](https://artui.github.io/django-spec-agents/storage/) for the
 details.
 
 The bundled stores are single-tenant: their scope lives only in the path.
@@ -146,7 +146,7 @@ client-side, the same way [charts](charts.md) do.
 
 Memory is durable personal data written *about* a user, so an erasure request has
 to reach it. The protocol has no bulk or prefix delete;
-django-pydantic-agent ships `purge(owner_id)` and a management command for it:
+django-spec-agents ships `purge(owner_id)` and a management command for it:
 
 ```bash
 python manage.py agent_store_purge_memory u-42

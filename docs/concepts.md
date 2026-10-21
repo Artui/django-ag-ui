@@ -390,7 +390,7 @@ The **tool catalog** is the channel for those labels: a small read-only JSON
 endpoint the web component fetches via its `data-tools-url` attribute and uses to
 map a tool name → a friendly card label.
 
-[`build_tool_catalog(registry)`](api.md#django_pydantic_agent.agent.build_tool_catalog.build_tool_catalog)
+[`build_tool_catalog(registry)`](api.md#django_spec_agents.agent.build_tool_catalog.build_tool_catalog)
 builds the catalog as a list of entries, each
 `{"name", "summary", "description"?}`:
 
@@ -531,10 +531,10 @@ reads as `404`, never another user's history — and the view carries the same
 ### A ready-made durable store
 
 For cross-device, per-user history without writing your own model, opt into the
-`django_pydantic_agent.contrib.store` app: add `"django_pydantic_agent.contrib.store"` to
+`django_spec_agents.contrib.store` app: add `"django_spec_agents.contrib.store"` to
 `INSTALLED_APPS`, run `migrate`, and set
 [`conversation_store=`](configuration.md#conversation_store) to
-`django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore`.
+`django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore`.
 It ships a `StoredConversation` model and a `ModelConversationStore` subclass with
 denormalised `title` / `preview` / `updated_at` columns so the thread list is a
 single cheap query. Projects that don't opt in get no model and no migration.
@@ -608,8 +608,8 @@ blind the model to any pasted image.
 **Rows written before this are cleaned at rest, not by the run loop.** A
 conversation stored by an earlier release keeps its base64 until something
 rewrites it, and that something is a management command rather than the next run:
-with django-pydantic-agent 0.15.0 or newer and its
-`django_pydantic_agent.contrib.store` app installed, `manage.py
+with django-spec-agents'
+`django_spec_agents.contrib.store` app installed, `manage.py
 agent_store_strip_inline_bytes` (`--dry-run` to see what it would reclaim) does
 structural JSON surgery on the stored rows, keeping every message id and every
 attachment ref intact. The attachments themselves are untouched in the

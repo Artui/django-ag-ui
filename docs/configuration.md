@@ -104,7 +104,7 @@ Nest project-specific values somewhere else, not in `DJANGO_AG_UI`.
 | `attachment_store=...` | Server-side file-upload storage (uploads off when unset). |
 | `transcription_backend=...` | Speech-to-text backend for voice input (voice off when unset). |
 | `drf_mcp_server=...` | drf-mcp server whose tools the agent gets. |
-| `service_specs={...}` | drf-services specs exposed as tools, no MCP hop — a mapping, a `SpecRegistry`, or a pre-built `SpecToolset` / `SpecCapability` (`[spec-tools]` extra). |
+| `service_specs={...}` | drf-services specs exposed as tools, no MCP hop — a mapping, a `SpecRegistry`, or a pre-built `SpecToolset` / `SpecCapability` (`[specs]` extra). |
 
 ## Multiple endpoints
 
@@ -179,7 +179,7 @@ DJANGO_AG_UI = {"MODEL": "anthropic:claude-sonnet-4.6"}
 ```
 
 When [`API_KEY`](#api_key) or [`provider=`](#provider) is set, the `MODEL` string
-is routed through [`build_model`](api.md#django_pydantic_agent.agent.build_model.build_model),
+is routed through [`build_model`](api.md#django_spec_agents.agent.build_model.build_model),
 which delegates the `provider:` prefix → model resolution to Pydantic-AI itself —
 so any provider it knows works (`anthropic`, `openai`, `openai-responses`,
 `google`, `google-gla`, `groq`, `bedrock`, …), as does a bare model name it can
@@ -256,7 +256,7 @@ deployment a rehearsal is meant to check.
 
 An explicit provider API key. When set (and `MODEL` is a `provider:name`
 string), the view builds the model via
-[`build_model`](api.md#django_pydantic_agent.agent.build_model.build_model) — passing the
+[`build_model`](api.md#django_spec_agents.agent.build_model.build_model) — passing the
 key to the prefix's default `Provider` — **instead of** letting Pydantic-AI
 infer the key from environment variables. Requires the matching provider extra
 installed (e.g. `django-ag-ui[anthropic]`). [`provider=`](#provider), if also
@@ -595,18 +595,18 @@ AGUIServer(registry, conversation_store=DjangoSessionConversationStore())
 ```
 
 For a ready-made **durable, cross-device** store, opt into the
-`django_pydantic_agent.contrib.store` app instead of writing your own model — add it to
+`django_spec_agents.contrib.store` app instead of writing your own model — add it to
 `INSTALLED_APPS`, run `migrate`, and point the setting at its store:
 
 ```python
 INSTALLED_APPS = [
     # ...
-    "django_pydantic_agent.contrib.store",
+    "django_spec_agents.contrib.store",
 ]
 ```
 
 ```python title="urls.py"
-from django_pydantic_agent.contrib.store.default_conversation_store import (
+from django_spec_agents.contrib.store.default_conversation_store import (
     DefaultConversationStore,
 )
 
@@ -637,24 +637,24 @@ a [stored thread](concepts.md#bytes-reach-the-model-not-the-row) does not carry
 base64 the server produced, and a reloaded conversation re-reads the file
 server-side instead of re-uploading it. Inline content the *client* posted is
 stored as sent; rows written by an earlier release are cleaned by `manage.py
-agent_store_strip_inline_bytes`, from django-pydantic-agent 0.15.0.
+agent_store_strip_inline_bytes`, which django-spec-agents ships.
 
 The package ships an abstract
 [`ModelAttachmentStore`][django_ag_ui.ModelAttachmentStore] base you can subclass
 with your own model + storage. For a ready-made store, opt into the
-`django_pydantic_agent.contrib.store` app — add it to `INSTALLED_APPS`, run `migrate`, and
+`django_spec_agents.contrib.store` app — add it to `INSTALLED_APPS`, run `migrate`, and
 point the setting at its store (bytes go to Django `Storage`, so S3/GCS come free
 via `STORAGES` / `DEFAULT_FILE_STORAGE`):
 
 ```python
 INSTALLED_APPS = [
     # ...
-    "django_pydantic_agent.contrib.store",
+    "django_spec_agents.contrib.store",
 ]
 ```
 
 ```python title="urls.py"
-from django_pydantic_agent.contrib.store.default_attachment_store import (
+from django_spec_agents.contrib.store.default_attachment_store import (
     DefaultAttachmentStore,
 )
 
@@ -905,9 +905,10 @@ AGUIServer(registry, drf_mcp_server=mcp_server)
 
 A `name -> spec` mapping (drf-services `ServiceSpec` / `SelectorSpec` objects),
 or a `SpecRegistry`, exposed to the agent as tools **without an MCP server** via
-`djangorestframework-pydantic-ai`'s `SpecCapability`. `None` (the default)
-disables it. Requires the `[spec-tools]` extra
-(`pip install "django-ag-ui[spec-tools]"`), imported lazily.
+django-spec-agents' `SpecCapability`. `None` (the default)
+disables it. Requires the `[specs]` extra
+(`pip install "django-ag-ui[specs]"`), imported lazily. The old `[spec-tools]`
+spelling still installs for one more minor; see [Installation](installation.md).
 
 This is the no-MCP-hop sibling of [`drf_mcp_server=`](#drf_mcp_server): the specs
 are dispatched in-process through drf-services' transport-neutral surface
@@ -933,9 +934,8 @@ every tool is still there, just missing declarations nobody asked for. The same
 registry handed to an MCP server is read the same way, which is the point of
 declaring it once.
 
-**Every spec needs its own `permission_classes`.** Since
-`djangorestframework-pydantic-ai` 0.13 a spec that omits them makes the endpoint
-raise `ImproperlyConfigured` at construction rather than exposing an ungated
+**Every spec needs its own `permission_classes`.** A spec that omits them makes
+the endpoint raise `ImproperlyConfigured` at construction rather than exposing an ungated
 tool. `permission_classes=None` means *inherit* over HTTP — the viewset's
 classes, then `DEFAULT_PERMISSION_CLASSES` — and there is no viewset here to
 inherit from, so a spec that is correctly guarded behind one becomes callable by
@@ -967,7 +967,7 @@ registry too large to guard in one commit? **Build the toolset yourself and pass
 it to `service_specs=`.**
 
 ```python
-from rest_framework_pydantic_ai import SpecToolset
+from django_spec_agents.spec_tools import SpecToolset
 
 AGUIServer(
     registry,
@@ -994,7 +994,7 @@ a registry's declarations and reword, wrap the registry rather than flattening
 it:
 
 ```python
-from rest_framework_pydantic_ai import AgentConventions, SpecToolset
+from django_spec_agents.spec_tools import AgentConventions, SpecToolset
 
 AGUIServer(
     registry,
@@ -1006,7 +1006,7 @@ AGUIServer(
 ```
 
 The two packages each export their own `AgentConventions`, configured
-separately: `rest_framework_pydantic_ai`'s for `service_specs=`, and
+separately: `django_spec_agents.spec_tools`'s for `service_specs=`, and
 `rest_framework_mcp`'s for the server behind `drf_mcp_server=`.
 
 **This does not cost you the tool-call card labels.** The endpoint attaches
@@ -1197,7 +1197,9 @@ The operator's copy is never redacted. Your `AuditLogger` records the exception
 the tool raised, in full, against the tool that raised it, unless a capability
 that sorts after audit, such as one pinned innermost, changes it. Whenever the policy
 converts a failure it first logs the exception, with its traceback, to the
-`django_pydantic_agent.failure` Python logger. That logger hears only about the
+`django_pydantic_agent.failure` Python logger, a name it kept when the runtime
+moved to django-spec-agents so that `LOGGING` configured by name keeps receiving.
+That logger hears only about the
 failures the policy converts: nothing when a capability you passed as
 `capabilities=` recovered the call or answered for the model with its own
 `ModelRetry` or `ToolFailed`. A call that never runs the tool, such as one held
@@ -1274,8 +1276,7 @@ mutation in, so one setting covers the tools wherever they came from:
 
 A tool is gated when it is destructive **or** named in `REQUIRE_APPROVAL`,
 **unless** it is named in `EXEMPT`. Silence is not a claim: a tool declaring
-nothing is left alone, and `REQUIRE_APPROVAL` is the answer for it. The last two
-vocabularies need django-pydantic-agent 0.18, which this package's floor is above.
+nothing is left alone, and `REQUIRE_APPROVAL` is the answer for it.
 
 The gate is only useful with a client that renders the interrupt and resumes —
 the web component's approval card is the front-end half of this feature; a bespoke

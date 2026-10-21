@@ -39,7 +39,7 @@ theme:
 
 # mkdocs reports unresolved anchors at INFO, so a link to a heading that moved
 # stays broken through a clean --strict build. Two had accumulated that way
-# (both from symbols that moved to django-pydantic-agent). Warnings become
+# (both from symbols that moved to the agent runtime, now django-spec-agents). Warnings become
 # errors under --strict, which is what CI runs.
 validation:
   anchors: warn
@@ -58,13 +58,13 @@ plugins:
           # and --strict aborts -- a link that is fine in its own docs and fatal
           # in ours. Importing the inventory points them at the upstream page.
           inventories:
-            - https://artui.github.io/django-pydantic-agent/objects.inv
+            - https://artui.github.io/django-spec-agents/objects.inv
           options:
             # The agent-host substrate. Its symbols are re-exported from
             # ``django_ag_ui`` (permanently), so griffe has to load it to
             # resolve those aliases — otherwise the API reference dies on
             # ``Could not resolve alias django_ag_ui.ToolRegistry``.
-            preload_modules: [django_pydantic_agent]
+            preload_modules: [django_spec_agents]
             docstring_style: google
             show_root_heading: true
             show_root_full_path: false

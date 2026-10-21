@@ -53,12 +53,12 @@ A hint has to **say** the tool mutates. An absent `readOnlyHint`, a missing stam
 or metadata of another shape leaves the tool alone — silence is not a claim, and
 `REQUIRE_APPROVAL` is the answer for a tool whose source declares nothing.
 
-!!! note "Requires django-pydantic-agent 0.18"
+!!! note "Why all four"
 
-    The last two vocabularies arrived in the substrate's `ToolGuard` in 0.18.0.
-    Below that floor the guard read only the drf-mcp metadata key, so the *same*
-    spec was gated over the bridge and ungated in process — a transport swap
-    silently removed the gate. This package floors at `>=0.18` for that reason.
+    The guard once read only the drf-mcp metadata key, so the *same* spec was
+    gated over the bridge and ungated in process: a transport swap silently
+    removed the gate. Every release of django-spec-agents, this package's
+    runtime, reads all four.
 
 `TOOL_GUARD["EXEMPT"]` un-gates a name even if it is destructive (`EXEMPT` wins).
 
