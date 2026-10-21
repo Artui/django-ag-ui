@@ -20,7 +20,7 @@ from ag_ui.core import (
     TextMessageContentEvent,
     ToolCallStartEvent,
 )
-from django_pydantic_agent.constants import X_CONFIRM_KEY
+from django_spec_agents import X_CONFIRM_KEY
 
 from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
 

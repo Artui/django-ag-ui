@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from django_pydantic_agent.agent.agent_factory import build_agent
-from django_pydantic_agent.agent.types.agent_config import AgentConfig
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.agent.agent_factory import build_agent
+from django_spec_agents.agent.types.agent_config import AgentConfig
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset

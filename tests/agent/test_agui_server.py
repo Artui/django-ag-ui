@@ -6,8 +6,8 @@ from typing import Any
 import pytest
 from django.test import Client, override_settings
 from django.urls import resolve, reverse
-from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.persistence.null_conversation_store import NullConversationStore
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_server import (
@@ -82,7 +82,7 @@ def test_a_tools_own_confirm_becomes_its_approval_prompt() -> None:
     confirmation the *browser* gates. When the server gates the same tool instead,
     that question should not silently become the serialized call.
     """
-    from django_pydantic_agent.registry.decorator import tool
+    from django_spec_agents.registry.decorator import tool
 
     registry = ToolRegistry()
 
@@ -97,7 +97,7 @@ def test_a_tools_own_confirm_becomes_its_approval_prompt() -> None:
 
 
 def test_an_explicit_prompt_overrides_the_tools_own() -> None:
-    from django_pydantic_agent.registry.decorator import tool
+    from django_spec_agents.registry.decorator import tool
 
     registry = ToolRegistry()
 
@@ -127,7 +127,7 @@ def test_endpoint_view_is_the_built_agent_view() -> None:
 
 
 def test_step_store_factory_forwards_to_the_agent_view() -> None:
-    from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+    from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 
     server = _server(step_store=DefaultStepStore)
     assert server._view._step_store is DefaultStepStore
@@ -138,7 +138,7 @@ def test_step_store_defaults_to_none() -> None:
 
 
 def test_resume_and_fork_endpoints_mount_with_a_step_store() -> None:
-    from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+    from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 
     patterns, _, _ = _server(step_store=DefaultStepStore).urls
     names = {p.name for p in patterns}
@@ -202,7 +202,7 @@ def test_transcribe_endpoint_omitted_by_default() -> None:
 
 
 def test_passing_a_store_mounts_the_thread_endpoints() -> None:
-    from django_pydantic_agent.persistence.django_session_conversation_store import (
+    from django_spec_agents.persistence.django_session_conversation_store import (
         DjangoSessionConversationStore,
     )
 
@@ -282,7 +282,7 @@ def test_csrf_reaches_every_view_in_the_mount(stated: bool) -> None:
     not have covered a route a later release starts mounting; iterating the
     mount means a new view is included the day it appears.
     """
-    from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+    from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 
     server = _server(
         csrf_exempt=stated,
@@ -388,7 +388,7 @@ class _DummyTranscriptionBackend:
 
 
 def test_runs_endpoint_mounts_with_a_step_store() -> None:
-    from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+    from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 
     assert "runs" in _names(_server(step_store=DefaultStepStore))
 
@@ -400,7 +400,7 @@ def test_runs_endpoint_absent_without_a_step_store() -> None:
 
 
 def test_runs_endpoint_carries_the_shared_auth_seam() -> None:
-    from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+    from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 
     server = _server(step_store=DefaultStepStore, require_authenticated=True)
     patterns, _, _ = server.urls
@@ -486,7 +486,7 @@ def test_the_agent_throttle_does_not_reach_transcribe() -> None:
 
 def test_the_runs_view_gets_the_endpoints_own_config() -> None:
     """Its list ceiling is per-endpoint, like every other limit on this mount."""
-    from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+    from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 
     config = build_ag_ui_config(run_list_limit=3)
     server = AGUIServer(

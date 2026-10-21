@@ -69,7 +69,7 @@ def _configure() -> None:
 _configure()
 
 from django.test import RequestFactory  # noqa: E402
-from django_pydantic_agent.registry.tool_registry import ToolRegistry  # noqa: E402
+from django_spec_agents.registry.tool_registry import ToolRegistry  # noqa: E402
 from pydantic_ai import Agent, ModelRetry  # noqa: E402
 from pydantic_ai.exceptions import UnexpectedModelBehavior  # noqa: E402
 from pydantic_ai.messages import ModelMessage  # noqa: E402

@@ -14,20 +14,20 @@ from django.http import (
     StreamingHttpResponse,
 )
 from django.http.response import HttpResponseBase
-from django_pydantic_agent.agent.agent_factory import build_agent
-from django_pydantic_agent.agent.attachment_toolset import build_attachment_toolset
-from django_pydantic_agent.agent.build_model import build_model
-from django_pydantic_agent.agent.types.agent_config import AgentConfig
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.agent.types.agent_factory_fn import AgentFactoryFn
-from django_pydantic_agent.persistence.null_attachment_store import NullAttachmentStore
-from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
-from django_pydantic_agent.persistence.types.attachment_store import AttachmentStore
-from django_pydantic_agent.persistence.types.conversation_store import ConversationStore
-from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
-from django_pydantic_agent.policy.audit.types.audit_logger import AuditLogger
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
-from django_pydantic_agent.utils import AuthorizePredicate, aauthorize, auth_error_response
+from django_spec_agents.agent.agent_factory import build_agent
+from django_spec_agents.agent.attachment_toolset import build_attachment_toolset
+from django_spec_agents.agent.build_model import build_model
+from django_spec_agents.agent.types.agent_config import AgentConfig
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
+from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
+from django_spec_agents.persistence.null_conversation_store import NullConversationStore
+from django_spec_agents.persistence.types.attachment_store import AttachmentStore
+from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
+from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
+from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.utils import AuthorizePredicate, aauthorize, auth_error_response
 from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.ui.ag_ui import AGUIAdapter
@@ -400,7 +400,7 @@ class DjangoAGUIView:
         """
         if server is None:
             return []
-        from django_pydantic_agent.integrations.drf_mcp import DRFMCPToolset
+        from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
 
         toolset = DRFMCPToolset(server, request, exclude_names=frozenset(seen))
         seen.update(binding.name for binding in server.tools.all())
@@ -409,8 +409,8 @@ class DjangoAGUIView:
     def _spec_capabilities(self, specs: dict[str, Any] | None, seen: set[str]) -> list[Any]:
         """Build the drf-services `SpecCapability`, or `[]` when unset.
 
-        Imported lazily so `djangorestframework-pydantic-ai` (and drf-services)
-        stay an optional `[spec-tools]` extra. The acting user reaches the
+        Imported lazily so `django_spec_agents.spec_tools` (and drf-services)
+        stay an optional `[specs]` extra. The acting user reaches the
         toolset through the run's ``deps``, not a closure over ``request`` —
         ``SpecToolset``'s default extractor reads ``ctx.deps.user`` — which is
         why this is a capability on the reused agent rather than a per-run
@@ -425,7 +425,7 @@ class DjangoAGUIView:
             return [self._spec_capability]
         if specs is None:
             return []
-        from django_pydantic_agent.integrations.build_spec_capability import build_spec_capability
+        from django_spec_agents.integrations.build_spec_capability import build_spec_capability
 
         # The source when there is one, so a registry's per-entry declarations
         # survive; the flattened mapping otherwise. ``build_spec_capability``

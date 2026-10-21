@@ -7,17 +7,17 @@ from typing import Any
 from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpRequest
 from django.urls import URLPattern, path
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.agent.types.agent_factory_fn import AgentFactoryFn
-from django_pydantic_agent.integrations.resolve_spec_mapping import resolve_spec_mapping
-from django_pydantic_agent.integrations.types.spec_source import SpecSource
-from django_pydantic_agent.persistence.null_attachment_store import NullAttachmentStore
-from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
-from django_pydantic_agent.persistence.types.attachment_store import AttachmentStore
-from django_pydantic_agent.persistence.types.conversation_store import ConversationStore
-from django_pydantic_agent.policy.audit.types.audit_logger import AuditLogger
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
-from django_pydantic_agent.utils import AuthorizePredicate, GetUser
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
+from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
+from django_spec_agents.integrations.types.spec_source import SpecSource
+from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
+from django_spec_agents.persistence.null_conversation_store import NullConversationStore
+from django_spec_agents.persistence.types.attachment_store import AttachmentStore
+from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
+from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.utils import AuthorizePredicate, GetUser
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.runs_view import RunsView
@@ -138,9 +138,9 @@ class AGUIServer:
     which the tool catalog never sees; it is attached as itself and its ``specs``
     are read for the catalog, so the powerful form keeps the tool-call card
     labels. The parameter's union covers all four shapes, the last two matched
-    structurally because drf-pydantic-ai's own types cannot be named from a
-    package that only optionally depends on it. Requires the
-    ``django-ag-ui[spec-tools]`` extra.
+    structurally because ``django_spec_agents.spec_tools``' own types cannot be
+    named from a package that only optionally installs what they import. Requires
+    the ``django-ag-ui[specs]`` extra.
 
     **One agent, many runs.** The endpoint builds its agent once and reuses it
     rather than re-deriving every tool's JSON Schema per request.
@@ -475,7 +475,7 @@ def _resolve_spec_source(
     # A bare ``SpecToolset``. Wrapped so the endpoint composes capabilities
     # uniformly, and so ``defer_loading`` stays available; ``from_toolset``
     # adopts the toolset's own id and instructions, changing nothing about it.
-    from rest_framework_pydantic_ai import SpecCapability
+    from django_spec_agents.spec_tools import SpecCapability
 
     return dict(specs), SpecCapability.from_toolset(service_specs), None
 
@@ -530,7 +530,7 @@ def _reject_unguarded_specs(specs: dict[str, Any]) -> None:
     ``DjangoAGUIView`` directly still fails per request.
 
     Imported lazily: ``djangorestframework-services`` arrives with the
-    ``[spec-tools]`` extra, and ``service_specs`` being set is what proves it is
+    ``[specs]`` extra, and ``service_specs`` being set is what proves it is
     installed.
     """
     from rest_framework_services import unguarded_specs

@@ -10,11 +10,11 @@ from typing import Any
 import pytest
 from django.http import HttpRequest, StreamingHttpResponse
 from django.test import RequestFactory, override_settings
-from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
-from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
-from django_pydantic_agent.persistence.types.attachment_ref import AttachmentRef
-from django_pydantic_agent.persistence.types.opened_attachment import OpenedAttachment
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
+from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
+from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.messages import (
     BinaryContent,
     ModelRequest,

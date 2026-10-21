@@ -21,8 +21,8 @@ from typing import Any
 import pytest
 from ag_ui.core import TextMessageContentEvent, TextMessageEndEvent, TextMessageStartEvent
 from django.test import RequestFactory, override_settings
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
 from pydantic_ai import Agent, BinaryContent, ToolReturn
 from pydantic_ai.messages import (
     FilePart,

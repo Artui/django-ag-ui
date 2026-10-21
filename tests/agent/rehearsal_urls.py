@@ -20,8 +20,8 @@ from typing import Any
 
 from django.http import HttpRequest
 from django.urls import path
-from django_pydantic_agent.registry.decorator import tool
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.registry.decorator import tool
+from django_spec_agents.registry.tool_registry import ToolRegistry
 
 from django_ag_ui.agent.agui_server import AGUIServer
 from tests.authed_request_factory import authenticated_user

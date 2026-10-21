@@ -8,11 +8,11 @@ from typing import Any
 
 from django.http import StreamingHttpResponse
 from django.test import RequestFactory
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
-from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
-from django_pydantic_agent.registry.decorator import tool
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.persistence.null_conversation_store import NullConversationStore
+from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
+from django_spec_agents.registry.decorator import tool
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.ui.ag_ui import AGUIAdapter

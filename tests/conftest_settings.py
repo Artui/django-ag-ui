@@ -10,7 +10,7 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "rest_framework",
     # Opt-in reference store app — exercises the shipped model + migration.
-    "django_pydantic_agent.contrib.store",
+    "django_spec_agents.contrib.store",
 ]
 
 # Minimal DRF config so the [drf-mcp] bridge tests can build + invoke tools.

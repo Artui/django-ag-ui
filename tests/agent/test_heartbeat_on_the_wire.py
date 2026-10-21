@@ -26,7 +26,7 @@ import uvicorn
 from django.core.handlers.asgi import ASGIHandler
 from django.test import override_settings
 from django.urls import path
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.function import FunctionModel
 
 from django_ag_ui.agent.agui_server import AGUIServer

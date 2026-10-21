@@ -9,10 +9,10 @@ import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import HttpRequest
 from django.test import RequestFactory, override_settings
-from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
-from django_pydantic_agent.persistence.null_attachment_store import NullAttachmentStore
-from django_pydantic_agent.persistence.types.attachment_ref import AttachmentRef
-from django_pydantic_agent.persistence.types.opened_attachment import OpenedAttachment
+from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
+from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
+from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
 
 from django_ag_ui.persistence.attachments_view import AttachmentsView
 from tests.authed_request_factory import AuthedRequestFactory
@@ -230,7 +230,7 @@ async def test_get_user_hook_opens_the_endpoint() -> None:
 @pytest.mark.django_db(transaction=True)
 async def test_download_and_delete_are_cross_owner_scoped() -> None:
     from asgiref.sync import sync_to_async
-    from django_pydantic_agent.contrib.store.default_attachment_store import DefaultAttachmentStore
+    from django_spec_agents.contrib.store.default_attachment_store import DefaultAttachmentStore
 
     store = DefaultAttachmentStore()
     ref = await sync_to_async(store._save)(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Mapping
 
 from ag_ui.core import BaseEvent, Interrupt, RunFinishedEvent, ToolCallStartEvent
-from django_pydantic_agent.constants import X_CONFIRM_KEY
+from django_spec_agents import X_CONFIRM_KEY
 
 
 async def stamp_approval_prompts(

@@ -8,7 +8,7 @@ from typing import Any, Protocol, runtime_checkable
 class SpecToolsetSource(Protocol):
     """An already-built spec toolset handed to ``AGUIServer(service_specs=...)``.
 
-    ``djangorestframework-pydantic-ai``'s ``SpecToolset`` is the intended
+    ``django_spec_agents.spec_tools.SpecToolset`` is the intended
     implementation: a project needing one of its knobs (``max_page_size``, an
     ``exception_map``, a ``build_context`` override, ``require_permissions=False``
     while migrating) builds the toolset itself and passes that instead of the
@@ -17,7 +17,7 @@ class SpecToolsetSource(Protocol):
 
     Matched **structurally rather than imported**, like
     ``SpecSource``:
-    drf-pydantic-ai arrives only with the optional ``[spec-tools]`` extra, so
+    what that module imports arrives only with the optional ``[specs]`` extra, so
     naming ``SpecToolset`` in a signature would force the dependency on every
     install.
 

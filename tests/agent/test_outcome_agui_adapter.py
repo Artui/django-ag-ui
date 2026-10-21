@@ -6,10 +6,10 @@ from typing import Any
 from ag_ui.core import BaseEvent, ReasoningEncryptedValueEvent, ToolCallResultEvent
 from ag_ui.encoder import EventEncoder
 from django.test import RequestFactory
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
-from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.persistence.null_conversation_store import NullConversationStore
+from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai import Agent, ToolFailed
 from pydantic_ai.messages import (
     FunctionToolResultEvent,
@@ -371,7 +371,8 @@ async def test_a_failed_call_reaches_the_browser_with_the_outcome_on_both_carrie
 async def test_a_refused_drf_mcp_tool_reaches_the_browser_marked_failed() -> None:
     """The same marking for a tool bridged from ``drf_mcp_server=``.
 
-    That bridge is django-pydantic-agent's, and below its 0.23 it *returned* the
+    That bridge is django-spec-agents', and in django-pydantic-agent, its
+    predecessor, below 0.23 it *returned* the
     server's refusal as ``{"error": ...}``, the tool's value, which pydantic-ai
     records as a success: the result above reached the browser with no
     ``outcome`` at all, and a refused call rendered as a completed one. This is

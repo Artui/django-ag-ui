@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.test import override_settings
-from django_pydantic_agent import AttachmentInlineConfig
-from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
-from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
+from django_spec_agents import AttachmentInlineConfig
+from django_spec_agents.policy.failure.types.tool_failure_config import ToolFailureConfig
+from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.run_context_config import RunContextConfig
