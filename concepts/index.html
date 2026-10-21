@@ -1721,7 +1721,7 @@ therefore can't read an <code>x-summary</code> off the schema to label a tool-ca
 The <strong>tool catalog</strong> is the channel for those labels: a small read-only JSON
 endpoint the web component fetches via its <code>data-tools-url</code> attribute and uses to
 map a tool name → a friendly card label.</p>
-<p><a href="../api/#django_pydantic_agent.agent.build_tool_catalog.build_tool_catalog"><code>build_tool_catalog(registry)</code></a>
+<p><a href="../api/#django_spec_agents.agent.build_tool_catalog.build_tool_catalog"><code>build_tool_catalog(registry)</code></a>
 builds the catalog as a list of entries, each
 <code>{"name", "summary", "description"?}</code>:</p>
 <ul>
@@ -1884,10 +1884,10 @@ reads as <code>404</code>, never another user's history — and the view carries
 <code>require_authenticated</code> / <code>get_user</code> auth seam as <code>DjangoAGUIView</code>.</p>
 <h3 id="a-ready-made-durable-store">A ready-made durable store<a class="headerlink" href="#a-ready-made-durable-store" title="Permanent link">&para;</a></h3>
 <p>For cross-device, per-user history without writing your own model, opt into the
-<code>django_pydantic_agent.contrib.store</code> app: add <code>"django_pydantic_agent.contrib.store"</code> to
+<code>django_spec_agents.contrib.store</code> app: add <code>"django_spec_agents.contrib.store"</code> to
 <code>INSTALLED_APPS</code>, run <code>migrate</code>, and set
 <a href="../configuration/#conversation_store"><code>conversation_store=</code></a> to
-<code>django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore</code>.
+<code>django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore</code>.
 It ships a <code>StoredConversation</code> model and a <code>ModelConversationStore</code> subclass with
 denormalised <code>title</code> / <code>preview</code> / <code>updated_at</code> columns so the thread list is a
 single cheap query. Projects that don't opt in get no model and no migration.</p>
@@ -1959,8 +1959,8 @@ blind the model to any pasted image.</p>
 <p><strong>Rows written before this are cleaned at rest, not by the run loop.</strong> A
 conversation stored by an earlier release keeps its base64 until something
 rewrites it, and that something is a management command rather than the next run:
-with django-pydantic-agent 0.15.0 or newer and its
-<code>django_pydantic_agent.contrib.store</code> app installed, <code>manage.py
+with django-spec-agents'
+<code>django_spec_agents.contrib.store</code> app installed, <code>manage.py
 agent_store_strip_inline_bytes</code> (<code>--dry-run</code> to see what it would reclaim) does
 structural JSON surgery on the stored rows, keeping every message id and every
 attachment ref intact. The attachments themselves are untouched in the

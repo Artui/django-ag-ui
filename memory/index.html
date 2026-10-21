@@ -1037,7 +1037,7 @@ in Berlin" — without the client re-sending it every run.</p>
 <p><strong>This package adds nothing for it.</strong> <code>pydantic-ai-harness</code> ships a complete
 memory capability, and <code>capabilities=</code> already carries it. What follows is a
 recipe, not a feature: the parts are upstream's and
-<a href="https://github.com/Artui/django-pydantic-agent">django-pydantic-agent</a>'s, and
+<a href="https://github.com/Artui/django-spec-agents">django-spec-agents</a>', and
 the only thing worth writing down is how they fit together here and what to turn
 on first.</p>
 <p>Needs the <code>[harness]</code> extra.</p>
@@ -1063,8 +1063,8 @@ every server-side tool runs the moment the model calls it.</p>
 unattended destructive calls. Each setting is defensible alone; they are only
 wrong together.</p>
 <h2 id="the-wiring">The wiring<a class="headerlink" href="#the-wiring" title="Permanent link">&para;</a></h2>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_pydantic_agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">memory_namespace_for_user</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_pydantic_agent.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">memory_namespace_for_user</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">DefaultMemoryStore</span><span class="p">,</span>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">)</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Memory</span>
@@ -1121,11 +1121,11 @@ request there is no session to key a per-visitor bucket on.</p>
 <h2 id="which-store">Which store<a class="headerlink" href="#which-store" title="Permanent link">&para;</a></h2>
 <p>Any object satisfying the harness's <code>MemoryStore</code> protocol. The harness bundles
 <code>InMemoryStore</code>, <code>FileStore</code>, <code>SqliteMemoryStore</code> and <code>PostgresMemoryStore</code>;
-django-pydantic-agent's <code>DefaultMemoryStore</code> is the Django one, and the one to
+django-spec-agents' <code>DefaultMemoryStore</code> is the Django one, and the one to
 reach for here — it neutralises the fence tags on write, applies per-owner file
 and byte ceilings the capability does not have, and carries a <code>purge(owner_id)</code>
 for erasure. See its
-<a href="https://artui.github.io/django-pydantic-agent/storage/">storage docs</a> for the
+<a href="https://artui.github.io/django-spec-agents/storage/">storage docs</a> for the
 details.</p>
 <p>The bundled stores are single-tenant: their scope lives only in the path.
 That is fine here because the namespace comes from <code>ctx.deps.user</code>, but it is
@@ -1144,7 +1144,7 @@ client-side, the same way <a href="../charts/">charts</a> do.</p>
 <h2 id="erasure">Erasure<a class="headerlink" href="#erasure" title="Permanent link">&para;</a></h2>
 <p>Memory is durable personal data written <em>about</em> a user, so an erasure request has
 to reach it. The protocol has no bulk or prefix delete;
-django-pydantic-agent ships <code>purge(owner_id)</code> and a management command for it:</p>
+django-spec-agents ships <code>purge(owner_id)</code> and a management command for it:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42
 </span></code></pre></div>
 <p>It is deliberately not wired to a <code>post_delete</code> signal on your user model —

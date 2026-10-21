@@ -410,6 +410,28 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#the-specs-extra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The [specs] extra
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#moving-from-django-pydantic-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Moving from django-pydantic-agent
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -850,6 +872,28 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#the-specs-extra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The [specs] extra
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#moving-from-django-pydantic-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Moving from django-pydantic-agent
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -878,11 +922,15 @@
 <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-ag-ui
 </span></code></pre></div>
-<p>Core dependencies are <code>django&gt;=4.2</code>, <code>django-pydantic-agent&gt;=0.28</code>,
+<p>Core dependencies are <code>django&gt;=4.2</code>, <code>django-spec-agents&gt;=0.1.0</code>,
 <code>pydantic-ai-slim[ui]&gt;=2.37,&lt;3</code> and <code>ag-ui-protocol&gt;=1.0</code>. The <code>AGUIAdapter</code> comes from pydantic-ai-slim and the
 AG-UI wire types from <code>ag-ui-protocol</code>; this package does not re-implement
 either. The <strong>slim</strong> package ships the adapter but <strong>no model-provider
 library</strong> — pick one via a provider extra (see below).</p>
+<p><a href="https://artui.github.io/django-spec-agents/">django-spec-agents</a> is the agent
+runtime underneath: the tool registry, agent construction, the guard and failure
+policies, audit and the storage contracts. This package re-exports the names you
+use from it, so <code>from django_ag_ui import ToolRegistry</code> is the spelling to keep.</p>
 <p>The <code>[ui]</code> extra rather than <code>[ag-ui]</code> is deliberate. From 2.47,
 pydantic-ai-slim's <code>[ag-ui]</code> extra caps <code>ag-ui-protocol</code> below 1.0, and this
 package needs 1.0, so asking for both would quietly hold pydantic-ai-slim at
@@ -1009,6 +1057,58 @@ tool registry to the agent in-process (no network MCP hop), install the extra:</
 only when a <code>drf_mcp_server=</code> is passed, so the dependency stays
 optional for projects that do not use it. See
 <a href="../configuration/#drf_mcp_server">Configuration → <code>drf_mcp_server=</code></a>.</p>
+<h2 id="the-specs-extra">The <code>[specs]</code> extra<a class="headerlink" href="#the-specs-extra" title="Permanent link">&para;</a></h2>
+<p>To expose drf-services specs to the agent as tools with no MCP server in the path
+(<code>service_specs=</code>), install the extra:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[specs]&quot;</span>
+</span></code></pre></div>
+<p>This pulls in <code>django-spec-agents[specs]</code>, whose <code>django_spec_agents.spec_tools</code>
+holds the <code>SpecToolset</code> and <code>SpecCapability</code> the endpoint builds, with
+<code>djangorestframework-services</code> and DRF beneath it. Like the bridge, it is
+imported lazily, only when <code>service_specs=</code> is passed. See
+<a href="../configuration/#service_specs">Configuration → <code>service_specs=</code></a>.</p>
+<p><code>[spec-tools]</code> is the extra's old name, and it still installs for this minor: it
+pulls in <code>django-spec-agents[specs]</code> and <code>djangorestframework-pydantic-ai</code>, so a
+project naming it keeps everything it had. A <code>SpecToolset</code> or <code>SpecCapability</code>
+built from <code>rest_framework_pydantic_ai</code> is still served when passed as
+<code>service_specs=</code>. The next minor removes <code>[spec-tools]</code>; move to <code>[specs]</code> and
+import from <code>django_spec_agents.spec_tools</code> before then.</p>
+<h2 id="moving-from-django-pydantic-agent">Moving from django-pydantic-agent<a class="headerlink" href="#moving-from-django-pydantic-agent" title="Permanent link">&para;</a></h2>
+<p>Releases of this package up to 0.68 ran on <code>django-pydantic-agent</code> and, for
+<code>service_specs=</code>, <code>djangorestframework-pydantic-ai</code>. django-spec-agents replaces
+both, and a project that used either directly moves with it:</p>
+<ul>
+<li><strong>Imports.</strong> <code>django_pydantic_agent</code> becomes <code>django_spec_agents</code>, and
+  <code>rest_framework_pydantic_ai</code> becomes <code>django_spec_agents.spec_tools</code>. Names
+  imported from <code>django_ag_ui</code> need no edit.</li>
+<li><strong>The reference store app.</strong> If <code>INSTALLED_APPS</code> lists it, the entry becomes
+  <code>"django_spec_agents.contrib.store"</code>. Its label follows the package, so run
+  <code>migrate</code> once: its one migration renames the store's tables in place, and it
+  needs <code>django-pydantic-agent</code>'s own store migrations applied first, so migrate
+  on the old release before you upgrade if yours is behind.</li>
+<li><strong>Registered names.</strong> The agent offers a registry tool under the name it was
+  registered with (<code>@tool(registry, name="...")</code>), where it used to offer the
+  function's own name. Anything that named such a tool by its function name,
+  <code>REQUIRE_APPROVAL</code>, <code>EXEMPT</code>, <code>approval_prompts</code> or an audit query, uses the
+  registered name now.</li>
+<li><strong>The spec toolset is not a rename.</strong> <code>django_spec_agents.spec_tools</code> exports
+  <code>SpecToolset</code>, <code>SpecCapability</code> and <code>AgentConventions</code> only: <code>AgentDeps</code>,
+  <code>QueryParam</code> and <code>UrlKwarg</code> are not there, and a toolset no longer takes
+  <code>query_params=</code>, <code>tool_query_params=</code>, <code>url_kwargs=</code> or <code>tool_url_kwargs=</code>,
+  which now raise <code>TypeError</code>. A spec declares what it reads on itself, with
+  <code>reads=</code>, and every route serving it reads the one declaration.</li>
+<li><strong>Names that change.</strong> The spec toolset logs to <code>django_spec_agents.spec_tools</code>,
+  where it logged to <code>rest_framework_pydantic_ai</code>, so a <code>LOGGING</code> entry under the
+  old name stops receiving. The attachments toolset's id is
+  <code>django-spec-agents-attachments</code>, the metadata key marking a destructive tool
+  is <code>django_spec_agents.destructive</code>, and a model or failure-policy error starts
+  <code>django-spec-agents:</code>.</li>
+<li><strong>Names that keep their spelling.</strong> The attachment storage alias
+  <code>django_pydantic_agent_attachments</code>, the session key the session conversation
+  store writes, and the <code>django_pydantic_agent.audit</code> and
+  <code>django_pydantic_agent.failure</code> loggers are unchanged, so existing settings,
+  sessions and those <code>LOGGING</code> entries keep working.</li>
+</ul>
 
 
 

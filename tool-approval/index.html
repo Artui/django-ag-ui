@@ -1002,11 +1002,11 @@ when:</p>
 or metadata of another shape leaves the tool alone — silence is not a claim, and
 <code>REQUIRE_APPROVAL</code> is the answer for a tool whose source declares nothing.</p>
 <div class="admonition note">
-<p class="admonition-title">Requires django-pydantic-agent 0.18</p>
-<p>The last two vocabularies arrived in the substrate's <code>ToolGuard</code> in 0.18.0.
-Below that floor the guard read only the drf-mcp metadata key, so the <em>same</em>
-spec was gated over the bridge and ungated in process — a transport swap
-silently removed the gate. This package floors at <code>&gt;=0.18</code> for that reason.</p>
+<p class="admonition-title">Why all four</p>
+<p>The guard once read only the drf-mcp metadata key, so the <em>same</em> spec was
+gated over the bridge and ungated in process: a transport swap silently
+removed the gate. Every release of django-spec-agents, this package's
+runtime, reads all four.</p>
 </div>
 <p><code>TOOL_GUARD["EXEMPT"]</code> un-gates a name even if it is destructive (<code>EXEMPT</code> wins).</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolRegistry</span><span class="p">,</span> <span class="n">tool</span>

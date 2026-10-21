@@ -1976,7 +1976,7 @@ believes it configured, and a warning would scroll past in a deploy log.</p>
 </tr>
 <tr>
 <td><code>service_specs={...}</code></td>
-<td>drf-services specs exposed as tools, no MCP hop — a mapping, a <code>SpecRegistry</code>, or a pre-built <code>SpecToolset</code> / <code>SpecCapability</code> (<code>[spec-tools]</code> extra).</td>
+<td>drf-services specs exposed as tools, no MCP hop — a mapping, a <code>SpecRegistry</code>, or a pre-built <code>SpecToolset</code> / <code>SpecCapability</code> (<code>[specs]</code> extra).</td>
 </tr>
 </tbody>
 </table>
@@ -2042,7 +2042,7 @@ the first run, and that is not an oversight.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;MODEL&quot;</span><span class="p">:</span> <span class="s2">&quot;anthropic:claude-sonnet-4.6&quot;</span><span class="p">}</span>
 </span></code></pre></div>
 <p>When <a href="#api_key"><code>API_KEY</code></a> or <a href="#provider"><code>provider=</code></a> is set, the <code>MODEL</code> string
-is routed through <a href="../api/#django_pydantic_agent.agent.build_model.build_model"><code>build_model</code></a>,
+is routed through <a href="../api/#django_spec_agents.agent.build_model.build_model"><code>build_model</code></a>,
 which delegates the <code>provider:</code> prefix → model resolution to Pydantic-AI itself —
 so any provider it knows works (<code>anthropic</code>, <code>openai</code>, <code>openai-responses</code>,
 <code>google</code>, <code>google-gla</code>, <code>groq</code>, <code>bedrock</code>, …), as does a bare model name it can
@@ -2109,7 +2109,7 @@ deployment a rehearsal is meant to check.</p>
 <h2 id="api_key"><code>API_KEY</code><a class="headerlink" href="#api_key" title="Permanent link">&para;</a></h2>
 <p>An explicit provider API key. When set (and <code>MODEL</code> is a <code>provider:name</code>
 string), the view builds the model via
-<a href="../api/#django_pydantic_agent.agent.build_model.build_model"><code>build_model</code></a> — passing the
+<a href="../api/#django_spec_agents.agent.build_model.build_model"><code>build_model</code></a> — passing the
 key to the prefix's default <code>Provider</code> — <strong>instead of</strong> letting Pydantic-AI
 infer the key from environment variables. Requires the matching provider extra
 installed (e.g. <code>django-ag-ui[anthropic]</code>). <a href="#provider"><code>provider=</code></a>, if also
@@ -2412,14 +2412,14 @@ subclass with your own model. See
 <div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">conversation_store</span><span class="o">=</span><span class="n">DjangoSessionConversationStore</span><span class="p">())</span>
 </span></code></pre></div>
 <p>For a ready-made <strong>durable, cross-device</strong> store, opt into the
-<code>django_pydantic_agent.contrib.store</code> app instead of writing your own model — add it to
+<code>django_spec_agents.contrib.store</code> app instead of writing your own model — add it to
 <code>INSTALLED_APPS</code>, run <code>migrate</code>, and point the setting at its store:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
 </span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    <span class="c1"># ...</span>
-</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>    <span class="s2">&quot;django_pydantic_agent.contrib.store&quot;</span><span class="p">,</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>    <span class="s2">&quot;django_spec_agents.contrib.store&quot;</span><span class="p">,</span>
 </span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="p">]</span>
 </span></code></pre></div>
-<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_pydantic_agent.contrib.store.default_conversation_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_conversation_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 </span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    <span class="n">DefaultConversationStore</span><span class="p">,</span>
 </span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="p">)</span>
 </span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>
@@ -2445,19 +2445,19 @@ a <a href="../concepts/#bytes-reach-the-model-not-the-row">stored thread</a> doe
 base64 the server produced, and a reloaded conversation re-reads the file
 server-side instead of re-uploading it. Inline content the <em>client</em> posted is
 stored as sent; rows written by an earlier release are cleaned by <code>manage.py
-agent_store_strip_inline_bytes</code>, from django-pydantic-agent 0.15.0.</p>
+agent_store_strip_inline_bytes</code>, which django-spec-agents ships.</p>
 <p>The package ships an abstract
 <a class="autorefs autorefs-internal" title="ModelAttachmentStore" href="../api/#django_ag_ui.ModelAttachmentStore"><code>ModelAttachmentStore</code></a> base you can subclass
 with your own model + storage. For a ready-made store, opt into the
-<code>django_pydantic_agent.contrib.store</code> app — add it to <code>INSTALLED_APPS</code>, run <code>migrate</code>, and
+<code>django_spec_agents.contrib.store</code> app — add it to <code>INSTALLED_APPS</code>, run <code>migrate</code>, and
 point the setting at its store (bytes go to Django <code>Storage</code>, so S3/GCS come free
 via <code>STORAGES</code> / <code>DEFAULT_FILE_STORAGE</code>):</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
 </span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>    <span class="c1"># ...</span>
-</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    <span class="s2">&quot;django_pydantic_agent.contrib.store&quot;</span><span class="p">,</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    <span class="s2">&quot;django_spec_agents.contrib.store&quot;</span><span class="p">,</span>
 </span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="p">]</span>
 </span></code></pre></div>
-<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_pydantic_agent.contrib.store.default_attachment_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_attachment_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 </span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>    <span class="n">DefaultAttachmentStore</span><span class="p">,</span>
 </span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="p">)</span>
 </span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>
@@ -2651,9 +2651,10 @@ as the web component's card label.</p>
 <h2 id="service_specs"><code>service_specs=</code><a class="headerlink" href="#service_specs" title="Permanent link">&para;</a></h2>
 <p>A <code>name -&gt; spec</code> mapping (drf-services <code>ServiceSpec</code> / <code>SelectorSpec</code> objects),
 or a <code>SpecRegistry</code>, exposed to the agent as tools <strong>without an MCP server</strong> via
-<code>djangorestframework-pydantic-ai</code>'s <code>SpecCapability</code>. <code>None</code> (the default)
-disables it. Requires the <code>[spec-tools]</code> extra
-(<code>pip install "django-ag-ui[spec-tools]"</code>), imported lazily.</p>
+django-spec-agents' <code>SpecCapability</code>. <code>None</code> (the default)
+disables it. Requires the <code>[specs]</code> extra
+(<code>pip install "django-ag-ui[specs]"</code>), imported lazily. The old <code>[spec-tools]</code>
+spelling still installs for one more minor; see <a href="../installation/">Installation</a>.</p>
 <p>This is the no-MCP-hop sibling of <a href="#drf_mcp_server"><code>drf_mcp_server=</code></a>: the specs
 are dispatched in-process through drf-services' transport-neutral surface
 (<code>dispatch_spec</code> + its off-HTTP helpers), enforcing each spec's
@@ -2676,9 +2677,8 @@ string for free. The flattened mapping has none of that, and the loss is silent:
 every tool is still there, just missing declarations nobody asked for. The same
 registry handed to an MCP server is read the same way, which is the point of
 declaring it once.</p>
-<p><strong>Every spec needs its own <code>permission_classes</code>.</strong> Since
-<code>djangorestframework-pydantic-ai</code> 0.13 a spec that omits them makes the endpoint
-raise <code>ImproperlyConfigured</code> at construction rather than exposing an ungated
+<p><strong>Every spec needs its own <code>permission_classes</code>.</strong> A spec that omits them makes
+the endpoint raise <code>ImproperlyConfigured</code> at construction rather than exposing an ungated
 tool. <code>permission_classes=None</code> means <em>inherit</em> over HTTP — the viewset's
 classes, then <code>DEFAULT_PERMISSION_CLASSES</code> — and there is no viewset here to
 inherit from, so a spec that is correctly guarded behind one becomes callable by
@@ -2705,7 +2705,7 @@ whatever the model decides to call.</p>
 <code>build_context</code> override, or <code>require_permissions=False</code> while migrating a
 registry too large to guard in one commit? <strong>Build the toolset yourself and pass
 it to <code>service_specs=</code>.</strong></p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
 </span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
 </span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="n">AGUIServer</span><span class="p">(</span>
 </span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>    <span class="n">registry</span><span class="p">,</span>
@@ -2728,7 +2728,7 @@ yours only through one of these:</p>
 the endpoint builds that capability itself and passes no <code>conventions=</code>. To keep
 a registry's declarations and reword, wrap the registry rather than flattening
 it:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentConventions</span><span class="p">,</span> <span class="n">SpecToolset</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentConventions</span><span class="p">,</span> <span class="n">SpecToolset</span>
 </span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>
 </span><span id="__span-30-3"><a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="n">AGUIServer</span><span class="p">(</span>
 </span><span id="__span-30-4"><a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>    <span class="n">registry</span><span class="p">,</span>
@@ -2739,7 +2739,7 @@ it:</p>
 </span><span id="__span-30-9"><a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>The two packages each export their own <code>AgentConventions</code>, configured
-separately: <code>rest_framework_pydantic_ai</code>'s for <code>service_specs=</code>, and
+separately: <code>django_spec_agents.spec_tools</code>'s for <code>service_specs=</code>, and
 <code>rest_framework_mcp</code>'s for the server behind <code>drf_mcp_server=</code>.</p>
 <p><strong>This does not cost you the tool-call card labels.</strong> The endpoint attaches
 the object as-is <em>and</em> reads its <code>specs</code> for the tool catalog and the tool-name
@@ -2899,7 +2899,9 @@ the transcript in a browser.</p>
 the tool raised, in full, against the tool that raised it, unless a capability
 that sorts after audit, such as one pinned innermost, changes it. Whenever the policy
 converts a failure it first logs the exception, with its traceback, to the
-<code>django_pydantic_agent.failure</code> Python logger. That logger hears only about the
+<code>django_pydantic_agent.failure</code> Python logger, a name it kept when the runtime
+moved to django-spec-agents so that <code>LOGGING</code> configured by name keeps receiving.
+That logger hears only about the
 failures the policy converts: nothing when a capability you passed as
 <code>capabilities=</code> recovered the call or answered for the model with its own
 <code>ModelRetry</code> or <code>ToolFailed</code>. A call that never runs the tool, such as one held
@@ -2992,8 +2994,7 @@ mutation in, so one setting covers the tools wherever they came from:</p>
 </ul>
 <p>A tool is gated when it is destructive <strong>or</strong> named in <code>REQUIRE_APPROVAL</code>,
 <strong>unless</strong> it is named in <code>EXEMPT</code>. Silence is not a claim: a tool declaring
-nothing is left alone, and <code>REQUIRE_APPROVAL</code> is the answer for it. The last two
-vocabularies need django-pydantic-agent 0.18, which this package's floor is above.</p>
+nothing is left alone, and <code>REQUIRE_APPROVAL</code> is the answer for it.</p>
 <p>The gate is only useful with a client that renders the interrupt and resumes —
 the web component's approval card is the front-end half of this feature; a bespoke
 AG-UI client handles the interrupt itself.</p>
