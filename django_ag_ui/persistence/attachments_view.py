@@ -12,12 +12,12 @@ from django.http import (
     JsonResponse,
 )
 from django.http.response import HttpResponseBase
-from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
-from django_pydantic_agent.persistence.null_attachment_store import NullAttachmentStore
-from django_pydantic_agent.persistence.types.attachment_ref import AttachmentRef
-from django_pydantic_agent.persistence.types.attachment_store import AttachmentStore
-from django_pydantic_agent.persistence.types.opened_attachment import OpenedAttachment
-from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
+from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
+from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
+from django_spec_agents.persistence.types.attachment_store import AttachmentStore
+from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
+from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig

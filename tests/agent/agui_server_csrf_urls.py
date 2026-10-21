@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.urls import path
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_server import AGUIServer

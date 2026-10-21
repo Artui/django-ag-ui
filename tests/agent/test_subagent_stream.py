@@ -14,7 +14,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from django.http import StreamingHttpResponse
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel

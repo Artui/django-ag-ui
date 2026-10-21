@@ -5,9 +5,9 @@ from typing import Any
 
 from django.http import HttpRequest, HttpResponseNotAllowed, JsonResponse
 from django.http.response import HttpResponseBase
-from django_pydantic_agent.agent.build_tool_catalog import build_tool_catalog
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
-from django_pydantic_agent.utils import AuthorizePredicate, auth_error_response, authorize
+from django_spec_agents.agent.build_tool_catalog import build_tool_catalog
+from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.utils import AuthorizePredicate, auth_error_response, authorize
 
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 
@@ -18,7 +18,7 @@ class ToolsView:
     A callable instance (like [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView])
     holding the same [`ToolRegistry`][django_ag_ui.ToolRegistry]
     the view uses. ``GET`` returns the
-    [`build_tool_catalog`][django_pydantic_agent.agent.build_tool_catalog.build_tool_catalog]
+    [`build_tool_catalog`][django_spec_agents.agent.build_tool_catalog.build_tool_catalog]
     list the web
     component fetches via ``data-tools-url`` to label tool-call cards for
     server-side tools (whose schema never reaches the browser).

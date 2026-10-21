@@ -4,11 +4,16 @@
 pip install django-ag-ui
 ```
 
-Core dependencies are `django>=4.2`, `django-pydantic-agent>=0.28`,
+Core dependencies are `django>=4.2`, `django-spec-agents>=0.1.0`,
 `pydantic-ai-slim[ui]>=2.37,<3` and `ag-ui-protocol>=1.0`. The `AGUIAdapter` comes from pydantic-ai-slim and the
 AG-UI wire types from `ag-ui-protocol`; this package does not re-implement
 either. The **slim** package ships the adapter but **no model-provider
 library** — pick one via a provider extra (see below).
+
+[django-spec-agents](https://artui.github.io/django-spec-agents/) is the agent
+runtime underneath: the tool registry, agent construction, the guard and failure
+policies, audit and the storage contracts. This package re-exports the names you
+use from it, so `from django_ag_ui import ToolRegistry` is the spelling to keep.
 
 The `[ui]` extra rather than `[ag-ui]` is deliberate. From 2.47,
 pydantic-ai-slim's `[ag-ui]` extra caps `ag-ui-protocol` below 1.0, and this
@@ -127,3 +132,62 @@ This pulls in `djangorestframework-mcp-server` (which in turn pulls
 only when a `drf_mcp_server=` is passed, so the dependency stays
 optional for projects that do not use it. See
 [Configuration → `drf_mcp_server=`](configuration.md#drf_mcp_server).
+
+## The `[specs]` extra
+
+To expose drf-services specs to the agent as tools with no MCP server in the path
+(`service_specs=`), install the extra:
+
+```bash
+pip install "django-ag-ui[specs]"
+```
+
+This pulls in `django-spec-agents[specs]`, whose `django_spec_agents.spec_tools`
+holds the `SpecToolset` and `SpecCapability` the endpoint builds, with
+`djangorestframework-services` and DRF beneath it. Like the bridge, it is
+imported lazily, only when `service_specs=` is passed. See
+[Configuration → `service_specs=`](configuration.md#service_specs).
+
+`[spec-tools]` is the extra's old name, and it still installs for this minor: it
+pulls in `django-spec-agents[specs]` and `djangorestframework-pydantic-ai`, so a
+project naming it keeps everything it had. A `SpecToolset` or `SpecCapability`
+built from `rest_framework_pydantic_ai` is still served when passed as
+`service_specs=`. The next minor removes `[spec-tools]`; move to `[specs]` and
+import from `django_spec_agents.spec_tools` before then.
+
+## Moving from django-pydantic-agent
+
+Releases of this package up to 0.68 ran on `django-pydantic-agent` and, for
+`service_specs=`, `djangorestframework-pydantic-ai`. django-spec-agents replaces
+both, and a project that used either directly moves with it:
+
+- **Imports.** `django_pydantic_agent` becomes `django_spec_agents`, and
+  `rest_framework_pydantic_ai` becomes `django_spec_agents.spec_tools`. Names
+  imported from `django_ag_ui` need no edit.
+- **The reference store app.** If `INSTALLED_APPS` lists it, the entry becomes
+  `"django_spec_agents.contrib.store"`. Its label follows the package, so run
+  `migrate` once: its one migration renames the store's tables in place, and it
+  needs `django-pydantic-agent`'s own store migrations applied first, so migrate
+  on the old release before you upgrade if yours is behind.
+- **Registered names.** The agent offers a registry tool under the name it was
+  registered with (`@tool(registry, name="...")`), where it used to offer the
+  function's own name. Anything that named such a tool by its function name,
+  `REQUIRE_APPROVAL`, `EXEMPT`, `approval_prompts` or an audit query, uses the
+  registered name now.
+- **The spec toolset is not a rename.** `django_spec_agents.spec_tools` exports
+  `SpecToolset`, `SpecCapability` and `AgentConventions` only: `AgentDeps`,
+  `QueryParam` and `UrlKwarg` are not there, and a toolset no longer takes
+  `query_params=`, `tool_query_params=`, `url_kwargs=` or `tool_url_kwargs=`,
+  which now raise `TypeError`. A spec declares what it reads on itself, with
+  `reads=`, and every route serving it reads the one declaration.
+- **Names that change.** The spec toolset logs to `django_spec_agents.spec_tools`,
+  where it logged to `rest_framework_pydantic_ai`, so a `LOGGING` entry under the
+  old name stops receiving. The attachments toolset's id is
+  `django-spec-agents-attachments`, the metadata key marking a destructive tool
+  is `django_spec_agents.destructive`, and a model or failure-policy error starts
+  `django-spec-agents: `.
+- **Names that keep their spelling.** The attachment storage alias
+  `django_pydantic_agent_attachments`, the session key the session conversation
+  store writes, and the `django_pydantic_agent.audit` and
+  `django_pydantic_agent.failure` loggers are unchanged, so existing settings,
+  sessions and those `LOGGING` entries keep working.

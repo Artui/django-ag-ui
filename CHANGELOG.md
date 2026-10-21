@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.69.0] — 2026-10-21
+
+### Changed
+
+- **The agent runtime is django-spec-agents.** The dependency on
+  `django-pydantic-agent` becomes `django-spec-agents>=0.1.0`, which merges that
+  package with `djangorestframework-pydantic-ai`: the host keeps its layout under
+  `django_spec_agents`, and the spec toolset is `django_spec_agents.spec_tools`.
+  0.1.0 is held equal in behaviour to django-pydantic-agent 0.28.2 and
+  djangorestframework-pydantic-ai 0.36.1 on every call a spec answers. What a
+  run can see change is the registered tool names below, a `description=`
+  override on a registered tool now reaching the model, the attachments
+  toolset's id (`django-spec-agents-attachments`), and the `django-spec-agents: `
+  prefix on a model or failure-policy error. The names this package re-exports
+  keep their spelling, so `from django_ag_ui import ToolRegistry` needs no edit.
+  A project importing either old package directly moves those imports to
+  `django_spec_agents` and `django_spec_agents.spec_tools`, and the second is
+  not a rename: `AgentDeps`, `QueryParam` and `UrlKwarg` are not exported there,
+  the toolset's `query_params=` and `url_kwargs=` keywords and their per-tool
+  forms are gone in favour of a spec's own `reads=`, and the toolset logs to
+  `django_spec_agents.spec_tools` rather than `rest_framework_pydantic_ai`. The
+  installation guide's section on moving lists each.
+- **The reference store app moves with it.** A project listing it changes its
+  `INSTALLED_APPS` entry to `"django_spec_agents.contrib.store"` and runs
+  `migrate` once: the new app's one migration renames the store's tables in
+  place, and it needs django-pydantic-agent's own store migrations applied
+  first. The attachment storage alias, the session key and the
+  `django_pydantic_agent.audit` and `django_pydantic_agent.failure` loggers keep
+  their names, so existing settings, sessions and `LOGGING` keep working.
+- **`[specs]` is the extra for `service_specs=`**, installing
+  `django-spec-agents[specs]`. `[spec-tools]` still installs for this minor,
+  pulling in `django-spec-agents[specs]` and `djangorestframework-pydantic-ai`,
+  and a `SpecToolset` or `SpecCapability` built from the old package is still
+  served when passed as `service_specs=`. The next minor removes `[spec-tools]`.
+- **A registry tool is offered under its registered name.** The agent now offers
+  a tool registered with `@tool(registry, name="...")` under that name, where it
+  offered the function's own name before, so the name the model calls, the
+  approval prompt this endpoint folds in from `confirm=` and the guard's gate
+  finally agree. Anything that named such a tool by its function name,
+  `TOOL_GUARD`'s `REQUIRE_APPROVAL` or `EXEMPT`, `approval_prompts` or an audit
+  query, must use the registered name.
+- **`[drf-mcp]` requires `djangorestframework-mcp-server>=0.53.1`**, where a
+  list selector raising `Http404` is a failed call reading not found, as it is
+  through `[specs]`. Below it the bridged route served it as a successful empty
+  list.
+
 ## [0.68.3] — 2026-10-20
 
 ### Fixed
@@ -4023,7 +4069,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.68.3...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.69.0...HEAD
+[0.69.0]: https://github.com/Artui/django-ag-ui/compare/v0.68.3...v0.69.0
 [0.68.3]: https://github.com/Artui/django-ag-ui/compare/v0.68.2...v0.68.3
 [0.68.2]: https://github.com/Artui/django-ag-ui/compare/v0.68.1...v0.68.2
 [0.68.1]: https://github.com/Artui/django-ag-ui/compare/v0.68.0...v0.68.1

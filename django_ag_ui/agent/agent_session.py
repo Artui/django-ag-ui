@@ -9,14 +9,14 @@ from typing import Any, cast
 
 from ag_ui.core import BaseEvent, Message, RunErrorEvent
 from django.http import HttpRequest
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
-from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
-from django_pydantic_agent.persistence.types.conversation import Conversation
-from django_pydantic_agent.persistence.types.conversation_store import ConversationStore
-from django_pydantic_agent.persistence.utils import owner_id_for, resolve_owner_id
-from django_pydantic_agent.policy.audit.types.audit_event import AuditEvent
-from django_pydantic_agent.policy.audit.types.audit_logger import AuditLogger
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.persistence.null_conversation_store import NullConversationStore
+from django_spec_agents.persistence.types.conversation import Conversation
+from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.persistence.utils import owner_id_for, resolve_owner_id
+from django_spec_agents.policy.audit.types.audit_event import AuditEvent
+from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
 

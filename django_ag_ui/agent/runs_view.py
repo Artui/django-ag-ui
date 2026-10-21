@@ -5,8 +5,8 @@ from typing import Any, cast
 from asgiref.sync import markcoroutinefunction
 from django.http import HttpRequest, HttpResponseNotAllowed, JsonResponse
 from django.http.response import HttpResponseBase
-from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
-from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
+from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 from pydantic_ai.messages import ToolReturnPart, UserPromptPart
 
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
@@ -194,7 +194,7 @@ def _preview(snapshot: Any) -> str | None:
     turn, merged by pydantic-ai, so passing over every user part beside a tool
     return would name the resumed run after the run it resumed. The cost is a
     tool that hands the model text rather than a file, which names the run by
-    that text; no tool in this package or django-pydantic-agent does.
+    that text; no tool in this package or django-spec-agents does.
 
     Each half of that guard is held by its own test, because an ``and``-chain is
     one branch arc and coverage stays at 100% with either deleted. Without the

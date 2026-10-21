@@ -4,9 +4,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from django_pydantic_agent import AttachmentInlineConfig
-from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
-from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
+from django_spec_agents import AttachmentInlineConfig
+from django_spec_agents.policy.failure.types.tool_failure_config import ToolFailureConfig
+from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 from django_ag_ui.config.types.run_context_config import RunContextConfig
 

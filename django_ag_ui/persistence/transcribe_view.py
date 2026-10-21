@@ -10,7 +10,7 @@ from django.http import (
     JsonResponse,
 )
 from django.http.response import HttpResponseBase
-from django_pydantic_agent.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
+from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config

@@ -4,9 +4,9 @@ from collections.abc import Mapping
 from typing import Any, cast, get_args
 
 from django.core.exceptions import ImproperlyConfigured
-from django_pydantic_agent import AttachmentInlineConfig
-from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
-from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
+from django_spec_agents import AttachmentInlineConfig
+from django_spec_agents.policy.failure.types.tool_failure_config import ToolFailureConfig
+from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 
 from django_ag_ui.conf import get_setting
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig

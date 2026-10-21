@@ -17,8 +17,8 @@ Every run's `RunAgentInput.state` arrives on `ctx.deps.state`:
 
 ```python
 from pydantic_ai import RunContext
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.registry.decorator import tool
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.registry.decorator import tool
 
 from myproject.agent import registry
 

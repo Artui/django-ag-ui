@@ -9,7 +9,7 @@ Both are pure composition over the [`capabilities=`](configuration.md#capabiliti
 seam plus the optional `[harness]` extra — **no django-ag-ui code involved**. The
 capabilities themselves, and which compaction strategy to pick, are documented
 where the seam lives: see
-[django-pydantic-agent's integrations guide](https://artui.github.io/django-pydantic-agent/integrations/#harness-upstream-capabilities).
+[django-spec-agents' integrations guide](https://artui.github.io/django-spec-agents/integrations/#harness-upstream-capabilities).
 
 ```bash
 pip install "django-ag-ui[harness]"

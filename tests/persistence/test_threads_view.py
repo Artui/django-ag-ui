@@ -11,12 +11,12 @@ from django.conf import settings
 from django.contrib.sessions.backends.signed_cookies import SessionStore
 from django.http import HttpRequest
 from django.test import RequestFactory
-from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
-from django_pydantic_agent.persistence.django_session_conversation_store import (
+from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
 )
-from django_pydantic_agent.persistence.types.conversation import Conversation
-from django_pydantic_agent.persistence.types.conversation_meta import ConversationMeta
+from django_spec_agents.persistence.types.conversation import Conversation
+from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 
 from django_ag_ui.agent.chart_activity import CHART_ACTIVITY_TYPE, chart_activity
 from django_ag_ui.agent.types.chart_series import ChartSeries

@@ -109,22 +109,22 @@ The seam both spending routes take — the agent endpoint via `throttle=` and
 
 ### Reference store (opt-in)
 
-The `django_pydantic_agent.contrib.store` app ships a ready-to-use durable store. Add it
+The `django_spec_agents.contrib.store` app ships a ready-to-use durable store. Add it
 to `INSTALLED_APPS`, run `migrate`, then set
 `conversation_store=` to
-`django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore`.
+`django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore`.
 Projects that don't opt in get no model and no migration.
 
-::: django_pydantic_agent.contrib.store.default_conversation_store.DefaultConversationStore
+::: django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore
 
-::: django_pydantic_agent.contrib.store.models.StoredConversation
+::: django_spec_agents.contrib.store.models.StoredConversation
 
 ## Step persistence
 
 The durable run / event / snapshot ledger behind `resume/`, `fork/` and `runs/`.
 The store itself is a `request -> StepStore` factory from
 `pydantic-ai-harness` (the reference one is
-`django_pydantic_agent.contrib.store.default_step_store.DefaultStepStore`); this
+`django_spec_agents.contrib.store.default_step_store.DefaultStepStore`); this
 is the wrapper that keeps two endpoints' ledgers apart, the way
 [`ScopedConversationStore`][django_ag_ui.ScopedConversationStore] does for
 thread history.
@@ -148,16 +148,16 @@ thread history.
 
 ### Reference attachment store (opt-in)
 
-The same `django_pydantic_agent.contrib.store` app ships a ready-to-use durable file
+The same `django_spec_agents.contrib.store` app ships a ready-to-use durable file
 store. With the app installed and migrated, set
 `attachment_store=` to
-`django_pydantic_agent.contrib.store.default_attachment_store.DefaultAttachmentStore`. The
+`django_spec_agents.contrib.store.default_attachment_store.DefaultAttachmentStore`. The
 bytes go to Django `Storage` (S3/GCS via `STORAGES` / `DEFAULT_FILE_STORAGE`);
 projects that don't opt in get no model and no migration.
 
-::: django_pydantic_agent.contrib.store.default_attachment_store.DefaultAttachmentStore
+::: django_spec_agents.contrib.store.default_attachment_store.DefaultAttachmentStore
 
-::: django_pydantic_agent.contrib.store.models.StoredAttachment
+::: django_spec_agents.contrib.store.models.StoredAttachment
 
 ## Voice input
 
@@ -222,10 +222,10 @@ These are not part of the public re-export surface but are referenced from the
 guides.
 
 
-::: django_pydantic_agent.agent.build_model.build_model
+::: django_spec_agents.agent.build_model.build_model
 
-::: django_pydantic_agent.agent.build_tool_catalog.build_tool_catalog
+::: django_spec_agents.agent.build_tool_catalog.build_tool_catalog
 
-::: django_pydantic_agent.integrations.drf_mcp.DRFMCPToolset
+::: django_spec_agents.integrations.drf_mcp.DRFMCPToolset
 
-::: django_pydantic_agent.agent.attachment_toolset.build_attachment_toolset
+::: django_spec_agents.agent.attachment_toolset.build_attachment_toolset

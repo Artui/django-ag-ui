@@ -82,8 +82,8 @@ browser half is
   bridge (the `[drf-mcp]` extra) so the agent can query DRF-exposed data.
 - **drf-services specs as tools, no MCP hop** — pass `service_specs=` a
   `name → spec` mapping and the agent calls them in-process via
-  [`djangorestframework-pydantic-ai`](https://github.com/Artui/djangorestframework-pydantic-ai)'s
-  `SpecCapability` (the `[spec-tools]` extra) — permission-checked, acting as the
+  [`django-spec-agents`](https://github.com/Artui/django-spec-agents)'
+  `SpecCapability` (the `[specs]` extra) — permission-checked, acting as the
   logged-in user, with the spec conventions taught to the model.
 - **100% test coverage**, type-checked, Python 3.10–3.14, Django 4.2–6.0.
 
@@ -95,7 +95,7 @@ pip install "django-ag-ui[anthropic]"   # or [openai], or [google]
 uv add "django-ag-ui[anthropic]"
 ```
 
-> The core deps are `django-pydantic-agent`, `pydantic-ai-slim[ui]` and
+> The core deps are `django-spec-agents`, `pydantic-ai-slim[ui]` and
 > `ag-ui-protocol`. Slim ships no
 > model-provider library — pick one via a provider extra (`anthropic` /
 > `openai` / `google`).

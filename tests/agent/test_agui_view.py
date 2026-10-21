@@ -10,12 +10,13 @@ from typing import Any
 import pytest
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.http import StreamingHttpResponse
+from django.http import Http404, StreamingHttpResponse
 from django.test import RequestFactory, override_settings
-from django_pydantic_agent import AttachmentInlineConfig
-from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
-from django_pydantic_agent.registry.decorator import tool
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents import AttachmentInlineConfig
+from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
+from django_spec_agents.registry.decorator import tool
+from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
 from pydantic_ai.models.function import DeltaToolCall, FunctionModel
 from pydantic_ai.models.test import TestModel
 from rest_framework import serializers
@@ -23,7 +24,6 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework_mcp import AgentConventions as MCPAgentConventions
 from rest_framework_mcp import MCPServer, QueryParam
-from rest_framework_pydantic_ai import AgentConventions, SpecCapability, SpecToolset
 from rest_framework_services import SpecRegistry
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -335,21 +335,21 @@ async def test_explicit_instructions_win() -> None:
 
 async def test_audit_logger_defaults_to_the_null_logger() -> None:
     """No dotted path to resolve: the logger is passed, or there is none."""
-    from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
+    from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
 
     view = DjangoAGUIView(_registry(), model=TestModel())
     assert isinstance(view._resolve_audit_logger(), NullAuditLogger)
 
 
 async def test_audit_logger_is_passed_not_named() -> None:
-    from django_pydantic_agent.policy.audit.logging_audit_logger import LoggingAuditLogger
+    from django_spec_agents.policy.audit.logging_audit_logger import LoggingAuditLogger
 
     view = DjangoAGUIView(_registry(), model=TestModel(), audit_logger=LoggingAuditLogger())
     assert isinstance(view._resolve_audit_logger(), LoggingAuditLogger)
 
 
 async def test_explicit_audit_logger_wins() -> None:
-    from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
+    from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
 
     sentinel = NullAuditLogger()
     view = DjangoAGUIView(_registry(), model=TestModel(), audit_logger=sentinel)
@@ -501,7 +501,7 @@ class TestPerRequestOverrides:
 
 async def test_conversation_is_persisted_when_a_store_is_configured() -> None:
     from django.contrib.sessions.backends.signed_cookies import SessionStore
-    from django_pydantic_agent.persistence.django_session_conversation_store import (
+    from django_spec_agents.persistence.django_session_conversation_store import (
         DjangoSessionConversationStore,
     )
 
@@ -525,10 +525,10 @@ async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
     # An open agent endpoint + a model store that refuses anonymous writes (the
     # default, no ALLOW_ANONYMOUS): the run streams to completion and the save is
     # skipped rather than crashing the stream — no row is written.
-    from django_pydantic_agent.contrib.store.default_conversation_store import (
+    from django_spec_agents.contrib.store.default_conversation_store import (
         DefaultConversationStore,
     )
-    from django_pydantic_agent.contrib.store.models import StoredConversation
+    from django_spec_agents.contrib.store.models import StoredConversation
 
     view = DjangoAGUIView(
         _registry(),
@@ -543,7 +543,7 @@ async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
 
 
 async def test_drf_mcp_toolset_built_per_request_when_configured() -> None:
-    from django_pydantic_agent.integrations.drf_mcp import DRFMCPToolset
+    from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
 
     view = DjangoAGUIView(_registry(), model=TestModel())
     request = RequestFactory().post("/agent/")
@@ -560,7 +560,7 @@ async def test_no_drf_mcp_toolset_without_the_setting() -> None:
 
 
 _DEFAULT_ATTACHMENT_STORE = (
-    "django_pydantic_agent.contrib.store.default_attachment_store.DefaultAttachmentStore"
+    "django_spec_agents.contrib.store.default_attachment_store.DefaultAttachmentStore"
 )
 
 
@@ -570,7 +570,7 @@ async def test_attachment_toolset_built_per_request_when_configured() -> None:
         _DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/"), set()
     )
     assert len(toolsets) == 1
-    assert toolsets[0].id == "django-pydantic-agent-attachments"
+    assert toolsets[0].id == "django-spec-agents-attachments"
 
 
 async def test_the_configured_inline_budget_reaches_the_toolset() -> None:
@@ -825,7 +825,7 @@ async def _cancel_mid_stream(response: StreamingHttpResponse, marker: str) -> No
 
 async def test_disconnect_persists_partial_audits_and_closes_the_model_stream() -> None:
     from django.contrib.sessions.backends.signed_cookies import SessionStore
-    from django_pydantic_agent.persistence.django_session_conversation_store import (
+    from django_spec_agents.persistence.django_session_conversation_store import (
         DjangoSessionConversationStore,
     )
 
@@ -925,7 +925,7 @@ def test_no_step_persistence_capability_without_a_store() -> None:
 async def test_step_store_records_the_run_end_to_end() -> None:
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
-    from django_pydantic_agent.contrib.store.models import (
+    from django_spec_agents.contrib.store.models import (
         StoredRun,
         StoredStepEvent,
         StoredToolEffect,
@@ -952,12 +952,12 @@ async def test_step_store_records_the_run_end_to_end() -> None:
 @pytest.mark.django_db(transaction=True)
 async def test_step_store_records_the_tools_own_exception() -> None:
     # The step ledger records a failed call from ``StepPersistence``'s error
-    # hook, and django-pydantic-agent's failure policy converts the same
+    # hook, and django-spec-agents' failure policy converts the same
     # exception into the redacted ``ToolFailed`` the model is shown. The ledger
     # is what an operator reads to find out why a run went wrong, so it must
     # hold what the tool raised rather than the policy's copy with the text
-    # withheld. It does on both sides of django-pydantic-agent 0.27, where
-    # the policy moved: this view attaches ``StepPersistence`` per run, and a per-run
+    # withheld. It did on both sides of django-pydantic-agent 0.27, the
+    # runtime's predecessor, where the policy moved: this view attaches ``StepPersistence`` per run, and a per-run
     # capability's error hook runs before the agent's own, so the policy's
     # move to outermost in 0.27 changes nothing here. The test holds that, so
     # a later reordering on either side cannot quietly hand the ledger the copy.
@@ -965,7 +965,7 @@ async def test_step_store_records_the_tools_own_exception() -> None:
     # does change; the next test covers it.
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
-    from django_pydantic_agent.contrib.store.models import StoredStepEvent, StoredToolEffect
+    from django_spec_agents.contrib.store.models import StoredStepEvent, StoredToolEffect
 
     reg = ToolRegistry()
 
@@ -999,7 +999,7 @@ async def test_step_store_records_the_tools_own_exception() -> None:
 
 @pytest.mark.django_db
 async def test_a_capability_passed_to_the_view_sees_the_tools_own_exception() -> None:
-    # Below 0.27 django-pydantic-agent appended its failure policy after
+    # Below 0.27 django-pydantic-agent, the runtime's predecessor, appended its failure policy after
     # ``capabilities=`` with no position, so it sat inside every capability
     # passed here that does not pin itself innermost, and pydantic-ai runs
     # error hooks innermost first: each such capability, this one included,
@@ -1046,7 +1046,7 @@ async def test_a_capability_passed_to_the_view_sees_the_tools_own_exception() ->
 async def test_resume_seeds_a_new_run_from_a_prior_snapshot() -> None:
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
-    from django_pydantic_agent.contrib.store.models import StoredRun, StoredSnapshot
+    from django_spec_agents.contrib.store.models import StoredRun, StoredSnapshot
 
     user = await sync_to_async(get_user_model().objects.create)(username="resumer")
     view = DjangoAGUIView(
@@ -1602,6 +1602,67 @@ async def test_a_selection_refused_while_rendering_streams_as_a_retry_on_both_ro
     assert json.loads(page["content"])["items"] == [{"name": "a"}, {"name": "b"}]
 
 
+# --- a list that is not found ----------------------------------------------
+#
+# A LIST selector that raises ``Http404`` has nothing to list, and both routes
+# now answer that as a failed call reading ``not found``. Below drf-mcp 0.53.1
+# the bridged route served it as a successful empty list, so a model read "no
+# rows" where the selection named nothing, and the transcript said the opposite
+# of what the spec route said for the same call. The ``[drf-mcp]`` floor is
+# what moves it, and this test is what holds that floor.
+
+
+def _missing_rows() -> list[dict[str, Any]]:
+    raise Http404("no such board")
+
+
+_MISSING_SPEC = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=_missing_rows,
+    output_serializer=_SelectableRow,
+    permission_classes=[AllowAny],
+)
+
+
+def _bridged_missing() -> dict[str, Any]:
+    server = MCPServer(name="missing")
+    server.register_selector_tool(name="list_rows", description="List rows.", spec=_MISSING_SPEC)
+    return {"drf_mcp_server": server}
+
+
+def _spec_missing() -> dict[str, Any]:
+    registry = SpecRegistry()
+    registry.register("list_rows", _MISSING_SPEC)
+    toolset = SpecToolset(registry, descriptions={"list_rows": "List rows."})
+    specs, capability, source = _resolve_spec_source(toolset)
+    return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
+
+
+def _listing_model() -> FunctionModel:
+    async def stream_fn(messages, info):  # noqa: ANN001, ANN202
+        if any(part.part_kind == "tool-return" for part in messages[-1].parts):
+            yield "done"
+            return
+        yield {0: DeltaToolCall(name="list_rows", json_args="{}", tool_call_id="c1")}
+
+    return FunctionModel(stream_function=stream_fn)
+
+
+@pytest.mark.parametrize("route", [_bridged_missing, _spec_missing], ids=["drf-mcp", "spec-tools"])
+async def test_a_list_that_is_not_found_is_a_failed_call_on_both_routes(route: Any) -> None:
+    view = DjangoAGUIView(ToolRegistry(), model=_listing_model(), **route())
+
+    body = await _drain(await view(_post(_run_input("list the rows"))))
+
+    events = [json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: ")]
+    assert events[-1]["type"] == "RUN_FINISHED"
+    (result,) = [event for event in events if event["type"] == "TOOL_CALL_RESULT"]
+    # Not an empty page: the call failed, and the browser is told so.
+    assert result.get("outcome") == "failed"
+    assert "not found" in result["content"]
+    assert result["content"] != "[]"
+
+
 # --- a call that leaves out the argument naming its row ---------------------
 #
 # A service tool changing one row resolves that row through a lookup, here
@@ -1620,7 +1681,7 @@ async def test_a_selection_refused_while_rendering_streams_as_a_retry_on_both_ro
 # ``TOOL_CALL_RESULT`` with no ``outcome``, sent as it is. Both routes write
 # the same sentence, naming only the arguments the model left out, never a
 # value it sent: drf-mcp words its missing-argument refusal as the Pydantic-AI
-# toolset does, and django-pydantic-agent's bridge sends it without appending
+# toolset does, and django-spec-agents' bridge sends it without appending
 # a detail that only repeats it.
 
 

@@ -1,6 +1,6 @@
 """Django ↔ Pydantic-AI ↔ AG-UI integration."""
 
-from django_pydantic_agent import (
+from django_spec_agents import (
     X_CATEGORY_KEY,
     X_CONFIRM_KEY,
     X_DESTRUCTIVE_KEY,
@@ -84,7 +84,7 @@ from django_ag_ui.skills.skill_registry import SkillRegistry
 from django_ag_ui.skills.types.skill_spec import SkillSpec
 from django_ag_ui.version import __version__
 
-# The block imported from ``django_pydantic_agent`` above is re-exported
+# The block imported from ``django_spec_agents`` above is re-exported
 # **permanently**: those symbols moved into the shared agent-host substrate, but
 # ``from django_ag_ui import ToolRegistry`` (and friends) keeps working for good,
 # so downstream projects never have to chase the move. The public surface below

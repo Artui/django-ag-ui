@@ -27,8 +27,8 @@ from __future__ import annotations
 from typing import Any
 
 from django.test import AsyncClient, override_settings
-from django_pydantic_agent.registry.decorator import tool
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.registry.decorator import tool
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView

@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from django.http import HttpRequest, StreamingHttpResponse
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.registry.decorator import tool
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.registry.decorator import tool
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic import BaseModel
 from pydantic_ai import RunContext
 from pydantic_ai.models.test import TestModel
@@ -145,7 +145,7 @@ class TestTheServerThreadsIt:
         server = AGUIServer(
             _recording_registry(seen),
             model=TestModel(),
-            # ``user`` is required from django-pydantic-agent 0.18; the sibling
+            # ``AgentDeps`` requires ``user``; the sibling
             # cases above already name it, this one had been leaning on the default.
             deps_factory=lambda _request: _TenantDeps(user="alice", tenant="acme"),
         )

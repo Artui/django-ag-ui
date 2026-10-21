@@ -10,11 +10,11 @@ from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
-from django_pydantic_agent.registry.decorator import tool
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.registry.decorator import tool
+from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.spec_tools import SpecCapability, SpecToolset
 from pydantic_ai.models.test import TestModel
 from rest_framework.permissions import AllowAny
-from rest_framework_pydantic_ai import SpecCapability, SpecToolset
 from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec, SpecRegistry
 
 from django_ag_ui.agent.agui_server import AGUIServer
@@ -33,9 +33,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from rest_framework.permissions import AllowAny
-from rest_framework_pydantic_ai import SpecCapability, SpecToolset
+from django_spec_agents.spec_tools import SpecCapability, SpecToolset
 from rest_framework_services import SelectorKind, SelectorSpec, SpecRegistry
 
 from django_ag_ui import AGUIServer
@@ -175,7 +175,7 @@ class TestTheSourceSurvivesNormalisation:
 
     def test_a_prebuilt_capability_is_not_a_source(self) -> None:
         """It is attached as itself, so nothing is built from a source for it."""
-        from rest_framework_pydantic_ai import SpecCapability
+        from django_spec_agents.spec_tools import SpecCapability
 
         server = _server(service_specs=SpecCapability({"list_widgets": _selector()}))
 
@@ -186,7 +186,7 @@ class TestTheSourceSurvivesNormalisation:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The whole point of keeping it: the builder must see the entries."""
-        from django_pydantic_agent.integrations import build_spec_capability as builder_module
+        from django_spec_agents.integrations import build_spec_capability as builder_module
 
         captured: list[Any] = []
 
@@ -207,7 +207,7 @@ class TestTheSourceSurvivesNormalisation:
     def test_a_mapping_still_reaches_the_builder_as_a_mapping(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from django_pydantic_agent.integrations import build_spec_capability as builder_module
+        from django_spec_agents.integrations import build_spec_capability as builder_module
 
         captured: list[Any] = []
 
@@ -257,7 +257,7 @@ class TestReachesTheViews:
         assert tools.callback._service_specs == server._service_specs
 
     def test_the_catalog_renders_every_spec(self) -> None:
-        from django_pydantic_agent import build_tool_catalog
+        from django_spec_agents import build_tool_catalog
 
         server = _server(service_specs=_registry())
         catalog = build_tool_catalog(ToolRegistry(), service_specs=server._service_specs)

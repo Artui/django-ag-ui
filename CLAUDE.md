@@ -96,12 +96,12 @@ the JSON Schema as `x-destructive: true`. **What that flag gates depends on wher
   `kind="unapproved"` at `prepare_tools` time — so instead of executing mid-stream, the run
   **defers** and finishes on a `RUN_FINISHED` *interrupt* the client approves/denies (via
   `RunAgentInput.resume[]`), the standard AG-UI tool-approval loop. **Destructiveness is read
-  from four vocabularies** (dpa 0.18+, this package's floor): the registry
+  from four vocabularies** (every django-spec-agents release): the registry
   `@tool(destructive=True)` flag; `DESTRUCTIVE_METADATA_KEY`, which the drf-mcp bridge maps
   `readOnlyHint is False` onto; `metadata["annotations"]["readOnlyHint"] is False`, which an
   in-process `SpecToolset` on the `service_specs=` path writes instead; and the `x-destructive`
   schema stamp `build_input_schema` emits. The middle two matter here because the *same*
-  `ServiceSpec` reaches the agent by both routes, and before 0.18 only the bridged one was
+  `ServiceSpec` reaches the agent by both routes, and once only the bridged one was
   gated -- a transport swap silently removed the gate. `EXEMPT` / `REQUIRE_APPROVAL` override
   per name. Off by default (no surprise gates). **The wire stays vanilla AG-UI** — the gate rides
   the protocol's own interrupt/resume, not a custom event. The client must handle the interrupt to
@@ -162,6 +162,10 @@ Change a rule here and change the config with it, or they drift apart again.
   the protocol below 1.0, which this package's floor excludes, so the resolver silently holds
   slim at 2.46. The slim package ships no model-provider library —
   those come via provider extras (`anthropic` / `openai` / `google` → `pydantic-ai-slim[<provider>]`).
+- The agent runtime (registry, agent construction, guard and failure policies, audit,
+  storage contracts) is `django-spec-agents`; import it as `django_spec_agents`, and its
+  spec toolset as `django_spec_agents.spec_tools`, which needs the `[specs]` extra and so
+  is imported lazily. Don't re-implement any of it here.
 - No admin specifics. Anything that touches `django.contrib.admin` belongs in
   `django-admin-agent`, not here.
 - The `agent/` layer does not import from `registry/types`; it imports the public re-exports

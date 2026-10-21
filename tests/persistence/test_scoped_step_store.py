@@ -15,7 +15,7 @@ from typing import Any
 
 from django.http import HttpRequest
 from django.test import RequestFactory
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
 from pydantic_ai_harness.step_persistence import (
     ContinuableSnapshot,
