@@ -14,12 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   package with `djangorestframework-pydantic-ai`: the host keeps its layout under
   `django_spec_agents`, and the spec toolset is `django_spec_agents.spec_tools`.
   0.1.0 is held equal in behaviour to django-pydantic-agent 0.28.2 and
-  djangorestframework-pydantic-ai 0.36.1, so the endpoint behaves as it did,
-  apart from the registered tool names below. The
-  names this package re-exports keep their spelling, so
-  `from django_ag_ui import ToolRegistry` needs no edit; a project importing
-  either old package directly moves those imports to `django_spec_agents` and
-  `django_spec_agents.spec_tools`.
+  djangorestframework-pydantic-ai 0.36.1 on every call a spec answers. What a
+  run can see change is the registered tool names below, a `description=`
+  override on a registered tool now reaching the model, the attachments
+  toolset's id (`django-spec-agents-attachments`), and the `django-spec-agents: `
+  prefix on a model or failure-policy error. The names this package re-exports
+  keep their spelling, so `from django_ag_ui import ToolRegistry` needs no edit.
+  A project importing either old package directly moves those imports to
+  `django_spec_agents` and `django_spec_agents.spec_tools`, and the second is
+  not a rename: `AgentDeps`, `QueryParam` and `UrlKwarg` are not exported there,
+  the toolset's `query_params=` and `url_kwargs=` keywords and their per-tool
+  forms are gone in favour of a spec's own `reads=`, and the toolset logs to
+  `django_spec_agents.spec_tools` rather than `rest_framework_pydantic_ai`. The
+  installation guide's section on moving lists each.
 - **The reference store app moves with it.** A project listing it changes its
   `INSTALLED_APPS` entry to `"django_spec_agents.contrib.store"` and runs
   `migrate` once: the new app's one migration renames the store's tables in
@@ -39,9 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   finally agree. Anything that named such a tool by its function name,
   `TOOL_GUARD`'s `REQUIRE_APPROVAL` or `EXEMPT`, `approval_prompts` or an audit
   query, must use the registered name.
-- **`[drf-mcp]` requires `djangorestframework-mcp-server>=0.53.1` and
-  `[spec-tools]` `djangorestframework-pydantic-ai>=0.36.1`**, the pair in which a
-  selector raising `Http404` answers not found, as it does through `[specs]`.
+- **`[drf-mcp]` requires `djangorestframework-mcp-server>=0.53.1`**, where a
+  list selector raising `Http404` is a failed call reading not found, as it is
+  through `[specs]`. Below it the bridged route served it as a successful empty
+  list.
 
 ## [0.68.3] — 2026-10-20
 

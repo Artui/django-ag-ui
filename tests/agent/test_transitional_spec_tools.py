@@ -20,10 +20,14 @@ import json
 from typing import Any
 
 import pytest
-from django.http import StreamingHttpResponse
+from django.http import Http404, StreamingHttpResponse
 from pydantic_ai.models.function import DeltaToolCall, FunctionModel
+from rest_framework import serializers
+from rest_framework.permissions import AllowAny
 from rest_framework_pydantic_ai import SpecCapability as LegacySpecCapability
 from rest_framework_pydantic_ai import SpecToolset as LegacySpecToolset
+from rest_framework_services.types.selector_kind import SelectorKind
+from rest_framework_services.types.selector_spec import SelectorSpec
 
 from django_ag_ui import AGUIServer, ToolRegistry
 from tests.authed_request_factory import AuthedRequestFactory
@@ -42,7 +46,7 @@ class _RecordingToolset(LegacySpecToolset):
         return await super().call_tool(name, tool_args, ctx, tool)
 
 
-def _model(offered: list[list[str]]) -> FunctionModel:
+def _model(offered: list[list[str]], tool: str) -> FunctionModel:
     async def stream_fn(messages: list, info: Any) -> Any:
         offered.append(sorted(t.name for t in info.function_tools))
         answered = any(
@@ -53,13 +57,13 @@ def _model(offered: list[list[str]]) -> FunctionModel:
         if answered:
             yield "pinged"
         else:
-            yield {0: DeltaToolCall(name="ping", json_args="{}", tool_call_id="call-1")}
+            yield {0: DeltaToolCall(name=tool, json_args="{}", tool_call_id="call-1")}
 
     return FunctionModel(stream_function=stream_fn)
 
 
-async def _run(service_specs: Any, offered: list[list[str]]) -> str:
-    server = AGUIServer(ToolRegistry(), model=_model(offered), service_specs=service_specs)
+async def _run(service_specs: Any, offered: list[list[str]], tool: str = "ping") -> str:
+    server = AGUIServer(ToolRegistry(), model=_model(offered, tool), service_specs=service_specs)
     patterns, _, _ = server.urls
     view = next(p for p in patterns if p.name == "endpoint").callback
     body = json.dumps(
@@ -104,10 +108,47 @@ async def test_a_subclass_of_the_old_spec_toolset_is_served() -> None:
 @pytest.mark.django_db
 async def test_the_old_spec_capability_is_served() -> None:
     offered: list[list[str]] = []
-    capability = LegacySpecCapability(SPECS)
+    calls: list[str] = []
+    # Wrapping the recording subclass is what shows the capability was attached
+    # as itself: a capability rebuilt from its specs would answer the call too,
+    # through a toolset that records nothing.
+    capability = LegacySpecCapability.from_toolset(_RecordingToolset(SPECS, calls=calls))
 
     body = await _run(capability, offered)
 
     assert offered[0] == ["ping"]
+    assert calls == ["ping"]
     assert json.loads(_result(body)["content"]) == {"ok": True}
+    assert "RUN_FINISHED" in body
+
+
+def _missing_rows() -> list[dict[str, Any]]:
+    raise Http404("no such board")
+
+
+class _Row(serializers.Serializer):
+    id = serializers.IntegerField()
+
+
+@pytest.mark.django_db
+async def test_a_list_the_old_toolset_cannot_find_is_a_failed_call() -> None:
+    """An old toolset answers a missing list as the other two routes do.
+
+    The fix is django-service-specs 0.10.0's, which ``[specs]`` floors, so the
+    old package answers it beside ``[specs]`` at any release ``[spec-tools]``
+    admits. Below that kernel the run ended on the raw ``Http404``.
+    """
+    offered: list[list[str]] = []
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=_missing_rows,
+        output_serializer=_Row,
+        permission_classes=[AllowAny],
+    )
+
+    body = await _run(LegacySpecToolset({"list_rows": spec}), offered, tool="list_rows")
+
+    result = _result(body)
+    assert result.get("outcome") == "failed"
+    assert "not found" in result["content"]
     assert "RUN_FINISHED" in body

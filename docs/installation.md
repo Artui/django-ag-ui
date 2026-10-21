@@ -174,8 +174,20 @@ both, and a project that used either directly moves with it:
   function's own name. Anything that named such a tool by its function name,
   `REQUIRE_APPROVAL`, `EXEMPT`, `approval_prompts` or an audit query, uses the
   registered name now.
+- **The spec toolset is not a rename.** `django_spec_agents.spec_tools` exports
+  `SpecToolset`, `SpecCapability` and `AgentConventions` only: `AgentDeps`,
+  `QueryParam` and `UrlKwarg` are not there, and a toolset no longer takes
+  `query_params=`, `tool_query_params=`, `url_kwargs=` or `tool_url_kwargs=`,
+  which now raise `TypeError`. A spec declares what it reads on itself, with
+  `reads=`, and every route serving it reads the one declaration.
+- **Names that change.** The spec toolset logs to `django_spec_agents.spec_tools`,
+  where it logged to `rest_framework_pydantic_ai`, so a `LOGGING` entry under the
+  old name stops receiving. The attachments toolset's id is
+  `django-spec-agents-attachments`, the metadata key marking a destructive tool
+  is `django_spec_agents.destructive`, and a model or failure-policy error starts
+  `django-spec-agents: `.
 - **Names that keep their spelling.** The attachment storage alias
   `django_pydantic_agent_attachments`, the session key the session conversation
   store writes, and the `django_pydantic_agent.audit` and
   `django_pydantic_agent.failure` loggers are unchanged, so existing settings,
-  sessions and `LOGGING` keep working.
+  sessions and those `LOGGING` entries keep working.

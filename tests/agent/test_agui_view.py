@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.http import StreamingHttpResponse
+from django.http import Http404, StreamingHttpResponse
 from django.test import RequestFactory, override_settings
 from django_spec_agents import AttachmentInlineConfig
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
@@ -1600,6 +1600,67 @@ async def test_a_selection_refused_while_rendering_streams_as_a_retry_on_both_ro
         in retry["content"]
     )
     assert json.loads(page["content"])["items"] == [{"name": "a"}, {"name": "b"}]
+
+
+# --- a list that is not found ----------------------------------------------
+#
+# A LIST selector that raises ``Http404`` has nothing to list, and both routes
+# now answer that as a failed call reading ``not found``. Below drf-mcp 0.53.1
+# the bridged route served it as a successful empty list, so a model read "no
+# rows" where the selection named nothing, and the transcript said the opposite
+# of what the spec route said for the same call. The ``[drf-mcp]`` floor is
+# what moves it, and this test is what holds that floor.
+
+
+def _missing_rows() -> list[dict[str, Any]]:
+    raise Http404("no such board")
+
+
+_MISSING_SPEC = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=_missing_rows,
+    output_serializer=_SelectableRow,
+    permission_classes=[AllowAny],
+)
+
+
+def _bridged_missing() -> dict[str, Any]:
+    server = MCPServer(name="missing")
+    server.register_selector_tool(name="list_rows", description="List rows.", spec=_MISSING_SPEC)
+    return {"drf_mcp_server": server}
+
+
+def _spec_missing() -> dict[str, Any]:
+    registry = SpecRegistry()
+    registry.register("list_rows", _MISSING_SPEC)
+    toolset = SpecToolset(registry, descriptions={"list_rows": "List rows."})
+    specs, capability, source = _resolve_spec_source(toolset)
+    return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
+
+
+def _listing_model() -> FunctionModel:
+    async def stream_fn(messages, info):  # noqa: ANN001, ANN202
+        if any(part.part_kind == "tool-return" for part in messages[-1].parts):
+            yield "done"
+            return
+        yield {0: DeltaToolCall(name="list_rows", json_args="{}", tool_call_id="c1")}
+
+    return FunctionModel(stream_function=stream_fn)
+
+
+@pytest.mark.parametrize("route", [_bridged_missing, _spec_missing], ids=["drf-mcp", "spec-tools"])
+async def test_a_list_that_is_not_found_is_a_failed_call_on_both_routes(route: Any) -> None:
+    view = DjangoAGUIView(ToolRegistry(), model=_listing_model(), **route())
+
+    body = await _drain(await view(_post(_run_input("list the rows"))))
+
+    events = [json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: ")]
+    assert events[-1]["type"] == "RUN_FINISHED"
+    (result,) = [event for event in events if event["type"] == "TOOL_CALL_RESULT"]
+    # Not an empty page: the call failed, and the browser is told so.
+    assert result.get("outcome") == "failed"
+    assert "not found" in result["content"]
+    assert result["content"] != "[]"
 
 
 # --- a call that leaves out the argument naming its row ---------------------

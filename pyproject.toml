@@ -118,11 +118,11 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
-# Floored at 0.53.1, where a selector raising ``Http404`` answers not found: a
-# missing row, as it is through ``[specs]``, where 0.53.0 served a LIST's as a
-# successful empty list. django-spec-agents' own ``[drf-mcp]`` extra floors it
-# there, and it moves in lockstep with the ``[spec-tools]`` floor below, which
-# is the same fix on the other route.
+# Floored at 0.53.1, where a list selector raising ``Http404`` is a failed call
+# reading not found, as it is through ``[specs]``; 0.53.0 served it as a
+# successful empty list, so a model read "no rows" where the selection named
+# nothing. django-spec-agents' own ``[drf-mcp]`` extra floors it there too. The
+# test driving that selector through a session on each route holds it.
 #
 # 0.53 was the floor before that, where the server is built for drf-services as the DRF adapter over
 # django-service-specs, and where a declared range stops admitting a build that
@@ -144,7 +144,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # 0.52 was the previous floor, where a call refused for leaving out a required
 # argument reads ``Missing required argument(s): `pk`.``, the sentence the
 # ``[spec-tools]`` route writes for the same call, where it read ``Invalid
-# arguments`` and left the names to the detail django-spec-agents' bridge appends. A browser
+# arguments`` and left the names to the detail django-pydantic-agent's bridge appends. A browser
 # transcript is one stream whichever route a tool came by, so this floor moves
 # in lockstep with that one, and the test driving a call missing its row
 # lookup through a session on each route holds both. The same release lets the
@@ -169,7 +169,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # input serializer's fields alone, so the model was never told which argument
 # names the row. A selector's parameter with no default, which nothing fills, is
 # required too, where it was advertised as optional. A call that leaves such an
-# argument out is a ``validation_error`` result naming it, which django-spec-agents' bridge
+# argument out is a ``validation_error`` result naming it, which django-pydantic-agent's bridge
 # raises as a retry. Below it the lookup's ``TypeError`` escaped the tool: under
 # the default ``TOOL_FAILURE`` policy a failed call whose text is withheld, so
 # the model was told the tool failed and not to retry, and never which argument
@@ -189,7 +189,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 #
 # 0.49 was the floor before that, where a read-shaping ``QueryParam`` value the output
 # serializer refuses while rendering is a ``validation_error`` result naming the
-# argument, which django-spec-agents' bridge raises as a retry. Below it the
+# argument, which django-pydantic-agent's bridge raises as a retry. Below it the
 # refusal was an unhandled exception out of the tool: under the default
 # ``TOOL_FAILURE`` policy a failed call whose text is withheld, so the model was
 # told the tool failed but not why and could not correct the selection, and
@@ -207,7 +207,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # 0.48 was the floor before that, where a server answers in process which tools a listing
 # leaves out and why (``aunavailable_tools``) and, on request, lists every tool
 # the caller may see whether or not a condition refuses it right now
-# (``include_unavailable``). That pair is what django-spec-agents' bridge
+# (``include_unavailable``). That pair is what django-pydantic-agent's bridge
 # needs to keep a model's tools in step with the registry on every step rather
 # than once per run, so it is the band 0.25 of that package requires: anything
 # lower stated here would advertise a band in which the bridge a
@@ -263,8 +263,10 @@ specs = ["django-spec-agents[specs]>=0.1.0"]
 # toolset or capability it builds from the old package is still served. The
 # floors below are that package's, and each still holds through ``[specs]``.
 #
-# Floored at 0.36.1, where a selector raising ``Http404`` answers not found,
-# in lockstep with the ``[drf-mcp]`` floor above.
+# The same not-found answer is djangorestframework-pydantic-ai 0.36.1's, but the
+# fix lives in django-service-specs 0.10.0, which ``[specs]`` already floors, so
+# 0.36 answers it too beside it and the floor stays. The transitional test
+# driving that selector through an old toolset holds it.
 #
 # Floored at 0.25, the release that raises ToolFailed for a terminal failure
 # instead of returning {"error": ...}. That is what this package's outcome
@@ -328,7 +330,7 @@ specs = ["django-spec-agents[specs]>=0.1.0"]
 # reason, so a user who asks for one is answered in the sentence the rule's
 # author wrote rather than in whatever the model infers from an absence. It
 # moves in lockstep with the ``[drf-mcp]`` floor above for the reason 0.30 did:
-# django-spec-agents' bridge now writes that same sentence for the same
+# django-pydantic-agent's bridge now writes that same sentence for the same
 # rule, so below this a session reads one way for a tool that arrived by MCP and
 # another for one that arrived as a spec -- and this package is where that
 # disagreement would surface, since a browser transcript is one stream whichever
@@ -392,7 +394,7 @@ specs = ["django-spec-agents[specs]>=0.1.0"]
 # constraint still holds and is subsumed.
 spec-tools = [
     "django-spec-agents[specs]>=0.1.0",
-    "djangorestframework-pydantic-ai>=0.36.1",
+    "djangorestframework-pydantic-ai>=0.36",
 ]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
@@ -439,7 +441,7 @@ dev = [
     "djangorestframework-services>=0.58.0",
     # Backs the transitional [spec-tools] test, which builds a toolset and a
     # capability from the old package and serves them; leaves with that extra.
-    "djangorestframework-pydantic-ai>=0.36.1",
+    "djangorestframework-pydantic-ai>=0.36",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
