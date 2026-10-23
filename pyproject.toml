@@ -60,7 +60,11 @@ dependencies = [
     # ``DefaultMemoryStore`` from it, and ``check_docs_snippets.py`` resolves those
     # imports against the installed package, so a page a valid install cannot
     # follow fails there rather than quietly.
-    "django-spec-agents>=0.1.0",
+    # Capped below 0.2.0, where ``[specs]`` stops bringing drf-services and the
+    # toolset serves kernel-declared specs only: this release imports
+    # drf-services for its ``service_specs=`` pre-check and hands drf-services
+    # specs to the toolset. The minor that adopts 0.2.0 lifts the ceiling.
+    "django-spec-agents>=0.1.0,<0.2.0",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
@@ -256,7 +260,7 @@ drf-mcp = ["djangorestframework-mcp-server>=0.53.1"]
 # ``spec_tools.SpecCapability`` -- no MCP server in the path (service_specs=).
 # Floored at 0.1.0, where the toolset is djangorestframework-pydantic-ai 0.36.1's
 # carried across whole, so every floor the old extra below names holds from it.
-specs = ["django-spec-agents[specs]>=0.1.0"]
+specs = ["django-spec-agents[specs]>=0.1.0,<0.2.0"]
 # The old spelling of ``[specs]``, kept for this minor and removed in the next.
 # It installs what it always did, djangorestframework-pydantic-ai, plus what the
 # ``service_specs=`` path now imports, so a project naming it keeps working and a
@@ -393,7 +397,7 @@ specs = ["django-spec-agents[specs]>=0.1.0"]
 # after a self-nesting serializer took SpecToolset down at construction. That
 # constraint still holds and is subsumed.
 spec-tools = [
-    "django-spec-agents[specs]>=0.1.0",
+    "django-spec-agents[specs]>=0.1.0,<0.2.0",
     "djangorestframework-pydantic-ai>=0.36",
 ]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
@@ -433,7 +437,7 @@ dev = [
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
     "djangorestframework-mcp-server>=0.53.1",
     # The [specs] extra's backing package, so its capability + tests run in dev.
-    "django-spec-agents[specs]>=0.1.0",
+    "django-spec-agents[specs]>=0.1.0,<0.2.0",
     # Declared directly because the tests declare drf-services specs, and
     # ``[specs]`` stops bringing drf-services from django-spec-agents 0.2.0.
     # Floored where ``[specs]`` floors it: the toolset recognises that release's

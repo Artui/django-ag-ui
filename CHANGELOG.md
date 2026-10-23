@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`django-spec-agents` is capped below 0.2.0.** From 0.2.0 its `[specs]` extra
+  brings no drf-services and its toolset serves kernel-declared specs only, while
+  this release imports drf-services for the `service_specs=` permission pre-check
+  and hands drf-services specs to the toolset. Unbounded, a fresh install would
+  resolve 0.2.0 and `AGUIServer(service_specs=...)` would fail with
+  `ModuleNotFoundError: No module named 'rest_framework_services'`. The core
+  dependency, `[specs]`, `[spec-tools]` and the dev group all carry the ceiling;
+  the minor that adopts 0.2.0 lifts it.
+
 ## [0.69.0] — 2026-10-21
 
 ### Changed
