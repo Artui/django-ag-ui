@@ -620,9 +620,9 @@ docs = [
 requires-dist = [
     { name = "ag-ui-protocol", specifier = ">=1.0" },
     { name = "django", specifier = ">=4.2" },
-    { name = "django-spec-agents", specifier = ">=0.1.0" },
-    { name = "django-spec-agents", extras = ["specs"], marker = "extra == 'spec-tools'", specifier = ">=0.1.0" },
-    { name = "django-spec-agents", extras = ["specs"], marker = "extra == 'specs'", specifier = ">=0.1.0" },
+    { name = "django-spec-agents", specifier = ">=0.1.0,<0.2.0" },
+    { name = "django-spec-agents", extras = ["specs"], marker = "extra == 'spec-tools'", specifier = ">=0.1.0,<0.2.0" },
+    { name = "django-spec-agents", extras = ["specs"], marker = "extra == 'specs'", specifier = ">=0.1.0,<0.2.0" },
     { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.53.1" },
     { name = "djangorestframework-pydantic-ai", marker = "extra == 'spec-tools'", specifier = ">=0.36" },
     { name = "pydantic-ai-harness", marker = "extra == 'harness'", specifier = ">=0.13" },
@@ -636,7 +636,7 @@ provides-extras = ["anthropic", "code-mode", "drf-mcp", "google", "harness", "op
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "django-spec-agents", extras = ["specs"], specifier = ">=0.1.0" },
+    { name = "django-spec-agents", extras = ["specs"], specifier = ">=0.1.0,<0.2.0" },
     { name = "django-stubs", specifier = ">=5.0" },
     { name = "djangorestframework-mcp-server", specifier = ">=0.53.1" },
     { name = "djangorestframework-pydantic-ai", specifier = ">=0.36" },
