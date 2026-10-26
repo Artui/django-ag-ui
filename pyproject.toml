@@ -393,6 +393,19 @@ line-ending = "auto"
 [tool.ty.environment]
 root = ["./django_ag_ui"]
 
+# These two modules name ``RetryPromptPart``, which pydantic-ai deprecated in
+# 2.60 and which the declared floor still emits for a retry, so each use carries
+# ``# ty: ignore[deprecated]``. The lock forks on Python: 2.55 dropped 3.10, so
+# a 3.10 venv resolves a pydantic-ai where nothing is deprecated and every one of
+# those comments is reported unused, which fails ``ty check`` there. Scoped to
+# the two files so an unused suppression anywhere else is still reported.
+[[tool.ty.overrides]]
+include = [
+    "django_ag_ui/agent/outcome_agui_adapter.py",
+    "django_ag_ui/agent/subagent_observer.py",
+]
+rules = { unused-ignore-comment = "ignore" }
+
 # bump-my-version drives `make release-bump` — it rewrites the version in
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.

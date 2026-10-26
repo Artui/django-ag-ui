@@ -1632,13 +1632,27 @@ def _spec_rows() -> dict[str, Any]:
     return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
 
 
+def _settled(parts: Any) -> bool:
+    """Whether ``parts`` answer a call for good, rather than asking for it again.
+
+    A retry is a ``retry-prompt`` part up to pydantic-ai 2.59 and, from 2.60, the
+    call's own ``tool-return`` marked ``outcome="retried"``. A model that stopped
+    at any ``tool-return`` would stop at the retry on the newer half of the range
+    and never make the corrected call these tests are about.
+    """
+    return any(
+        part.part_kind == "tool-return" and getattr(part, "outcome", None) != "retried"
+        for part in parts
+    )
+
+
 def _selecting_model() -> FunctionModel:
     """Selects the page envelope first, the way the tool's result documents it,
     then one row's field once told what the selection applies to."""
     selections = iter(["items", "name"])
 
     async def stream_fn(messages, info):  # noqa: ANN001, ANN202
-        if any(part.part_kind == "tool-return" for part in messages[-1].parts):
+        if _settled(messages[-1].parts):
             yield "done"
             return
         args = json.dumps({"fields": next(selections)})
@@ -1851,7 +1865,7 @@ def _model_omitting_pk(
 
     async def stream_fn(messages, info):  # noqa: ANN001, ANN202
         advertised.update({tool.name: tool.parameters_json_schema for tool in info.function_tools})
-        if any(part.part_kind == "tool-return" for part in messages[-1].parts):
+        if _settled(messages[-1].parts):
             yield "done"
             return
         call_args = json.dumps(next(calls))

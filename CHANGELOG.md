@@ -42,6 +42,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   permission pre-check imports the kernel, which only that extra installs, and
   an install without it failed with a bare `ModuleNotFoundError`. It now raises
   `ImportError` saying to install `django-ag-ui[specs]`.
+- **A retried tool call no longer streams `outcome: "retried"`.** From
+  pydantic-ai 2.60 a tool's `ModelRetry`, or arguments that fail validation, is
+  recorded as the call's own `ToolReturnPart` marked `outcome="retried"` rather
+  than as a `RetryPromptPart`, and that value was forwarded verbatim, on the
+  live `TOOL_CALL_RESULT` (top level and in `metadata`) and on the stored copy a
+  replayed thread reads. That broke the documented contract that a retry is
+  not a failure and carries no outcome, so a client branching on whether an
+  outcome is present read a retry as a call that had ended in something other
+  than success. A retry is unmarked again on both pydantic-ai shapes, live and
+  stored.
+- **A sub-agent's retried tool call is reported as not landing.** The
+  `ag_ui.subagent` `tool_result` step decided `ok` by looking for a
+  `RetryPromptPart`, so under pydantic-ai 2.60 and later a child's retry was
+  reported as `ok: true` and "returned". It is `ok: false` and "failed" again,
+  as it is on older releases.
 
 ## [0.69.1] — 2026-10-23
 

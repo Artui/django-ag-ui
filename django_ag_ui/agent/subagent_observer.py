@@ -14,7 +14,11 @@ from pydantic_ai.capabilities import WrapperCapability
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
-    RetryPromptPart,
+    # Deprecated from pydantic-ai 2.60, where a retry became the call's own
+    # ``ToolReturnPart``, and still what every release below it emits for one,
+    # the declared floor among them. Named until the floor passes 2.60, so
+    # every use carries the same suppression.
+    RetryPromptPart,  # ty: ignore[deprecated]
 )
 
 from django_ag_ui.agent.subagent_lifecycle import subagent_lifecycle
@@ -219,10 +223,20 @@ class SubAgentObserver(WrapperCapability[Any]):
                     )
                 )
             elif isinstance(event, FunctionToolResultEvent):
-                # A ``RetryPromptPart`` is the child's tool telling the child's
-                # model to try again -- the one outcome distinguishable from
-                # here without reading the result's contents.
-                ok = not isinstance(event.part, RetryPromptPart)
+                # A retry is the child's tool telling the child's model to try
+                # again -- the one outcome distinguishable from here without
+                # reading the result's contents. It is a ``RetryPromptPart`` up
+                # to pydantic-ai 2.59 and the call's own ``ToolReturnPart``
+                # marked ``"retried"`` from 2.60, so both are asked for. One
+                # expression, so coverage sees neither half: delete the first and
+                # ``test_a_child_tool_result_reports_whether_it_landed`` fails,
+                # delete the second and
+                # ``test_a_child_tool_call_marked_retried_did_not_land`` does.
+                part = event.part
+                ok = not (
+                    isinstance(part, RetryPromptPart)  # ty: ignore[deprecated]
+                    or part.outcome == "retried"
+                )
                 outcome = "returned" if ok else "failed"
                 _emit(
                     subagent_progress(

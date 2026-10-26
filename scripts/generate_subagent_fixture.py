@@ -2,6 +2,12 @@
 
     python scripts/generate_subagent_fixture.py tests/fixtures/subagent_progress_stream.json
 
+Run under pydantic-ai 2.60 or later for that file, the canonical one. Run under
+an older release, ``tests/fixtures/subagent_progress_stream.pre-2.60.json`` is
+the target instead: the two releases write the auditor's retried delegation
+differently, and the test compares each half of the supported range with its
+own recording.
+
 The fixture is what a client actually receives when a run delegates: the whole
 Server-Sent Events stream of one ``DjangoAGUIView`` run, decoded from the same
 encoder a browser reads, with the delegation's own ``SUBAGENT_*`` events and its
@@ -18,7 +24,7 @@ run and fails on any difference -- the checked-in file cannot drift from the
 server without someone noticing.
 
 The models are scripted (``FunctionModel``), so no provider is called and the
-run is the same every time. Two fields are still not: see ``_canonicalized``.
+run is the same every time. A few fields are still not: see ``_canonicalized``.
 
 The scenario covers every phase of the contract in one run:
 
@@ -202,13 +208,16 @@ async def _emitted_events() -> list[dict[str, Any]]:
 
 
 def _canonicalized(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Replace the two fields that cannot repeat, and only those.
+    """Replace the fields that cannot repeat, and only those.
 
     ``timestamp`` is the wall clock and ``messageId`` / ``parentMessageId`` are
-    freshly generated UUIDs, so a byte-for-byte regeneration check needs both
-    settled. Every other value here is what the server wrote -- including each
-    ``toolCallId``, which the scripted models fix, and which is what both
-    announcement carriers key on.
+    freshly generated UUIDs, so a byte-for-byte regeneration check needs them
+    settled. So is ``entityId``: from pydantic-ai 2.60 a retried result is
+    followed by a ``REASONING_ENCRYPTED_VALUE`` naming the result's message by
+    its id, and it goes through the same mapping as ``messageId`` so that the
+    fixture still shows which message it attaches to. Every other value here is
+    what the server wrote -- including each ``toolCallId``, which the scripted
+    models fix, and which is what both announcement carriers key on.
 
     ``subagentRunId`` is deliberately **not** on that list, and it is worth
     saying why rather than leaving it to look like an omission: it is derived
@@ -226,7 +235,7 @@ def _canonicalized(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         copy = dict(event)
         if "timestamp" in copy:
             copy["timestamp"] = FROZEN_TIMESTAMP
-        for key in ("messageId", "parentMessageId"):
+        for key in ("messageId", "parentMessageId", "entityId"):
             if key in copy:
                 copy[key] = name_for(copy[key])
         settled.append(copy)
@@ -239,7 +248,7 @@ def generate() -> str:
     document = {
         "generator": "scripts/generate_subagent_fixture.py",
         "scenario": SCENARIO,
-        "canonicalized": ["timestamp", "messageId", "parentMessageId"],
+        "canonicalized": ["timestamp", "messageId", "parentMessageId", "entityId"],
         "events": events,
     }
     return json.dumps(document, indent=2) + "\n"
