@@ -953,6 +953,11 @@ sending the wrong shape is rejected before any tool runs:</p>
 <p><code>deps_factory</code> replaces the default deps entirely, so it is also where a project
 carries its own per-run context — subclass <code>AgentDeps</code> and add fields. Whatever
 it returns reaches every tool, toolset and capability as <code>ctx.deps</code>.</p>
+<p>That includes the default's <code>call_context</code>, which holds the request the run
+arrived on and which the <a href="../configuration/#service_specs"><code>service_specs=</code></a>
+toolset hands to every spec callable declaring <code>request</code>. A factory serving
+spec tools passes it on itself, <code>AgentDeps(..., call_context={"request":
+request})</code>, or those callables are handed <code>None</code>.</p>
 <h2 id="writing-state-back">Writing state back<a class="headerlink" href="#writing-state-back" title="Permanent link">&para;</a></h2>
 <p>Nothing emits state automatically — a tool returns the event itself, as
 <code>ToolReturn</code> metadata:</p>

@@ -987,9 +987,10 @@ when:</p>
 <li>it is a drf-mcp bridged tool whose MCP <code>readOnlyHint</code> annotation is <code>False</code>
   (selectors are read-only, services mutate — the bridge maps this automatically,
   and a project can override it per registration); <strong>or</strong></li>
-<li>it is an <strong>in-process</strong> drf-services spec attached through
+<li>it is an <strong>in-process</strong> spec attached through
   <a href="../configuration/#service_specs"><code>service_specs=</code></a> whose MCP annotations say
-  <code>readOnlyHint</code> is <code>False</code> — the same <code>ServiceSpec</code>, reached without the MCP
+  <code>readOnlyHint</code> is <code>False</code>, which the toolset writes for every <code>ServiceSpec</code>
+  (a <code>SelectorSpec</code> is read-only), as the drf-mcp bridge does without the MCP
   hop; <strong>or</strong></li>
 <li>its JSON Schema carries the <code>x-destructive</code> stamp at the root, which is what
   <a class="autorefs autorefs-internal" title="build_input_schema" href="../api/#django_ag_ui.build_input_schema"><code>build_input_schema</code></a> writes — so a tool you

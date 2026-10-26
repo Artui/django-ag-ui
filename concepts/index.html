@@ -1518,7 +1518,7 @@ renderer draws. The top-level <code>outcome</code> is the same value for clients
 </tr>
 <tr>
 <td>anything else</td>
-<td>Treat as success. <code>"interrupted"</code> reaches the wire because the value is forwarded verbatim, but it is not part of the rendering contract, and neither is any value pydantic-ai adds later.</td>
+<td>Treat as success. <code>"interrupted"</code> reaches the wire because the value is forwarded verbatim, but it is not part of the rendering contract, and neither is any value pydantic-ai adds later. The one value withheld is <code>"retried"</code> (Pydantic-AI 2.60 and later): a retry is not a failure and carries no outcome, as it carried none before.</td>
 </tr>
 </tbody>
 </table>

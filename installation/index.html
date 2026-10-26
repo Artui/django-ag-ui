@@ -422,6 +422,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#moving-to-django-service-specs-specs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Moving to django-service-specs specs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#moving-from-django-pydantic-agent" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -884,6 +895,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#moving-to-django-service-specs-specs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Moving to django-service-specs specs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#moving-from-django-pydantic-agent" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1058,21 +1080,35 @@ only when a <code>drf_mcp_server=</code> is passed, so the dependency stays
 optional for projects that do not use it. See
 <a href="../configuration/#drf_mcp_server">Configuration → <code>drf_mcp_server=</code></a>.</p>
 <h2 id="the-specs-extra">The <code>[specs]</code> extra<a class="headerlink" href="#the-specs-extra" title="Permanent link">&para;</a></h2>
-<p>To expose drf-services specs to the agent as tools with no MCP server in the path
-(<code>service_specs=</code>), install the extra:</p>
+<p>To expose <a href="https://artui.github.io/django-service-specs/">django-service-specs</a>
+specs to the agent as tools with no MCP server in the path (<code>service_specs=</code>),
+install the extra:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[specs]&quot;</span>
 </span></code></pre></div>
 <p>This pulls in <code>django-spec-agents[specs]</code>, whose <code>django_spec_agents.spec_tools</code>
-holds the <code>SpecToolset</code> and <code>SpecCapability</code> the endpoint builds, with
-<code>djangorestframework-services</code> and DRF beneath it. Like the bridge, it is
+holds the <code>SpecToolset</code> and <code>SpecCapability</code> the endpoint builds, with the
+kernel, <code>django-service-specs</code>, beneath it and no DRF. Like the bridge, it is
 imported lazily, only when <code>service_specs=</code> is passed. See
 <a href="../configuration/#service_specs">Configuration → <code>service_specs=</code></a>.</p>
-<p><code>[spec-tools]</code> is the extra's old name, and it still installs for this minor: it
-pulls in <code>django-spec-agents[specs]</code> and <code>djangorestframework-pydantic-ai</code>, so a
-project naming it keeps everything it had. A <code>SpecToolset</code> or <code>SpecCapability</code>
-built from <code>rest_framework_pydantic_ai</code> is still served when passed as
-<code>service_specs=</code>. The next minor removes <code>[spec-tools]</code>; move to <code>[specs]</code> and
-import from <code>django_spec_agents.spec_tools</code> before then.</p>
+<h2 id="moving-to-django-service-specs-specs">Moving to django-service-specs specs<a class="headerlink" href="#moving-to-django-service-specs-specs" title="Permanent link">&para;</a></h2>
+<p>Up to 0.69 the spec toolset served drf-services specs. It now serves the
+kernel's, so a project passing <code>service_specs=</code> moves with it:</p>
+<ul>
+<li><strong>The extra.</strong> <code>[spec-tools]</code> is gone; name <code>[specs]</code>. Neither installs
+  <code>djangorestframework-services</code> or <code>djangorestframework-pydantic-ai</code> any more.</li>
+<li><strong>The specs.</strong> Declare each with <code>django_service_specs</code>' <code>ServiceSpec</code> or
+  <code>SelectorSpec</code>, and its <code>SpecRegistry</code> for a registry. A value the kernel
+  cannot read as a spec raises <code>TypeError</code> naming the tool, at construction.
+  The <code>[drf-mcp]</code> bridge still takes drf-services specs, which is what an
+  <code>MCPServer</code> registers.</li>
+<li><strong>Permissions.</strong> Each spec declares <code>permissions=</code>, a list of the kernel's
+  permission checks, where it declared <code>permission_classes=</code>. An open one says
+  <code>permissions=[Unrestricted()]</code>.</li>
+<li><strong>The request.</strong> A spec callable declaring <code>request</code> is handed the request
+  the run arrived on, which the default deps put in <code>AgentDeps.call_context</code>.
+  A <code>deps_factory</code> replaces those deps, so one serving spec tools passes
+  <code>call_context={"request": request}</code> itself.</li>
+</ul>
 <h2 id="moving-from-django-pydantic-agent">Moving from django-pydantic-agent<a class="headerlink" href="#moving-from-django-pydantic-agent" title="Permanent link">&para;</a></h2>
 <p>Releases of this package up to 0.68 ran on <code>django-pydantic-agent</code> and, for
 <code>service_specs=</code>, <code>djangorestframework-pydantic-ai</code>. django-spec-agents replaces

@@ -5999,25 +5999,24 @@ with <code>allow_anonymous=True</code> (which buckets per browser session), so l
 the default in place — or pass a <code>get_user</code> hook — whenever the store
 persists, rather than relying on owner scoping to isolate anonymous visitors
 from one another.</p>
-<p><strong>Spec tools.</strong> <code>service_specs</code> takes a <code>name -&gt; spec</code> mapping, a spec
-registry (drf-services' <code>SpecRegistry</code>, the single declaration site for a
-project exposing the same specs over several transports), or an
-already-built <code>SpecToolset</code> / <code>SpecCapability</code>:</p>
+<p><strong>Spec tools.</strong> <code>service_specs</code> takes a <code>name -&gt; spec</code> mapping of
+django-service-specs specs, a spec registry (the kernel's <code>SpecRegistry</code>,
+the single declaration site for a project exposing the same specs over
+several transports), or an already-built <code>SpecToolset</code> /
+<code>SpecCapability</code>:</p>
 <div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, service_specs=spec_registry.by_tag(&quot;public&quot;))
 AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
 </code></pre></div>
-<p><strong>Prefer the registry over <code>registry.specs()</code>.</strong> An entry carries more
-than its spec -- its tags, and the <code>OfflineContract</code> saying what a caller
-with no HTTP request has to be told (the URL kwargs, query params and
-field-audience overrides an HTTP caller gets from the URLconf and query
-string for free). The flattened mapping has none of it, and losing it is
-silent: the tools are all there and merely missing declarations nobody asked
-for.</p>
+<p>A spec declares what a caller with no HTTP request has to be told -- its
+<code>reads</code> and <code>shapes</code> -- on itself, so a registry and its <code>specs()</code>
+serve the same tools. A registry is still handed to the toolset as given,
+never rebuilt from its flattened mapping.</p>
 <p>A filtered registry view (<code>by_tag</code> / <code>subset</code>) is itself a registry, so
 two endpoints can be given different projections with no shared state. The
 pre-built form is the only way to reach a toolset knob (<code>max_page_size</code>, an
-<code>exception_map</code>, a <code>build_context</code> override, <code>require_permissions=False</code>
-while migrating) without abandoning <code>service_specs=</code> for <code>capabilities=</code>,
+<code>exception_map</code>, <code>pool_seeds</code>, a <code>call_seeds</code> override,
+<code>require_permissions=False</code> while migrating) without abandoning
+<code>service_specs=</code> for <code>capabilities=</code>,
 which the tool catalog never sees; it is attached as itself and its <code>specs</code>
 are read for the catalog, so the powerful form keeps the tool-call card
 labels. The parameter's union covers all four shapes, the last two matched
@@ -6054,12 +6053,15 @@ voice clips eat the run budget, and the two want different numbers anyway.</p>
 )
 </code></pre></div>
 <p><strong>Per-run dependencies.</strong> <code>deps_factory</code> is a <code>request -&gt; AgentDeps</code>
-callable replacing the default, which binds only the acting user and their
-IP. Use it to carry project-specific per-run context on an <code>AgentDeps</code>
-subclass, or to seed <code>AgentDeps.state</code> with a Pydantic model — the only way
-to have AG-UI's inbound shared state <em>validated</em>, since pydantic-ai validates
-it against <code>type(deps.state)</code>. Whatever it returns reaches every tool,
-toolset and capability as <code>ctx.deps</code>.</p>
+callable replacing the default, which binds the acting user, their IP, and
+the run's request under <code>call_context["request"]</code>. Use it to carry
+project-specific per-run context on an <code>AgentDeps</code> subclass, or to seed
+<code>AgentDeps.state</code> with a Pydantic model — the only way to have AG-UI's
+inbound shared state <em>validated</em>, since pydantic-ai validates it against
+<code>type(deps.state)</code>. Whatever it returns reaches every tool, toolset and
+capability as <code>ctx.deps</code>. A factory replaces the default whole, so one
+serving spec tools whose callables or permission checks read <code>request</code>
+puts the request in <code>call_context</code> itself.</p>
 <p><strong>Durable step persistence.</strong> <code>step_store</code> is a <em>factory</em> — a
 <code>request -&gt; StepStore</code> callable rather than a shared store, because the
 <code>pydantic-ai-harness</code> step-store protocol carries no request. When set,
@@ -7173,7 +7175,11 @@ the nearest counterexample is this package. A failed tool call emits a
 <code>REASONING_ENCRYPTED_VALUE</code> — that is where Pydantic-AI carries a
 non-success outcome — on any model whatsoever, including one that cannot
 think. It is forwarded rather than filtered because the event belongs to
-upstream and its general form carries provider continuity data.</p>
+upstream and its general form carries provider continuity data. For a
+failed or denied call it repeats the outcome the <code>TOOL_CALL_RESULT</code>
+already carried; from Pydantic-AI 2.60 a retried call emits one too, holding
+<code>"outcome": "retried"</code>, which the result deliberately does not mirror
+because a retry carries no outcome.</p>
 <p>The models supply the other half. Pydantic-AI's OpenAI-compatible chat path
 builds a <code>ThinkingPart</code> out of whatever the provider returned in
 <code>reasoning</code> / <code>reasoning_content</code>, consulting no setting at all, and its

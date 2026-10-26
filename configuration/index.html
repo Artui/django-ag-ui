@@ -1976,7 +1976,7 @@ believes it configured, and a warning would scroll past in a deploy log.</p>
 </tr>
 <tr>
 <td><code>service_specs={...}</code></td>
-<td>drf-services specs exposed as tools, no MCP hop — a mapping, a <code>SpecRegistry</code>, or a pre-built <code>SpecToolset</code> / <code>SpecCapability</code> (<code>[specs]</code> extra).</td>
+<td>django-service-specs specs exposed as tools, no MCP hop — a mapping, a <code>SpecRegistry</code>, or a pre-built <code>SpecToolset</code> / <code>SpecCapability</code> (<code>[specs]</code> extra).</td>
 </tr>
 </tbody>
 </table>
@@ -2503,8 +2503,11 @@ think.</strong> A failed tool call emits a <code>REASONING_ENCRYPTED_VALUE</code
 that is where Pydantic-AI carries a non-success outcome, and it does so on
 any model at all. The payload is neither encrypted nor reasoning
 (<code>{"pydantic_ai": {"outcome": "failed"}}</code>), and since 0.56.0 it is redundant
-— the same outcome rode the <code>TOOL_CALL_RESULT</code> one event earlier. It is
-forwarded anyway: the event is upstream's, and its general form carries
+— the same outcome rode the <code>TOOL_CALL_RESULT</code> one event earlier. The one
+exception is a retry: from Pydantic-AI 2.60 a retried call carries
+<code>{"pydantic_ai": {"outcome": "retried", "retry": {...}}}</code> here, and that
+value is deliberately not mirrored onto the result, because a retry carries
+no outcome. It is forwarded anyway: the event is upstream's, and its general form carries
 provider continuity data that has to survive. The bundled web component
 ignores it, but a client that treats the <code>REASONING_*</code> family generically
 will see it.</p>
@@ -2649,60 +2652,59 @@ as the web component's card label.</p>
 </span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">drf_mcp_server</span><span class="o">=</span><span class="n">mcp_server</span><span class="p">)</span>
 </span></code></pre></div>
 <h2 id="service_specs"><code>service_specs=</code><a class="headerlink" href="#service_specs" title="Permanent link">&para;</a></h2>
-<p>A <code>name -&gt; spec</code> mapping (drf-services <code>ServiceSpec</code> / <code>SelectorSpec</code> objects),
-or a <code>SpecRegistry</code>, exposed to the agent as tools <strong>without an MCP server</strong> via
-django-spec-agents' <code>SpecCapability</code>. <code>None</code> (the default)
-disables it. Requires the <code>[specs]</code> extra
-(<code>pip install "django-ag-ui[specs]"</code>), imported lazily. The old <code>[spec-tools]</code>
-spelling still installs for one more minor; see <a href="../installation/">Installation</a>.</p>
+<p>A <code>name -&gt; spec</code> mapping of
+<a href="https://artui.github.io/django-service-specs/">django-service-specs</a>
+<code>ServiceSpec</code> / <code>SelectorSpec</code> objects, or the kernel's <code>SpecRegistry</code>, exposed
+to the agent as tools <strong>without an MCP server</strong> via django-spec-agents'
+<code>SpecCapability</code>. <code>None</code> (the default) disables it. Requires the <code>[specs]</code> extra
+(<code>pip install "django-ag-ui[specs]"</code>), imported lazily.</p>
 <p>This is the no-MCP-hop sibling of <a href="#drf_mcp_server"><code>drf_mcp_server=</code></a>: the specs
-are dispatched in-process through drf-services' transport-neutral surface
-(<code>dispatch_spec</code> + its off-HTTP helpers), enforcing each spec's
-<code>permission_classes</code>. The agent acts as the <strong>logged-in AG-UI user</strong> — bound
+are dispatched in-process through the kernel, enforcing each spec's
+<code>permissions</code>. The agent acts as the <strong>logged-in AG-UI user</strong> — bound
 from the run's <code>deps</code>, not from a closure over <code>request</code>, which is what lets one
 built agent serve many runs — and a registry <code>@tool</code> wins a name collision. The
+request the run arrived on reaches every call as the <code>request</code> seed, so a spec
+callable written for HTTP that declares <code>request</code> is handed the same object. The
 model is also taught the spec conventions — that list tools accept <code>page</code> /
 <code>limit</code> / <code>ordering</code>, and how errors come back (an <code>{"error": …}</code> result is a final answer, a retry
 message means fix the argument, a permission error is final) — so it doesn't
 rediscover them by failing a call. Those instructions come from the underlying
 <code>SpecToolset</code>, which the capability delegates to, so they reach the system prompt
-exactly once. Use this when you have drf-services specs but no reason to stand up
+exactly once. Use this when you have specs but no reason to stand up
 an MCP server; use <code>drf_mcp_server=</code> when you already run one (or want MCP
 clients to share the tools).</p>
-<p><strong>Pass the registry, not <code>registry.specs()</code>.</strong> An entry carries more than its
-spec: its tags, and the <code>OfflineContract</code> (drf-services 0.48+, <code>AgentContract</code> before it) declaring what a
-caller with <strong>no HTTP request</strong> has to be told — the URL kwargs, query params
-and field-audience overrides an HTTP caller gets from the URLconf and query
-string for free. The flattened mapping has none of that, and the loss is silent:
-every tool is still there, just missing declarations nobody asked for. The same
-registry handed to an MCP server is read the same way, which is the point of
-declaring it once.</p>
-<p><strong>Every spec needs its own <code>permission_classes</code>.</strong> A spec that omits them makes
-the endpoint raise <code>ImproperlyConfigured</code> at construction rather than exposing an ungated
-tool. <code>permission_classes=None</code> means <em>inherit</em> over HTTP — the viewset's
-classes, then <code>DEFAULT_PERMISSION_CLASSES</code> — and there is no viewset here to
-inherit from, so a spec that is correctly guarded behind one becomes callable by
-whatever the model decides to call.</p>
+<p><strong>What a tool reads is declared on its spec.</strong> A spec's <code>reads</code> and <code>shapes</code>
+say what a caller with <strong>no HTTP request</strong> passes, so a registry and its
+<code>specs()</code> serve the same tools. A registry is still handed to the toolset as
+given, never flattened on the way.</p>
+<p><strong>Every spec declares its own <code>permissions</code>.</strong> A spec that declares none makes
+the endpoint raise <code>ImproperlyConfigured</code> at construction rather than exposing an
+ungated tool: off HTTP there is no view whose policy it could inherit, so it
+would be callable by whatever the model decides to call. A spec any caller may
+call says so, with <code>permissions=[Unrestricted()]</code>. A value in the mapping that
+is not a spec at all raises <code>TypeError</code> naming the tool.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># myproject/specs.py</span>
-</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.permissions</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsAuthenticated</span>
-</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectorKind</span><span class="p">,</span> <span class="n">SelectorSpec</span><span class="p">,</span> <span class="n">ServiceSpec</span>
-</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>
-</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="n">SPECS</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>    <span class="s2">&quot;list_orders&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-28-7"><a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>        <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
-</span><span id="__span-28-8"><a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>        <span class="n">selector</span><span class="o">=</span><span class="n">list_orders</span><span class="p">,</span>
-</span><span id="__span-28-9"><a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a>        <span class="n">output_serializer</span><span class="o">=</span><span class="n">OrderSerializer</span><span class="p">,</span>
-</span><span id="__span-28-10"><a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a>        <span class="n">permission_classes</span><span class="o">=</span><span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">],</span>
-</span><span id="__span-28-11"><a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a>    <span class="p">),</span>
-</span><span id="__span-28-12"><a id="__codelineno-28-12" name="__codelineno-28-12" href="#__codelineno-28-12"></a>    <span class="s2">&quot;create_order&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-28-13"><a id="__codelineno-28-13" name="__codelineno-28-13" href="#__codelineno-28-13"></a>        <span class="n">service</span><span class="o">=</span><span class="n">create_order</span><span class="p">,</span>
-</span><span id="__span-28-14"><a id="__codelineno-28-14" name="__codelineno-28-14" href="#__codelineno-28-14"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">CreateOrderInput</span><span class="p">,</span>
-</span><span id="__span-28-15"><a id="__codelineno-28-15" name="__codelineno-28-15" href="#__codelineno-28-15"></a>        <span class="n">permission_classes</span><span class="o">=</span><span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">],</span>
-</span><span id="__span-28-16"><a id="__codelineno-28-16" name="__codelineno-28-16" href="#__codelineno-28-16"></a>    <span class="p">),</span>
-</span><span id="__span-28-17"><a id="__codelineno-28-17" name="__codelineno-28-17" href="#__codelineno-28-17"></a><span class="p">}</span>
+</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectorKind</span><span class="p">,</span> <span class="n">SelectorSpec</span><span class="p">,</span> <span class="n">ServiceSpec</span>
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="c1"># A PermissionCheck of the project&#39;s own: the kernel ships only Unrestricted.</span>
+</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.permissions</span><span class="w"> </span><span class="kn">import</span> <span class="n">IsAuthenticated</span>
+</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>
+</span><span id="__span-28-7"><a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="n">SPECS</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-28-8"><a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>    <span class="s2">&quot;list_orders&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-28-9"><a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a>        <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-28-10"><a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a>        <span class="n">selector</span><span class="o">=</span><span class="n">list_orders</span><span class="p">,</span>
+</span><span id="__span-28-11"><a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a>        <span class="n">presenter</span><span class="o">=</span><span class="n">OrderPresenter</span><span class="p">(),</span>
+</span><span id="__span-28-12"><a id="__codelineno-28-12" name="__codelineno-28-12" href="#__codelineno-28-12"></a>        <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">()],</span>
+</span><span id="__span-28-13"><a id="__codelineno-28-13" name="__codelineno-28-13" href="#__codelineno-28-13"></a>    <span class="p">),</span>
+</span><span id="__span-28-14"><a id="__codelineno-28-14" name="__codelineno-28-14" href="#__codelineno-28-14"></a>    <span class="s2">&quot;create_order&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-28-15"><a id="__codelineno-28-15" name="__codelineno-28-15" href="#__codelineno-28-15"></a>        <span class="n">service</span><span class="o">=</span><span class="n">create_order</span><span class="p">,</span>
+</span><span id="__span-28-16"><a id="__codelineno-28-16" name="__codelineno-28-16" href="#__codelineno-28-16"></a>        <span class="n">validator</span><span class="o">=</span><span class="n">CreateOrderValidator</span><span class="p">(),</span>
+</span><span id="__span-28-17"><a id="__codelineno-28-17" name="__codelineno-28-17" href="#__codelineno-28-17"></a>        <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">()],</span>
+</span><span id="__span-28-18"><a id="__codelineno-28-18" name="__codelineno-28-18" href="#__codelineno-28-18"></a>    <span class="p">),</span>
+</span><span id="__span-28-19"><a id="__codelineno-28-19" name="__codelineno-28-19" href="#__codelineno-28-19"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>Need a <code>SpecToolset</code> option — <code>max_page_size</code>, an <code>exception_map</code>, a
-<code>build_context</code> override, or <code>require_permissions=False</code> while migrating a
+<p>Need a <code>SpecToolset</code> option — <code>max_page_size</code>, an <code>exception_map</code>, <code>pool_seeds</code>,
+a <code>call_seeds</code> override, or <code>require_permissions=False</code> while migrating a
 registry too large to guard in one commit? <strong>Build the toolset yourself and pass
 it to <code>service_specs=</code>.</strong></p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
@@ -2725,9 +2727,8 @@ yours only through one of these:</p>
   <a href="#drf_mcp_server"><code>drf_mcp_server=</code></a>.</li>
 </ul>
 <p>A mapping or a <code>SpecRegistry</code> passed directly gets the default wording, because
-the endpoint builds that capability itself and passes no <code>conventions=</code>. To keep
-a registry's declarations and reword, wrap the registry rather than flattening
-it:</p>
+the endpoint builds that capability itself and passes no <code>conventions=</code>. To
+reword a registry's tools, wrap the registry in a toolset of your own:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentConventions</span><span class="p">,</span> <span class="n">SpecToolset</span>
 </span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>
 </span><span id="__span-30-3"><a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="n">AGUIServer</span><span class="p">(</span>
@@ -2752,7 +2753,7 @@ cannot apply to an object you built, so a collision is <strong>refused at
 construction</strong> instead — rename on one side, or pass a mapping to get the old
 precedence.</p>
 <p><strong>Nor is it re-checked.</strong> Its constructor already ran the
-<code>permission_classes</code> check, and it may have been built with
+<code>permissions</code> check, and it may have been built with
 <code>require_permissions=False</code> deliberately — validating again on arrival would
 take that decision back and leave no route to it at all.</p>
 <div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-31-1"><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SPECS</span>
@@ -2760,10 +2761,10 @@ take that decision back and leave no route to it at all.</p>
 </span><span id="__span-31-3"><a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">SPECS</span><span class="p">)</span>
 </span></code></pre></div>
 <h3 id="declaring-specs-once-across-transports">Declaring specs once, across transports<a class="headerlink" href="#declaring-specs-once-across-transports" title="Permanent link">&para;</a></h3>
-<p>If the same specs are also exposed over MCP or as HTTP views, keep them in a
-<a href="https://artui.github.io/djangorestframework-services/recipes/spec-registry/"><code>SpecRegistry</code></a>
-(drf-services 0.27+) and pass that instead — each transport then reads one
-source rather than repeating the list:</p>
+<p>If the same specs are also exposed by another transport, keep them in a
+<a href="https://artui.github.io/django-service-specs/registry/"><code>SpecRegistry</code></a>
+and pass that instead — each transport then reads one source rather than
+repeating the list:</p>
 <div class="language-python highlight"><span class="filename">urls.py</span><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">registry</span>
 </span><span id="__span-32-2"><a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>
 </span><span id="__span-32-3"><a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry_of_tools</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">registry</span><span class="p">)</span>
@@ -2986,9 +2987,9 @@ mutation in, so one setting covers the tools wherever they came from:</p>
 <li>a registry <code>@tool(destructive=True)</code>;</li>
 <li>a drf-mcp tool whose MCP <code>readOnlyHint</code> annotation is <code>False</code> (selectors are
   read-only, services mutate; a project can override per registration);</li>
-<li>an in-process drf-services spec attached through
-  <a href="#service_specs"><code>service_specs=</code></a> declaring the same annotation — the same
-  <code>ServiceSpec</code> without the MCP hop;</li>
+<li>an in-process spec attached through
+  <a href="#service_specs"><code>service_specs=</code></a> declaring the same annotation, which the
+  toolset writes for every <code>ServiceSpec</code>;</li>
 <li>an <code>x-destructive</code> stamp at the root of the tool's JSON Schema, which is what
   <a class="autorefs autorefs-internal" title="build_input_schema" href="../api/#django_ag_ui.build_input_schema"><code>build_input_schema</code></a> writes.</li>
 </ul>
