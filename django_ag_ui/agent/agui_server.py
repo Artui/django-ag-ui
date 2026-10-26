@@ -534,9 +534,17 @@ def _reject_unguarded_specs(specs: dict[str, Any]) -> None:
     (``test_a_value_that_compiles_to_no_spec_is_refused_naming_the_tool``).
 
     Imported lazily: ``django-service-specs`` arrives with the ``[specs]``
-    extra, and ``service_specs`` being set is what proves it is installed.
+    extra, and an install without it can still pass ``service_specs``, so the
+    missing import is refused naming the extra
+    (``test_specs_without_the_extra_are_refused_naming_it``).
     """
-    from django_service_specs import kernel_spec
+    try:
+        from django_service_specs import kernel_spec
+    except ImportError as error:
+        raise ImportError(
+            "AGUIServer(service_specs=...) requires django-service-specs: "
+            "install django-ag-ui[specs]"
+        ) from error
 
     unguarded: list[str] = []
     for name, spec in specs.items():

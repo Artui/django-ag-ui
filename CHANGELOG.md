@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `djangorestframework-pydantic-ai` arrives with it, and the dev group no longer
   installs either directly.
 
+### Fixed
+
+- **`service_specs=` without the `[specs]` extra names the extra.** The
+  permission pre-check imports the kernel, which only that extra installs, and
+  an install without it failed with a bare `ModuleNotFoundError`. It now raises
+  `ImportError` saying to install `django-ag-ui[specs]`.
+
 ## [0.69.1] — 2026-10-23
 
 ### Fixed

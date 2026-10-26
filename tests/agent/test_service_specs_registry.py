@@ -5,6 +5,7 @@ from __future__ import annotations
 import pathlib
 import shutil
 import subprocess
+import sys
 import warnings
 from typing import Any
 
@@ -320,6 +321,22 @@ class TestUnguardedSpecs:
         tools = await capability.get_toolset().get_tools(None)
 
         assert set(tools) == {"create_widget"}
+
+    def test_specs_without_the_extra_are_refused_naming_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The core install has no kernel; say which extra brings it.
+
+        A ``None`` in ``sys.modules`` makes the import raise as a missing
+        package does, without uninstalling anything.
+        """
+        monkeypatch.setitem(sys.modules, "django_service_specs", None)
+
+        with pytest.raises(ImportError) as excinfo:
+            _server(service_specs={"list_widgets": object()})
+
+        assert "django-ag-ui[specs]" in str(excinfo.value)
+        assert isinstance(excinfo.value.__cause__, ImportError)
 
     def test_a_value_that_compiles_to_no_spec_is_refused_naming_the_tool(self) -> None:
         """A value the kernel cannot read is a mistake in one entry; say which.
