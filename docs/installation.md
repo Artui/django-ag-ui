@@ -157,9 +157,9 @@ kernel's, so a project passing `service_specs=` moves with it:
 - **The extra.** `[spec-tools]` is gone; name `[specs]`. Neither installs
   `djangorestframework-services` or `djangorestframework-pydantic-ai` any more.
 - **The specs.** Declare each with `django_service_specs`' `ServiceSpec` or
-  `SelectorSpec`, and its `SpecRegistry` for a registry. A drf-services spec
-  is refused with `TypeError` naming the tool, at construction. The
-  `[drf-mcp]` bridge still takes drf-services specs, which is what an
+  `SelectorSpec`, and its `SpecRegistry` for a registry. A value the kernel
+  cannot read as a spec raises `TypeError` naming the tool, at construction.
+  The `[drf-mcp]` bridge still takes drf-services specs, which is what an
   `MCPServer` registers.
 - **Permissions.** Each spec declares `permissions=`, a list of the kernel's
   permission checks, where it declared `permission_classes=`. An open one says

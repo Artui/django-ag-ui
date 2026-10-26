@@ -14,11 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`service_specs=` serves django-service-specs specs.** The dependency on
   `django-spec-agents` is floored at 0.2.0, where its toolset reads every spec
   through the kernel, and the cap below 0.2.0 is lifted. A mapping passed as
-  `service_specs=` holds the kernel's `ServiceSpec` and `SelectorSpec`, and a
-  registry is the kernel's `SpecRegistry`. A drf-services spec there is refused
-  at construction with a `TypeError` naming the tool. The `[drf-mcp]` bridge is
-  unchanged and still takes drf-services specs, since that is what an
-  `MCPServer` registers.
+  `service_specs=` holds the kernel's `ServiceSpec` and `SelectorSpec`, read
+  through `kernel_spec`, and a registry is the kernel's `SpecRegistry`. The
+  `[drf-mcp]` bridge is unchanged and still takes drf-services specs, since that
+  is what an `MCPServer` registers.
 - **The permission pre-check reads the spec's `permissions`.** A spec that
   declares none is refused at construction, as before, and the message now says
   how to declare an open one, `permissions=[Unrestricted()]`, where it named
