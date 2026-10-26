@@ -7,7 +7,9 @@ import warnings
 from types import SimpleNamespace
 from typing import Any
 
+import django_service_specs as kernel
 import pytest
+from django import forms
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.http import Http404, StreamingHttpResponse
@@ -24,7 +26,6 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework_mcp import AgentConventions as MCPAgentConventions
 from rest_framework_mcp import MCPServer, QueryParam
-from rest_framework_services import SpecRegistry
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -103,7 +104,7 @@ async def test_reasoning_opt_out_still_streams_the_answer() -> None:
 
 @pytest.mark.django_db
 async def test_service_specs_tool_runs_in_process() -> None:
-    # The no-MCP-hop path: a drf-services spec passed as service_specs=
+    # The no-MCP-hop path: a django-service-specs spec passed as service_specs=
     # is wired as a SpecToolset and executed in-process during the run. The
     # request arrives with a user the way the auth middleware sets one in a real
     # deployment (the toolset binds it as the acting user).
@@ -118,6 +119,36 @@ async def test_service_specs_tool_runs_in_process() -> None:
     body = await _drain(response)
     assert "RUN_FINISHED" in body
     assert "ping" in body
+
+
+@pytest.mark.django_db
+async def test_a_spec_callable_reads_the_run_s_request() -> None:
+    # The default deps put the request the run arrived on in ``call_context``,
+    # and the toolset registers it as the ``request`` seed of every call, so a
+    # spec callable written for HTTP binds the same object here. Without it the
+    # seed is ``None``, and a callable reading ``request.user`` fails mid-run.
+    seen: list[Any] = []
+
+    def record(request: Any) -> dict[str, bool]:
+        """Record the request."""
+        seen.append(request)
+        return {"ok": True}
+
+    view = DjangoAGUIView(
+        ToolRegistry(),
+        model=TestModel(call_tools=["record"]),
+        service_specs={
+            "record": kernel.ServiceSpec(
+                service=record, atomic=False, permissions=[kernel.Unrestricted()]
+            )
+        },
+    )
+    request = _post(_run_input("record the request"))
+
+    body = await _drain(await view(request))
+
+    assert "RUN_FINISHED" in body
+    assert seen == [request]
 
 
 def test_view_is_marked_as_a_coroutine_function() -> None:
@@ -1495,16 +1526,20 @@ class TestHeartbeat:
 
 # --- a selection the serializer refuses while rendering ---------------------
 #
-# A read-shaping ``QueryParam`` is read by the output serializer, after the tool
-# has run, and both transports now answer a value it refuses with a retry naming
-# the argument rather than an exception out of the tool. For this package that
+# A read-shaping argument is read while the result renders, after the tool has
+# run: by the output serializer on the drf-mcp route, by the kernel spec's
+# presenter on the spec route. Both transports now answer a value it refuses
+# with a retry naming the argument rather than an exception out of the tool. For this package that
 # moves the refusal from one event to another. It was a failed call under the
 # default ``TOOL_FAILURE`` policy, its text withheld from the model and the
 # browser alike, so the model could not correct the selection; it is now a
 # retry, a ``TOOL_CALL_RESULT`` with no ``outcome``, sent as it is. The text is
-# the serializer's ``ValidationError`` message, DRF's client-facing wording,
-# and only ever about a value the model sent; anything else a serializer raises
-# is still a failure the policy withholds.
+# the refusal's own client-facing message, and only ever about a value the model
+# sent; anything else a render raises is still a failure the policy withholds.
+#
+# The drf-mcp route registers drf-services specs, the spec route serves
+# django-service-specs specs, so each case declares one of each, with the same
+# rows and the same refusal.
 
 
 class _SelectableRow(serializers.Serializer):
@@ -1535,6 +1570,42 @@ _ROWS_SPEC = SelectorSpec(
 )
 
 
+def _rows() -> list[dict[str, Any]]:
+    return [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+
+
+class _SelectableRowPresenter(kernel.Presenter):
+    """The kernel twin of ``_SelectableRow``: a row reading its own ``fields`` shape."""
+
+    def output(self) -> kernel.Output:
+        return kernel.Output(
+            (kernel.OutputField("id", "integer"), kernel.OutputField("name", "string"))
+        )
+
+    def present(self, value: Any) -> Any:
+        return {"id": value["id"], "name": value["name"]}
+
+    def presented(self, value: Any, context: kernel.PresentationContext | None) -> Any:
+        data = self.present(value)
+        raw = context.shapes.get("fields") if context is not None else None
+        if not raw:
+            return data
+        wanted = [name.strip() for name in raw.split(",")]
+        for name in wanted:
+            if name not in data:
+                raise kernel.ServiceValidationError(f"Unknown field `{name}`.")
+        return {name: data[name] for name in wanted}
+
+
+_KERNEL_ROWS_SPEC = kernel.SelectorSpec(
+    kind=kernel.SelectorKind.LIST,
+    selector=_rows,
+    presenter=_SelectableRowPresenter(),
+    permissions=[kernel.Unrestricted()],
+    shapes=kernel.Parameters.of(kernel.Parameter("fields", "string")),
+)
+
+
 def _bridged_rows() -> dict[str, Any]:
     server = MCPServer(name="paged")
     server.register_selector_tool(
@@ -1548,11 +1619,11 @@ def _bridged_rows() -> dict[str, Any]:
 
 def _spec_rows() -> dict[str, Any]:
     # Through the server's own normalising, as ``AGUIServer(service_specs=...)``
-    # hands a pre-built toolset to the view. The ``QueryParam`` is declared on
-    # the spec, which both routes read. A registry rather than a bare mapping,
-    # because only a registry's toolset advertises a spec's reads.
-    registry = SpecRegistry()
-    registry.register("list_rows", _ROWS_SPEC)
+    # hands a pre-built toolset to the view. The ``fields`` shape is declared on
+    # the spec, and the toolset is built from a registry, as a project passing
+    # its registry does.
+    registry = kernel.SpecRegistry()
+    registry.register("list_rows", _KERNEL_ROWS_SPEC)
     toolset = SpecToolset(
         registry,
         descriptions={"list_rows": "List rows."},
@@ -1624,6 +1695,14 @@ _MISSING_SPEC = SelectorSpec(
 )
 
 
+_KERNEL_MISSING_SPEC = kernel.SelectorSpec(
+    kind=kernel.SelectorKind.LIST,
+    selector=_missing_rows,
+    presenter=_SelectableRowPresenter(),
+    permissions=[kernel.Unrestricted()],
+)
+
+
 def _bridged_missing() -> dict[str, Any]:
     server = MCPServer(name="missing")
     server.register_selector_tool(name="list_rows", description="List rows.", spec=_MISSING_SPEC)
@@ -1631,8 +1710,8 @@ def _bridged_missing() -> dict[str, Any]:
 
 
 def _spec_missing() -> dict[str, Any]:
-    registry = SpecRegistry()
-    registry.register("list_rows", _MISSING_SPEC)
+    registry = kernel.SpecRegistry()
+    registry.register("list_rows", _KERNEL_MISSING_SPEC)
     toolset = SpecToolset(registry, descriptions={"list_rows": "List rows."})
     specs, capability, source = _resolve_spec_source(toolset)
     return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
@@ -1707,6 +1786,30 @@ _RENAME_SPEC = ServiceSpec(
 )
 
 
+class _RenameRowForm(forms.Form):
+    name = forms.CharField()
+
+
+def _kernel_row_lookup() -> kernel.SelectorSpec:
+    return kernel.SelectorSpec(
+        kind=kernel.SelectorKind.RETRIEVE,
+        selector=_row_by_pk,
+        reads=kernel.Parameters.of(kernel.Parameter("pk", "integer", required=True)),
+        permissions=[kernel.Unrestricted()],
+    )
+
+
+_KERNEL_RENAME_SPEC = kernel.ServiceSpec(
+    service=_rename_row,
+    atomic=False,
+    validator=kernel.FormValidator(_RenameRowForm),
+    instance_selector_spec=_kernel_row_lookup(),
+    permissions=[kernel.Unrestricted()],
+)
+
+_KERNEL_ROW_SPEC = _kernel_row_lookup()
+
+
 def _bridged_rename() -> dict[str, Any]:
     server = MCPServer(name="rows")
     server.register_service_tool(name="rename_row", description="Rename a row.", spec=_RENAME_SPEC)
@@ -1715,7 +1818,7 @@ def _bridged_rename() -> dict[str, Any]:
 
 def _spec_rename() -> dict[str, Any]:
     # A plain mapping, normalised as ``AGUIServer(service_specs=...)`` does it.
-    specs, capability, source = _resolve_spec_source({"rename_row": _RENAME_SPEC})
+    specs, capability, source = _resolve_spec_source({"rename_row": _KERNEL_RENAME_SPEC})
     return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
 
 
@@ -1733,7 +1836,7 @@ def _bridged_row() -> dict[str, Any]:
 
 
 def _spec_row() -> dict[str, Any]:
-    specs, capability, source = _resolve_spec_source({"get_row": _ROW_SPEC})
+    specs, capability, source = _resolve_spec_source({"get_row": _KERNEL_ROW_SPEC})
     return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
 
 
@@ -1813,7 +1916,7 @@ _ASKED_AGAIN = "Send `pk` as well."
 
 def _toolset_reworded() -> dict[str, Any]:
     toolset = SpecToolset(
-        {"get_row": _ROW_SPEC}, conventions=AgentConventions(missing_arguments=_ASK_AGAIN)
+        {"get_row": _KERNEL_ROW_SPEC}, conventions=AgentConventions(missing_arguments=_ASK_AGAIN)
     )
     specs, capability, source = _resolve_spec_source(toolset)
     return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
@@ -1821,7 +1924,7 @@ def _toolset_reworded() -> dict[str, Any]:
 
 def _capability_reworded() -> dict[str, Any]:
     built = SpecCapability(
-        {"get_row": _ROW_SPEC}, conventions=AgentConventions(missing_arguments=_ASK_AGAIN)
+        {"get_row": _KERNEL_ROW_SPEC}, conventions=AgentConventions(missing_arguments=_ASK_AGAIN)
     )
     specs, capability, source = _resolve_spec_source(built)
     return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
@@ -1834,8 +1937,8 @@ def _server_reworded() -> dict[str, Any]:
 
 
 def _registry_row() -> dict[str, Any]:
-    registry = SpecRegistry()
-    registry.register("get_row", _ROW_SPEC)
+    registry = kernel.SpecRegistry()
+    registry.register("get_row", _KERNEL_ROW_SPEC)
     specs, capability, source = _resolve_spec_source(registry)
     return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
 

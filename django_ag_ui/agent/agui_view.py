@@ -131,7 +131,7 @@ class DjangoAGUIView:
         self._agent_factory = agent_factory
         self._drf_mcp_server = drf_mcp_server
         self._service_specs = service_specs
-        # The argument as given, when it carried more than its specs -- see
+        # The argument as given, when it was a registry -- see
         # ``_resolve_spec_source``. Only the capability wants it; the mapping
         # above is what the catalog and the name dedup read.
         self._spec_source = spec_source
@@ -247,11 +247,17 @@ class DjangoAGUIView:
     def _build_deps(self, request: HttpRequest) -> AgentDeps:
         """The per-run dependencies handed to the agent as ``ctx.deps``.
 
-        A ``deps_factory`` takes over entirely; the default binds the acting user
-        and the client IP and nothing else. ``request.user`` was materialized off
-        the event loop by the auth step, so reading it on the loop is safe, and
-        ``getattr`` covers an endpoint served without Django's auth middleware,
-        which has no ``user`` attribute at all.
+        A ``deps_factory`` takes over entirely; the default binds the acting user,
+        the client IP and the run's request, and nothing else. ``request.user``
+        was materialized off the event loop by the auth step, so reading it on
+        the loop is safe, and ``getattr`` covers an endpoint served without
+        Django's auth middleware, which has no ``user`` attribute at all.
+
+        The request goes under ``call_context["request"]``, the run's context
+        ``SpecToolset`` copies into every dispatch: a spec callable, presenter
+        or permission check declaring ``request`` reads it there, and finds
+        ``None`` where the run put none
+        (``test_a_spec_callable_reads_the_run_s_request``).
         """
         if self._deps_factory is not None:
             return self._deps_factory(request)
@@ -261,6 +267,7 @@ class DjangoAGUIView:
             # would otherwise stamp every audit record with the IP of whoever
             # arrived first.
             ip_address=request.META.get("REMOTE_ADDR"),
+            call_context={"request": request},
         )
 
     def _agent(self) -> Agent[AgentDeps, Any]:
@@ -407,9 +414,9 @@ class DjangoAGUIView:
         return [toolset]
 
     def _spec_capabilities(self, specs: dict[str, Any] | None, seen: set[str]) -> list[Any]:
-        """Build the drf-services `SpecCapability`, or `[]` when unset.
+        """Build the spec tools' `SpecCapability`, or `[]` when unset.
 
-        Imported lazily so `django_spec_agents.spec_tools` (and drf-services)
+        Imported lazily so `django_spec_agents.spec_tools` (and the kernel)
         stay an optional `[specs]` extra. The acting user reaches the
         toolset through the run's ``deps``, not a closure over ``request`` —
         ``SpecToolset``'s default extractor reads ``ctx.deps.user`` — which is

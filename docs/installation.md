@@ -135,25 +135,39 @@ optional for projects that do not use it. See
 
 ## The `[specs]` extra
 
-To expose drf-services specs to the agent as tools with no MCP server in the path
-(`service_specs=`), install the extra:
+To expose [django-service-specs](https://artui.github.io/django-service-specs/)
+specs to the agent as tools with no MCP server in the path (`service_specs=`),
+install the extra:
 
 ```bash
 pip install "django-ag-ui[specs]"
 ```
 
 This pulls in `django-spec-agents[specs]`, whose `django_spec_agents.spec_tools`
-holds the `SpecToolset` and `SpecCapability` the endpoint builds, with
-`djangorestframework-services` and DRF beneath it. Like the bridge, it is
+holds the `SpecToolset` and `SpecCapability` the endpoint builds, with the
+kernel, `django-service-specs`, beneath it and no DRF. Like the bridge, it is
 imported lazily, only when `service_specs=` is passed. See
 [Configuration → `service_specs=`](configuration.md#service_specs).
 
-`[spec-tools]` is the extra's old name, and it still installs for this minor: it
-pulls in `django-spec-agents[specs]` and `djangorestframework-pydantic-ai`, so a
-project naming it keeps everything it had. A `SpecToolset` or `SpecCapability`
-built from `rest_framework_pydantic_ai` is still served when passed as
-`service_specs=`. The next minor removes `[spec-tools]`; move to `[specs]` and
-import from `django_spec_agents.spec_tools` before then.
+## Moving to django-service-specs specs
+
+Up to 0.69 the spec toolset served drf-services specs. It now serves the
+kernel's, so a project passing `service_specs=` moves with it:
+
+- **The extra.** `[spec-tools]` is gone; name `[specs]`. Neither installs
+  `djangorestframework-services` or `djangorestframework-pydantic-ai` any more.
+- **The specs.** Declare each with `django_service_specs`' `ServiceSpec` or
+  `SelectorSpec`, and its `SpecRegistry` for a registry. A drf-services spec
+  is refused with `TypeError` naming the tool, at construction. The
+  `[drf-mcp]` bridge still takes drf-services specs, which is what an
+  `MCPServer` registers.
+- **Permissions.** Each spec declares `permissions=`, a list of the kernel's
+  permission checks, where it declared `permission_classes=`. An open one says
+  `permissions=[Unrestricted()]`.
+- **The request.** A spec callable declaring `request` is handed the request
+  the run arrived on, which the default deps put in `AgentDeps.call_context`.
+  A `deps_factory` replaces those deps, so one serving spec tools passes
+  `call_context={"request": request}` itself.
 
 ## Moving from django-pydantic-agent
 

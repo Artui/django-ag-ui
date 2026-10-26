@@ -42,8 +42,15 @@ dependencies = [
     # policies, audit, user resolution, and the storage contracts. It is the
     # merge of django-pydantic-agent, the host, and djangorestframework-pydantic-ai,
     # which it carries as ``django_spec_agents.spec_tools`` behind ``[specs]``.
-    # Floored at 0.1.0, its first release, for three reasons. It is the release
-    # carrying the import paths this package reads. Its gates hold it equal in
+    # Floored at 0.2.0, where ``[specs]`` is the kernel alone and the toolset
+    # serves django-service-specs specs, read through ``kernel_spec``: the
+    # ``service_specs=`` pre-check reads the compiled spec's ``permissions``,
+    # and the toolset reads the run's request from ``AgentDeps.call_context``,
+    # which first exists there and which the default deps fill. Below it the
+    # toolset served drf-services specs, built its own request, and imported
+    # drf-services, which this package no longer installs.
+    # What 0.1.0, its first release, bought still holds, for three reasons. It
+    # is the release carrying the import paths this package reads. Its gates hold it equal in
     # behaviour to django-pydantic-agent 0.28.2 and djangorestframework-pydantic-ai
     # 0.36.1, the releases this package's floors last named, so everything those
     # floors bought holds from here: the guard reading all four destructive
@@ -60,11 +67,7 @@ dependencies = [
     # ``DefaultMemoryStore`` from it, and ``check_docs_snippets.py`` resolves those
     # imports against the installed package, so a page a valid install cannot
     # follow fails there rather than quietly.
-    # Capped below 0.2.0, where ``[specs]`` stops bringing drf-services and the
-    # toolset serves kernel-declared specs only: this release imports
-    # drf-services for its ``service_specs=`` pre-check and hands drf-services
-    # specs to the toolset. The minor that adopts 0.2.0 lifts the ceiling.
-    "django-spec-agents>=0.1.0,<0.2.0",
+    "django-spec-agents>=0.2.0",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
@@ -135,7 +138,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # ``SPREAD_CALLER_WINS`` binding and the ``PASSTHROUGH`` unknown-argument policy
 # they still pass, and a good part of their own suite fails against it. The
 # one patch that capped drf-services below that adapter is the band this floor
-# leaves, so the pair moves together with the ``[spec-tools]`` floor below,
+# leaves, so the pair moves together with the floor of the ``[spec-tools]`` extra of the time,
 # which had the same pair of builds. The server also reads a spec's own
 # ``reads``, a ``QueryParam`` or ``UrlKwarg`` declared once on the spec being
 # advertised and routed on this route as on the other, and deprecates declaring
@@ -147,7 +150,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 #
 # 0.52 was the previous floor, where a call refused for leaving out a required
 # argument reads ``Missing required argument(s): `pk`.``, the sentence the
-# ``[spec-tools]`` route writes for the same call, where it read ``Invalid
+# spec route writes for the same call, where it read ``Invalid
 # arguments`` and left the names to the detail django-pydantic-agent's bridge appends. A browser
 # transcript is one stream whichever route a tool came by, so this floor moves
 # in lockstep with that one, and the test driving a call missing its row
@@ -182,7 +185,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # filter. Both move text from withheld to streamed: a retry is a
 # ``TOOL_CALL_RESULT`` with no ``outcome``, sent as it is, and the text names
 # only an argument the model left out, or quotes the refusal of a value it
-# sent. It moves in lockstep with the ``[spec-tools]`` floor below, which fixed
+# sent. It moves in lockstep with the floor of the ``[spec-tools]`` extra of the time, which fixed
 # the same call on that route in its own words, because a browser transcript is
 # one stream whichever route a tool came by; the test driving a call missing
 # its row lookup through a session on each route holds both. It floored
@@ -204,7 +207,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # same kind every argument-validation retry already streams, and it is produced
 # only for a value the model itself sent; anything else a serializer raises is
 # still a failure the policy withholds. It moves in lockstep
-# with the ``[spec-tools]`` floor below, which fixed the same render on that
+# with the floor of the ``[spec-tools]`` extra of the time, which fixed the same render on that
 # route; the test driving a refused selection through a session on each route
 # holds both. Subsumed.
 #
@@ -216,7 +219,7 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # than once per run, so it is the band 0.25 of that package requires: anything
 # lower stated here would advertise a band in which the bridge a
 # ``drf_mcp_server=`` agent configures cannot be built. It moves in lockstep
-# with the ``[spec-tools]`` floor below, which is the same explanation written
+# with the floor of the ``[spec-tools]`` extra of the time, which is the same explanation written
 # for the other route. Subsumed.
 #
 # 0.46 was the floor before that, where a ``ServiceSpec`` declaring ``many=True`` registers
@@ -224,9 +227,8 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # names another. A ``drf_mcp_server=`` registry carrying a bulk spec therefore
 # offers a tool whose result streams to the browser as a list, where the
 # registration below this floor refused the spec and listed nothing for it. This
-# floor moved in lockstep with the ``[spec-tools]`` one below, as the floor above
-# does -- see that comment for why a mismatched pair is worse than either old
-# band. 0.46 also stops a
+# floor moved in lockstep with the floor of the ``[spec-tools]`` extra of the
+# time, as the floor above does. 0.46 also stops a
 # ``many=True`` chain step collapsing its list to one row through an output
 # re-fetch, and refuses a chain that inherits such a step's ``input_serializer``
 # rather than handing the bulk service one item as its whole data. It floors
@@ -249,157 +251,15 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # service's own affordances refuse it, and reported success, and the
 # ``outputSchema`` handed to the model left out the ``affordances`` object.
 # Subsumed. The package declares no drf-services dependency
-# of its own to state the constraint against -- its one import of it,
-# ``unguarded_specs``, is lazy and runs only when ``service_specs=`` is set, which
-# an extra has already installed -- so the extra carries it.
+# of its own to state the constraint against, so the extra carries it.
 #
 # 0.37 was the previous floor, the first release carrying drf-services>=0.49
 # after a serializer that nests itself crashed the catalog walk. Subsumed.
 drf-mcp = ["djangorestframework-mcp-server>=0.53.1"]
-# Expose drf-services specs directly as agent tools via django-spec-agents'
+# Expose django-service-specs specs directly as agent tools via django-spec-agents'
 # ``spec_tools.SpecCapability`` -- no MCP server in the path (service_specs=).
-# Floored at 0.1.0, where the toolset is djangorestframework-pydantic-ai 0.36.1's
-# carried across whole, so every floor the old extra below names holds from it.
-specs = ["django-spec-agents[specs]>=0.1.0,<0.2.0"]
-# The old spelling of ``[specs]``, kept for this minor and removed in the next.
-# It installs what it always did, djangorestframework-pydantic-ai, plus what the
-# ``service_specs=`` path now imports, so a project naming it keeps working and a
-# toolset or capability it builds from the old package is still served. The
-# floors below are that package's, and each still holds through ``[specs]``.
-#
-# The same not-found answer is djangorestframework-pydantic-ai 0.36.1's, but the
-# fix lives in django-service-specs 0.10.0, which ``[specs]`` already floors, so
-# 0.36 answers it too beside it and the floor stays. The transitional test
-# driving that selector through an old toolset holds it.
-#
-# Floored at 0.25, the release that raises ToolFailed for a terminal failure
-# instead of returning {"error": ...}. That is what this package's outcome
-# forwarding has to have underneath it to be truthful: below 0.25 a spec tool's
-# conflict or missing row is an ordinary return, which pydantic-ai marks
-# outcome="success", so the transport would faithfully forward "success" for a
-# call that failed -- a worse state than the silence it replaced, because a
-# client would now be reading a field and believing it.
-#
-# 0.26 raises it again, for the half a consumer's own suite has to reach: it
-# ships a streaming test double. The 0.25 double could only serve a
-# non-streamed request, and this transport always streams -- so a consumer
-# wanting to assert what its browser receives for a failed tool call, which is
-# exactly what 0.25 made expressible, had no way to drive one. The floor is
-# soft in the sense that nothing here imports it; it is stated because a
-# consumer testing this package's outcome forwarding needs it, and finding that
-# out from a run that dies before the toolset is touched costs an afternoon.
-#
-# 0.27 raised it again, and unlike the two above that raise was about what
-# happens in production rather than in a consumer's tests. A spec dispatch runs
-# on asgiref's process-wide shared thread, and Django closes connections per
-# *request* on the *request's* thread -- `django.db.connections` is thread-local,
-# so `request_finished` never reaches the connection the dispatch opened. That
-# applies here even though every AG-UI call arrives over HTTP: the request
-# finishing closes the request thread's connection and nothing else, so a
-# long-lived server accumulates one open connection on the shared thread and
-# keeps it forever. 0.27 releases what a dispatch opened and leaves what it did
-# not, which is the part that makes it safe when asgiref routes back onto a
-# caller's own thread mid-transaction.
-#
-# 0.28 raised it for what the model is told rather than what runs: a spec tool's
-# return schema declares the ``affordances`` object drf-services renders into each
-# item of a spec declaring them. Below it the model was handed items carrying a
-# key the schema said did not exist.
-#
-# 0.29 was the previous floor. A refused call's text ends with the rule's code, worded
-# as the ``[drf-mcp]`` bridge words the same refusal, so a browser rendering a
-# failed call reads one sentence whichever route the tool came by. A tool that
-# finds nothing returns ``None`` rather than a row of empty fields. And a
-# ``many=True`` service spec was refused when the toolset is built, so
-# ``service_specs=`` carrying one raised ``ImproperlyConfigured`` instead of
-# offering a tool no call can satisfy. It floored drf-services at 0.52.1 in turn.
-#
-# 0.30 raised it again, withdrawing that last refusal: a ``many=True``
-# service spec is a tool taking its list under one named argument, so
-# ``service_specs=`` carrying one offers a bulk tool where it raised at build. A
-# ``QueryParam`` or ``UrlKwarg`` named after that argument is refused instead, and
-# refused at build, rather than making every call come back asking for the
-# argument the model had just sent. This floor and the ``[drf-mcp]`` one above
-# move together: both siblings reversed the same refusal in the same release, so
-# raising one alone leaves the same spec a working tool on one route and an
-# ``ImproperlyConfigured`` on the other -- and this package is where that
-# disagreement would surface, since a browser transcript is one stream whichever
-# route a tool came by. 0.30 floors drf-services at 0.53.0 in turn, and hard:
-# every spec call passes ``many_as_argument``, so below it a tool call raises
-# ``TypeError`` once a model calls one.
-#
-# 0.31 was the floor before that, and it is about what the model is told when a tool is
-# missing rather than about which tools exist: each operation an unmet operation
-# condition left out is named in that step's instructions, with that condition's
-# reason, so a user who asks for one is answered in the sentence the rule's
-# author wrote rather than in whatever the model infers from an absence. It
-# moves in lockstep with the ``[drf-mcp]`` floor above for the reason 0.30 did:
-# django-pydantic-agent's bridge now writes that same sentence for the same
-# rule, so below this a session reads one way for a tool that arrived by MCP and
-# another for one that arrived as a spec -- and this package is where that
-# disagreement would surface, since a browser transcript is one stream whichever
-# route a tool came by.
-#
-# 0.32 was the previous floor, the same fix as the ``[drf-mcp]`` 0.49 one above
-# on this route: a read-shaping value the output serializer refuses while
-# rendering is a retry naming the argument rather than a ``RUN_ERROR``, and an
-# explicit ``null`` for one is omitted rather than reaching the serializer as
-# ``None``. Subsumed.
-#
-# 0.33 was the previous floor, the same fix as the ``[drf-mcp]`` 0.50 one above on this
-# route: a tool's input schema requires what a call needs, so a service tool
-# changing one row advertises the lookup its row is resolved through as a
-# required argument, as a selector does a parameter with no default, and a call that leaves such an argument out is a retry
-# naming each one missing rather than the lookup's ``TypeError`` out of the
-# toolset, which the default ``TOOL_FAILURE`` policy turned into a failed call
-# with its text withheld. The sentence was this route's own, which the bridge's
-# server has since adopted, and names only what the model left out. The two
-# floors moved together so a transcript asks for a missing argument whichever
-# route the tool came by, and a filter value this route already retried is not
-# a withheld failure on the other. It floored drf-services at 0.55.0 in turn,
-# and hard: below it building the toolset raises ``TypeError``. Subsumed.
-#
-# The floor now is where the toolset is built for drf-services as the DRF
-# adapter over django-service-specs, and where a declared range stops admitting
-# a build that is not. The builds before it carry no ceiling on drf-services, so
-# a fresh install resolved them beside the adapter release, which retires the
-# ``SPREAD_CALLER_WINS`` binding and the ``PASSTHROUGH`` unknown-argument policy
-# they still pass, and part of their own suite fails against it. The one patch
-# that capped drf-services below that adapter is the band this floor leaves, so
-# this floor moves in lockstep with the ``[drf-mcp]`` one above, as the two
-# routes read one spec. A toolset built from a registry advertises and routes
-# the ``QueryParam`` and ``UrlKwarg`` reads the spec declares, which is how the
-# test of a selection the output serializer refuses declares its read once and
-# drives a session on each route; a toolset built from a bare mapping advertises
-# none of them. It floors drf-services at 0.58.0 in turn, and hard: the toolset
-# recognises that release's refusals and registries by classes that first exist
-# there, and it declares django-service-specs itself.
-#
-# 0.35 was the floor before that, where each sentence this route writes for a
-# model can be reworded: ``AgentConventions``, given as ``conventions=`` to a
-# ``SpecToolset`` or ``SpecCapability`` that is built and passed as
-# ``service_specs=``. A mapping or a registry passed directly is built into a
-# capability here with the default wording. It moves in lockstep with the ``[drf-mcp]`` floor above,
-# which gives the server behind the bridge the same, and the test of which
-# built objects carry custom wording holds both. It floors drf-services at
-# 0.56.0 in turn, and hard: the toolset imports at module level what first
-# exists there. Under it a parameter a ``kwargs=`` provider declines and the
-# model left out is a retry naming it, where the selector's ``TypeError`` was a
-# failed call the default ``TOOL_FAILURE`` policy withholds, and a value the
-# model sends for a ``NotClientInput`` name is dropped. A parameter the toolset
-# takes out of every call before the selector runs, ``page`` or ``limit`` on a
-# list selector or a name a ``QueryParam`` also names, is refused when the
-# toolset is built, as the bridge's server refuses it at registration, rather
-# than running on its default whatever the model sent; nothing this package
-# ships or documents declares one. Subsumed.
-#
-# 0.24 was the floor before these, the first release carrying drf-services>=0.49
-# after a self-nesting serializer took SpecToolset down at construction. That
-# constraint still holds and is subsumed.
-spec-tools = [
-    "django-spec-agents[specs]>=0.1.0,<0.2.0",
-    "djangorestframework-pydantic-ai>=0.36",
-]
+# Floored with the core dependency above, at 0.2.0, for the reasons given there.
+specs = ["django-spec-agents[specs]>=0.2.0"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via capabilities=.
@@ -437,15 +297,7 @@ dev = [
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
     "djangorestframework-mcp-server>=0.53.1",
     # The [specs] extra's backing package, so its capability + tests run in dev.
-    "django-spec-agents[specs]>=0.1.0,<0.2.0",
-    # Declared directly because the tests declare drf-services specs, and
-    # ``[specs]`` stops bringing drf-services from django-spec-agents 0.2.0.
-    # Floored where ``[specs]`` floors it: the toolset recognises that release's
-    # refusals and registries by classes that first exist there.
-    "djangorestframework-services>=0.58.0",
-    # Backs the transitional [spec-tools] test, which builds a toolset and a
-    # capability from the old package and serves them; leaves with that extra.
-    "djangorestframework-pydantic-ai>=0.36",
+    "django-spec-agents[specs]>=0.2.0",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised

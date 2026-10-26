@@ -38,9 +38,10 @@ when:
 - it is a drf-mcp bridged tool whose MCP `readOnlyHint` annotation is `False`
   (selectors are read-only, services mutate — the bridge maps this automatically,
   and a project can override it per registration); **or**
-- it is an **in-process** drf-services spec attached through
+- it is an **in-process** spec attached through
   [`service_specs=`](configuration.md#service_specs) whose MCP annotations say
-  `readOnlyHint` is `False` — the same `ServiceSpec`, reached without the MCP
+  `readOnlyHint` is `False`, which the toolset writes for every `ServiceSpec`
+  (a `SelectorSpec` is read-only), as the drf-mcp bridge does without the MCP
   hop; **or**
 - its JSON Schema carries the `x-destructive` stamp at the root, which is what
   [`build_input_schema`][django_ag_ui.build_input_schema] writes — so a tool you

@@ -10,8 +10,8 @@ class SpecToolsetSource(Protocol):
 
     ``django_spec_agents.spec_tools.SpecToolset`` is the intended
     implementation: a project needing one of its knobs (``max_page_size``, an
-    ``exception_map``, a ``build_context`` override, ``require_permissions=False``
-    while migrating) builds the toolset itself and passes that instead of the
+    ``exception_map``, ``pool_seeds``, a ``call_seeds`` override,
+    ``require_permissions=False`` while migrating) builds the toolset itself and passes that instead of the
     mapping. The endpoint attaches it as-is while still reading its specs for the
     tool catalog.
 
