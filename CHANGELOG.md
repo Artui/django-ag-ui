@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.0] — 2026-10-26
+
 ### Changed
 
 - **`service_specs=` serves django-service-specs specs.** The dependency on
@@ -4110,7 +4112,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.69.1...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.70.0...HEAD
+[0.70.0]: https://github.com/Artui/django-ag-ui/compare/v0.69.1...v0.70.0
 [0.69.1]: https://github.com/Artui/django-ag-ui/compare/v0.69.0...v0.69.1
 [0.69.0]: https://github.com/Artui/django-ag-ui/compare/v0.68.3...v0.69.0
 [0.68.3]: https://github.com/Artui/django-ag-ui/compare/v0.68.2...v0.68.3
