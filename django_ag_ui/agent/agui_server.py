@@ -114,27 +114,26 @@ class AGUIServer:
     persists, rather than relying on owner scoping to isolate anonymous visitors
     from one another.
 
-    **Spec tools.** ``service_specs`` takes a ``name -> spec`` mapping, a spec
-    registry (drf-services' ``SpecRegistry``, the single declaration site for a
-    project exposing the same specs over several transports), or an
-    already-built ``SpecToolset`` / ``SpecCapability``:
+    **Spec tools.** ``service_specs`` takes a ``name -> spec`` mapping of
+    django-service-specs specs, a spec registry (the kernel's ``SpecRegistry``,
+    the single declaration site for a project exposing the same specs over
+    several transports), or an already-built ``SpecToolset`` /
+    ``SpecCapability``:
 
         AGUIServer(registry, service_specs=spec_registry.by_tag("public"))
         AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
 
-    **Prefer the registry over ``registry.specs()``.** An entry carries more
-    than its spec -- its tags, and the ``OfflineContract`` saying what a caller
-    with no HTTP request has to be told (the URL kwargs, query params and
-    field-audience overrides an HTTP caller gets from the URLconf and query
-    string for free). The flattened mapping has none of it, and losing it is
-    silent: the tools are all there and merely missing declarations nobody asked
-    for.
+    A spec declares what a caller with no HTTP request has to be told -- its
+    ``reads`` and ``shapes`` -- on itself, so a registry and its ``specs()``
+    serve the same tools. A registry is still handed to the toolset as given,
+    never rebuilt from its flattened mapping.
 
     A filtered registry view (``by_tag`` / ``subset``) is itself a registry, so
     two endpoints can be given different projections with no shared state. The
     pre-built form is the only way to reach a toolset knob (``max_page_size``, an
-    ``exception_map``, a ``build_context`` override, ``require_permissions=False``
-    while migrating) without abandoning ``service_specs=`` for ``capabilities=``,
+    ``exception_map``, ``pool_seeds``, a ``call_seeds`` override,
+    ``require_permissions=False`` while migrating) without abandoning
+    ``service_specs=`` for ``capabilities=``,
     which the tool catalog never sees; it is attached as itself and its ``specs``
     are read for the catalog, so the powerful form keeps the tool-call card
     labels. The parameter's union covers all four shapes, the last two matched
@@ -175,12 +174,15 @@ class AGUIServer:
         )
 
     **Per-run dependencies.** ``deps_factory`` is a ``request -> AgentDeps``
-    callable replacing the default, which binds only the acting user and their
-    IP. Use it to carry project-specific per-run context on an ``AgentDeps``
-    subclass, or to seed ``AgentDeps.state`` with a Pydantic model — the only way
-    to have AG-UI's inbound shared state *validated*, since pydantic-ai validates
-    it against ``type(deps.state)``. Whatever it returns reaches every tool,
-    toolset and capability as ``ctx.deps``.
+    callable replacing the default, which binds the acting user, their IP, and
+    the run's request under ``call_context["request"]``. Use it to carry
+    project-specific per-run context on an ``AgentDeps`` subclass, or to seed
+    ``AgentDeps.state`` with a Pydantic model — the only way to have AG-UI's
+    inbound shared state *validated*, since pydantic-ai validates it against
+    ``type(deps.state)``. Whatever it returns reaches every tool, toolset and
+    capability as ``ctx.deps``. A factory replaces the default whole, so one
+    serving spec tools whose callables or permission checks read ``request``
+    puts the request in ``call_context`` itself.
 
     **Durable step persistence.** ``step_store`` is a *factory* — a
     ``request -> StepStore`` callable rather than a shared store, because the
@@ -311,11 +313,9 @@ class AGUIServer:
         # ``RegisteredSpec`` records rather than names, quietly stopping
         # tool-name collision detection.
         #
-        # The **source** is kept alongside, because normalising is lossy in the
-        # one direction that matters: a ``SpecRegistry`` entry carries the
-        # per-entry declarations an agent transport reads, and ``specs()``
-        # returns the specs alone. The capability is built from the source; the
-        # mapping serves the two consumers above, which want names.
+        # The **source** is kept alongside, so the capability is built from what
+        # the consumer passed rather than from this endpoint's flattening of it;
+        # the mapping serves the two consumers above, which want names.
         self._service_specs, self._spec_capability, self._spec_source = _resolve_spec_source(
             service_specs
         )
@@ -440,14 +440,10 @@ def _resolve_spec_source(
     pre-built object is attached as itself *and* has its ``specs`` extracted, so
     it still feeds the tool catalog and the tool-name dedup.
 
-    **The third is the argument as given, because normalising is lossy.** A
-    ``SpecRegistry`` entry carries more than its spec — its tags, and the
-    ``OfflineContract`` saying what a caller with no HTTP request has to be told —
-    and ``specs()`` returns the specs alone. Returning only the mapping meant
-    the capability was built from a registry's *output* rather than the
-    registry, so those declarations never reached the toolset, silently: the
-    result is well-formed and merely missing what nobody asked it for. The
-    source is ``None`` where there is nothing extra to preserve.
+    **The third is the argument as given.** A ``SpecRegistry`` reaches the
+    capability builder as the registry, which narrows it with its own
+    ``subset``, rather than as this endpoint's flattening of it. The source is
+    ``None`` where the mapping is the argument itself.
 
     The parameter is ``Any`` on purpose while the public one is not: this is the
     sniffing boundary, and each arm is recognised by ``getattr``, which no
@@ -464,8 +460,8 @@ def _resolve_spec_source(
     specs = getattr(service_specs, "specs", None)
     if callable(specs):
         # A ``SpecRegistry`` — ``SpecRegistry.specs`` is a *method*, which is
-        # what tells it from a built toolset whose ``specs`` is a property. The
-        # one shape with something to lose, so it is kept as the source.
+        # what tells it from a built toolset whose ``specs`` is a property. Kept
+        # as the source, so the builder is handed the argument as given.
         return dict(resolve_spec_mapping(service_specs)), None, service_specs
     if specs is None:
         # A plain mapping. Copied, so a later mutation by the caller cannot
@@ -516,38 +512,62 @@ def _reject_spec_name_collisions(
 
 
 def _reject_unguarded_specs(specs: dict[str, Any]) -> None:
-    """Refuse a spec with no ``permission_classes`` here, at construction.
+    """Refuse a spec that declares no ``permissions`` here, at construction.
 
-    ``permission_classes=None`` means *inherit* over HTTP — the viewset's own
-    classes, then DRF's ``DEFAULT_PERMISSION_CLASSES``. Off HTTP neither exists,
-    so a spec correctly guarded behind a viewset, with passing HTTP tests,
-    becomes callable by whatever the model decides to call.
+    A spec declaring none may be relying on a view to supply them over HTTP.
+    Off HTTP there is no view, so a spec correctly guarded behind one, with
+    passing HTTP tests, becomes callable by whatever the model decides to call.
+
+    Read off the compiled spec, whose ``permissions`` is ``None`` exactly there,
+    as ``SpecToolset`` reads it. ``is None`` and an empty test agree, because the
+    kernel refuses an empty ``permissions`` when the spec is built
+    (its ``test_an_empty_permissions_sequence_is_refused``). Not the kernel's exported ``unguarded_specs``:
+    that takes a registry and reports the specs whose checks are all
+    ``Unrestricted``, which is a decision a spec has stated rather than the
+    absence refused here (``test_an_explicitly_unrestricted_spec_is_served``).
 
     ``SpecCapability`` refuses the same thing, but this transport builds its
     capability per request (it needs the request-scoped ``seen`` set for
     tool-name dedup), so the upstream refusal would surface as a 500 on the
     first agent call rather than as a failure to start. Constructing a
-    ``DjangoAGUIView`` directly still fails per request.
+    ``DjangoAGUIView`` directly still fails per request. Compiling each spec
+    here moves the kernel's refusal of a value that is no spec to construction
+    too, with the tool's name in front of it
+    (``test_a_value_that_compiles_to_no_spec_is_refused_naming_the_tool``).
 
-    Imported lazily: ``djangorestframework-services`` arrives with the
-    ``[specs]`` extra, and ``service_specs`` being set is what proves it is
-    installed.
+    Imported lazily: ``django-service-specs`` arrives with the ``[specs]``
+    extra, and an install without it can still pass ``service_specs``, so the
+    missing import is refused naming the extra
+    (``test_specs_without_the_extra_are_refused_naming_it``).
     """
-    from rest_framework_services import unguarded_specs
+    try:
+        from django_service_specs import kernel_spec
+    except ImportError as error:
+        raise ImportError(
+            "AGUIServer(service_specs=...) requires django-service-specs: "
+            "install django-ag-ui[specs]"
+        ) from error
 
-    unguarded = unguarded_specs(specs)
+    unguarded: list[str] = []
+    for name, spec in specs.items():
+        try:
+            compiled = kernel_spec(spec)
+        except TypeError as exc:
+            raise TypeError(f"AGUIServer(service_specs=...) tool {name!r}: {exc}") from exc
+        if compiled.permissions is None:
+            unguarded.append(name)
     if not unguarded:
         return
     names = ", ".join(repr(name) for name in sorted(unguarded))
     raise ImproperlyConfigured(
         f"AGUIServer(service_specs=...) was given spec(s) with no "
-        f"permission_classes: {names}. A spec dispatched off HTTP has no "
-        "viewset and no DEFAULT_PERMISSION_CLASSES to inherit from, so nothing "
-        "gates these calls and the model can make any of them. Set "
-        "spec.permission_classes on each. To migrate a large registry "
-        "gradually, attach the capability yourself instead — "
-        "capabilities=[SpecCapability(specs, require_permissions=False)] — "
-        "which skips this server's tool-catalog registration, so tool-call "
+        f"permissions: {names}. A spec dispatched off HTTP has no view to "
+        "supply permissions of its own, so nothing gates these calls and the "
+        "model can make any of them. Declare permissions on each spec; a spec "
+        "any caller may call says so with permissions=[Unrestricted()]. To "
+        "migrate a large registry gradually, attach the capability yourself "
+        "instead — capabilities=[SpecCapability(specs, require_permissions=False)] "
+        "— which skips this server's tool-catalog registration, so tool-call "
         "cards render unlabelled."
     )
 

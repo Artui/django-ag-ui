@@ -70,6 +70,12 @@ def summarize_document(ctx: RunContext[AgentDeps]) -> str:
 carries its own per-run context — subclass `AgentDeps` and add fields. Whatever
 it returns reaches every tool, toolset and capability as `ctx.deps`.
 
+That includes the default's `call_context`, which holds the request the run
+arrived on and which the [`service_specs=`](configuration.md#service_specs)
+toolset hands to every spec callable declaring `request`. A factory serving
+spec tools passes it on itself, `AgentDeps(..., call_context={"request":
+request})`, or those callables are handed `None`.
+
 ## Writing state back
 
 Nothing emits state automatically — a tool returns the event itself, as

@@ -5,17 +5,23 @@ from __future__ import annotations
 import pathlib
 import shutil
 import subprocess
+import sys
 import warnings
 from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from django_service_specs import (
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
+    SpecRegistry,
+    Unrestricted,
+)
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.spec_tools import SpecCapability, SpecToolset
 from pydantic_ai.models.test import TestModel
-from rest_framework.permissions import AllowAny
-from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec, SpecRegistry
 
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.types.spec_capability_source import SpecCapabilitySource
@@ -24,7 +30,7 @@ from django_ag_ui.agent.types.spec_toolset_source import SpecToolsetSource
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 # Every shape the constructor accepts, written the way a consumer writes it —
-# through the public import, with real drf-services specs. Checked by ``ty``
+# through the public import, with real django-service-specs specs. Checked by ``ty``
 # rather than executed: what is under test is the *declaration*, and running
 # this proves nothing the tests above have not already proved.
 CONSUMER_SNIPPET = '''"""A consumer passing each accepted ``service_specs=`` shape."""
@@ -33,10 +39,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from django_service_specs import SelectorKind, SelectorSpec, SpecRegistry, Unrestricted
 from django_spec_agents.registry.tool_registry import ToolRegistry
-from rest_framework.permissions import AllowAny
 from django_spec_agents.spec_tools import SpecCapability, SpecToolset
-from rest_framework_services import SelectorKind, SelectorSpec, SpecRegistry
 
 from django_ag_ui import AGUIServer
 
@@ -48,7 +53,7 @@ def list_widgets(user: Any) -> list[Any]:
 
 SPECS = {
     "list_widgets": SelectorSpec(
-        kind=SelectorKind.LIST, selector=list_widgets, permission_classes=[AllowAny]
+        kind=SelectorKind.LIST, selector=list_widgets, permissions=[Unrestricted()]
     )
 }
 
@@ -72,12 +77,12 @@ def _create_widget(user: Any) -> dict[str, Any]:
 
 def _selector() -> SelectorSpec:
     return SelectorSpec(
-        kind=SelectorKind.LIST, selector=_list_widgets, permission_classes=[AllowAny]
+        kind=SelectorKind.LIST, selector=_list_widgets, permissions=[Unrestricted()]
     )
 
 
 def _service() -> ServiceSpec:
-    return ServiceSpec(service=_create_widget, atomic=False, permission_classes=[AllowAny])
+    return ServiceSpec(service=_create_widget, atomic=False, permissions=[Unrestricted()])
 
 
 def _bare_service() -> ServiceSpec:
@@ -149,14 +154,12 @@ class TestNormalisation:
 
 
 class TestTheSourceSurvivesNormalisation:
-    """Flattening is lossy, so the argument as given is kept beside the mapping.
+    """The argument as given is kept beside the mapping and handed on as given.
 
-    A ``SpecRegistry`` entry carries more than its spec: its tags, and the
-    ``OfflineContract`` that says what a caller with no HTTP request has to be
-    told. ``specs()`` returns the specs alone, so a capability built from the
-    mapping is built from a registry's *output* rather than the registry --
-    silently, since the result is well-formed and merely missing declarations
-    nobody asked it for.
+    A spec declares its ``reads`` and ``shapes`` on itself, so a registry and
+    its ``specs()`` serve the same tools today. A ``SpecRegistry`` entry still
+    carries its tags beside its spec, and the toolset is handed the registry
+    rather than its output, so whatever it reads off an entry reaches it.
     """
 
     def test_a_registry_is_kept_as_the_source(self) -> None:
@@ -269,44 +272,84 @@ class TestReachesTheViews:
 class TestUnguardedSpecs:
     """A spec with no permissions never gets as far as serving.
 
-    Which layer says so depends on the shape and on the installed
-    ``djangorestframework-services``. A plain mapping reaches this transport's own
-    check, at construction. A ``SpecRegistry`` built on a release that admits an
-    unguarded spec reaches it too; a newer one refuses the spec itself, at
-    ``register``, before this transport sees it. ``SpecCapability`` also refuses
-    one, but this transport builds its capability per request, so that check
-    alone would turn a misconfiguration into a 500 on the first agent call
-    instead of a failure to start. The mapping tests below pin this transport's
-    own check on every release; the registry test pins the outcome.
+    A ``SpecRegistry`` refuses one itself, at ``register``, before this
+    transport sees it. A plain mapping reaches this transport's own check, at
+    construction. ``SpecCapability`` also refuses one, but this transport builds
+    its capability per request, so that check alone would turn a
+    misconfiguration into a 500 on the first agent call instead of a failure to
+    start. The mapping tests below pin this transport's own check.
     """
 
-    def test_a_registry_spec_with_no_permissions_never_reaches_serving(self) -> None:
-        """Refused by whichever layer answers first, and named either way.
-
-        ``register`` sits inside the ``raises`` scope because a newer kernel
-        refuses there, before ``AGUIServer`` exists. The wording asserted depends
-        on where the exception was raised, not on its text, so a third
-        ``ImproperlyConfigured`` that happens to name the spec cannot satisfy
-        this test. The mapping tests below fail if this transport's check is
-        deleted; this one fails if neither layer refuses.
-        """
+    def test_a_registry_spec_with_no_permissions_is_refused_at_register(self) -> None:
+        """The kernel answers first for a registry, naming the spec."""
+        registry = SpecRegistry()
         with pytest.raises(ImproperlyConfigured) as excinfo:
-            registry = SpecRegistry()
             registry.register(
                 "list_widgets", SelectorSpec(kind=SelectorKind.LIST, selector=_list_widgets)
             )
-            AGUIServer(ToolRegistry(), model=TestModel(), service_specs=registry)
 
         message = str(excinfo.value)
-        # Naming the spec is what makes this actionable against a large registry.
         assert "'list_widgets'" in message
-        raised_in = pathlib.Path(str(excinfo.traceback[-1].path))
-        if raised_in.name == "agui_server.py":
-            assert "permission_classes" in message
-        elif "django_service_specs" in raised_in.parts:
-            assert "declares no permissions" in message
-        else:  # pragma: no cover - only reached by a refusal from a third layer
-            pytest.fail(f"refused from an unexpected layer: {raised_in}")
+        assert "declares no permissions" in message
+
+    def test_a_mapping_spec_with_no_permissions_is_refused_at_construction(self) -> None:
+        """This transport's own check, in its own words.
+
+        The refusal reads the spec's ``permissions``, so it says how a spec
+        any caller may call declares that, in the kernel's vocabulary.
+        """
+        with pytest.raises(ImproperlyConfigured) as excinfo:
+            AGUIServer(
+                ToolRegistry(), model=TestModel(), service_specs={"list_widgets": _bare_service()}
+            )
+
+        message = str(excinfo.value)
+        assert "'list_widgets'" in message
+        assert "AGUIServer(service_specs=...)" in message
+        assert "permissions=[Unrestricted()]" in message
+
+    async def test_an_explicitly_unrestricted_spec_is_served(self) -> None:
+        """``permissions=[Unrestricted()]`` is a declaration, not an absence.
+
+        The check reads ``permissions is None``, so a list holding the kernel's
+        own admit-everyone check passes it, and the tool reaches the model.
+        """
+        server = _server(service_specs={"create_widget": _service()})
+        view = server._view
+
+        (capability,) = view._spec_capabilities(view._service_specs, set())
+        tools = await capability.get_toolset().get_tools(None)
+
+        assert set(tools) == {"create_widget"}
+
+    def test_specs_without_the_extra_are_refused_naming_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The core install has no kernel; say which extra brings it.
+
+        A ``None`` in ``sys.modules`` makes the import raise as a missing
+        package does, without uninstalling anything.
+        """
+        monkeypatch.setitem(sys.modules, "django_service_specs", None)
+
+        with pytest.raises(ImportError) as excinfo:
+            _server(service_specs={"list_widgets": object()})
+
+        assert "django-ag-ui[specs]" in str(excinfo.value)
+        assert isinstance(excinfo.value.__cause__, ImportError)
+
+    def test_a_value_that_compiles_to_no_spec_is_refused_naming_the_tool(self) -> None:
+        """A value the kernel cannot read is a mistake in one entry; say which.
+
+        The kernel's own ``TypeError`` names the type it was handed and not the
+        tool, which against a large mapping leaves the operator searching.
+        """
+        with pytest.raises(TypeError) as excinfo:
+            _server(service_specs={"list_widgets": _selector(), "oops": object()})
+
+        message = str(excinfo.value)
+        assert message.startswith("AGUIServer(service_specs=...) tool 'oops': ")
+        assert isinstance(excinfo.value.__cause__, TypeError)
 
     def test_the_refusal_points_at_the_migration_path(self) -> None:
         """A large registry cannot be guarded in one commit, so say what to do.
@@ -342,7 +385,7 @@ class TestPreBuiltToolset:
     """``service_specs=`` accepts an already-built ``SpecToolset`` / capability.
 
     It is the only way to reach a ``SpecToolset`` knob (``max_page_size``, an
-    ``exception_map``, a ``build_context`` override) without falling back to
+    ``exception_map``, a ``call_seeds`` override) without falling back to
     ``capabilities=``, which the tool catalog never sees — so its tool-call cards
     would render unlabelled.
     """

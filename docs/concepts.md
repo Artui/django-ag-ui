@@ -197,7 +197,7 @@ renderer draws. The top-level `outcome` is the same value for clients on
 | *absent* | The call succeeded. Every AG-UI server that does not do this omits the field, so absence has to keep meaning success. |
 | `"failed"` | The call ran and failed — a bug, a definitive upstream error, or a domain refusal such as a conflict or a missing row. |
 | `"denied"` | The call was refused by a person or a guard, and never attempted. This is what a denied [tool approval](tool-approval.md) produces. |
-| anything else | Treat as success. `"interrupted"` reaches the wire because the value is forwarded verbatim, but it is not part of the rendering contract, and neither is any value pydantic-ai adds later. |
+| anything else | Treat as success. `"interrupted"` reaches the wire because the value is forwarded verbatim, but it is not part of the rendering contract, and neither is any value pydantic-ai adds later. The one value withheld is `"retried"` (Pydantic-AI 2.60 and later): a retry is not a failure and carries no outcome, as it carried none before. |
 
 Both are additive rather than a protocol change, and each survives on the
 client it is there for. `metadata` is declared, so every 1.0 client keeps it.

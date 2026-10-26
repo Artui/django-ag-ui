@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.0] — 2026-10-26
+
+### Changed
+
+- **`service_specs=` serves django-service-specs specs.** The dependency on
+  `django-spec-agents` is floored at 0.2.0, where its toolset reads every spec
+  through the kernel, and the cap below 0.2.0 is lifted. A mapping passed as
+  `service_specs=` holds the kernel's `ServiceSpec` and `SelectorSpec`, read
+  through `kernel_spec`, and a registry is the kernel's `SpecRegistry`. The
+  `[drf-mcp]` bridge is unchanged and still takes drf-services specs, since that
+  is what an `MCPServer` registers.
+- **The permission pre-check reads the spec's `permissions`.** A spec that
+  declares none is refused at construction, as before, and the message now says
+  how to declare an open one, `permissions=[Unrestricted()]`, where it named
+  `permission_classes`. A value the kernel cannot read as a spec raises
+  `TypeError` naming the tool, rather than the kernel's error naming only a type.
+- **The default deps carry the run's request.** `AgentDeps.call_context` holds
+  `{"request": request}`, which the toolset hands to every spec callable
+  declaring `request`. A `deps_factory` replaces the default deps, so one
+  serving spec tools passes `call_context={"request": request}` itself, or
+  those callables receive `None`.
+
+### Removed
+
+- **The `[spec-tools]` extra.** Name `[specs]`, which now installs the kernel
+  alone: neither `djangorestframework-services` nor
+  `djangorestframework-pydantic-ai` arrives with it, and the dev group no longer
+  installs either directly.
+
+### Fixed
+
+- **`service_specs=` without the `[specs]` extra names the extra.** The
+  permission pre-check imports the kernel, which only that extra installs, and
+  an install without it failed with a bare `ModuleNotFoundError`. It now raises
+  `ImportError` saying to install `django-ag-ui[specs]`.
+- **A retried tool call no longer streams `outcome: "retried"`.** From
+  pydantic-ai 2.60 a tool's `ModelRetry`, or arguments that fail validation, is
+  recorded as the call's own `ToolReturnPart` marked `outcome="retried"` rather
+  than as a `RetryPromptPart`, and that value was forwarded verbatim, on the
+  live `TOOL_CALL_RESULT` (top level and in `metadata`) and on the stored copy a
+  replayed thread reads. That broke the documented contract that a retry is
+  not a failure and carries no outcome, so a client branching on whether an
+  outcome is present read a retry as a call that had ended in something other
+  than success. A retry is unmarked again on both pydantic-ai shapes, live and
+  stored.
+- **A sub-agent's retried tool call is reported as not landing.** The
+  `ag_ui.subagent` `tool_result` step decided `ok` by looking for a
+  `RetryPromptPart`, so under pydantic-ai 2.60 and later a child's retry was
+  reported as `ok: true` and "returned". It is `ok: false` and "failed" again,
+  as it is on older releases.
+
 ## [0.69.1] — 2026-10-23
 
 ### Fixed
@@ -4082,7 +4133,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.69.1...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.70.0...HEAD
+[0.70.0]: https://github.com/Artui/django-ag-ui/compare/v0.69.1...v0.70.0
 [0.69.1]: https://github.com/Artui/django-ag-ui/compare/v0.69.0...v0.69.1
 [0.69.0]: https://github.com/Artui/django-ag-ui/compare/v0.68.3...v0.69.0
 [0.68.3]: https://github.com/Artui/django-ag-ui/compare/v0.68.2...v0.68.3

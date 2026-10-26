@@ -100,7 +100,11 @@ class AGUIConfig:
     ``REASONING_ENCRYPTED_VALUE`` — that is where Pydantic-AI carries a
     non-success outcome — on any model whatsoever, including one that cannot
     think. It is forwarded rather than filtered because the event belongs to
-    upstream and its general form carries provider continuity data.
+    upstream and its general form carries provider continuity data. For a
+    failed or denied call it repeats the outcome the ``TOOL_CALL_RESULT``
+    already carried; from Pydantic-AI 2.60 a retried call emits one too, holding
+    ``"outcome": "retried"``, which the result deliberately does not mirror
+    because a retry carries no outcome.
 
     The models supply the other half. Pydantic-AI's OpenAI-compatible chat path
     builds a ``ThinkingPart`` out of whatever the provider returned in

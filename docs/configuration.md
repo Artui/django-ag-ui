@@ -104,7 +104,7 @@ Nest project-specific values somewhere else, not in `DJANGO_AG_UI`.
 | `attachment_store=...` | Server-side file-upload storage (uploads off when unset). |
 | `transcription_backend=...` | Speech-to-text backend for voice input (voice off when unset). |
 | `drf_mcp_server=...` | drf-mcp server whose tools the agent gets. |
-| `service_specs={...}` | drf-services specs exposed as tools, no MCP hop — a mapping, a `SpecRegistry`, or a pre-built `SpecToolset` / `SpecCapability` (`[specs]` extra). |
+| `service_specs={...}` | django-service-specs specs exposed as tools, no MCP hop — a mapping, a `SpecRegistry`, or a pre-built `SpecToolset` / `SpecCapability` (`[specs]` extra). |
 
 ## Multiple endpoints
 
@@ -712,8 +712,11 @@ are ephemeral and never persisted).
     that is where Pydantic-AI carries a non-success outcome, and it does so on
     any model at all. The payload is neither encrypted nor reasoning
     (`{"pydantic_ai": {"outcome": "failed"}}`), and since 0.56.0 it is redundant
-    — the same outcome rode the `TOOL_CALL_RESULT` one event earlier. It is
-    forwarded anyway: the event is upstream's, and its general form carries
+    — the same outcome rode the `TOOL_CALL_RESULT` one event earlier. The one
+    exception is a retry: from Pydantic-AI 2.60 a retried call carries
+    `{"pydantic_ai": {"outcome": "retried", "retry": {...}}}` here, and that
+    value is deliberately not mirrored onto the result, because a retry carries
+    no outcome. It is forwarded anyway: the event is upstream's, and its general form carries
     provider continuity data that has to survive. The bundled web component
     ignores it, but a client that treats the `REASONING_*` family generically
     will see it.
@@ -903,66 +906,65 @@ AGUIServer(registry, drf_mcp_server=mcp_server)
 
 ## `service_specs=`
 
-A `name -> spec` mapping (drf-services `ServiceSpec` / `SelectorSpec` objects),
-or a `SpecRegistry`, exposed to the agent as tools **without an MCP server** via
-django-spec-agents' `SpecCapability`. `None` (the default)
-disables it. Requires the `[specs]` extra
-(`pip install "django-ag-ui[specs]"`), imported lazily. The old `[spec-tools]`
-spelling still installs for one more minor; see [Installation](installation.md).
+A `name -> spec` mapping of
+[django-service-specs](https://artui.github.io/django-service-specs/)
+`ServiceSpec` / `SelectorSpec` objects, or the kernel's `SpecRegistry`, exposed
+to the agent as tools **without an MCP server** via django-spec-agents'
+`SpecCapability`. `None` (the default) disables it. Requires the `[specs]` extra
+(`pip install "django-ag-ui[specs]"`), imported lazily.
 
 This is the no-MCP-hop sibling of [`drf_mcp_server=`](#drf_mcp_server): the specs
-are dispatched in-process through drf-services' transport-neutral surface
-(`dispatch_spec` + its off-HTTP helpers), enforcing each spec's
-`permission_classes`. The agent acts as the **logged-in AG-UI user** — bound
+are dispatched in-process through the kernel, enforcing each spec's
+`permissions`. The agent acts as the **logged-in AG-UI user** — bound
 from the run's `deps`, not from a closure over `request`, which is what lets one
 built agent serve many runs — and a registry `@tool` wins a name collision. The
+request the run arrived on reaches every call as the `request` seed, so a spec
+callable written for HTTP that declares `request` is handed the same object. The
 model is also taught the spec conventions — that list tools accept `page` /
 `limit` / `ordering`, and how errors come back (an `{"error": …}` result is a final answer, a retry
 message means fix the argument, a permission error is final) — so it doesn't
 rediscover them by failing a call. Those instructions come from the underlying
 `SpecToolset`, which the capability delegates to, so they reach the system prompt
-exactly once. Use this when you have drf-services specs but no reason to stand up
+exactly once. Use this when you have specs but no reason to stand up
 an MCP server; use `drf_mcp_server=` when you already run one (or want MCP
 clients to share the tools).
 
-**Pass the registry, not `registry.specs()`.** An entry carries more than its
-spec: its tags, and the `OfflineContract` (drf-services 0.48+, `AgentContract` before it) declaring what a
-caller with **no HTTP request** has to be told — the URL kwargs, query params
-and field-audience overrides an HTTP caller gets from the URLconf and query
-string for free. The flattened mapping has none of that, and the loss is silent:
-every tool is still there, just missing declarations nobody asked for. The same
-registry handed to an MCP server is read the same way, which is the point of
-declaring it once.
+**What a tool reads is declared on its spec.** A spec's `reads` and `shapes`
+say what a caller with **no HTTP request** passes, so a registry and its
+`specs()` serve the same tools. A registry is still handed to the toolset as
+given, never flattened on the way.
 
-**Every spec needs its own `permission_classes`.** A spec that omits them makes
-the endpoint raise `ImproperlyConfigured` at construction rather than exposing an ungated
-tool. `permission_classes=None` means *inherit* over HTTP — the viewset's
-classes, then `DEFAULT_PERMISSION_CLASSES` — and there is no viewset here to
-inherit from, so a spec that is correctly guarded behind one becomes callable by
-whatever the model decides to call.
+**Every spec declares its own `permissions`.** A spec that declares none makes
+the endpoint raise `ImproperlyConfigured` at construction rather than exposing an
+ungated tool: off HTTP there is no view whose policy it could inherit, so it
+would be callable by whatever the model decides to call. A spec any caller may
+call says so, with `permissions=[Unrestricted()]`. A value in the mapping that
+is not a spec at all raises `TypeError` naming the tool.
 
 ```python
 # myproject/specs.py
-from rest_framework.permissions import IsAuthenticated
-from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec
+from django_service_specs import SelectorKind, SelectorSpec, ServiceSpec
+
+# A PermissionCheck of the project's own: the kernel ships only Unrestricted.
+from myproject.permissions import IsAuthenticated
 
 SPECS = {
     "list_orders": SelectorSpec(
         kind=SelectorKind.LIST,
         selector=list_orders,
-        output_serializer=OrderSerializer,
-        permission_classes=[IsAuthenticated],
+        presenter=OrderPresenter(),
+        permissions=[IsAuthenticated()],
     ),
     "create_order": ServiceSpec(
         service=create_order,
-        input_serializer=CreateOrderInput,
-        permission_classes=[IsAuthenticated],
+        validator=CreateOrderValidator(),
+        permissions=[IsAuthenticated()],
     ),
 }
 ```
 
-Need a `SpecToolset` option — `max_page_size`, an `exception_map`, a
-`build_context` override, or `require_permissions=False` while migrating a
+Need a `SpecToolset` option — `max_page_size`, an `exception_map`, `pool_seeds`,
+a `call_seeds` override, or `require_permissions=False` while migrating a
 registry too large to guard in one commit? **Build the toolset yourself and pass
 it to `service_specs=`.**
 
@@ -989,9 +991,8 @@ yours only through one of these:
   [`drf_mcp_server=`](#drf_mcp_server).
 
 A mapping or a `SpecRegistry` passed directly gets the default wording, because
-the endpoint builds that capability itself and passes no `conventions=`. To keep
-a registry's declarations and reword, wrap the registry rather than flattening
-it:
+the endpoint builds that capability itself and passes no `conventions=`. To
+reword a registry's tools, wrap the registry in a toolset of your own:
 
 ```python
 from django_spec_agents.spec_tools import AgentConventions, SpecToolset
@@ -1022,7 +1023,7 @@ construction** instead — rename on one side, or pass a mapping to get the old
 precedence.
 
 **Nor is it re-checked.** Its constructor already ran the
-`permission_classes` check, and it may have been built with
+`permissions` check, and it may have been built with
 `require_permissions=False` deliberately — validating again on arrival would
 take that decision back and leave no route to it at all.
 
@@ -1034,10 +1035,10 @@ AGUIServer(registry, service_specs=SPECS)
 
 ### Declaring specs once, across transports
 
-If the same specs are also exposed over MCP or as HTTP views, keep them in a
-[`SpecRegistry`](https://artui.github.io/djangorestframework-services/recipes/spec-registry/)
-(drf-services 0.27+) and pass that instead — each transport then reads one
-source rather than repeating the list:
+If the same specs are also exposed by another transport, keep them in a
+[`SpecRegistry`](https://artui.github.io/django-service-specs/registry/)
+and pass that instead — each transport then reads one source rather than
+repeating the list:
 
 ```python title="urls.py"
 from myproject.registry import registry
@@ -1268,9 +1269,9 @@ mutation in, so one setting covers the tools wherever they came from:
 - a registry `@tool(destructive=True)`;
 - a drf-mcp tool whose MCP `readOnlyHint` annotation is `False` (selectors are
   read-only, services mutate; a project can override per registration);
-- an in-process drf-services spec attached through
-  [`service_specs=`](#service_specs) declaring the same annotation — the same
-  `ServiceSpec` without the MCP hop;
+- an in-process spec attached through
+  [`service_specs=`](#service_specs) declaring the same annotation, which the
+  toolset writes for every `ServiceSpec`;
 - an `x-destructive` stamp at the root of the tool's JSON Schema, which is what
   [`build_input_schema`][django_ag_ui.build_input_schema] writes.
 

@@ -80,8 +80,9 @@ browser half is
 - **Reach external tools** — compose any Pydantic-AI toolset, including an
   in-process [`drf-mcp`](https://github.com/Artui/djangorestframework-mcp-server)
   bridge (the `[drf-mcp]` extra) so the agent can query DRF-exposed data.
-- **drf-services specs as tools, no MCP hop** — pass `service_specs=` a
-  `name → spec` mapping and the agent calls them in-process via
+- **Spec tools, no MCP hop** — pass `service_specs=` a `name → spec` mapping
+  of [django-service-specs](https://github.com/Artui/django-service-specs) specs,
+  and the agent calls them in-process via
   [`django-spec-agents`](https://github.com/Artui/django-spec-agents)'
   `SpecCapability` (the `[specs]` extra) — permission-checked, acting as the
   logged-in user, with the spec conventions taught to the model.

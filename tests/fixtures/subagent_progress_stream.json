@@ -4,7 +4,8 @@
   "canonicalized": [
     "timestamp",
     "messageId",
-    "parentMessageId"
+    "parentMessageId",
+    "entityId"
   ],
   "events": [
     {
@@ -171,8 +172,15 @@
       "timestamp": 1735689600000,
       "messageId": "message-4",
       "toolCallId": "call-2",
-      "content": "Sub-agent 'auditor' failed: the auditor model went away\n\nFix the errors and try again.",
+      "content": "Sub-agent 'auditor' failed: the auditor model went away",
       "role": "tool"
+    },
+    {
+      "type": "REASONING_ENCRYPTED_VALUE",
+      "timestamp": 1735689600000,
+      "subtype": "message",
+      "entityId": "message-4",
+      "encryptedValue": "{\"pydantic_ai\": {\"outcome\": \"retried\", \"retry\": {\"cause\": \"model_retry\", \"attempt\": 1, \"max_retries\": 2}}}"
     },
     {
       "type": "TEXT_MESSAGE_START",

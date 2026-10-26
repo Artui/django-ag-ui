@@ -10,8 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from rest_framework.permissions import AllowAny
-from rest_framework_services import ServiceSpec
+from django_service_specs import ServiceSpec, Unrestricted
 
 
 def _svc(user: Any) -> dict[str, Any]:
@@ -20,7 +19,7 @@ def _svc(user: Any) -> dict[str, Any]:
 
 
 SPECS: dict[str, Any] = {
-    "add": ServiceSpec(service=_svc, atomic=False, permission_classes=[AllowAny]),
-    "read_attachment": ServiceSpec(service=_svc, atomic=False, permission_classes=[AllowAny]),
-    "unique_spec": ServiceSpec(service=_svc, atomic=False, permission_classes=[AllowAny]),
+    "add": ServiceSpec(service=_svc, atomic=False, permissions=[Unrestricted()]),
+    "read_attachment": ServiceSpec(service=_svc, atomic=False, permissions=[Unrestricted()]),
+    "unique_spec": ServiceSpec(service=_svc, atomic=False, permissions=[Unrestricted()]),
 }

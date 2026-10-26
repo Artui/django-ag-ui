@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -33,6 +33,9 @@ wheels = [
 name = "anthropic"
 version = "1.11.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
 dependencies = [
     { name = "anyio" },
     { name = "docstring-parser" },
@@ -40,12 +43,35 @@ dependencies = [
     { name = "jiter" },
     { name = "pydantic" },
     { name = "sniffio" },
-    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" } },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ad/12/9a6ffa397b172adb040008d934a1dfd85d0e4cefc77489416db294ffc880/anthropic-1.11.0.tar.gz", hash = "sha256:3906fabac7ad7b5b46c6186040398fc7826885c77ce34e4dd7849de16fc8d0f8", size = 1390390, upload-time = "2026-09-30T22:58:21.098Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ab/6f/20edcd2956cac68042b1bcdd13ab3311447519f86b26929ff268dc74c650/anthropic-1.11.0-py3-none-any.whl", hash = "sha256:52f97b2c485cca7ac66058374f5073a3febb7e6849b16989c145d602a3efee21", size = 1681654, upload-time = "2026-09-30T22:58:22.925Z" },
+]
+
+[[package]]
+name = "anthropic"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version >= '3.12' and python_full_version < '3.14'",
+    "python_full_version == '3.11.*'",
+]
+dependencies = [
+    { name = "anyio" },
+    { name = "docstring-parser" },
+    { name = "httpx2" },
+    { name = "jiter" },
+    { name = "opentelemetry-api" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" } },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3e/ba/4c91947e0d0062d66d371db371597287153f7685fbed512d3294d0cde3c7/anthropic-2.3.0.tar.gz", hash = "sha256:edfdea1e3fa7b3ce25df1511953408b2f03bfa61eb6f6268f766101a9e18ad53", size = 1869656, upload-time = "2026-10-23T23:18:47.649Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/29/eb3558ab6bf252a07ac41c76ac5b0ea24a0aa0c23f87a40aaf31a5f8dba4/anthropic-2.3.0-py3-none-any.whl", hash = "sha256:aa6a3984f9276f307933d42dc6f58b6efc821a5ecafbc8d1bb5993a066767622", size = 2216980, upload-time = "2026-10-23T23:18:45.779Z" },
 ]
 
 [[package]]
@@ -560,31 +586,33 @@ dependencies = [
     { name = "ag-ui-protocol" },
     { name = "django" },
     { name = "django-spec-agents" },
-    { name = "pydantic-ai-slim", extra = ["ui"] },
+    { name = "pydantic-ai-slim", version = "2.54.0", source = { registry = "https://pypi.org/simple" }, extra = ["ui"], marker = "python_full_version < '3.11'" },
+    { name = "pydantic-ai-slim", version = "2.61.0", source = { registry = "https://pypi.org/simple" }, extra = ["ui"], marker = "python_full_version >= '3.11'" },
 ]
 
 [package.optional-dependencies]
 anthropic = [
-    { name = "pydantic-ai-slim", extra = ["anthropic"] },
+    { name = "pydantic-ai-slim", version = "2.54.0", source = { registry = "https://pypi.org/simple" }, extra = ["anthropic"], marker = "python_full_version < '3.11'" },
+    { name = "pydantic-ai-slim", version = "2.61.0", source = { registry = "https://pypi.org/simple" }, extra = ["anthropic"], marker = "python_full_version >= '3.11'" },
 ]
 code-mode = [
-    { name = "pydantic-ai-harness", extra = ["code-mode"] },
+    { name = "pydantic-ai-harness", version = "0.54.0", source = { registry = "https://pypi.org/simple" }, extra = ["code-mode"], marker = "python_full_version < '3.11'" },
+    { name = "pydantic-ai-harness", version = "0.61.0", source = { registry = "https://pypi.org/simple" }, extra = ["code-mode"], marker = "python_full_version >= '3.11'" },
 ]
 drf-mcp = [
     { name = "djangorestframework-mcp-server" },
 ]
 google = [
-    { name = "pydantic-ai-slim", extra = ["google"] },
+    { name = "pydantic-ai-slim", version = "2.54.0", source = { registry = "https://pypi.org/simple" }, extra = ["google"], marker = "python_full_version < '3.11'" },
+    { name = "pydantic-ai-slim", version = "2.61.0", source = { registry = "https://pypi.org/simple" }, extra = ["google"], marker = "python_full_version >= '3.11'" },
 ]
 harness = [
-    { name = "pydantic-ai-harness" },
+    { name = "pydantic-ai-harness", version = "0.54.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "pydantic-ai-harness", version = "0.61.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 openai = [
-    { name = "pydantic-ai-slim", extra = ["openai"] },
-]
-spec-tools = [
-    { name = "django-spec-agents", extra = ["specs"] },
-    { name = "djangorestframework-pydantic-ai" },
+    { name = "pydantic-ai-slim", version = "2.54.0", source = { registry = "https://pypi.org/simple" }, extra = ["openai"], marker = "python_full_version < '3.11'" },
+    { name = "pydantic-ai-slim", version = "2.61.0", source = { registry = "https://pypi.org/simple" }, extra = ["openai"], marker = "python_full_version >= '3.11'" },
 ]
 specs = [
     { name = "django-spec-agents", extra = ["specs"] },
@@ -595,13 +623,13 @@ dev = [
     { name = "django-spec-agents", extra = ["specs"] },
     { name = "django-stubs" },
     { name = "djangorestframework-mcp-server" },
-    { name = "djangorestframework-pydantic-ai" },
-    { name = "djangorestframework-services" },
     { name = "flake8-tidy-imports" },
     { name = "httpx" },
     { name = "pre-commit" },
-    { name = "pydantic-ai-harness", extra = ["code-mode"] },
-    { name = "pydantic-ai-slim", extra = ["anthropic", "google", "openai"] },
+    { name = "pydantic-ai-harness", version = "0.54.0", source = { registry = "https://pypi.org/simple" }, extra = ["code-mode"], marker = "python_full_version < '3.11'" },
+    { name = "pydantic-ai-harness", version = "0.61.0", source = { registry = "https://pypi.org/simple" }, extra = ["code-mode"], marker = "python_full_version >= '3.11'" },
+    { name = "pydantic-ai-slim", version = "2.54.0", source = { registry = "https://pypi.org/simple" }, extra = ["anthropic", "google", "openai"], marker = "python_full_version < '3.11'" },
+    { name = "pydantic-ai-slim", version = "2.61.0", source = { registry = "https://pypi.org/simple" }, extra = ["anthropic", "google", "openai"], marker = "python_full_version >= '3.11'" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -620,11 +648,9 @@ docs = [
 requires-dist = [
     { name = "ag-ui-protocol", specifier = ">=1.0" },
     { name = "django", specifier = ">=4.2" },
-    { name = "django-spec-agents", specifier = ">=0.1.0,<0.2.0" },
-    { name = "django-spec-agents", extras = ["specs"], marker = "extra == 'spec-tools'", specifier = ">=0.1.0,<0.2.0" },
-    { name = "django-spec-agents", extras = ["specs"], marker = "extra == 'specs'", specifier = ">=0.1.0,<0.2.0" },
+    { name = "django-spec-agents", specifier = ">=0.2.0" },
+    { name = "django-spec-agents", extras = ["specs"], marker = "extra == 'specs'", specifier = ">=0.2.0" },
     { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.53.1" },
-    { name = "djangorestframework-pydantic-ai", marker = "extra == 'spec-tools'", specifier = ">=0.36" },
     { name = "pydantic-ai-harness", marker = "extra == 'harness'", specifier = ">=0.13" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'code-mode'", specifier = ">=0.13" },
     { name = "pydantic-ai-slim", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=2.33,<3" },
@@ -632,15 +658,13 @@ requires-dist = [
     { name = "pydantic-ai-slim", extras = ["openai"], marker = "extra == 'openai'", specifier = ">=2,<3" },
     { name = "pydantic-ai-slim", extras = ["ui"], specifier = ">=2.37,<3" },
 ]
-provides-extras = ["anthropic", "code-mode", "drf-mcp", "google", "harness", "openai", "spec-tools", "specs"]
+provides-extras = ["anthropic", "code-mode", "drf-mcp", "google", "harness", "openai", "specs"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "django-spec-agents", extras = ["specs"], specifier = ">=0.1.0,<0.2.0" },
+    { name = "django-spec-agents", extras = ["specs"], specifier = ">=0.2.0" },
     { name = "django-stubs", specifier = ">=5.0" },
     { name = "djangorestframework-mcp-server", specifier = ">=0.53.1" },
-    { name = "djangorestframework-pydantic-ai", specifier = ">=0.36" },
-    { name = "djangorestframework-services", specifier = ">=0.58.0" },
     { name = "flake8-tidy-imports", specifier = ">=4.12.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pre-commit", specifier = ">=3.8.0" },
@@ -662,36 +686,35 @@ docs = [
 
 [[package]]
 name = "django-service-specs"
-version = "0.13.0"
+version = "0.15.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
     { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/28/5107990a9cc4497011478b127d46d04b743450a1019ed3964b404655929c/django_service_specs-0.13.0.tar.gz", hash = "sha256:39cec280f314d283a56ed1ed1b9105d23bd8b94aa45198cc7b25d8282e4e5f4b", size = 906555, upload-time = "2026-10-21T13:39:44.662Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/26/31/7100a32dfb31ec17ca9101b6d9a40d39f79eba326eb675a79bcf831d3ea3/django_service_specs-0.15.0.tar.gz", hash = "sha256:74906a6445595eb7d17f8debbd019499520005f1dc9bdd58f6df84a1291a7246", size = 970951, upload-time = "2026-10-23T07:10:39.221Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bb/ee/15b876c71fa1d401a8f16d630be3575e158fde6cff00d1b8a81e7dcf64d2/django_service_specs-0.13.0-py3-none-any.whl", hash = "sha256:cbf66323ffe9dca7360b184dcdf8609b0c84e4313485a4700527dc5d679481ce", size = 409478, upload-time = "2026-10-21T13:39:42.984Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/66/0c1c31210bb70271e78b5e6dfbeb483bf8d7efc4eb9cc935447be6a360cc/django_service_specs-0.15.0-py3-none-any.whl", hash = "sha256:a6a98a6e58be2d28d946c6adfaced7a9336111e34b7a31b8370bfb812a2b7649", size = 433581, upload-time = "2026-10-23T07:10:37.291Z" },
 ]
 
 [[package]]
 name = "django-spec-agents"
-version = "0.1.0"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
-    { name = "pydantic-ai-slim" },
+    { name = "pydantic-ai-slim", version = "2.54.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "pydantic-ai-slim", version = "2.61.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f9/64/7dadbe7674bc5ef28c8ac567a850a39a56ac203a2586e60ce848c262abdc/django_spec_agents-0.1.0.tar.gz", hash = "sha256:574b3335a8b3a69ee00a6b2e0c2db19eac76857b56553472448c7e66a02af152", size = 590864, upload-time = "2026-10-21T17:35:26.44Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/92/40a46bed8e353d785c931944b29245f67749479809b873716e3cc9f53f84/django_spec_agents-0.2.0.tar.gz", hash = "sha256:254099310570a87d670b9b9de465cef93a923dbfd088685cf33e1c48890ffde5", size = 605378, upload-time = "2026-10-24T05:44:29.702Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/df/41/31a3430526eeef1e773531d82c8ddb127ca0d07272ff6d6e05482cf7d699/django_spec_agents-0.1.0-py3-none-any.whl", hash = "sha256:5ed30b351334efb4999ce50b2aa62130de396f32c773ab1943c505716d5e88ce", size = 195682, upload-time = "2026-10-21T17:35:25.171Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/1d/b7083f4acaca7b8aad9ab450c082690ab9963c33783e5eabb7ba3a80e978/django_spec_agents-0.2.0-py3-none-any.whl", hash = "sha256:141fd62547d0b9cdf8d731efb97949ba02c13f60a3d827fc7b396a6dffb912ba", size = 189846, upload-time = "2026-10-24T05:44:28.173Z" },
 ]
 
 [package.optional-dependencies]
 specs = [
     { name = "django-service-specs" },
-    { name = "djangorestframework" },
-    { name = "djangorestframework-services" },
 ]
 
 [[package]]
@@ -752,7 +775,7 @@ wheels = [
 
 [[package]]
 name = "djangorestframework-mcp-server"
-version = "0.53.1"
+version = "0.54.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
@@ -763,30 +786,14 @@ dependencies = [
     { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/49/ef/b7bee9c8f71d9b1b3a8ab81003632a6222902036a6b3783f5b21000fcb94/djangorestframework_mcp_server-0.53.1.tar.gz", hash = "sha256:39a9d767274776bfb923db0d993ce9decb819607939503fd0a1d385dea0d7eda", size = 1231843, upload-time = "2026-10-20T14:06:36.239Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a2/c9/a0d0dbac3f09edeb05ca9b75127c7bb9100e886ec7f612676efa7a289bb7/djangorestframework_mcp_server-0.54.0.tar.gz", hash = "sha256:01f8d938fad72633fc177572ce8fe9aa1dfad548b7de1ac6dcf86b822e6953d7", size = 1234969, upload-time = "2026-10-22T19:47:52.438Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/34/28/babcbb6b160908b7bc433179d7d02088690ee3145c9f8ba046cf9e678327/djangorestframework_mcp_server-0.53.1-py3-none-any.whl", hash = "sha256:d58cc9a0f2481fd26b8ee1a9408b38c96f7e0249ee7eb3636708f8f0e2418e30", size = 511990, upload-time = "2026-10-20T14:06:34.64Z" },
-]
-
-[[package]]
-name = "djangorestframework-pydantic-ai"
-version = "0.36.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "django-service-specs" },
-    { name = "djangorestframework" },
-    { name = "djangorestframework-services" },
-    { name = "pydantic-ai-slim" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/4b/c2/d87cdebfb646902f17b660e0810256c30199d4c68058430a6659d2542517/djangorestframework_pydantic_ai-0.36.1.tar.gz", hash = "sha256:0a52a7d257660e3ee786de3addeaad449e87c24242b819031f91d6e918be70fd", size = 367047, upload-time = "2026-10-20T14:05:42.009Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/2f/4412eded89c379d0ee60985b44de375b72947aebf057a070bfa0a4dab111/djangorestframework_pydantic_ai-0.36.1-py3-none-any.whl", hash = "sha256:f39ae06b3b1b04884137ef2688b5a7b4e2bc90a45bb2094192132533be2ba072", size = 83423, upload-time = "2026-10-20T14:05:40.644Z" },
+    { url = "https://files.pythonhosted.org/packages/d9/0b/b43bc7f6a6347dfe3775159e1d3eca6ab3631294c0bfe053dbc5c461099b/djangorestframework_mcp_server-0.54.0-py3-none-any.whl", hash = "sha256:75c11db12ea693c6ca48f0a701fa0af079e4033df03fcd4e18afa072bbdfda1c", size = 511989, upload-time = "2026-10-22T19:47:50.601Z" },
 ]
 
 [[package]]
 name = "djangorestframework-services"
-version = "0.58.0"
+version = "0.62.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
@@ -796,9 +803,9 @@ dependencies = [
     { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/97/66/9faa81873f420e61663213034216d4b6d421ceb229dcfd9afa6a8db6e052/djangorestframework_services-0.58.0.tar.gz", hash = "sha256:a1851967d90cc5291e2d9a4efc9e914bd68c7f523a8c4547c1db710cacbaac47", size = 1071431, upload-time = "2026-10-16T08:01:05.004Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/28/29/12acb93b6a788ecc2b78e8dd32122987b2dc95a4b38273e2718f7670eb54/djangorestframework_services-0.62.0.tar.gz", hash = "sha256:2e5acbfe6e50486afbe20cc0f0c49ba8a3c4e7a04b00415b487759639d8aa923", size = 1166143, upload-time = "2026-10-23T18:44:50.388Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/80/bb36148531ab42a55f6624b1d87ef37e43531c3040ea0e281e32a1d3668a/djangorestframework_services-0.58.0-py3-none-any.whl", hash = "sha256:341b5e9acb27faf94bc00ee66e337bcc63793d13f01a8efdac2d8a3f2627653d", size = 374323, upload-time = "2026-10-16T08:01:02.966Z" },
+    { url = "https://files.pythonhosted.org/packages/74/2a/e76a69ad57ca66b1390e4576f97db2725799fcfda45439a9637487de0156/djangorestframework_services-0.62.0-py3-none-any.whl", hash = "sha256:e273e886be63c791206213d862b421c0d2707ef016979644c8464d119d7d849d", size = 404373, upload-time = "2026-10-23T18:44:48.762Z" },
 ]
 
 [[package]]
@@ -861,6 +868,9 @@ wheels = [
 name = "genai-prices"
 version = "0.1.9"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
 dependencies = [
     { name = "httpx2" },
     { name = "pydantic" },
@@ -868,6 +878,24 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d6/f0/4b4c7f63de6d558714d2207808080dd0988d0317a54ebcde790e4f6c1b6e/genai_prices-0.1.9.tar.gz", hash = "sha256:20ec774d32ec5d345510877fac415f2560bbfeb081bc4cd4e7ebce57a5503e8d", size = 118447, upload-time = "2026-09-25T03:47:27.569Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1b/e0/57d07f653813b7ea9e3a82064a2b6a112f63004530ac665e0934829473c7/genai_prices-0.1.9-py3-none-any.whl", hash = "sha256:3da8faa0a126e4df7be36696b90abe2be1fea8826bfcf45d39d91bc397fa9d1d", size = 125549, upload-time = "2026-09-25T03:47:26.483Z" },
+]
+
+[[package]]
+name = "genai-prices"
+version = "0.1.13"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version >= '3.12' and python_full_version < '3.14'",
+    "python_full_version == '3.11.*'",
+]
+dependencies = [
+    { name = "httpx2" },
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ad/de/119c7ba00b9ddbf629de34cf390ab472da6d7bc5df0c51cdbec900280a74/genai_prices-0.1.13.tar.gz", hash = "sha256:76c9e2dd3917fdacdf3bc562297c4591384142ea2283c477e1512fafa4e3a384", size = 134622, upload-time = "2026-10-15T09:47:04.739Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/41/5a/b6b7d55148d367d07bcd3efdf24e3086ad199ea5109d0c335a872dfaac95/genai_prices-0.1.13-py3-none-any.whl", hash = "sha256:6d2b40760a2f7f5e207bac9b98de0af80e60c58ead497872a5331a7cee610477", size = 142541, upload-time = "2026-10-15T09:47:03.424Z" },
 ]
 
 [[package]]
@@ -904,6 +932,9 @@ requests = [
 name = "google-genai"
 version = "2.28.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
 dependencies = [
     { name = "anyio" },
     { name = "distro" },
@@ -913,13 +944,38 @@ dependencies = [
     { name = "requests" },
     { name = "sniffio" },
     { name = "tenacity" },
-    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" } },
     { name = "websockets" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/59/16/4af15d65cb72ebc21a99c5e64f09072e97334c05a48d4cede19c347e6ad2/google_genai-2.28.0.tar.gz", hash = "sha256:970cb2eaf1951949851c3e0a5b70265cfea8a408fb7361c7c980a84d90672bf2", size = 707359, upload-time = "2026-10-02T17:58:14.454Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ad/4b/47278c34757293ba8d9156090d38e1c45fac9a47c50176acff7f77ae9a66/google_genai-2.28.0-py3-none-any.whl", hash = "sha256:cdee15e2fbfea08ea61bce6e5bfbb3301db4bd13a52dccfa8c8d1167e37ca1cc", size = 1168554, upload-time = "2026-10-02T17:58:12.585Z" },
+]
+
+[[package]]
+name = "google-genai"
+version = "2.33.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version >= '3.12' and python_full_version < '3.14'",
+    "python_full_version == '3.11.*'",
+]
+dependencies = [
+    { name = "anyio" },
+    { name = "distro" },
+    { name = "google-auth", extra = ["requests"] },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "requests" },
+    { name = "sniffio" },
+    { name = "tenacity" },
+    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/83/a4/b83b378b4a2fbbfb300c3fde0ff9f443f049c33e2accedf06bc0ad9bf393/google_genai-2.33.0.tar.gz", hash = "sha256:fced7f746da45264b34bcf6044a6fcdb91ebad1825e95c324ee48addb6e557ae", size = 758627, upload-time = "2026-10-23T00:06:28.332Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ba/3b/9ae8e16c5b2177bfdec1c64769a93eea9093de684e0bbb95c10c77645fef/google_genai-2.33.0-py3-none-any.whl", hash = "sha256:f3f8ab696b35caf95c222e05268740c1ccd6934257890506be73b126150d3b14", size = 1222487, upload-time = "2026-10-23T00:06:26.528Z" },
 ]
 
 [[package]]
@@ -1563,18 +1619,42 @@ wheels = [
 name = "openai"
 version = "3.24.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
 dependencies = [
     { name = "anyio" },
     { name = "httpx2" },
     { name = "jiter" },
     { name = "pydantic" },
     { name = "sniffio" },
-    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" } },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/73/4f/e57670227cb7b61362d8f9bfba54d4e9f7bde799798c342782788bc12d6c/openai-3.24.0.tar.gz", hash = "sha256:1e7463f7d78773ab2ce4fe85710481aa5bd5ffefd54c8de4b067506cd2d42895", size = 1797218, upload-time = "2026-10-02T15:55:18.851Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f2/01/32baec3bdb83d36da27281d7eeac2647241345cf8ff538bc21d1013ddeec/openai-3.24.0-py3-none-any.whl", hash = "sha256:b59703a3e3b5df78b269e90049d383a1dda58c90104cc4be59db21078db4b7a4", size = 2127166, upload-time = "2026-10-02T15:55:16.228Z" },
+]
+
+[[package]]
+name = "openai"
+version = "3.37.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version >= '3.12' and python_full_version < '3.14'",
+    "python_full_version == '3.11.*'",
+]
+dependencies = [
+    { name = "anyio" },
+    { name = "httpx2" },
+    { name = "jiter" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" } },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0a/66/d4c48dc690e36b297c178636d8434050ac92df9db8a4c89d9bd451cccc95/openai-3.37.0.tar.gz", hash = "sha256:670bd6f699000d43a2073bcf94374a55bb133bfe5de0d084d47eb9bb9f6a8e5d", size = 2325534, upload-time = "2026-10-22T20:04:39.602Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/56/73/c605f0cee1882e453a4b7fc2f17f4a42a7d4c1ed2304aff4b163ffade819/openai-3.37.0-py3-none-any.whl", hash = "sha256:d9f5b000f52397a7f9f946012744c5bc4c962eed3c100385252464c273a63e57", size = 2303939, upload-time = "2026-10-22T20:04:37.707Z" },
 ]
 
 [[package]]
@@ -1748,11 +1828,14 @@ wheels = [
 name = "pydantic-ai-harness"
 version = "0.54.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
 dependencies = [
-    { name = "genai-prices" },
+    { name = "genai-prices", version = "0.1.9", source = { registry = "https://pypi.org/simple" } },
     { name = "httpx" },
     { name = "json-repair" },
-    { name = "pydantic-ai-slim" },
+    { name = "pydantic-ai-slim", version = "2.54.0", source = { registry = "https://pypi.org/simple" } },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/37/9f/c187608be9d2cca0818c8c8bf7bf7342a4234ff2c7fea67f8887419d1c98/pydantic_ai_harness-0.54.0.tar.gz", hash = "sha256:f17c824544e29ae688d362f3479c45eb196f3094ab463e035a59f273f34aad63", size = 981273, upload-time = "2026-10-03T03:38:50.227Z" }
 wheels = [
@@ -1761,7 +1844,33 @@ wheels = [
 
 [package.optional-dependencies]
 code-mode = [
-    { name = "pydantic-ai-slim", extra = ["duckduckgo"] },
+    { name = "pydantic-ai-slim", version = "2.54.0", source = { registry = "https://pypi.org/simple" }, extra = ["duckduckgo"] },
+    { name = "pydantic-monty" },
+]
+
+[[package]]
+name = "pydantic-ai-harness"
+version = "0.61.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version >= '3.12' and python_full_version < '3.14'",
+    "python_full_version == '3.11.*'",
+]
+dependencies = [
+    { name = "genai-prices", version = "0.1.13", source = { registry = "https://pypi.org/simple" } },
+    { name = "httpx" },
+    { name = "json-repair" },
+    { name = "pydantic-ai-slim", version = "2.61.0", source = { registry = "https://pypi.org/simple" } },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/97/01/522cf4b0327bd7562560915407ee7d7f18e9dd29fae26ae954d85f6e7f7b/pydantic_ai_harness-0.61.0.tar.gz", hash = "sha256:895cd29712ca029430bdca67075c1c83662373b142c23db5fe68d15aefa1bb67", size = 1272746, upload-time = "2026-10-24T03:55:34.142Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ff/56/2870665ebfdb89594cd04072e17be5280adb25264f6faa4d5e6abf7552d3/pydantic_ai_harness-0.61.0-py3-none-any.whl", hash = "sha256:110b2ff92f914a24ea1b7f9cd1f5c1ded146c671430400e88cd999e5021ffca3", size = 1567129, upload-time = "2026-10-24T03:55:22.691Z" },
+]
+
+[package.optional-dependencies]
+code-mode = [
+    { name = "pydantic-ai-slim", version = "2.61.0", source = { registry = "https://pypi.org/simple" }, extra = ["duckduckgo"] },
     { name = "pydantic-monty" },
 ]
 
@@ -1769,15 +1878,18 @@ code-mode = [
 name = "pydantic-ai-slim"
 version = "2.54.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
 dependencies = [
     { name = "anyio" },
-    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
-    { name = "genai-prices" },
+    { name = "exceptiongroup" },
+    { name = "genai-prices", version = "0.1.9", source = { registry = "https://pypi.org/simple" } },
     { name = "griffelib" },
     { name = "httpx2" },
     { name = "opentelemetry-api" },
     { name = "pydantic" },
-    { name = "pydantic-graph" },
+    { name = "pydantic-graph", version = "2.54.0", source = { registry = "https://pypi.org/simple" } },
     { name = "typing-inspection" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/54/c0/b5e33b82b05c87a03e2c18089e89671da5c8fb0ba0da143011917d102745/pydantic_ai_slim-2.54.0.tar.gz", hash = "sha256:e39fd5ded83c5f2f1b271f42707de04fba420c4fd2c3bbc809d8d57614b904df", size = 1802066, upload-time = "2026-10-03T03:38:51.982Z" }
@@ -1787,16 +1899,58 @@ wheels = [
 
 [package.optional-dependencies]
 anthropic = [
-    { name = "anthropic" },
+    { name = "anthropic", version = "1.11.0", source = { registry = "https://pypi.org/simple" } },
 ]
 duckduckgo = [
     { name = "ddgs" },
 ]
 google = [
-    { name = "google-genai" },
+    { name = "google-genai", version = "2.28.0", source = { registry = "https://pypi.org/simple" } },
 ]
 openai = [
-    { name = "openai" },
+    { name = "openai", version = "3.24.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "tiktoken" },
+]
+ui = [
+    { name = "starlette" },
+]
+
+[[package]]
+name = "pydantic-ai-slim"
+version = "2.61.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version >= '3.12' and python_full_version < '3.14'",
+    "python_full_version == '3.11.*'",
+]
+dependencies = [
+    { name = "anyio" },
+    { name = "genai-prices", version = "0.1.13", source = { registry = "https://pypi.org/simple" } },
+    { name = "griffelib" },
+    { name = "httpx2" },
+    { name = "opentelemetry-api" },
+    { name = "pydantic" },
+    { name = "pydantic-graph", version = "2.61.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "typing-inspection" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cc/c9/a50232708b51eea19100fa515ebf2f4bcf92d1110c0cba0abd0aa1117ec6/pydantic_ai_slim-2.61.0.tar.gz", hash = "sha256:fe134b7fb8c65ca1e102bcd4c46bd8253866423f9a639ba7ed2341b6eb34b8f2", size = 2172199, upload-time = "2026-10-24T03:55:35.493Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/05/03/c8795de4456582b9d04f35c0778c8cb0f2e8b432e250c42c86d1844c039b/pydantic_ai_slim-2.61.0-py3-none-any.whl", hash = "sha256:1d1a2b651de2555c6d0e22e14716969db7cc4f7ff5bd0e06578d5fa6648be462", size = 2514560, upload-time = "2026-10-24T03:55:24.447Z" },
+]
+
+[package.optional-dependencies]
+anthropic = [
+    { name = "anthropic", version = "2.3.0", source = { registry = "https://pypi.org/simple" } },
+]
+duckduckgo = [
+    { name = "ddgs" },
+]
+google = [
+    { name = "google-genai", version = "2.33.0", source = { registry = "https://pypi.org/simple" } },
+]
+openai = [
+    { name = "openai", version = "3.37.0", source = { registry = "https://pypi.org/simple" } },
     { name = "tiktoken" },
 ]
 ui = [
@@ -1924,6 +2078,9 @@ wheels = [
 name = "pydantic-graph"
 version = "2.54.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
 dependencies = [
     { name = "anyio" },
     { name = "logfire-api" },
@@ -1933,6 +2090,26 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ef/6f/b5cb10c937c8d00a219eb5a07aeb991d0c44d09d5ac31a087cd1ad40dbcd/pydantic_graph-2.54.0.tar.gz", hash = "sha256:948ff7249c28643ff028b47fab22b8a5b36912c59bb947c2a9b9bc18de1d5fa5", size = 45970, upload-time = "2026-10-03T03:38:55.987Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6f/31/0d46d4003cb9e452bcf97f56f7c948006b5ad8036fd2ddb6fd7d5c73e8ff/pydantic_graph-2.54.0-py3-none-any.whl", hash = "sha256:465b87d5507af1341ba31b949af8619009c5010068159e52cf9b9806eb674fa4", size = 53423, upload-time = "2026-10-03T03:38:45.385Z" },
+]
+
+[[package]]
+name = "pydantic-graph"
+version = "2.61.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version >= '3.12' and python_full_version < '3.14'",
+    "python_full_version == '3.11.*'",
+]
+dependencies = [
+    { name = "anyio" },
+    { name = "logfire-api" },
+    { name = "pydantic" },
+    { name = "typing-inspection" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f8/45/c48137400dffe74ab0a414adb3596493890a376e96d96b5508aad80ff929/pydantic_graph-2.61.0.tar.gz", hash = "sha256:30e93a073998d8bc90ef2b765a8e9b0dc443cca47eb54da78ed8a6986884752d", size = 46274, upload-time = "2026-10-24T03:55:39.161Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dc/91/6adc6c0e8275343dec885176a24f6bb12164c3ef79c025fe6e3af3895e95/pydantic_graph-2.61.0-py3-none-any.whl", hash = "sha256:e304dc150ffa148ce04c3b9b248d0333c639abb6812c4cf4f5bcaa9a8eec17fc", size = 53439, upload-time = "2026-10-24T03:55:29.873Z" },
 ]
 
 [[package]]
