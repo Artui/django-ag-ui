@@ -314,6 +314,32 @@ class TestObservingTheChild:
             ("sub-2", False),
         ]
 
+    async def test_a_child_tool_call_marked_retried_did_not_land(
+        self, sink: asyncio.Queue[BaseEvent]
+    ) -> None:
+        # From pydantic-ai 2.60 the child's retry is its call's own
+        # ``ToolReturnPart`` with ``outcome="retried"``, not a ``RetryPromptPart``,
+        # and it is the same "try again" as far as the row is concerned. Built
+        # without ``retry=`` so the test runs at the declared floor as well.
+        observer = SubAgentObserver(_subagents())
+
+        announced = await self._forward(
+            observer,
+            sink,
+            FunctionToolResultEvent(
+                part=ToolReturnPart(
+                    tool_name="search_docs",
+                    content="try again",
+                    tool_call_id="sub-1",
+                    outcome="retried",
+                )
+            ),
+        )
+
+        assert [(v["tool"]["ok"], v["status"]) for v in announced] == [
+            (False, "researcher: search_docs failed")
+        ]
+
     async def test_the_childs_own_prose_is_not_forwarded(
         self, sink: asyncio.Queue[BaseEvent]
     ) -> None:

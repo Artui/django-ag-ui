@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import pytest
 from ag_ui.core import BaseEvent, ReasoningEncryptedValueEvent, ToolCallResultEvent
 from ag_ui.encoder import EventEncoder
 from django.test import RequestFactory
@@ -28,7 +29,11 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.agui_view import DjangoAGUIView
-from django_ag_ui.agent.outcome_agui_adapter import OutcomeAGUIAdapter, _OutcomeEventStream
+from django_ag_ui.agent.outcome_agui_adapter import (
+    OutcomeAGUIAdapter,
+    _forwardable_outcome,
+    _OutcomeEventStream,
+)
 from django_ag_ui.agent.stamp_outcome import OUTCOME_FIELD
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.authed_request_factory import AuthedRequestFactory
@@ -125,19 +130,43 @@ async def test_a_successful_call_carries_no_outcome_field() -> None:
     assert "metadata" not in EventEncoder().encode(result)
 
 
-async def test_a_retry_prompt_is_not_a_failure() -> None:
+@pytest.mark.filterwarnings("ignore:.*RetryPromptPart.* is deprecated")
+def test_a_retry_prompt_is_not_a_failure() -> None:
     """A ``RetryPromptPart`` has no outcome and must not acquire one: the model
     is about to call the same tool again with corrected arguments, which is a
-    working loop rather than a failed call."""
+    working loop rather than a failed call.
+
+    Asked of ``_forwardable_outcome`` directly rather than through a stream,
+    because only the older half of the supported pydantic-ai range emits one:
+    from 2.60 a retry is the call's own ``ToolReturnPart`` and upstream's AG-UI
+    handler no longer accepts a ``RetryPromptPart`` at all, so driving one
+    through it fails inside upstream before this package is reached. The arm is
+    still the one the declared floor takes, which is why it stays, and it runs
+    before upstream's handler on every version.
+    """
+    part = RetryPromptPart(content="fix it", tool_name="t", tool_call_id="call-1")
+    assert _forwardable_outcome(part) is None
+
+
+async def test_a_retried_call_is_not_a_failure() -> None:
+    """From pydantic-ai 2.60 a retry is the call's own ``ToolReturnPart`` with
+    ``outcome="retried"`` -- the same working loop ``RetryPromptPart`` used to
+    describe, so it carries no outcome on the wire either. Forwarded verbatim it
+    would be a value the rendering contract does not name, which a client treats
+    as success: the call would settle as one that worked, rather than as the
+    retry it is.
+
+    Built here without ``retry=``, the field that arrived with the outcome, so the
+    test runs at the declared floor too.
+    """
     events = await _drain(
         _stream().handle_function_tool_result(
-            FunctionToolResultEvent(
-                part=RetryPromptPart(content="fix it", tool_name="t", tool_call_id="call-1")
-            )
+            FunctionToolResultEvent(part=_tool_return(outcome="retried"))
         )
     )
     result = next(e for e in events if isinstance(e, ToolCallResultEvent))
     assert OUTCOME_FIELD not in _extras(result)
+    assert OUTCOME_FIELD not in EventEncoder().encode(result)
 
 
 async def test_the_events_around_a_failed_result_are_untouched() -> None:
@@ -531,6 +560,13 @@ def test_a_dumped_retry_prompt_carries_no_outcome() -> None:
         RetryPromptPart(tool_name="t", content="again", tool_call_id="call-1")
     )
     assert "error" in stored
+    assert OUTCOME_FIELD not in stored
+
+
+def test_a_dumped_retried_call_carries_no_outcome() -> None:
+    """The stored copy of a retried call replays as it streamed: unmarked."""
+    (stored,) = _dumped_tools(_tool_return(outcome="retried"))
+    assert "metadata" not in stored
     assert OUTCOME_FIELD not in stored
 
 

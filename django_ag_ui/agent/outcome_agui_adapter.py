@@ -11,7 +11,11 @@ from pydantic_ai.messages import (
     ModelMessage,
     NativeToolReturnPart,
     OutputToolResultEvent,
-    RetryPromptPart,
+    # Deprecated from pydantic-ai 2.60, where a retry became the call's own
+    # ``ToolReturnPart``, and still what every release below it emits for one,
+    # the declared floor among them. Named until the floor passes 2.60, so
+    # every use carries the same suppression.
+    RetryPromptPart,  # ty: ignore[deprecated]
     ToolReturnPart,
 )
 from pydantic_ai.ui import UIEventStream
@@ -27,8 +31,9 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
     string and nothing else, so a tool call that failed is byte-identical to one
     that succeeded and every client renders both the same way. Pydantic-AI knows
     the difference -- ``ToolReturnPart.outcome`` is one of ``"success"`` /
-    ``"failed"`` / ``"denied"`` / ``"interrupted"`` -- and drops it on the floor
-    at the protocol boundary, because there is nowhere in the event to put it.
+    ``"failed"`` / ``"denied"`` / ``"interrupted"``, and from 2.60 ``"retried"``
+    -- and drops it on the floor at the protocol boundary, because there is
+    nowhere in the event to put it.
 
     Upstream does carry it, on a ``REASONING_ENCRYPTED_VALUE`` event following
     the result: the only standard event whose reducer can attach continuity data
@@ -143,27 +148,42 @@ class _OutcomeEventStream(AGUIEventStream[Any, Any]):
 
 
 def _forwardable_outcome(
-    part: ToolReturnPart | NativeToolReturnPart | RetryPromptPart,
+    part: ToolReturnPart | NativeToolReturnPart | RetryPromptPart,  # ty: ignore[deprecated]
 ) -> str | None:
     """The part's outcome when it is worth putting on the wire, else ``None``.
 
     The value is forwarded verbatim rather than mapped onto a vocabulary of our
-    own. ``outcome`` is pydantic-ai's field and its four values are pydantic-ai's;
+    own. ``outcome`` is pydantic-ai's field and its values are pydantic-ai's;
     translating them here would mean this package deciding which of upstream's
-    answers a client is allowed to see, and being wrong about a fifth one the day
-    it is added. The rendering contract clients are given says an unrecognised
-    value is treated as success, which is the same rule as an absent one.
+    answers a client is allowed to see, and being wrong about the next one the
+    day it is added. The rendering contract clients are given says an
+    unrecognised value is treated as success, which is the same rule as an
+    absent one.
 
-    Two arms return ``None``, and each is held by its own test --
-    ``test_a_retry_prompt_is_not_a_failure`` and
+    The one value withheld is ``"retried"``, and withholding it is the contract
+    rather than a translation: a retry has never carried an outcome on this
+    wire. It was a ``RetryPromptPart`` until pydantic-ai 2.60, which had no
+    ``outcome`` to forward, and the same event became a ``ToolReturnPart``
+    marked ``"retried"`` without the meaning changing. Forwarded, it would be a
+    value the contract does not name, so a client would settle the call as a
+    success -- the one reading it is certainly not.
+
+    Three arms return ``None``, and each is held by its own test --
+    ``test_a_retry_prompt_is_not_a_failure``,
+    ``test_a_retried_call_is_not_a_failure`` and
     ``test_a_successful_call_carries_no_outcome_field`` -- because a single
-    ``or``-chain here would report full branch coverage with either condition
-    deleted.
+    ``or``-chain or ``in`` test here would report full branch coverage with any
+    one condition deleted.
     """
     # A ``RetryPromptPart`` has no ``outcome`` at all, and should not acquire
     # one: a retry is not a failed call, it is a call the model is about to make
-    # again with corrected arguments.
-    if isinstance(part, RetryPromptPart):
+    # again with corrected arguments. Only the older half of the supported
+    # pydantic-ai range emits one, the declared floor among them.
+    if isinstance(part, RetryPromptPart):  # ty: ignore[deprecated]
+        return None
+    # The same retry as pydantic-ai records it from 2.60: the call's own return,
+    # marked rather than replaced.
+    if part.outcome == "retried":
         return None
     # Absent means success, so the default is never written. That is what keeps
     # this additive: every existing server omits the field, and a client cannot
@@ -221,7 +241,7 @@ async def _with_outcome(
     get for free: deleting either leaves 100% line and branch coverage, because
     the surviving expression is still taken both ways. Delete ``outcome is not
     None`` and ``test_a_successful_call_carries_no_outcome_field`` and
-    ``test_a_retry_prompt_is_not_a_failure`` fail -- a stamped ``None`` encodes as
+    ``test_a_retried_call_is_not_a_failure`` fail -- a stamped ``None`` encodes as
     ``"outcome":null``, which is not the same as an absent field. Delete the
     ``isinstance`` and ``test_the_events_around_a_failed_result_are_untouched``
     fails.
