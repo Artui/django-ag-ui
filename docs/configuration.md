@@ -712,8 +712,11 @@ are ephemeral and never persisted).
     that is where Pydantic-AI carries a non-success outcome, and it does so on
     any model at all. The payload is neither encrypted nor reasoning
     (`{"pydantic_ai": {"outcome": "failed"}}`), and since 0.56.0 it is redundant
-    — the same outcome rode the `TOOL_CALL_RESULT` one event earlier. It is
-    forwarded anyway: the event is upstream's, and its general form carries
+    — the same outcome rode the `TOOL_CALL_RESULT` one event earlier. The one
+    exception is a retry: from Pydantic-AI 2.60 a retried call carries
+    `{"pydantic_ai": {"outcome": "retried", "retry": {...}}}` here, and that
+    value is deliberately not mirrored onto the result, because a retry carries
+    no outcome. It is forwarded anyway: the event is upstream's, and its general form carries
     provider continuity data that has to survive. The bundled web component
     ignores it, but a client that treats the `REASONING_*` family generically
     will see it.

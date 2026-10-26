@@ -14,10 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recorded as the call's own `ToolReturnPart` marked `outcome="retried"` rather
   than as a `RetryPromptPart`, and that value was forwarded verbatim, on the
   live `TOOL_CALL_RESULT` (top level and in `metadata`) and on the stored copy a
-  replayed thread reads. The documented contract is that a retry is not a
-  failure and carries no outcome; a client that, like the web component, treats
-  an unrecognised outcome as success settled the card as a successful call. A
-  retry is unmarked again on both pydantic-ai shapes.
+  replayed thread reads. That broke the documented contract that a retry is
+  not a failure and carries no outcome, so a client branching on whether an
+  outcome is present read a retry as a call that had ended in something other
+  than success. A retry is unmarked again on both pydantic-ai shapes, live and
+  stored.
 - **A sub-agent's retried tool call is reported as not landing.** The
   `ag_ui.subagent` `tool_result` step decided `ok` by looking for a
   `RetryPromptPart`, so under pydantic-ai 2.60 and later a child's retry was

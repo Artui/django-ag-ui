@@ -152,9 +152,8 @@ async def test_a_retried_call_is_not_a_failure() -> None:
     """From pydantic-ai 2.60 a retry is the call's own ``ToolReturnPart`` with
     ``outcome="retried"`` -- the same working loop ``RetryPromptPart`` used to
     describe, so it carries no outcome on the wire either. Forwarded verbatim it
-    would be a value the rendering contract does not name, which a client treats
-    as success: the call would settle as one that worked, rather than as the
-    retry it is.
+    would break the documented promise that a retry carries none, and a client
+    branching on whether an outcome is present would misread the call.
 
     Built here without ``retry=``, the field that arrived with the outcome, so the
     test runs at the declared floor too.

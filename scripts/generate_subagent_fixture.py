@@ -2,6 +2,12 @@
 
     python scripts/generate_subagent_fixture.py tests/fixtures/subagent_progress_stream.json
 
+Run under pydantic-ai 2.60 or later for that file, the canonical one. Run under
+an older release, ``tests/fixtures/subagent_progress_stream.pre-2.60.json`` is
+the target instead: the two releases write the auditor's retried delegation
+differently, and the test compares each half of the supported range with its
+own recording.
+
 The fixture is what a client actually receives when a run delegates: the whole
 Server-Sent Events stream of one ``DjangoAGUIView`` run, decoded from the same
 encoder a browser reads, with the delegation's own ``SUBAGENT_*`` events and its
@@ -15,9 +21,7 @@ with the bug, which has happened in this family more than once. So the scenario
 below drives the real view, the real ``SubAgents`` capability and the real
 observer, and ``tests/agent/test_subagent_fixture.py`` regenerates it on every
 run and fails on any difference -- the checked-in file cannot drift from the
-server without someone noticing. That gate runs on pydantic-ai 2.60 and later,
-whose retry wire the file records; an older release streams the auditor's retry
-differently, and the test says why it is skipped there.
+server without someone noticing.
 
 The models are scripted (``FunctionModel``), so no provider is called and the
 run is the same every time. A few fields are still not: see ``_canonicalized``.

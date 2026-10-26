@@ -164,9 +164,10 @@ def _forwardable_outcome(
     rather than a translation: a retry has never carried an outcome on this
     wire. It was a ``RetryPromptPart`` until pydantic-ai 2.60, which had no
     ``outcome`` to forward, and the same event became a ``ToolReturnPart``
-    marked ``"retried"`` without the meaning changing. Forwarded, it would be a
-    value the contract does not name, so a client would settle the call as a
-    success -- the one reading it is certainly not.
+    marked ``"retried"`` without the meaning changing. Forwarded, it would break
+    the one promise the contract makes about a retry, that it carries no
+    outcome, and a client branching on whether an outcome is present would read
+    a working loop as a call that ended badly.
 
     Three arms return ``None``, and each is held by its own test --
     ``test_a_retry_prompt_is_not_a_failure``,
