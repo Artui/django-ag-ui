@@ -460,8 +460,8 @@ def _resolve_spec_source(
     specs = getattr(service_specs, "specs", None)
     if callable(specs):
         # A ``SpecRegistry`` — ``SpecRegistry.specs`` is a *method*, which is
-        # what tells it from a built toolset whose ``specs`` is a property. The
-        # one shape with something to lose, so it is kept as the source.
+        # what tells it from a built toolset whose ``specs`` is a property. Kept
+        # as the source, so the builder is handed the argument as given.
         return dict(resolve_spec_mapping(service_specs)), None, service_specs
     if specs is None:
         # A plain mapping. Copied, so a later mutation by the caller cannot
@@ -519,7 +519,9 @@ def _reject_unguarded_specs(specs: dict[str, Any]) -> None:
     passing HTTP tests, becomes callable by whatever the model decides to call.
 
     Read off the compiled spec, whose ``permissions`` is ``None`` exactly there,
-    as ``SpecToolset`` reads it. Not the kernel's exported ``unguarded_specs``:
+    as ``SpecToolset`` reads it. ``is None`` and an empty test agree, because the
+    kernel refuses an empty ``permissions`` when the spec is built
+    (its ``test_an_empty_permissions_sequence_is_refused``). Not the kernel's exported ``unguarded_specs``:
     that takes a registry and reports the specs whose checks are all
     ``Unrestricted``, which is a decision a spec has stated rather than the
     absence refused here (``test_an_explicitly_unrestricted_spec_is_served``).

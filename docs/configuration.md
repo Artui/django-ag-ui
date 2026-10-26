@@ -988,9 +988,8 @@ yours only through one of these:
   [`drf_mcp_server=`](#drf_mcp_server).
 
 A mapping or a `SpecRegistry` passed directly gets the default wording, because
-the endpoint builds that capability itself and passes no `conventions=`. To keep
-a registry's declarations and reword, wrap the registry rather than flattening
-it:
+the endpoint builds that capability itself and passes no `conventions=`. To
+reword a registry's tools, wrap the registry in a toolset of your own:
 
 ```python
 from django_spec_agents.spec_tools import AgentConventions, SpecToolset

@@ -434,8 +434,8 @@ class DjangoAGUIView:
             return []
         from django_spec_agents.integrations.build_spec_capability import build_spec_capability
 
-        # The source when there is one, so a registry's per-entry declarations
-        # survive; the flattened mapping otherwise. ``build_spec_capability``
+        # The source when there is one, so the builder is handed the argument as
+        # given; the flattened mapping otherwise. ``build_spec_capability``
         # narrows a registry with its own ``subset``, so ``exclude_names`` means
         # the same thing either way.
         capability = build_spec_capability(
