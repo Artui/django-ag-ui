@@ -333,6 +333,29 @@ async def test_a_row_that_no_longer_matches_lends_no_id() -> None:
     _assert_no_id_twice(row)
 
 
+@pytest.mark.django_db(transaction=True)
+async def test_an_id_the_new_turn_carries_is_not_lent_to_an_earlier_message() -> None:
+    # The client posts its new message under the id the earlier answer streamed
+    # under. The row holds that id for the answer, so lending would hand it
+    # back to the dumped answer too: the new turn's id is reserved, and the
+    # answer keeps a fresh one rather than the row holding one id twice.
+    seen: list[list[ModelMessage]] = []
+    store = _ThreadStore()
+    view = _view(await _user_named("collider"), store, _recording_model(seen))
+    first = await _drain(await view(_post(_body([_user("u1", "warm up")], run_id="r1"))))
+    (answer_id,) = _streamed_answer_ids(first)
+
+    await _drain(
+        await view(_post(_body([_user(answer_id, "next")], run_id="r2")), resume_from="r1")
+    )
+
+    row = _row(store)
+    assert _contents(row, "user") == ["warm up", "next"]
+    assert [m["id"] for m in row if m["role"] == "user"][1] == answer_id
+    assert _contents(row, "assistant") == ["done", "done"]
+    _assert_no_id_twice(row)
+
+
 class _RefusingStore(_ThreadStore):
     """Saves, but refuses to read a row back, as a store refusing an anonymous caller does."""
 

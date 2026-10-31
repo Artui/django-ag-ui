@@ -143,3 +143,13 @@ def test_a_message_already_under_its_stored_id_is_left_as_it_is() -> None:
     (kept,) = lend_stored_ids([message], [_text("same", "ok")])
 
     assert kept is message
+
+
+def test_a_calling_message_takes_the_id_of_the_one_with_its_calls() -> None:
+    # Matched by its calls, not by its being a message with calls: the first
+    # stored message with calls carries other ones.
+    lent = lend_stored_ids(
+        [_calls("fresh", "call-b")], [_calls("first", "call-a"), _calls("second", "call-b")]
+    )
+
+    assert _ids(lent) == ["second"]
