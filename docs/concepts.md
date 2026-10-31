@@ -488,8 +488,8 @@ called tools by its calls, an answer or reasoning by its text, walked in order
 so a repeated "ok" takes the id of the matching "ok" and not an earlier one.
 The same never-lend rule holds: a message the row does not hold -- the row was
 deleted, overwritten, or describes a different conversation -- is stored under
-a fresh id. Without a conversation store there is no row, and earlier messages
-are named afresh on each save.
+a fresh id. Without a conversation store there is no row to read and nothing is
+saved, so there are no stored ids to keep.
 
 **A fork keeps the source's ids.** A run forked into a new thread stores the
 earlier messages under the ids the source thread holds for them, so one id can

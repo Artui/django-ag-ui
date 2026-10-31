@@ -89,16 +89,16 @@ dependencies = [
     # from 2.63 also shows the client's messages never reach a resumed run's
     # history at all. 2.55 made pydantic-ai require Python 3.11, which is why
     # this package's ``requires-python`` moved with it rather than gaining a
-    # marker that would leave 3.10 installs on the exposed versions. And a
-    # stream in which every
-    # TOOL_CALL_START names an assistant message the stream actually announced. A response whose first part is a
-    # tool call has no text to open that message with, and below this floor the
-    # `parentMessageId` was emitted anyway, naming a message no event carried --
-    # a client could only answer by minting an id of its own, which then matches
-    # nothing in the history echoed back. From here an empty message is opened
-    # and closed there instead. Load-bearing rather than tidy: the wire fixture
-    # the browser lane builds against is generated from this endpoint, and below
-    # this version it regenerates differently.
+    # marker that would leave 3.10 installs on the exposed versions. And 2.37
+    # is the first release with a stream in which every TOOL_CALL_START names
+    # an assistant message the stream actually announced. A response whose
+    # first part is a tool call has no text to open that message with, and
+    # below 2.37 the `parentMessageId` was emitted anyway, naming a message no
+    # event carried -- a client could only answer by minting an id of its own,
+    # which then matches nothing in the history echoed back. From 2.37 an
+    # empty message is opened and closed there instead. Load-bearing rather
+    # than tidy: the wire fixture the browser lane builds against is generated
+    # from this endpoint, and below that version it regenerates differently.
     # ``[ui]`` rather than ``[ag-ui]``, and the two differ only by a cap. Both
     # bring starlette for the adapter; ``[ag-ui]`` adds ag-ui-protocol, which
     # this package declares itself below, and from 2.47 it caps that protocol

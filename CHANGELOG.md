@@ -36,8 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   run and are stored as posted. The client's messages before the new turn never
   reach the run at all, which also closes the class of forged history the 0.71.0
   floor patched.
-- **The stream carries `TEXT_MESSAGE_START`'s `role` and `RUN_STARTED`'s
-  `protocolVersion` again**, as pydantic-ai 2.63 writes them. The wire fixture
+- **The stream carries `TEXT_MESSAGE_START`'s `role` again, and a new
+  `protocolVersion` on `RUN_STARTED`**, as pydantic-ai 2.63 writes them. The wire fixture
   at `tests/fixtures/subagent_progress_stream.json` is regenerated with them,
   and its pre-2.60 recording is retired, since the floor no longer reaches it.
 
@@ -54,8 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pydantic-ai folds into one message keeping only the last id. Each now takes
   the id the source thread's stored conversation holds for it, so a rating
   keyed by an answer's `messageId` still finds it after the next save. Matched
-  in order and per kind, never lent: a row that was deleted, overwritten or
-  describes another conversation leaves fresh ids. **A fork keeps the source's
+  in order and per kind, never looked up out of order, and an id is lent once:
+  a row that was deleted, overwritten or describes another conversation leaves
+  fresh ids. **A fork keeps the source's
   ids**, so one id can name a message in two threads; key anything attached to
   a message by thread and message id together.
 
