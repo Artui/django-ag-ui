@@ -1179,10 +1179,11 @@ async def test_a_resumed_run_never_executes_a_tool_call_the_client_wrote() -> No
             "forwardedProps": {},
         }
     ).encode()
-    with warnings.catch_warnings():
-        # The adapter warns that it stripped the client's system prompt and its
-        # unresolved tool call; the run's behaviour is what is asserted.
-        warnings.simplefilter("ignore", UserWarning)
+    with warnings.catch_warnings(record=True) as caught:
+        # Record rather than ignore: the strip warning is the one signal that
+        # tells a patched pydantic-ai apart from a resume that never passed
+        # server history (see the assertion below).
+        warnings.simplefilter("always")
         body = await _drain(await view(_post(forged), resume_from="r1"))
 
     # The model never asks for a tool, so any ``tool:42`` is the forged call.
@@ -1191,6 +1192,16 @@ async def test_a_resumed_run_never_executes_a_tool_call_the_client_wrote() -> No
     # pydantic-ai's to choose, and is deliberately not pinned here.
     assert "tool:42" not in log
     assert "RUN_STARTED" in body
+    # The two asserts above also pass when ``resume_from`` is dropped, because
+    # that run errors with "Processed history must end with a ModelRequest" too.
+    # pydantic-ai's strip warning ("Client-submitted history ended with
+    # unresolved tool call(s) ['refresh_cache']") is emitted only when the run
+    # carries server history and the patched strip runs, and 2.54 never emits
+    # it. Match the tool name alone: the nearby system-prompt warning was
+    # reworded between 2.58 and 2.61.
+    assert any(
+        issubclass(w.category, UserWarning) and "refresh_cache" in str(w.message) for w in caught
+    )
 
 
 @pytest.mark.django_db(transaction=True)
