@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **pydantic-ai-slim is floored at 2.58 (GHSA-5pfm-2g3g-gh85).** A resumed or
+  forked run hands the adapter its stored snapshot as `message_history`, and
+  with server-side history present the adapter drops client-submitted
+  compaction parts. Below 2.58 it dropped them after stripping unresolved tool
+  calls from the end of the client's messages, so a client could arrange its
+  history to leave a tool call of its own last and have the run execute it,
+  with the client's arguments, before any model request. Arguments were still
+  validated against the tool's schema, and a destructive tool under
+  `TOOL_GUARD` still deferred to an approval interrupt, because the guard
+  flags it when the run prepares its tools, which happens on this path too; a
+  tool the guard does not gate ran. Held by
+  `test_a_resumed_run_never_executes_a_tool_call_the_client_wrote`.
+
+### Removed
+
+- **Python 3.10.** `requires-python` is `>=3.11`. pydantic-ai has required 3.11
+  since 2.55, so on 3.10 the resolver could only install a pydantic-ai below
+  the fixed release; keeping 3.10 would have meant shipping it on the exposed
+  versions. A project on 3.10 stays on 0.70.x until it moves interpreter.
+
 ## [0.70.0] — 2026-10-26
 
 ### Changed

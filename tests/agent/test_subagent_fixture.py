@@ -55,8 +55,8 @@ def _lifecycle() -> list[dict[str, Any]]:
 # retry text lost its "Fix the errors and try again." tail and gained a
 # ``REASONING_ENCRYPTED_VALUE`` after it. The canonical fixture is the newer
 # wire, which is what a fresh install resolves. The older one is still in range
-# -- the declared floor, and the Python 3.10 lock, which pydantic-ai 2.55 left
-# behind -- and a generator cannot pin one shape across both without rewriting
+# -- the declared floor, which the lowest-declared-versions job installs -- and
+# a generator cannot pin one shape across both without rewriting
 # what the server wrote, so each half is compared against its own recording.
 # Chosen by the field that arrived with the change rather than by version
 # number.

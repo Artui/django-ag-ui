@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -70,7 +70,7 @@ async def test_list_returns_metadata_only() -> None:
             ConversationMeta(
                 thread_id="t1",
                 title="Hi",
-                updated_at=datetime(2026, 6, 24, tzinfo=timezone.utc),
+                updated_at=datetime(2026, 6, 24, tzinfo=UTC),
                 preview="hello there",
                 owner_id="7",
             ),

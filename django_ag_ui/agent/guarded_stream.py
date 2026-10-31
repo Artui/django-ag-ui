@@ -76,7 +76,7 @@ async def guarded_stream(
         finalize = asyncio.ensure_future(_finalize_quietly(on_cancel))
         try:
             await asyncio.wait_for(asyncio.shield(finalize), _FINALIZE_TIMEOUT_SECONDS)
-        except (asyncio.TimeoutError, asyncio.CancelledError):
+        except (TimeoutError, asyncio.CancelledError):
             _logger.warning(
                 "django-ag-ui: finalizing a cancelled run did not settle within "
                 "%ss; it continues in the background",

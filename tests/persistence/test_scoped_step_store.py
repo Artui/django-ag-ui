@@ -10,7 +10,7 @@ cannot catch that -- it is the same user on both mounts.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from django.http import HttpRequest
@@ -28,7 +28,7 @@ from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.persistence.scoped_step_store import ScopedStepStore
 from tests.authed_request_factory import AuthedRequestFactory
 
-_STARTED = datetime(2026, 8, 26, 9, 0, tzinfo=timezone.utc)
+_STARTED = datetime(2026, 8, 26, 9, 0, tzinfo=UTC)
 
 
 class _MemoryStore:
