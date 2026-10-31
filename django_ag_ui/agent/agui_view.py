@@ -4,6 +4,7 @@ import warnings
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
+from ag_ui.core import Message
 from asgiref.sync import markcoroutinefunction, sync_to_async
 from django.core.exceptions import ImproperlyConfigured
 from django.core.handlers.asgi import ASGIRequest
@@ -20,6 +21,7 @@ from django_spec_agents.agent.build_model import build_model
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
+from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
@@ -37,6 +39,7 @@ from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.persistence.utils import messages_from_jsonable
 from django_ag_ui.reject_async_throttle import reject_async_throttle
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
@@ -205,6 +208,7 @@ class DjangoAGUIView:
                 status=400,
             )
         message_history: list[Any] | None = None
+        source_messages: list[Message] | None = None
         if resume_from is not None:
             loaded = await self._load_resume_history(request, resume_from)
             if loaded is None:
@@ -223,6 +227,7 @@ class DjangoAGUIView:
                     },
                     status=409,
                 )
+            source_messages = await self._source_messages(request, source_thread_id)
         # The transport ends here: the run's orchestration (adapter, stream
         # composition, persistence, cancel handling) lives on AgentSession.
         session = AgentSession(
@@ -238,6 +243,7 @@ class DjangoAGUIView:
             config=self._config,
             conversation_store=self._conversation_store,
             message_history=message_history,
+            source_messages=source_messages,
         )
         response = StreamingHttpResponse(session.stream(), content_type="text/event-stream")
         response["Cache-Control"] = "no-cache"
@@ -510,6 +516,37 @@ class DjangoAGUIView:
             return None
         record = await store.get_run(run_id=resume_from)
         return None if record is None else record.conversation_id
+
+    async def _source_messages(
+        self, request: HttpRequest, source_thread_id: str | None
+    ) -> list[Message] | None:
+        """The source thread's stored conversation, or ``None`` when there is none to read.
+
+        A resumed or forked run lends its dumped history the ids this row holds
+        for the same messages (see ``AgentSession._prior_messages``): the dump
+        names every message an earlier run generated afresh, and the row is
+        where the ids the client was streamed were kept. It costs one load per
+        resume or fork, and only where a thread could be attributed, which is
+        only on an endpoint that persists conversations.
+
+        Loaded as the acting user, as the threads view loads it, so the row is
+        read from this caller's own conversations. Every way of not having it
+        -- no row, a store refusing an anonymous caller, a row that no longer
+        parses -- means only that the history is stored under fresh ids, which
+        is no reason to fail the run.
+        """
+        if source_thread_id is None:
+            return None
+        try:
+            conversation = await self._conversation_store.load(source_thread_id, request=request)
+        except AnonymousOperationError:
+            return None
+        if conversation is None:
+            return None
+        try:
+            return messages_from_jsonable(conversation.messages)
+        except ValidationError:
+            return None
 
     async def _would_overwrite_another_thread(
         self, request: HttpRequest, source_thread_id: str | None, thread_id: str

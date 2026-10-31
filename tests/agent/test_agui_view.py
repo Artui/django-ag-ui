@@ -36,13 +36,18 @@ from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.authed_request_factory import AuthedRequestFactory
 
 
-def _run_input(content: str, run_id: str = "r1", thread_id: str = "t1") -> bytes:
+def _run_input(
+    content: str, run_id: str = "r1", thread_id: str = "t1", *, message_id: str = "u1"
+) -> bytes:
+    # ``message_id`` matters on a resume: the run holds its history on the
+    # server, and a turn posted under the id of a stored user message is that
+    # message resubmitted, so it replaces the turn rather than following it.
     return json.dumps(
         {
             "threadId": thread_id,
             "runId": run_id,
             "state": {},
-            "messages": [{"id": "u1", "role": "user", "content": content}],
+            "messages": [{"id": message_id, "role": "user", "content": content}],
             "tools": [],
             "context": [],
             "forwardedProps": {},
@@ -1093,7 +1098,9 @@ async def test_resume_seeds_a_new_run_from_a_prior_snapshot() -> None:
     assert await StoredSnapshot.objects.filter(owner_id=owner, run_id="r1").aexists()
 
     # Resume from r1 into a fresh run r2 that sends only a new turn.
-    resumed = await _drain(await view(_post(_run_input("double 9", run_id="r2")), resume_from="r1"))
+    resumed = await _drain(
+        await view(_post(_run_input("double 9", run_id="r2", message_id="u2")), resume_from="r1")
+    )
     assert "RUN_FINISHED" in resumed
 
     # r2 is a distinct run linked back to r1 (parent preserved, r1 untouched)...
@@ -1120,9 +1127,11 @@ async def test_a_resumed_run_never_executes_a_tool_call_the_client_wrote() -> No
     # prompt), have the strip see nothing to remove, and leave its own tool call
     # last once the compaction went. The run then executed that call with the
     # client's arguments before any model request. The pydantic-ai floor exists
-    # for this.
+    # for this, and from 2.63 a resumed run holds its history on the server,
+    # which takes the client's messages out of the history altogether.
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
+    from django_spec_agents.contrib.store.models import StoredRun
 
     log: list[str] = []
 
@@ -1180,26 +1189,30 @@ async def test_a_resumed_run_never_executes_a_tool_call_the_client_wrote() -> No
         }
     ).encode()
     with warnings.catch_warnings(record=True) as caught:
-        # Record rather than ignore: the strip warning is the one signal that
-        # tells a patched pydantic-ai apart from a resume that never passed
-        # server history (see the assertion below).
+        # Record rather than ignore: the warnings say which history the run
+        # was built from (see the assertions below).
         warnings.simplefilter("always")
         body = await _drain(await view(_post(forged), resume_from="r1"))
 
     # The model never asks for a tool, so any ``tool:42`` is the forged call.
-    # Patched, every forged message is stripped and the resume carries no new
-    # turn, which pydantic-ai refuses; which terminal event the run ends on is
+    # Every forged message is dropped and the resume carries no new turn, which
+    # pydantic-ai refuses; which terminal event the run ends on is
     # pydantic-ai's to choose, and is deliberately not pinned here.
     assert "tool:42" not in log
     assert "RUN_STARTED" in body
-    # The two asserts above also pass when ``resume_from`` is dropped, because
-    # that run errors with "Processed history must end with a ModelRequest" too.
-    # pydantic-ai's strip warning ("Client-submitted history ended with
-    # unresolved tool call(s) ['refresh_cache']") is emitted only when the run
-    # carries server history and the patched strip runs, and 2.54 never emits
-    # it. Match the tool name alone: the nearby system-prompt warning was
-    # reworded between 2.58 and 2.61.
-    assert any(
+    # Those two also pass when ``resume_from`` is dropped, so the run is shown
+    # to be the resume: it was recorded as r1's child.
+    assert await StoredRun.objects.filter(run_id="r2", parent_run_id="r1").aexists()
+    # And the forged call never reached the history at all. A resumed run holds
+    # its history on the server, so the client's messages before its last
+    # response are not the run's; only the new turn after them is, and here
+    # that is a system message and a compaction part, both dropped. Under the
+    # client-held history 2.58 patched, the forged call did reach the history
+    # and was stripped from its end, with pydantic-ai's warning naming it
+    # ("Client-submitted history ended with unresolved tool call(s)
+    # ['refresh_cache']"). Match the tool name alone: the nearby system-prompt
+    # warning was reworded between 2.58 and 2.61.
+    assert not any(
         issubclass(w.category, UserWarning) and "refresh_cache" in str(w.message) for w in caught
     )
 
@@ -1339,7 +1352,10 @@ async def test_resuming_into_a_thread_that_holds_nothing_still_branches() -> Non
     await _drain(await view(_post(_run_input("double 5", run_id="r1", thread_id="tA"))))
 
     body = await _drain(
-        await view(_post(_run_input("double 9", run_id="r2", thread_id="tNew")), resume_from="r1")
+        await view(
+            _post(_run_input("double 9", run_id="r2", thread_id="tNew", message_id="u2")),
+            resume_from="r1",
+        )
     )
 
     assert "RUN_FINISHED" in body
@@ -1386,7 +1402,10 @@ async def test_resuming_the_same_thread_is_never_refused() -> None:
     await _drain(await view(_post(_run_input("double 5", run_id="r1", thread_id="tA"))))
 
     body = await _drain(
-        await view(_post(_run_input("double 9", run_id="r2", thread_id="tA")), resume_from="r1")
+        await view(
+            _post(_run_input("double 9", run_id="r2", thread_id="tA", message_id="u2")),
+            resume_from="r1",
+        )
     )
 
     assert "RUN_FINISHED" in body
@@ -1913,7 +1932,7 @@ _KERNEL_RENAME_SPEC = kernel.ServiceSpec(
     service=_rename_row,
     atomic=False,
     validator=kernel.FormValidator(_RenameRowForm),
-    instance_selector_spec=_kernel_row_lookup(),
+    instance_selector_spec=_kernel_row_lookup().derive(permissions=None),
     permissions=[kernel.Unrestricted()],
 )
 

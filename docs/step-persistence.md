@@ -186,11 +186,29 @@ the branch to live in its own conversation.
     new thread before resuming. Endpoints with no conversation store have
     nothing to overwrite and are never refused.
 
+**The server holds a resumed run's history.** The run continues from the
+snapshot plus only the client's **new turn**: the messages it posts after its
+last assistant (or reasoning) message. A client that replays its whole
+transcript is therefore not sent to the model twice, and its thread is not
+stored twice. A new turn whose message carries the id of a stored user message
+is that message **resubmitted** -- an edit, a regenerate, a retry -- and the
+history is cut just before it, so the run replaces that turn (keeping any tool
+results the stored turn carried) rather than adding a copy; give a genuinely new
+message a new id. The stored thread reads the way the run did: the kept history,
+then the new turn as the client posted it. One thing is left out: a tool result
+the kept history already answers, whether the cut turn carried it or an earlier
+turn did. The run drops the client's copy, and the row would otherwise hold one
+call answered twice. Tool results that answer no
+pending call, and a client's compaction parts, never reach the run but are
+stored as posted. The earlier messages keep the ids the source thread's stored
+conversation holds for them, a fork included; see
+[Conversation persistence](concepts.md#conversation-persistence).
+
 !!! warning
-    Send a **fresh `run_id`** in the resumed request, and send only the **new**
-    turn — the server supplies the prior history from the snapshot, so re-sending
-    it duplicates it. Duplicating history is the one of those two that goes
-    through: reusing the source run's id does **not** corrupt its ledger, because
+    Send a **fresh `run_id`** in the resumed request. Send only the new turn, or
+    the whole transcript -- either reaches the run as the new turn alone, but a
+    transcript costs the bytes for nothing. Reusing the source run's id does
+    **not** corrupt its ledger, because
     the harness refuses it by name — *"run_id … is already in the store. Explicit
     `run_id` is single-shot"* — and the source's records are untouched. So there
     is nothing to defend against client-side beyond passing a new id.
