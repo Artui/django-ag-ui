@@ -5,7 +5,7 @@ pip install django-ag-ui
 ```
 
 Core dependencies are `django>=4.2`, `django-spec-agents>=0.2.0`,
-`pydantic-ai-slim[ui]>=2.58,<3` and `ag-ui-protocol>=1.0`. The `AGUIAdapter` comes from pydantic-ai-slim and the
+`pydantic-ai-slim[ui]>=2.63,<3` and `ag-ui-protocol>=1.0`. The `AGUIAdapter` comes from pydantic-ai-slim and the
 AG-UI wire types from `ag-ui-protocol`; this package does not re-implement
 either. The **slim** package ships the adapter but **no model-provider
 library** — pick one via a provider extra (see below).
@@ -39,7 +39,7 @@ uv lock --upgrade-package pydantic-ai-slim --upgrade-package pydantic-ai-harness
 | --- | --- | --- |
 | Python | 3.11 | 3.11, 3.12, 3.13, 3.14 |
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0 |
-| Pydantic-AI | 2.58 (with the `pydantic-ai-slim[ui]` extra) | latest in the CI matrix |
+| Pydantic-AI | 2.63 (with the `pydantic-ai-slim[ui]` extra) | latest in the CI matrix |
 
 ## Model provider extras
 
