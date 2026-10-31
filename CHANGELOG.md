@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.72.0] — 2026-10-31
+
+### Added
+
+- **`AgentSession(source_messages=...)`.** The source thread's stored
+  conversation, for a resumed or forked run: the snapshot's messages are stored
+  under the ids it holds for them. `DjangoAGUIView` loads it from the
+  conversation store, as the acting user, on every resume or fork where the
+  source run's thread is known, which costs one extra row load there.
+
+### Changed
+
+- **pydantic-ai-slim is floored at 2.63**, the first release whose adapter can
+  take a stored history as the conversation (`manage_message_history="server"`).
+- **A resumed or forked run holds its history on the server.** It runs on the
+  snapshot plus only the client's new turn, the messages posted after its last
+  assistant or reasoning message, so sending the whole transcript and sending
+  only the new turn reach the run alike. A new turn whose message carries the
+  id of a stored user message is that message resubmitted (an edit, a
+  regenerate, a retry): the history is cut just before it, keeping the tool
+  results that stored turn carried, and the run replaces the turn instead of
+  adding a copy. A client that posts a genuinely new message under an id the
+  thread already used now replaces that message. The stored thread reads the
+  way the run did: the kept history, then the new turn as posted. Tool results
+  answering no pending call, and a client's compaction parts, never reach the
+  run and are stored as posted. The client's messages before the new turn never
+  reach the run at all, which also closes the class of forged history the 0.71.0
+  floor patched.
+- **The stream carries `TEXT_MESSAGE_START`'s `role` and `RUN_STARTED`'s
+  `protocolVersion` again**, as pydantic-ai 2.63 writes them. The wire fixture
+  at `tests/fixtures/subagent_progress_stream.json` is regenerated with them,
+  and its pre-2.60 recording is retired, since the floor no longer reaches it.
+
+### Fixed
+
+- **A resumed run sent a replayed transcript to the model twice.** A client
+  that posts its whole conversation on a resume, as a third-party AG-UI client
+  does, had the snapshot's turns prepended to its own copy of them: the model
+  saw every earlier message twice, and the thread was stored with them twice.
+- **The earlier messages of a resumed or forked thread keep their ids.** Not
+  only an earlier run's answers, which 0.68.3 named as stored under fresh ids,
+  but everything the snapshot dumps without one: a response that called tools,
+  reasoning, and a tool result the client posted ahead of another, which
+  pydantic-ai folds into one message keeping only the last id. Each now takes
+  the id the source thread's stored conversation holds for it, so a rating
+  keyed by an answer's `messageId` still finds it after the next save. Matched
+  in order and per kind, never lent: a row that was deleted, overwritten or
+  describes another conversation leaves fresh ids. **A fork keeps the source's
+  ids**, so one id can name a message in two threads; key anything attached to
+  a message by thread and message id together.
+
 ## [0.71.0] — 2026-10-31
 
 ### Security
@@ -4161,7 +4212,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.71.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.72.0...HEAD
+[0.72.0]: https://github.com/Artui/django-ag-ui/compare/v0.71.0...v0.72.0
 [0.71.0]: https://github.com/Artui/django-ag-ui/compare/v0.70.0...v0.71.0
 [0.70.0]: https://github.com/Artui/django-ag-ui/compare/v0.69.1...v0.70.0
 [0.69.1]: https://github.com/Artui/django-ag-ui/compare/v0.69.0...v0.69.1
