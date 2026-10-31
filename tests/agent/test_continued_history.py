@@ -237,6 +237,65 @@ def test_a_legacy_retry_bound_to_a_tool_is_kept_as_a_result() -> None:
     assert kept[2].parts == [retry]
 
 
+def test_a_stale_result_does_not_name_the_turn() -> None:
+    # The adapter drops a result for a call that is neither posted nor pending
+    # before it loads the turn, so it is the resubmitted prompt that names it.
+    history = _snapshot(_user("u1", "a"), _answer("a1", "b"))
+
+    kept, new_turn = continued_history(
+        history, _wire(_user("u1", "a, edited"), _result("stale", "call-9"))
+    )
+
+    assert kept == []
+    assert _ids(new_turn) == ["u1", "stale"]
+
+
+def test_a_result_for_a_pending_call_still_names_the_turn() -> None:
+    # A call the stored history waits on is answered by the result, so the
+    # result is part of the turn and, being last, names it: nothing is cut.
+    history = _snapshot(_user("u1", "a"), _calling("a1", "call-1"))
+
+    kept, new_turn = continued_history(
+        history, _wire(_user("u1", "a, edited"), _result("t1", "call-1"))
+    )
+
+    assert kept == history
+    assert _ids(new_turn) == ["u1", "t1"]
+
+
+def test_a_result_for_a_posted_call_names_the_turn_though_its_call_is_answered() -> None:
+    # The call is posted, so the adapter does not drop the result as stale;
+    # being last, the result names the turn and the prompt before it is not
+    # resubmitted (the adapter sends the model both prompts here).
+    history = _snapshot(
+        _user("u1", "a"),
+        _calling("a1", "call-1"),
+        _result("t1", "call-1"),
+        _user("u2", "c"),
+        _answer("a2", "d"),
+    )
+    posted = _wire(_calling("a1", "call-1"), _user("u2", "c, edited"), _result("t1", "call-1"))
+
+    kept, new_turn = continued_history(history, posted)
+
+    assert kept == history
+    assert _ids(new_turn) == ["u2"]
+
+
+def test_an_answered_result_resent_without_a_cut_is_left_out() -> None:
+    history = _snapshot(
+        _user("u1", "a"), _calling("a1", "call-1"), _result("t1", "call-1"), _answer("a2", "d")
+    )
+    posted = _wire(
+        _user("u1", "a"), _calling("a1", "call-1"), _result("t1", "call-1"), _user("u2", "next")
+    )
+
+    kept, new_turn = continued_history(history, posted)
+
+    assert kept == history
+    assert _ids(new_turn) == ["u2"]
+
+
 # --- Parity with the run ------------------------------------------------------
 
 
@@ -395,3 +454,65 @@ async def test_a_client_compaction_part_is_stored_as_posted() -> None:
 
     assert "client summary" not in json.dumps([str(message) for message in sent])
     assert [message["id"] for message in row[:-1]] == ["u1", "a1", "c1", "u2"]
+
+
+@pytest.mark.parametrize(
+    "posted, shown, row_ids",
+    [
+        pytest.param(
+            [_user("u1", "a, edited"), _result("stale", "call-9")],
+            [("user", "a, edited")],
+            ["u1", "stale"],
+            id="an edited first message",
+        ),
+        pytest.param(
+            [
+                _user("u1", "a"),
+                _answer("a1", "b"),
+                _user("u2", "c, edited"),
+                _result("stale", "call-9"),
+            ],
+            [("user", "a"), ("text", "b"), ("user", "c, edited")],
+            ["u1", "a1", "u2", "stale"],
+            id="an edited later message",
+        ),
+    ],
+)
+async def test_a_stale_result_posted_after_a_resubmission_still_cuts(
+    posted: list[dict[str, Any]], shown: list[tuple[Any, ...]], row_ids: list[str]
+) -> None:
+    # The adapter drops the stale result before it names the turn, so the
+    # resubmitted prompt does and the history is cut; the row keeps the result
+    # as posted but holds each message once.
+    snapshot = (_user("u1", "a"), _answer("a1", "b"), _user("u2", "c"), _answer("a2", "d"))
+
+    with pytest.warns(UserWarning, match="dropped"):
+        sent, row = await _run(_snapshot(*snapshot), posted)
+
+    assert _visible(sent) == shown
+    assert [message["id"] for message in row[:-1]] == row_ids
+
+
+async def test_an_answered_result_resent_without_a_cut_is_stored_once() -> None:
+    # The adapter drops the client's copy of a result the stored history
+    # already answers; storing it would hold one id twice.
+    snapshot = (
+        _user("u1", "a"),
+        _calling("a1", "call-1"),
+        _result("t1", "call-1"),
+        _answer("a2", "d"),
+    )
+    posted = [
+        _user("u1", "a"),
+        _calling("a1", "call-1"),
+        _result("t1", "call-1"),
+        _user("u2", "next"),
+    ]
+
+    with pytest.warns(UserWarning, match="dropped"):
+        sent, row = await _run(_snapshot(*snapshot), posted)
+
+    assert _visible(sent).count(("return", "call-1", "seen")) == 1
+    ids = [message["id"] for message in row]
+    assert len(ids) == len(set(ids))
+    assert ids[:-1] == ["u1", "a1", "t1", "a2", "u2"]

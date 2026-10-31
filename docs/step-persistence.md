@@ -195,9 +195,12 @@ is that message **resubmitted** -- an edit, a regenerate, a retry -- and the
 history is cut just before it, so the run replaces that turn (keeping any tool
 results the stored turn carried) rather than adding a copy; give a genuinely new
 message a new id. The stored thread reads the way the run did: the kept history,
-then the new turn as the client posted it. Tool results that answer no pending
-call, and a client's compaction parts, never reach the run but are stored as
-posted. The earlier messages keep the ids the source thread's stored
+then the new turn as the client posted it. One thing is left out: a tool result
+the kept history already answers, whether the cut turn carried it or an earlier
+turn did. The run drops the client's copy, and the row would otherwise hold one
+call answered twice. Tool results that answer no
+pending call, and a client's compaction parts, never reach the run but are
+stored as posted. The earlier messages keep the ids the source thread's stored
 conversation holds for them, a fork included; see
 [Conversation persistence](concepts.md#conversation-persistence).
 

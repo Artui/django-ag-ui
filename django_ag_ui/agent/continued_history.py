@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TypeGuard
 
-from ag_ui.core import Message, ToolMessage
+from ag_ui.core import AssistantMessage, Message, ToolMessage
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -15,6 +15,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
+from pydantic_ai.ui._adapter import pending_tool_calls
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 
@@ -45,30 +46,42 @@ def continued_history(
       merged in from the turn before.
     - **What is stored of the new turn** is what the client posted, verbatim,
       so the attachment refs riding a user message survive. The one exception
-      is a tool result the kept request already holds for the same call: the
+      is a tool result the kept history already answers -- the one the cut
+      request carried, or one the stored thread holds from an earlier turn: the
       adapter drops the client's copy of it, and storing it would record one
       call answered twice, under two ids. That filter is one arc over two
       conditions: without the tool-message check
       ``test_an_edited_message_cuts_the_history_before_its_turn`` fails, and
       without the call check
       ``test_only_the_client_copy_of_a_kept_result_is_left_out`` fails.
+      Without the answers read from the whole kept history rather than the cut
+      request alone,
+      ``test_an_answered_result_resent_without_a_cut_is_left_out`` fails.
 
     The adapter also drops tool results for calls nothing is waiting on, and
     a client's compaction parts; those are stored as posted, because the
     server never persists less than the client sent.
     """
     new_turn = list(posted[_after_last_response(posted) :])
-    turn_id = _turn_id(new_turn)
+    turn_id = _turn_id(new_turn, posted, history)
     cut = None
     if turn_id is not None:
         cut = next(
             (index for index, message in enumerate(history) if _names(message, turn_id)), None
         )
-    if cut is None:
-        return list(history), new_turn
-    results: list[ModelRequestPart] = [part for part in history[cut].parts if _is_tool_result(part)]
-    kept = [*history[:cut], *([ModelRequest(parts=results)] if results else [])]
-    answered = {part.tool_call_id for part in results if _is_tool_result(part)}
+    kept = list(history)
+    if cut is not None:
+        results: list[ModelRequestPart] = [
+            part for part in history[cut].parts if _is_tool_result(part)
+        ]
+        kept = [*history[:cut], *([ModelRequest(parts=results)] if results else [])]
+    answered = {
+        part.tool_call_id
+        for message in kept
+        if isinstance(message, ModelRequest)
+        for part in message.parts
+        if _is_tool_result(part)
+    }
     resubmitted = [
         message
         for message in new_turn
@@ -92,17 +105,36 @@ def _after_last_response(posted: Sequence[Message]) -> int:
     return 0
 
 
-def _turn_id(new_turn: Sequence[Message]) -> str | None:
+def _turn_id(
+    new_turn: Sequence[Message], posted: Sequence[Message], history: Sequence[ModelMessage]
+) -> str | None:
     """The id the adapter gives the request the new turn loads into: its last contributor's.
 
-    A message contributes when it loads into a part; a tool result always does
-    in the run, though not on its own, since it needs its call. Without the
-    tool-message check ``test_a_tool_result_after_the_last_response_is_part_of_the_new_turn``
-    fails, and without the load check
-    ``test_a_message_that_loads_nothing_does_not_name_the_turn``.
+    A message contributes when it loads into a part. A tool result does in the
+    run, though not on its own, since it needs its call -- unless the adapter
+    drops it first: a result for a call that is neither among the posted
+    assistant messages' calls nor pending in ``history`` is dropped before the
+    turn loads, and a dropped result names nothing. The guard is one arc over
+    three conditions: without the tool-message check
+    ``test_a_tool_result_after_the_last_response_is_part_of_the_new_turn``
+    fails, without ``in called``
+    ``test_a_result_for_a_posted_call_names_the_turn_though_its_call_is_answered``,
+    without ``in pending`` ``test_a_result_for_a_pending_call_still_names_the_turn``,
+    and without either ``test_a_stale_result_does_not_name_the_turn``; without
+    the load check ``test_a_message_that_loads_nothing_does_not_name_the_turn``.
     """
+    called = {
+        call.id
+        for message in posted
+        if isinstance(message, AssistantMessage)
+        for call in message.tool_calls or ()
+    }
+    pending = {call.tool_call_id for call in pending_tool_calls(history)}
     for message in reversed(new_turn):
-        if isinstance(message, ToolMessage) or AGUIAdapter.load_messages([message]):
+        if isinstance(message, ToolMessage):
+            if message.tool_call_id in called or message.tool_call_id in pending:
+                return message.id
+        elif AGUIAdapter.load_messages([message]):
             return message.id
     return None
 

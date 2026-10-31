@@ -30,7 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   results that stored turn carried, and the run replaces the turn instead of
   adding a copy. A client that posts a genuinely new message under an id the
   thread already used now replaces that message. The stored thread reads the
-  way the run did: the kept history, then the new turn as posted. Tool results
+  way the run did: the kept history, then the new turn as posted, minus a tool
+  result the kept history already answers, which the run drops too. Tool results
   answering no pending call, and a client's compaction parts, never reach the
   run and are stored as posted. The client's messages before the new turn never
   reach the run at all, which also closes the class of forged history the 0.71.0
