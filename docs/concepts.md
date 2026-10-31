@@ -478,9 +478,24 @@ one model response and the next: when it fails for one answer, every text-only
 answer of that run keeps a fresh id.
 
 The earlier turns a [resumed or forked run](step-persistence.md) is seeded with
-are not covered, at any pydantic-ai version. They are stored from the step
-store's snapshot, where an answer an earlier run generated carries no id of its
-own, so each save of a resumed thread names those earlier answers afresh.
+are stored from the step store's snapshot, where nothing an earlier run
+generated carries an id of its own, and neither does a tool result the client
+posted ahead of another: pydantic-ai keeps only the last id of the messages it
+folds into one. So when a conversation store is configured, the run reads the
+source thread's stored conversation and gives each earlier message the id that
+row holds for the same message: a tool result by its call, a response that
+called tools by its calls, an answer or reasoning by its text, walked in order
+so a repeated "ok" takes the id of the matching "ok" and not an earlier one.
+The same never-lend rule holds: a message the row does not hold -- the row was
+deleted, overwritten, or describes a different conversation -- is stored under
+a fresh id. Without a conversation store there is no row, and earlier messages
+are named afresh on each save.
+
+**A fork keeps the source's ids.** A run forked into a new thread stores the
+earlier messages under the ids the source thread holds for them, so one id can
+name a message in two threads. Key anything you attach to a message, such as a
+rating, by thread and message id together, as the web component's
+`ag-ui-feedback` example does with `threadId` and `messageId`.
 
 **A stored thread holds no file bytes the server itself produced.** The base64 a
 `read_attachment` return serialises into is removed before the run's messages

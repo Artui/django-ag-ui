@@ -2,11 +2,8 @@
 
     python scripts/generate_subagent_fixture.py tests/fixtures/subagent_progress_stream.json
 
-Run under pydantic-ai 2.60 or later for that file, the canonical one. Run under
-an older release, ``tests/fixtures/subagent_progress_stream.pre-2.60.json`` is
-the target instead: the two releases write the auditor's retried delegation
-differently, and the test compares each half of the supported range with its
-own recording.
+Every pydantic-ai the package supports writes the same file; the test suite
+regenerates it on every run and fails on any difference.
 
 The fixture is what a client actually receives when a run delegates: the whole
 Server-Sent Events stream of one ``DjangoAGUIView`` run, decoded from the same

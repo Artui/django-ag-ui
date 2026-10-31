@@ -70,17 +70,27 @@ dependencies = [
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
-    # The floor is a security fix (GHSA-5pfm-2g3g-gh85). A resumed or forked run
-    # hands the adapter its stored snapshot as ``message_history``, and below
-    # 2.58 the adapter dropped client-submitted compaction parts *after* it
-    # stripped unresolved tool calls from the end of the client's messages, so
-    # a client could arrange its history to leave its own tool call last and
-    # have the run execute it, with its arguments, before any model request.
-    # Held by ``test_a_resumed_run_never_executes_a_tool_call_the_client_wrote``.
-    # 2.55 also made pydantic-ai require Python 3.11, which is why this
-    # package's ``requires-python`` moved with it rather than gaining a marker
-    # that would leave 3.10 installs on the exposed versions.
-    # Every earlier floor stays inside this one: a stream in which every
+    # The floor is the server-held history mode. A resumed or forked run hands
+    # the adapter its stored snapshot as ``message_history``, and 2.63 is the
+    # first release whose adapter can take that snapshot as the conversation
+    # (``manage_message_history="server"``): it runs on the snapshot plus only
+    # the client's new turn, and cuts the snapshot where the client resubmits a
+    # stored message. Below it the adapter prepended the snapshot to everything
+    # the client posted, so a client replaying its transcript on a resume sent
+    # it to the model twice. Held by
+    # ``tests/agent/test_resumed_history_through_the_view.py``.
+    # Every earlier floor stays inside this one. 2.58 is a security fix
+    # (GHSA-5pfm-2g3g-gh85): below it the adapter dropped client-submitted
+    # compaction parts *after* it stripped unresolved tool calls from the end
+    # of the client's messages, so a client could arrange its history to leave
+    # its own tool call last and have the run execute it, with its arguments,
+    # before any model request. Held by
+    # ``test_a_resumed_run_never_executes_a_tool_call_the_client_wrote``, which
+    # from 2.63 also shows the client's messages never reach a resumed run's
+    # history at all. 2.55 made pydantic-ai require Python 3.11, which is why
+    # this package's ``requires-python`` moved with it rather than gaining a
+    # marker that would leave 3.10 installs on the exposed versions. And a
+    # stream in which every
     # TOOL_CALL_START names an assistant message the stream actually announced. A response whose first part is a
     # tool call has no text to open that message with, and below this floor the
     # `parentMessageId` was emitted anyway, naming a message no event carried --
@@ -102,16 +112,18 @@ dependencies = [
     # adapter forwards the installed protocol version rather than pinning an
     # older one. Once pydantic-ai#8627 lifts the cap, ``[ag-ui]`` can return
     # and nothing else moves.
-    "pydantic-ai-slim[ui]>=2.58,<3",
+    "pydantic-ai-slim[ui]>=2.63,<3",
     # The floor is the protocol's 1.0, and it is load-bearing for the same
     # reason the pydantic-ai floor above is: 1.0 changed what this endpoint
     # writes. It made TEXT_MESSAGE_START's role optional with no default, and an
-    # optional field with no value is left off the wire, so the event stops
-    # carrying the `"role": "assistant"` every client already assumes (the web
-    # component's pinned `@ag-ui/core` parses it with `.default("assistant")`),
-    # and the wire fixture the browser lane builds against regenerates
-    # differently on either side of it. A window spanning both would leave that
-    # fixture true of only one end, and the event-set contract likewise, since
+    # optional field with no value is left off the wire, so on pydantic-ai below
+    # 2.63 the event stopped carrying the `"role": "assistant"` every client
+    # already assumes (the web component's pinned `@ag-ui/core` parses it with
+    # `.default("assistant")`); from 2.63 the adapter sets it again, and stamps
+    # RUN_STARTED with the `protocolVersion`. Either way the wire fixture the
+    # browser lane builds against regenerates differently on either side of
+    # 1.0. A window spanning both would leave that fixture true of only one
+    # end, and the event-set contract likewise, since
     # 1.0 removed the deprecated THINKING_* family nothing here emits. It also
     # retired the flat `binary` input part, which is what lets
     # `strip_binary_content` stop handling one. What the earlier floors bought
@@ -401,19 +413,6 @@ line-ending = "auto"
 
 [tool.ty.environment]
 root = ["./django_ag_ui"]
-
-# These two modules name ``RetryPromptPart``, which pydantic-ai deprecated in
-# 2.60 and which the declared floor still emits for a retry, so each use carries
-# ``# ty: ignore[deprecated]``. The floor, 2.58, predates that deprecation, so
-# checked against a floor install every one of those comments is reported
-# unused, which fails ``ty check`` there. Scoped to the two files so an unused
-# suppression anywhere else is still reported.
-[[tool.ty.overrides]]
-include = [
-    "django_ag_ui/agent/outcome_agui_adapter.py",
-    "django_ag_ui/agent/subagent_observer.py",
-]
-rules = { unused-ignore-comment = "ignore" }
 
 # bump-my-version drives `make release-bump` — it rewrites the version in
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
