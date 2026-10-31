@@ -20,8 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the client's arguments, before any model request. Arguments were still
   validated against the tool's schema, and a destructive tool under
   `TOOL_GUARD` still deferred to an approval interrupt, because the guard
-  flags it when the run prepares its tools, which happens on this path too; a
-  tool the guard does not gate ran. Held by
+  flags it when the run prepares its tools, which happens on this path too.
+  That interrupt is answered by the same client that wrote the call, so it is
+  a confirmation step rather than a barrier, and a tool the guard does not
+  gate ran outright. Held by
   `test_a_resumed_run_never_executes_a_tool_call_the_client_wrote`.
 
 ### Removed
@@ -29,7 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Python 3.10.** `requires-python` is `>=3.11`. pydantic-ai has required 3.11
   since 2.55, so on 3.10 the resolver could only install a pydantic-ai below
   the fixed release; keeping 3.10 would have meant shipping it on the exposed
-  versions. A project on 3.10 stays on 0.70.x until it moves interpreter.
+  versions. A project that stays on 0.70.x for 3.10 remains exposed, and the
+  advisory's mitigations apply there: authorize inside each tool against the
+  acting user, and put tool guardrails in `before_tool_execute`.
 
 ## [0.70.0] — 2026-10-26
 
