@@ -7,7 +7,7 @@ name = "django-ag-ui"
 dynamic = ["version"]
 description = "Django ↔ Pydantic-AI ↔ AG-UI integration: async view, tool registry, audit logger."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
     { name = "Artur Veres", email = "artur8118@gmail.com" },
@@ -27,7 +27,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -71,8 +70,18 @@ dependencies = [
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
-    # The floor buys a stream in which every TOOL_CALL_START names an assistant
-    # message the stream actually announced. A response whose first part is a
+    # The floor is a security fix (GHSA-5pfm-2g3g-gh85). A resumed or forked run
+    # hands the adapter its stored snapshot as ``message_history``, and below
+    # 2.58 the adapter dropped client-submitted compaction parts *after* it
+    # stripped unresolved tool calls from the end of the client's messages, so
+    # a client could arrange its history to leave its own tool call last and
+    # have the run execute it, with its arguments, before any model request.
+    # Held by ``test_a_resumed_run_never_executes_a_tool_call_the_client_wrote``.
+    # 2.55 also made pydantic-ai require Python 3.11, which is why this
+    # package's ``requires-python`` moved with it rather than gaining a marker
+    # that would leave 3.10 installs on the exposed versions.
+    # Every earlier floor stays inside this one: a stream in which every
+    # TOOL_CALL_START names an assistant message the stream actually announced. A response whose first part is a
     # tool call has no text to open that message with, and below this floor the
     # `parentMessageId` was emitted anyway, naming a message no event carried --
     # a client could only answer by minting an id of its own, which then matches
@@ -93,7 +102,7 @@ dependencies = [
     # adapter forwards the installed protocol version rather than pinning an
     # older one. Once pydantic-ai#8627 lifts the cap, ``[ag-ui]`` can return
     # and nothing else moves.
-    "pydantic-ai-slim[ui]>=2.37,<3",
+    "pydantic-ai-slim[ui]>=2.58,<3",
     # The floor is the protocol's 1.0, and it is load-bearing for the same
     # reason the pydantic-ai floor above is: 1.0 changed what this endpoint
     # writes. It made TEXT_MESSAGE_START's role optional with no default, and an
@@ -347,7 +356,7 @@ fail_under = 100
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "UP", "B", "SIM", "I", "TID"]
@@ -395,10 +404,10 @@ root = ["./django_ag_ui"]
 
 # These two modules name ``RetryPromptPart``, which pydantic-ai deprecated in
 # 2.60 and which the declared floor still emits for a retry, so each use carries
-# ``# ty: ignore[deprecated]``. The lock forks on Python: 2.55 dropped 3.10, so
-# a 3.10 venv resolves a pydantic-ai where nothing is deprecated and every one of
-# those comments is reported unused, which fails ``ty check`` there. Scoped to
-# the two files so an unused suppression anywhere else is still reported.
+# ``# ty: ignore[deprecated]``. The floor, 2.58, predates that deprecation, so
+# checked against a floor install every one of those comments is reported
+# unused, which fails ``ty check`` there. Scoped to the two files so an unused
+# suppression anywhere else is still reported.
 [[tool.ty.overrides]]
 include = [
     "django_ag_ui/agent/outcome_agui_adapter.py",
@@ -410,7 +419,7 @@ rules = { unused-ignore-comment = "ignore" }
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.70.0"
+current_version = "0.71.0"
 allow_dirty = false
 commit = false
 tag = false

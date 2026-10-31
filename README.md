@@ -86,7 +86,7 @@ browser half is
   [`django-spec-agents`](https://github.com/Artui/django-spec-agents)'
   `SpecCapability` (the `[specs]` extra) — permission-checked, acting as the
   logged-in user, with the spec conventions taught to the model.
-- **100% test coverage**, type-checked, Python 3.10–3.14, Django 4.2–6.0.
+- **100% test coverage**, type-checked, Python 3.11–3.14, Django 4.2–6.0.
 
 **Full documentation:** <https://artui.github.io/django-ag-ui/>
 

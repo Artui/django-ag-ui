@@ -20,7 +20,11 @@ def reject_async_throttle(throttle: Throttle | None, *, allows: str) -> None:
     the advice reads for the endpoint the caller mounted. It is the only thing
     that differed between the two copies this replaced.
     """
-    if throttle is None or not iscoroutinefunction(throttle.consume):
+    # asgiref picks ``inspect.iscoroutinefunction`` or, below 3.12,
+    # ``asyncio.iscoroutinefunction`` with a runtime ``hasattr``, which a type
+    # checker cannot narrow, so ty sees the asyncio overload typeshed deprecates
+    # from 3.11 on every interpreter. The installed Python decides which runs.
+    if throttle is None or not iscoroutinefunction(throttle.consume):  # ty: ignore[deprecated]
         return
     raise ImproperlyConfigured(
         f"{type(throttle).__name__}.consume is declared 'async def', but the "

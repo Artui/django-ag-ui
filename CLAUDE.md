@@ -52,7 +52,7 @@ The AG-UI stack design doc (`django-ag-ui-plan.md`) lives in the private ecosyst
 6. **`__init__.py` is the only re-export point.** Each `__init__.py` lists the public surface
    in `__all__`. Internal modules import from leaf paths, never from the package's `__init__`.
 7. **Always `from __future__ import annotations`** at the top of any file with type
-   annotations. Python 3.10+, so no PEP 695 `type` statements.
+   annotations. Python 3.11+, so no PEP 695 `type` statements.
 8. **Absolute imports only.** Imports are ordered stdlib → third-party → first-party
    (`django_ag_ui`). Within each block, alphabetical.
 9. **NEVER use relative imports.** `from . import x`, `from .foo import bar`, any dotted-
@@ -175,9 +175,9 @@ Change a rule here and change the config with it, or they drift apart again.
 
 | Component | Floor | Tested |
 | --- | --- | --- |
-| Python | 3.10 | 3.10, 3.11, 3.12, 3.13, 3.14 |
+| Python | 3.11 | 3.11, 3.12, 3.13, 3.14 |
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0 |
-| Pydantic-AI | 2.37 (with the `pydantic-ai-slim[ui]` extra) | latest in matrix |
+| Pydantic-AI | 2.58 (with the `pydantic-ai-slim[ui]` extra) | latest in matrix |
 
 ## Branching
 

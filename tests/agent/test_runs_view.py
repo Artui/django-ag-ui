@@ -4,7 +4,7 @@ import dataclasses
 import io
 import json
 from collections.abc import Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -32,7 +32,7 @@ from django_ag_ui.agent.runs_view import RunsView
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.authed_request_factory import AuthedAsyncRequestFactory, AuthedRequestFactory
 
-_STARTED = datetime(2026, 7, 27, 12, 0, tzinfo=timezone.utc)
+_STARTED = datetime(2026, 7, 27, 12, 0, tzinfo=UTC)
 
 
 def _record(

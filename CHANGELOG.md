@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.71.0] — 2026-10-31
+
+### Security
+
+- **pydantic-ai-slim is floored at 2.58 (GHSA-5pfm-2g3g-gh85).** A resumed or
+  forked run hands the adapter its stored snapshot as `message_history`, and
+  with server-side history present the adapter drops client-submitted
+  compaction parts. Below 2.58 it dropped them after stripping unresolved tool
+  calls from the end of the client's messages, so a client could arrange its
+  history to leave a tool call of its own last and have the run execute it,
+  with the client's arguments, before any model request. Arguments were still
+  validated against the tool's schema, and a destructive tool under
+  `TOOL_GUARD` still deferred to an approval interrupt, because the guard
+  flags it when the run prepares its tools, which happens on this path too.
+  That interrupt is answered by the same client that wrote the call, so it is
+  a confirmation step rather than a barrier, and a tool the guard does not
+  gate ran outright. Held by
+  `test_a_resumed_run_never_executes_a_tool_call_the_client_wrote`.
+
+### Removed
+
+- **Python 3.10.** `requires-python` is `>=3.11`. pydantic-ai has required 3.11
+  since 2.55, so on 3.10 the resolver could only install a pydantic-ai below
+  the fixed release; keeping 3.10 would have meant shipping it on the exposed
+  versions. A project that stays on 0.70.x for 3.10 remains exposed, and the
+  advisory's mitigations apply there: authorize inside each tool against the
+  acting user, and put tool guardrails in `before_tool_execute`.
+
 ## [0.70.0] — 2026-10-26
 
 ### Changed
@@ -4133,7 +4161,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.70.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.71.0...HEAD
+[0.71.0]: https://github.com/Artui/django-ag-ui/compare/v0.70.0...v0.71.0
 [0.70.0]: https://github.com/Artui/django-ag-ui/compare/v0.69.1...v0.70.0
 [0.69.1]: https://github.com/Artui/django-ag-ui/compare/v0.69.0...v0.69.1
 [0.69.0]: https://github.com/Artui/django-ag-ui/compare/v0.68.3...v0.69.0
