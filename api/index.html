@@ -6258,6 +6258,11 @@ makes the streaming pipeline testable without a <code>StreamingHttpResponse</cod
 (drive <a class="autorefs autorefs-internal" title="stream" href="#django_ag_ui.AgentSession.stream"><code>stream</code></a> directly) and keeps the
 SSE transport swappable — a future WebSocket transport reuses the session
 unchanged.</p>
+<p>A resumed or forked run passes the source run's snapshot as
+<code>message_history</code>, which makes the history the server's: the run takes
+only the client's new turn from <code>run_input</code>. <code>source_messages</code> is then
+the source thread's stored conversation, if there is one, and the snapshot's
+messages are stored under the ids it holds for them rather than fresh ones.</p>
 
 
 
