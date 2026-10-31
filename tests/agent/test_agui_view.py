@@ -1932,7 +1932,7 @@ _KERNEL_RENAME_SPEC = kernel.ServiceSpec(
     service=_rename_row,
     atomic=False,
     validator=kernel.FormValidator(_RenameRowForm),
-    instance_selector_spec=_kernel_row_lookup(),
+    instance_selector_spec=_kernel_row_lookup().derive(permissions=None),
     permissions=[kernel.Unrestricted()],
 )
 
