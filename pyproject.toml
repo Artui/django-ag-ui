@@ -419,7 +419,7 @@ rules = { unused-ignore-comment = "ignore" }
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.70.0"
+current_version = "0.71.0"
 allow_dirty = false
 commit = false
 tag = false
