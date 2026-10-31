@@ -47,7 +47,11 @@ def continued_history(
       so the attachment refs riding a user message survive. The one exception
       is a tool result the kept request already holds for the same call: the
       adapter drops the client's copy of it, and storing it would record one
-      call answered twice, under two ids.
+      call answered twice, under two ids. That filter is one arc over two
+      conditions: without the tool-message check
+      ``test_an_edited_message_cuts_the_history_before_its_turn`` fails, and
+      without the call check
+      ``test_only_the_client_copy_of_a_kept_result_is_left_out`` fails.
 
     The adapter also drops tool results for calls nothing is waiting on, and
     a client's compaction parts; those are stored as posted, because the
@@ -89,7 +93,14 @@ def _after_last_response(posted: Sequence[Message]) -> int:
 
 
 def _turn_id(new_turn: Sequence[Message]) -> str | None:
-    """The id the adapter gives the request the new turn loads into: its last contributor's."""
+    """The id the adapter gives the request the new turn loads into: its last contributor's.
+
+    A message contributes when it loads into a part; a tool result always does
+    in the run, though not on its own, since it needs its call. Without the
+    tool-message check ``test_a_tool_result_after_the_last_response_is_part_of_the_new_turn``
+    fails, and without the load check
+    ``test_a_message_that_loads_nothing_does_not_name_the_turn``.
+    """
     for message in reversed(new_turn):
         if isinstance(message, ToolMessage) or AGUIAdapter.load_messages([message]):
             return message.id
@@ -115,7 +126,8 @@ def _is_tool_result(part: object) -> TypeGuard[ToolReturnPart | RetryPromptPart]
     """Whether ``part`` answers a tool call, as the adapter's cut counts one.
 
     A legacy retry prompt bound to a tool answers its call the way a return
-    does; one bound to no tool is feedback on a whole response.
+    does; one bound to no tool is feedback on a whole response, and keeping it
+    fails ``test_a_legacy_retry_bound_to_a_tool_is_kept_as_a_result``.
     """
     if isinstance(part, ToolReturnPart):
         return True

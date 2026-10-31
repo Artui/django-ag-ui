@@ -167,6 +167,28 @@ def test_the_turn_is_named_by_its_last_message() -> None:
     assert _ids(new_turn) == ["u2"]
 
 
+def test_only_the_client_copy_of_a_kept_result_is_left_out() -> None:
+    # A result for a call the kept request does not answer is stored as
+    # posted, even when it rides beside a resubmission.
+    history = _snapshot(
+        _user("u1", "a"),
+        _calling("a1", "call-1"),
+        _result("t1", "call-1"),
+        _user("u2", "c"),
+        _answer("a2", "d"),
+    )
+    posted = _wire(
+        _calling("a1", "call-1"),
+        _result("t1", "call-1"),
+        _result("stale", "call-9"),
+        _user("u2", "c, edited"),
+    )
+
+    _, new_turn = continued_history(history, posted)
+
+    assert _ids(new_turn) == ["stale", "u2"]
+
+
 def test_a_message_that_loads_nothing_does_not_name_the_turn() -> None:
     history = _snapshot(_user("u1", "a"), _answer("a1", "b"))
     posted = _wire(_user("u1", "a, edited"), _user("empty", []))

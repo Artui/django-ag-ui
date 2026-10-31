@@ -163,8 +163,26 @@ async def test_an_edited_message_replaces_the_turn_it_names() -> None:
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_resubmitted_later_message_cuts_the_history_there() -> None:
-    # A retry of the second message, posted with the transcript before it: the
+async def test_a_resubmitted_message_reaches_the_model_once() -> None:
+    # A retry: the same message, under the same id. The run replaces the turn
+    # it names rather than following it with a copy.
+    seen: list[list[ModelMessage]] = []
+    store = _ThreadStore()
+    view = _view(await _user_named("resubmitter"), store, _recording_model(seen))
+    await _drain(await view(_post(_body([_user("u1", "double 5")], run_id="r1"))))
+
+    await _drain(await view(_post(_body([_user("u1", "double 5")], run_id="r2")), resume_from="r1"))
+
+    assert _prompts(seen[-1]) == ["double 5"]
+    row = _row(store)
+    assert _contents(row, "user") == ["double 5"]
+    assert _contents(row, "assistant") == ["done"]
+    _assert_no_id_twice(row)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_an_edited_later_message_cuts_the_history_there() -> None:
+    # An edit of the second message, posted with the transcript before it: the
     # history is cut just before the turn it names and the earlier exchange is
     # kept, once.
     seen: list[list[ModelMessage]] = []
