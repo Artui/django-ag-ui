@@ -463,7 +463,11 @@ a tool result under the `messageId` of its `TOOL_CALL_RESULT`, and forwarded
 reasoning under the `messageId` of its `REASONING_START`, so anything a client
 keys by message id still finds its message after the thread is reloaded, and a
 later turn that posts those ids back stores the same message under the same id.
-That holds whichever way the run ends: completed, failed or cancelled.
+That holds whichever way the run ends: completed, failed or cancelled. An
+activity a completed run stores, such as pydantic-ai's `pydantic_ai_compaction`,
+is stored under the `messageId` of its `ACTIVITY_SNAPSHOT`, which is the id the
+client materialised it under. A failed or cancelled run does not store the
+activities it streamed itself.
 
 **A stored message never carries another message's id.** Where the server cannot
 tell for certain which streamed message a stored one is, it gives the stored one
@@ -475,7 +479,12 @@ of its own. An id the client keys something by is then lost for that message
 rather than lent to its neighbour, so a rating never lands on the wrong answer.
 The check covers the run as a whole, since the stream marks no boundary between
 one model response and the next: when it fails for one answer, every text-only
-answer of that run keeps a fresh id.
+answer of that run keeps a fresh id. Activities are checked the same way, per
+activity type and by content, leaving aside the `canonical_system` a stored
+compaction carries and its `ACTIVITY_SNAPSHOT` cannot; an activity an
+`ACTIVITY_DELTA` changed leaves every activity of its type with a fresh id: the
+server does not apply the patch, so it cannot tell which stored activity holds
+what the client ended with.
 
 The earlier turns a [resumed or forked run](step-persistence.md) is seeded with
 are stored from the step store's snapshot, where nothing an earlier run
@@ -486,6 +495,14 @@ source thread's stored conversation and gives each earlier message the id that
 row holds for the same message: a tool result by its call, a response that
 called tools by its calls, an answer or reasoning by its text, walked in order
 so a repeated "ok" takes the id of the matching "ok" and not an earlier one.
+An activity is paired by position within its type instead: the row must hold at
+least as many activities of the type as the earlier turns do, the first of them
+pair with the earlier turns' activities in order, and only when every pair holds
+the same content does each take its pair's id. The stored row and the earlier
+turns both carry a compaction's `canonical_system`, so the contents are compared
+as they are. When the row holds fewer, or any pair differs -- a failed earlier
+run's compaction, which the row does not hold, is the usual cause -- every
+activity of that type is stored under a fresh id, never another activity's.
 The same never-lend rule holds: a message the row does not hold -- the row was
 deleted, overwritten, or describes a different conversation -- is stored under
 a fresh id. Without a conversation store there is no row to read and nothing is
@@ -742,15 +759,15 @@ to the agent **in-process**, with no network MCP hop.
 - Execution routes through the server's public `MCPServer.acall_tool`, its
   in-process transport surface, so the kernel's argument validation and each
   spec's permissions are honoured exactly as over HTTP.
-- A refusal comes back as a failed call carrying the service's sentence, and a
-  value the spec refuses as a retry naming the argument, rather than either
-  reading as a successful result.
+- A business-rule refusal comes back as a failed call carrying the service's
+  sentence, and a value the spec refuses as a retry naming the argument, rather
+  than either reading as a successful result.
+- A permission check refusing the acting user ends the run: the bridge raises
+  Django's `PermissionDenied`, which the failure policy passes through, so the
+  stream closes on `RUN_ERROR` rather than handing the model a failed call to
+  answer.
 - The toolset hands the Django `request` and `request.user` to those methods, so
   the agent acts as the **logged-in AG-UI user**.
 
 The bridge is imported lazily, only when `mcp_server=` is set, keeping
 `django_spec_mcp` an optional dependency.
-
-The deprecated [`drf_mcp_server=`](configuration.md#drf_mcp_server)
-builds `DRFMCPToolset` instead, for a `djangorestframework-mcp-server` server,
-for one more minor.

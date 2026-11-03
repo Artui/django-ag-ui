@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.74.0] — 2026-11-03
+
+### Changed
+
+- **django-spec-agents is floored at 0.6.2**, core, `[mcp]` and `[specs]`
+  alike. A call the `mcp_server=` server refuses for permission (JSON-RPC
+  `-32006`) now ends the run in `RUN_ERROR`: the bridge raises Django's
+  `PermissionDenied`, which the failure policy passes through. Below it the
+  refusal was a failed call the default `TOOL_FAILURE` policy redacts, and the
+  run finished as though the model had only been told no. A business-rule
+  refusal still streams as a failed call.
+
+### Removed
+
+- **`drf_mcp_server=` and the `[drf-mcp]` extra**, deprecated in 0.73.0 for
+  `mcp_server=` and `[mcp]`. `AGUIServer`, `DjangoAGUIView` and `ToolsView`
+  raise `TypeError` for the keyword as for any they do not take, so a mount
+  still passing it fails at construction rather than on its first request once
+  django-spec-agents drops `DRFMCPToolset`. The per-run deprecation warning
+  goes with it. Register the tools on a django-spec-mcp `MCPServer` as kernel
+  specs and pass that as `mcp_server=`.
+
+### Fixed
+
+- **A stored activity keeps the id it streamed under.** A completed run stored
+  each activity under a fresh id rather than the `messageId` of its
+  `ACTIVITY_SNAPSHOT`, and a resumed or forked run minted another one on every
+  save, so pydantic-ai's `pydantic_ai_compaction` activity, which the client
+  had materialised under the streamed id, was a different message after a
+  reload. Activities are now matched as answers and reasoning are: on a
+  completed run by position among the streamed activities of the same type,
+  only when the counts agree and every pair has the same content, leaving
+  aside the `canonical_system` the stored copy of a compaction carries and its
+  snapshot does not (always there for OpenAI); on a resume or fork against the
+  source thread's stored row, per type, by the same position-and-content rule
+  with the row allowed to hold more: the row must hold at least as many
+  activities of the type as the snapshot, the first of them pair with the
+  snapshot's by position, and only when every pair's content is equal does each
+  take its pair's id. The stored copy and the resumed dump both carry the
+  `canonical_system`, so a resume compares them as they are, and the stored
+  copy keeps it. An activity is never lent an id from another position of the
+  row, or when the row holds fewer; the type keeps fresh ids instead. An
+  activity an `ACTIVITY_DELTA` changed is matched to nothing, so its type keeps
+  fresh ids.
+
 ## [0.73.0] — 2026-11-03
 
 ### Added
@@ -4242,7 +4287,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.73.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.74.0...HEAD
+[0.74.0]: https://github.com/Artui/django-ag-ui/compare/v0.73.0...v0.74.0
 [0.73.0]: https://github.com/Artui/django-ag-ui/compare/v0.72.0...v0.73.0
 [0.72.0]: https://github.com/Artui/django-ag-ui/compare/v0.71.0...v0.72.0
 [0.71.0]: https://github.com/Artui/django-ag-ui/compare/v0.70.0...v0.71.0

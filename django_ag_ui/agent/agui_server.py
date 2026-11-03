@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-import warnings
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -152,11 +151,6 @@ class AGUIServer:
 
         AGUIServer(registry, mcp_server=mcp_server)
 
-    ``drf_mcp_server`` is that keyword's deprecated alias for a drf-mcp server,
-    kept for one minor with the ``[drf-mcp]`` extra: it warns
-    ``DeprecationWarning`` and still bridges through ``DRFMCPToolset``. Passing
-    both raises ``TypeError``.
-
     **One agent, many runs.** The endpoint builds its agent once and reuses it
     rather than re-deriving every tool's JSON Schema per request.
     ``model_for_request(request)`` and ``instructions_for_request(request)`` are
@@ -253,7 +247,6 @@ class AGUIServer:
         capabilities: list[Any] | None = None,
         agent_factory: AgentFactoryFn | None = None,
         mcp_server: Any = None,
-        drf_mcp_server: Any = None,
         service_specs: Mapping[str, Any]
         | SpecSource
         | SpecToolsetSource
@@ -275,7 +268,6 @@ class AGUIServer:
             capabilities=capabilities,
             conversation_store=conversation_store,
             deps_factory=deps_factory,
-            drf_mcp_server=drf_mcp_server,
             get_user=get_user,
             mcp_server=mcp_server,
             instructions_for_request=instructions_for_request,
@@ -322,7 +314,7 @@ class AGUIServer:
             if transcription_backend is not None
             else NullTranscriptionBackend()
         )
-        self._mcp_server = _resolve_mcp_server(mcp_server, drf_mcp_server)
+        self._mcp_server = mcp_server
         self._transcribe_throttle = transcribe_throttle
         # Normalised once, here, so the spec capability, the tool catalog and the
         # view's tool-name reservation all see a plain mapping. A registry
@@ -358,7 +350,6 @@ class AGUIServer:
             capabilities=capabilities,
             agent_factory=agent_factory,
             mcp_server=mcp_server,
-            drf_mcp_server=drf_mcp_server,
             service_specs=self._service_specs,
             spec_capability=self._spec_capability,
             spec_source=self._spec_source,
@@ -493,30 +484,6 @@ def _resolve_spec_source(
     from django_spec_agents.spec_tools import SpecCapability
 
     return dict(specs), SpecCapability.from_toolset(service_specs), None
-
-
-def _resolve_mcp_server(mcp_server: Any, drf_mcp_server: Any) -> Any:
-    """The one MCP server ``mcp_server=`` or its deprecated alias names, or ``None``.
-
-    ``drf_mcp_server=`` stays for one minor, for the drf-mcp server it always
-    took, and the view still bridges that through ``DRFMCPToolset``; the
-    warning names the keyword that replaces it. Naming two servers is refused
-    rather than resolved, since either choice drops a server the caller asked
-    for.
-    """
-    if mcp_server is not None and drf_mcp_server is not None:
-        raise TypeError("AGUIServer() takes mcp_server or drf_mcp_server, not both")
-    if drf_mcp_server is None:
-        return mcp_server
-    warnings.warn(
-        "AGUIServer(drf_mcp_server=) and the django-ag-ui[drf-mcp] extra are deprecated "
-        "and are removed in the next minor: pass a django-spec-mcp server as mcp_server=, "
-        "with the django-ag-ui[mcp] extra.",
-        DeprecationWarning,
-        # Past this helper and ``AGUIServer.__init__``, to the caller's line.
-        stacklevel=3,
-    )
-    return drf_mcp_server
 
 
 def _reject_spec_name_collisions(

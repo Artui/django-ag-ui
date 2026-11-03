@@ -104,7 +104,6 @@ Nest project-specific values somewhere else, not in `DJANGO_AG_UI`.
 | `attachment_store=...` | Server-side file-upload storage (uploads off when unset). |
 | `transcription_backend=...` | Speech-to-text backend for voice input (voice off when unset). |
 | `mcp_server=...` | django-spec-mcp server whose tools the agent gets (`[mcp]` extra). |
-| `drf_mcp_server=...` | Deprecated: a drf-mcp server, bridged as before; removed in the next minor. |
 | `service_specs={...}` | django-service-specs specs exposed as tools, no MCP hop — a mapping, a `SpecRegistry`, or a pre-built `SpecToolset` / `SpecCapability` (`[specs]` extra). |
 
 ## Multiple endpoints
@@ -906,17 +905,11 @@ from myproject.mcp import server as mcp_server
 AGUIServer(registry, mcp_server=mcp_server)
 ```
 
-### `drf_mcp_server=` (deprecated) {#drf_mcp_server}
-
-The keyword `mcp_server=` replaces, kept for one minor with the `[drf-mcp]`
-extra and removed in the next. It takes a `djangorestframework-mcp-server`
-`MCPServer` and bridges it as before, through django-spec-agents'
-`DRFMCPToolset`, and `AGUIServer` warns `DeprecationWarning` naming
-`mcp_server=`. Passing both keywords raises `TypeError`.
-
-Moving is a server change, not only a keyword: register the tools on a
-django-spec-mcp `MCPServer` as kernel specs, install `[mcp]` in place of
-`[drf-mcp]`, and pass that server as `mcp_server=`.
+A drf-mcp server is not taken: `drf_mcp_server=`, its keyword until 0.74.0,
+raises `TypeError` as any keyword the constructor does not take. Moving is a
+server change, not only a keyword: register the tools on a django-spec-mcp
+`MCPServer` as kernel specs, install `[mcp]`, and pass that server as
+`mcp_server=`.
 
 ## `service_specs=`
 

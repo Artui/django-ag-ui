@@ -81,9 +81,7 @@ django-ag-ui's MCP bridge carries the server's `outputSchema` onto the tool's
 advertises the output schema** — which django-spec-mcp does by default
 (`SPEC_MCP["INCLUDE_OUTPUT_SCHEMA"] = True`). Keep it on (and declare each
 spec's output) for the best CodeMode experience; a tool with no declared output
-advertises no schema and its stub falls back to `-> Any`. The deprecated
-`drf_mcp_server=` bridge does the same with drf-mcp's
-`REST_FRAMEWORK_MCP["INCLUDE_OUTPUT_SCHEMA"]`.
+advertises no schema and its stub falls back to `-> Any`.
 
 !!! note
     `CodeMode` is one of several `pydantic-ai-harness` capabilities that drop

@@ -480,20 +480,6 @@ class TestPreBuiltToolset:
         # different places.
         assert "the bridged MCP server" in message
 
-    def test_a_name_the_deprecated_alias_server_owns_is_refused_too(self) -> None:
-        """The server under ``drf_mcp_server=`` claims its names the same way."""
-        from tests.integrations.drf_server import server as drf_server
-
-        with pytest.warns(DeprecationWarning), pytest.raises(ImproperlyConfigured) as excinfo:
-            AGUIServer(
-                ToolRegistry(),
-                model=TestModel(),
-                drf_mcp_server=drf_server,
-                service_specs=SpecToolset({"add": _service()}),
-            )
-
-        assert "the bridged MCP server" in str(excinfo.value)
-
     def test_a_name_no_source_owns_still_constructs(self) -> None:
         from tests.integrations.spec_mcp_server import server as mcp_server
 

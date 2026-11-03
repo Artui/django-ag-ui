@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Collection, Hashable, Sequence
+from collections.abc import Collection, Sequence
 
-from ag_ui.core import AssistantMessage, Message, ReasoningMessage, ToolMessage
+from ag_ui.core import ActivityMessage, AssistantMessage, Message, ReasoningMessage, ToolMessage
 
 
 def lend_stored_ids(
@@ -28,7 +28,9 @@ def lend_stored_ids(
     - an assistant message with tool calls by its calls' ids;
     - a text-only assistant message, or a reasoning message, by its text with
       every newline removed (a row stored from a failed run's transcript holds
-      the text as it streamed, where the dump joins a message's parts with one).
+      the text as it streamed, where the dump joins a message's parts with one);
+    - an activity message by its position within its ``activity_type``, with
+      its content as the check (below).
 
     **In order and per kind**, never by lookup: each kind walks the row once,
     and a message takes the first row message of its kind at or after the last
@@ -38,6 +40,30 @@ def lend_stored_ids(
     repeat their text, so a lookup would hand a later "ok" the id of an earlier
     one. A message no row message matches keeps its dumped id; so a row that
     was deleted, overwritten or diverged lends nothing it does not hold.
+
+    **Activities pair as a prefix**, per ``activity_type``, because an activity
+    is not told apart by anything a walk could skip to. Take the N activities
+    of one type that ``messages`` dumps: the row must hold at least N of that
+    type, the first N of them pair with the dumped ones by position, and every
+    pair's content must be equal, as the row holds it and as the dump carries it
+    -- both with the ``canonical_system`` key an OpenAI compaction is stored
+    with, so the comparison is a plain ``==``. When all of that holds each
+    dumped activity takes its pair's id; otherwise every activity of that type
+    keeps its dumped id. The row may hold more than the snapshot does (an
+    edit-and-resubmit, a resume from an earlier run), so equal counts are not
+    required, but it cannot lend an id from another position
+    (``test_an_activity_is_not_lent_an_id_from_another_position``) or to one of
+    several it holds too few for
+    (``test_an_activity_is_not_lent_an_id_when_the_row_holds_fewer``). The cost
+    is a failed source run's activity: its compaction is in the snapshot and
+    the row does not hold it, so the pairing shifts or fails and its whole type
+    gets fresh ids. Fresh ids, never wrong ones. The pairing is judged whole:
+    without the at-least-N check ``test_an_activity_is_not_lent_an_id_when_the_row_holds_fewer``
+    fails, without the positional pairing
+    ``test_an_activity_is_not_lent_an_id_from_another_position``, without the
+    content check ``test_an_activity_whose_content_differs_keeps_its_id``, and
+    without the per-type grouping ``test_a_type_whose_pairing_fails_keeps_every_dumped_id``
+    and ``test_an_activity_matches_within_its_own_type_only``.
 
     **No id is stored twice.** A row id is lent once, never one in
     ``reserved`` (the ids of the new turn stored after these messages), and
@@ -49,18 +75,22 @@ def lend_stored_ids(
     ``test_a_reserved_id_is_not_lent``; without ``lent in carried``,
     ``test_an_id_another_message_carries_is_not_lent``.
     """
-    rows: dict[str, list[tuple[Hashable, str]]] = {}
+    rows: dict[str, list[tuple[object, str]]] = {}
     for message in stored:
         keyed = _kind_and_key(message)
         if keyed is not None:
             rows.setdefault(keyed[0], []).append((keyed[1], message.id))
     cursors: Counter[str] = Counter()
+    activities = _paired_activities(messages, stored)
     taken = set(reserved)
     carried = {message.id for message in messages}
     out: list[Message] = []
-    for message in messages:
-        keyed = _kind_and_key(message)
-        lent = None if keyed is None else _next_match(rows, cursors, *keyed)
+    for position, message in enumerate(messages):
+        if isinstance(message, ActivityMessage):
+            lent = activities.get(position)
+        else:
+            keyed = _kind_and_key(message)
+            lent = None if keyed is None else _next_match(rows, cursors, *keyed)
         if lent is None or lent in taken or lent in carried:
             out.append(message)
             continue
@@ -69,8 +99,12 @@ def lend_stored_ids(
     return out
 
 
-def _kind_and_key(message: Message) -> tuple[str, Hashable] | None:
-    """The kind a message is matched within, and the key it is matched by."""
+def _kind_and_key(message: Message) -> tuple[str, object] | None:
+    """The kind a message is matched within, and the key it is matched by.
+
+    A key is compared, never hashed. An activity has none: it is paired by
+    position, see ``_paired_activities``.
+    """
     if isinstance(message, ToolMessage):
         return "tool", message.tool_call_id
     if isinstance(message, AssistantMessage):
@@ -82,8 +116,33 @@ def _kind_and_key(message: Message) -> tuple[str, Hashable] | None:
     return None
 
 
+def _paired_activities(messages: Sequence[Message], stored: Sequence[Message]) -> dict[int, str]:
+    """The row's id for each dumped activity, by its index in ``messages``.
+
+    Only the activities of a type whose first N stored activities (N being the
+    dumped count) all hold the dumped content, in the dumped order, appear.
+    """
+    dumped: dict[str, list[tuple[int, ActivityMessage]]] = {}
+    for position, message in enumerate(messages):
+        if isinstance(message, ActivityMessage):
+            dumped.setdefault(message.activity_type, []).append((position, message))
+    held: dict[str, list[ActivityMessage]] = {}
+    for message in stored:
+        if isinstance(message, ActivityMessage):
+            held.setdefault(message.activity_type, []).append(message)
+    paired: dict[int, str] = {}
+    for activity_type, wanted in dumped.items():
+        row = held.get(activity_type, [])[: len(wanted)]
+        if len(row) < len(wanted):
+            continue
+        pairs = list(zip(wanted, row, strict=True))
+        if all(found.content == message.content for (_, message), found in pairs):
+            paired.update({position: found.id for (position, _), found in pairs})
+    return paired
+
+
 def _next_match(
-    rows: dict[str, list[tuple[Hashable, str]]], cursors: Counter[str], kind: str, key: Hashable
+    rows: dict[str, list[tuple[object, str]]], cursors: Counter[str], kind: str, key: object
 ) -> str | None:
     """The id of the next row message of ``kind`` with ``key``, consuming the row up to it."""
     row = rows.get(kind, [])

@@ -132,22 +132,6 @@ the kernel beneath it and no DRF. The bridge is imported lazily, only when an
 `mcp_server=` is passed. See
 [Configuration → `mcp_server=`](configuration.md#mcp_server).
 
-## The `[drf-mcp]` extra (deprecated)
-
-Kept for one minor beside `[mcp]`, which replaces it, and removed in the next,
-with [`drf_mcp_server=`](configuration.md#drf_mcp_server). To expose a
-[`djangorestframework-mcp-server`](https://github.com/Artui/djangorestframework-mcp-server)
-tool registry to the agent in-process (no network MCP hop), install the extra:
-
-```bash
-pip install "django-ag-ui[drf-mcp]"
-```
-
-This pulls in `djangorestframework-mcp-server` (which in turn pulls
-`djangorestframework-services`), at the floor `pyproject.toml` declares. The bridge
-(`DRFMCPToolset`) is imported lazily, only when a `drf_mcp_server=` is passed,
-so the dependency stays optional for projects that do not use it.
-
 ## The `[specs]` extra
 
 To expose [django-service-specs](https://artui.github.io/django-service-specs/)
@@ -174,8 +158,6 @@ kernel's, so a project passing `service_specs=` moves with it:
 - **The specs.** Declare each with `django_service_specs`' `ServiceSpec` or
   `SelectorSpec`, and its `SpecRegistry` for a registry. A value the kernel
   cannot read as a spec raises `TypeError` naming the tool, at construction.
-  The `[drf-mcp]` bridge still takes drf-services specs, which is what a
-  drf-mcp `MCPServer` registers.
 - **Permissions.** Each spec declares `permissions=`, a list of the kernel's
   permission checks, where it declared `permission_classes=`. An open one says
   `permissions=[Unrestricted()]`.

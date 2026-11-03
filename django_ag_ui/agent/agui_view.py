@@ -109,7 +109,6 @@ class DjangoAGUIView:
         capabilities: list[Any] | None = None,
         agent_factory: AgentFactoryFn | None = None,
         mcp_server: Any = None,
-        drf_mcp_server: Any = None,
         service_specs: dict[str, Any] | None = None,
         spec_source: Any = None,
         spec_capability: Any = None,
@@ -133,15 +132,7 @@ class DjangoAGUIView:
         self._toolsets = toolsets
         self._capabilities = capabilities
         self._agent_factory = agent_factory
-        if mcp_server is not None and drf_mcp_server is not None:
-            raise TypeError("DjangoAGUIView() takes mcp_server or drf_mcp_server, not both")
-        # One server, whichever keyword named it: the claimed names read either
-        # kind the same way. The keyword decides only the bridge, because a
-        # drf-mcp server's errors are not django-spec-mcp's and ``MCPToolset``
-        # would miss them. ``AGUIServer`` warns about the old keyword; built
-        # directly, ``DRFMCPToolset`` warns on every run.
-        self._mcp_server = mcp_server if mcp_server is not None else drf_mcp_server
-        self._bridges_drf_mcp = drf_mcp_server is not None
+        self._mcp_server = mcp_server
         self._service_specs = service_specs
         # The argument as given, when it was a registry -- see
         # ``_resolve_spec_source``. Only the capability wants it; the mapping
@@ -414,8 +405,7 @@ class DjangoAGUIView:
     def _mcp_toolsets(self, request: HttpRequest, seen: set[str]) -> list[Any]:
         """Build the per-request MCP bridge, or ``[]`` when no server is configured.
 
-        ``MCPToolset`` for a django-spec-mcp server, ``DRFMCPToolset`` for one
-        passed as the deprecated ``drf_mcp_server=``. Imported lazily so each
+        ``MCPToolset`` for a django-spec-mcp server, imported lazily so the
         server package stays an optional extra; the toolset carries ``request``
         so the agent acts as the logged-in user. Excludes names already in
         ``seen`` (registry tools win) and reserves the server's whole
@@ -425,15 +415,9 @@ class DjangoAGUIView:
         server = self._mcp_server
         if server is None:
             return []
-        exclude_names = frozenset(seen)
-        if self._bridges_drf_mcp:
-            from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
+        from django_spec_agents.integrations.mcp import MCPToolset
 
-            toolset: Any = DRFMCPToolset(server, request, exclude_names=exclude_names)
-        else:
-            from django_spec_agents.integrations.mcp import MCPToolset
-
-            toolset = MCPToolset(server, request, exclude_names=exclude_names)
+        toolset = MCPToolset(server, request, exclude_names=frozenset(seen))
         seen.update(binding.name for binding in server.tools.all())
         return [toolset]
 

@@ -18,6 +18,9 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from typing import Any
 
 import pytest
@@ -26,9 +29,19 @@ from django.contrib.auth import get_user_model
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.types.conversation import Conversation
-from pydantic_ai.messages import ModelMessage, ModelRequest, ToolReturnPart, UserPromptPart
-from pydantic_ai.models.function import DeltaToolCall, FunctionModel
+from pydantic_ai.messages import (
+    CompactionPart,
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    ModelResponseStreamEvent,
+    ToolReturnPart,
+    UserPromptPart,
+)
+from pydantic_ai.models import StreamedResponse
+from pydantic_ai.models.function import DeltaToolCall, FunctionModel, FunctionStreamedResponse
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from tests.agent.test_agui_view import _drain, _post, _registry, _ThreadStore
@@ -393,3 +406,184 @@ async def test_a_row_that_cannot_be_read_costs_the_ids_not_the_run(lose_the_row:
     row = _row(store)
     assert _contents(row, "user") == ["warm up", "next"]
     assert answer_id not in [m["id"] for m in row]
+
+
+@dataclass
+class _CompactingResponse(FunctionStreamedResponse):
+    """A streamed response that opens with a provider's compaction part.
+
+    With a ``provider`` it is shaped as OpenAI's: the summary is encrypted in
+    ``provider_details``, and the response is stamped with the provider's
+    ``canonical_system``, which the dump carries beside the part and the stream
+    does not.
+    """
+
+    summary: str = ""
+    provider: str | None = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.canonical_system = self.provider
+
+    @property
+    def provider_name(self) -> str | None:
+        return self.provider
+
+    async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
+        part = (
+            CompactionPart(
+                provider_name=self.provider,
+                provider_details={"encrypted_content": self.summary},
+            )
+            if self.provider
+            else CompactionPart(content=self.summary)
+        )
+        yield self._parts_manager.handle_part(vendor_part_id="compaction", part=part)
+        async for event in super()._get_event_iterator():
+            yield event
+
+
+class _CompactingModel(FunctionModel):
+    """Every response opens with a compaction, as a provider's own compaction streams.
+
+    ``FunctionModel`` streams only text, thinking and tool calls, while a
+    provider's compaction reaches the AG-UI stream as a part of its own
+    (``handle_compaction``), so the response is wrapped. Each summary is
+    numbered, so an id lent to the wrong compaction shows.
+    """
+
+    def __init__(self, provider: str | None) -> None:
+        super().__init__(stream_function=_answer_done)
+        self.compacting_provider = provider
+        self.compactions = 0
+
+    @asynccontextmanager
+    async def request_stream(self, *args: Any, **kwargs: Any) -> AsyncIterator[StreamedResponse]:
+        async with super().request_stream(*args, **kwargs) as response:
+            self.compactions += 1
+            yield _CompactingResponse(
+                model_request_parameters=response.model_request_parameters,
+                _model_name=response.model_name,
+                _iter=response._iter,
+                summary=f"summary {self.compactions}",
+                provider=self.compacting_provider,
+            )
+
+
+async def _answer_done(messages: list[ModelMessage], info: Any) -> Any:
+    yield "done"
+
+
+def _activity_snapshots(body: str) -> list[dict[str, Any]]:
+    return [frame for frame in _frames(body) if frame["type"] == "ACTIVITY_SNAPSHOT"]
+
+
+def _compactions(row: list[dict[str, Any]]) -> list[tuple[str, str]]:
+    """Each stored activity's id and the summary it holds, in either shape."""
+    return [
+        (
+            m["id"],
+            m["content"].get("content") or m["content"]["provider_details"]["encrypted_content"],
+        )
+        for m in row
+        if m["role"] == "activity"
+    ]
+
+
+def _stamp_the_dump_writes(provider: str | None) -> str | None:
+    """The ``canonical_system`` pydantic-ai's own dump stores beside a compaction.
+
+    Read from the producer rather than written down: pydantic-ai 2.64 stamps
+    the response's ``canonical_system`` on the part, while 2.63, the floor,
+    stamps nothing. What the row keeps has to be what the dump wrote.
+    """
+    part = (
+        CompactionPart(provider_name=provider, provider_details={"encrypted_content": "s"})
+        if provider
+        else CompactionPart(content="s")
+    )
+    response = ModelResponse(parts=[part], provider_name=provider)
+    response.canonical_system = provider
+    (activity,) = AGUIAdapter.dump_messages([response])
+    return activity.content.get("canonical_system")
+
+
+_PROVIDERS = pytest.mark.parametrize("provider", [None, "openai"], ids=["plain", "openai"])
+
+
+@_PROVIDERS
+@pytest.mark.django_db(transaction=True)
+async def test_a_compaction_is_stored_under_the_id_it_streamed_under(provider: str | None) -> None:
+    store = _ThreadStore()
+    view = _view(await _user_named("compacted"), store, _CompactingModel(provider))
+    body = await _drain(await view(_post(_body([_user("u1", "hello")], run_id="r1"))))
+
+    (snapshot,) = _activity_snapshots(body)
+    assert snapshot["activityType"] == "pydantic_ai_compaction"
+    assert _compactions(_row(store)) == [(snapshot["messageId"], "summary 1")]
+    # The shape the lending has to see past: only the stored copy is stamped.
+    (stored,) = [m["content"] for m in _row(store) if m["role"] == "activity"]
+    assert "canonical_system" not in snapshot["content"]
+    assert stored.get("canonical_system") == _stamp_the_dump_writes(provider)
+
+
+@_PROVIDERS
+@pytest.mark.django_db(transaction=True)
+async def test_a_compaction_keeps_its_streamed_id_after_a_resume_and_a_fork(
+    provider: str | None,
+) -> None:
+    store = _ThreadStore()
+    view = _view(await _user_named("resumer"), store, _CompactingModel(provider))
+    first = await _drain(await view(_post(_body([_user("u1", "hello")], run_id="r1"))))
+    (snapshot,) = _activity_snapshots(first)
+    second = await _drain(
+        await view(_post(_body([_user("u2", "again")], run_id="r2")), resume_from="r1")
+    )
+    (later,) = _activity_snapshots(second)
+    await _drain(
+        await view(
+            _post(_body([_user("u3", "elsewhere")], run_id="r3", thread_id="t2")),
+            resume_from="r2",
+        )
+    )
+
+    resumed = _compactions(_row(store))
+    assert resumed == [(snapshot["messageId"], "summary 1"), (later["messageId"], "summary 2")]
+    forked = _row(store, "t2")
+    assert _compactions(forked)[:2] == resumed
+    _assert_no_id_twice(_row(store))
+    _assert_no_id_twice(forked)
+    # Dropping the key is a step of the comparison, never of what is stored:
+    # pydantic-ai reads it back from the row when it reloads the thread.
+    for row in (_row(store), forked):
+        stamps = [m["content"].get("canonical_system") for m in row if m["role"] == "activity"]
+        assert stamps[:2] == [_stamp_the_dump_writes(provider)] * 2
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_an_edited_resubmit_keeps_the_streamed_id_of_the_compaction_it_kept() -> None:
+    # r1 and r2 each compact; r3 edits the second user message, so the snapshot
+    # holds r1's compaction while the row holds both.
+    store = _ThreadStore()
+    view = _view(await _user_named("editor"), store, _CompactingModel(None))
+    first = await _drain(await view(_post(_body([_user("u1", "first")], run_id="r1"))))
+    (snapshot,) = _activity_snapshots(first)
+    (answer_id,) = _streamed_answer_ids(first)
+    await _drain(await view(_post(_body([_user("u2", "second")], run_id="r2")), resume_from="r1"))
+    assert [summary for _, summary in _compactions(_row(store))] == ["summary 1", "summary 2"]
+
+    edited = [
+        _user("u1", "first"),
+        {"id": answer_id, "role": "assistant", "content": "done"},
+        _user("u2", "second, again"),
+    ]
+    third = await _drain(await view(_post(_body(edited, run_id="r3")), resume_from="r2"))
+    (newest,) = _activity_snapshots(third)
+
+    row = _row(store)
+    assert _contents(row, "user") == ["first", "second, again"]
+    assert _compactions(row) == [
+        (snapshot["messageId"], "summary 1"),
+        (newest["messageId"], "summary 3"),
+    ]
+    _assert_no_id_twice(row)
