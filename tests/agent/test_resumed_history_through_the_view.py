@@ -533,3 +533,37 @@ async def test_a_compaction_keeps_its_streamed_id_after_a_resume_and_a_fork(
     assert _compactions(forked)[:2] == resumed
     _assert_no_id_twice(_row(store))
     _assert_no_id_twice(forked)
+    # Dropping the key is a step of the comparison, never of what is stored:
+    # pydantic-ai reads it back from the row when it reloads the thread.
+    for row in (_row(store), forked):
+        stamps = [m["content"].get("canonical_system") for m in row if m["role"] == "activity"]
+        assert stamps[:2] == [provider, provider]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_an_edited_resubmit_keeps_the_streamed_id_of_the_compaction_it_kept() -> None:
+    # r1 and r2 each compact; r3 edits the second user message, so the snapshot
+    # holds r1's compaction while the row holds both.
+    store = _ThreadStore()
+    view = _view(await _user_named("editor"), store, _CompactingModel(None))
+    first = await _drain(await view(_post(_body([_user("u1", "first")], run_id="r1"))))
+    (snapshot,) = _activity_snapshots(first)
+    (answer_id,) = _streamed_answer_ids(first)
+    await _drain(await view(_post(_body([_user("u2", "second")], run_id="r2")), resume_from="r1"))
+    assert [summary for _, summary in _compactions(_row(store))] == ["summary 1", "summary 2"]
+
+    edited = [
+        _user("u1", "first"),
+        {"id": answer_id, "role": "assistant", "content": "done"},
+        _user("u2", "second, again"),
+    ]
+    third = await _drain(await view(_post(_body(edited, run_id="r3")), resume_from="r2"))
+    (newest,) = _activity_snapshots(third)
+
+    row = _row(store)
+    assert _contents(row, "user") == ["first", "second, again"]
+    assert _compactions(row) == [
+        (snapshot["messageId"], "summary 1"),
+        (newest["messageId"], "summary 3"),
+    ]
+    _assert_no_id_twice(row)

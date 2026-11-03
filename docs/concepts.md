@@ -493,9 +493,16 @@ posted ahead of another: pydantic-ai keeps only the last id of the messages it
 folds into one. So when a conversation store is configured, the run reads the
 source thread's stored conversation and gives each earlier message the id that
 row holds for the same message: a tool result by its call, a response that
-called tools by its calls, an answer or reasoning by its text, an activity by its
-type and content, walked in order so a repeated "ok" takes the id of the
-matching "ok" and not an earlier one.
+called tools by its calls, an answer or reasoning by its text, walked in order
+so a repeated "ok" takes the id of the matching "ok" and not an earlier one.
+An activity is paired by position within its type instead: the row must hold at
+least as many activities of the type as the earlier turns do, the first of them
+pair with the earlier turns' activities in order, and only when every pair holds
+the same content does each take its pair's id. The stored row and the earlier
+turns both carry a compaction's `canonical_system`, so the contents are compared
+as they are. When the row holds fewer, or any pair differs -- a failed earlier
+run's compaction, which the row does not hold, is the usual cause -- every
+activity of that type is stored under a fresh id, never another activity's.
 The same never-lend rule holds: a message the row does not hold -- the row was
 deleted, overwritten, or describes a different conversation -- is stored under
 a fresh id. Without a conversation store there is no row to read and nothing is

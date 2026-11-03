@@ -38,9 +38,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   completed run by position among the streamed activities of the same type,
   only when the counts agree and every pair has the same content, leaving
   aside the `canonical_system` the stored copy of a compaction carries and its
-  snapshot does not (always there for OpenAI); on a resume or fork by type and
-  content against the source thread's stored row, in order. An activity an
-  `ACTIVITY_DELTA` changed is matched to nothing, so its type keeps fresh ids.
+  snapshot does not (always there for OpenAI); on a resume or fork against the
+  source thread's stored row, per type, by the same position-and-content rule
+  with the row allowed to hold more: the row must hold at least as many
+  activities of the type as the snapshot, the first of them pair with the
+  snapshot's by position, and only when every pair's content is equal does each
+  take its pair's id. The stored copy and the resumed dump both carry the
+  `canonical_system`, so a resume compares them as they are, and the stored
+  copy keeps it. An activity is never lent an id from another position of the
+  row, or when the row holds fewer; the type keeps fresh ids instead. An
+  activity an `ACTIVITY_DELTA` changed is matched to nothing, so its type keeps
+  fresh ids.
 
 ## [0.73.0] — 2026-11-03
 

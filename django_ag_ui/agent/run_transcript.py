@@ -360,7 +360,8 @@ def _by_position(
 
     ``test_text_answers_whose_counts_disagree_all_keep_the_dumped_ids`` and
     ``test_activities_whose_counts_disagree_keep_the_dumped_ids`` fail without the
-    count check; without the content check
+    count check, each on its assertion -- the first pair of each holds the same
+    content, so the content check cannot answer; without the content check
     ``test_a_split_answer_and_a_tool_spoken_text_borrow_no_id``,
     ``test_a_split_answer_and_a_joined_answer_borrow_no_id``,
     ``test_reasoning_whose_text_disagrees_keeps_the_dumped_id`` and
@@ -368,7 +369,9 @@ def _by_position(
     """
     if len(streamed) != len(dumped):
         return iter(())
-    if not all(same(text, content) for (_, text), content in zip(streamed, dumped, strict=True)):
+    # Not strict, so that the count check above is what answers a disagreement:
+    # strict would raise first, and a test of the count would fail on the raise.
+    if not all(same(text, content) for (_, text), content in zip(streamed, dumped, strict=False)):
         return iter(())
     return iter([message_id for message_id, _ in streamed])
 

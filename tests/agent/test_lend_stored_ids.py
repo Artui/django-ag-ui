@@ -187,3 +187,77 @@ def test_an_activity_matches_within_its_own_type_only() -> None:
     stored = [_activity("other", "compaction", content="same")]
 
     assert _ids(lend_stored_ids(dumped, stored)) == ["fresh"]
+
+
+def test_an_activity_is_not_lent_an_id_from_another_position() -> None:
+    # The row's first compaction is not the dumped one, so the dumped one is
+    # not the row's second: pairing is by position, never by looking ahead.
+    dumped = [_activity("fresh", "pydantic_ai_compaction", content="x")]
+    stored = [
+        _activity("other", "pydantic_ai_compaction", content="y"),
+        _activity("later", "pydantic_ai_compaction", content="x"),
+    ]
+
+    assert _ids(lend_stored_ids(dumped, stored)) == ["fresh"]
+
+
+def test_an_activity_is_not_lent_an_id_when_the_row_holds_fewer() -> None:
+    # Two dumped, one stored: nothing says which of the two the stored one was.
+    dumped = [
+        _activity("fresh-1", "pydantic_ai_compaction", content="f1"),
+        _activity("fresh-2", "pydantic_ai_compaction", content="f2"),
+    ]
+    stored = [_activity("only", "pydantic_ai_compaction", content="f1")]
+
+    assert _ids(lend_stored_ids(dumped, stored)) == ["fresh-1", "fresh-2"]
+
+
+def test_a_type_whose_pairing_fails_keeps_every_dumped_id() -> None:
+    # The first pair agrees and the second does not: the whole type keeps its
+    # ids, and another type is judged on its own.
+    dumped = [
+        _activity("fresh-1", "pydantic_ai_compaction", content="a"),
+        _activity("fresh-2", "pydantic_ai_compaction", content="b"),
+        _activity("fresh-3", "chart", rows=1),
+    ]
+    stored = [
+        _activity("s-1", "pydantic_ai_compaction", content="a"),
+        _activity("s-2", "pydantic_ai_compaction", content="changed"),
+        _activity("s-3", "chart", rows=1),
+    ]
+
+    assert _ids(lend_stored_ids(dumped, stored)) == ["fresh-1", "fresh-2", "s-3"]
+
+
+def test_an_activity_is_matched_whole_with_its_canonical_system() -> None:
+    # The stored row and the resumed dump both carry the key (the row holds what
+    # the completed run stored), so the contents are compared as they are.
+    both = {"provider_details": {"encrypted_content": "e"}, "canonical_system": "openai"}
+    dumped = [_activity("fresh", "pydantic_ai_compaction", **both)]
+    stored = [_activity("streamed", "pydantic_ai_compaction", **both)]
+    assert _ids(lend_stored_ids(dumped, stored)) == ["streamed"]
+
+    bare = [
+        _activity("streamed", "pydantic_ai_compaction", provider_details=both["provider_details"])
+    ]
+    assert _ids(lend_stored_ids(dumped, bare)) == ["fresh"]
+
+
+def test_an_edited_resubmit_keeps_the_streamed_id_of_the_compaction_it_kept() -> None:
+    # r1 and r2 each compacted; r3 edits the second user message, so the
+    # snapshot holds r1's compaction only while the row holds both.
+    dumped = [
+        UserMessage(id="u1", role="user", content="first"),
+        _activity("fresh-1", "pydantic_ai_compaction", content="summary 1"),
+        _text("fresh-a", "done"),
+    ]
+    stored = [
+        UserMessage(id="u1", role="user", content="first"),
+        _activity("streamed-1", "pydantic_ai_compaction", content="summary 1"),
+        _text("streamed-a", "done"),
+        UserMessage(id="u2", role="user", content="second"),
+        _activity("streamed-2", "pydantic_ai_compaction", content="summary 2"),
+        _text("streamed-b", "done"),
+    ]
+
+    assert _ids(lend_stored_ids(dumped, stored)) == ["u1", "streamed-1", "streamed-a"]
