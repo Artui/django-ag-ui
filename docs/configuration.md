@@ -4,7 +4,7 @@ Configuration comes in two halves, split on a simple line: **objects are passed,
 values are settings.**
 
 **Collaborators are constructor arguments.** Toolsets, capabilities, stores, an
-agent factory, a drf-mcp server — you build them and hand them to `AGUIServer`:
+agent factory, an MCP server — you build them and hand them to `AGUIServer`:
 
 ```python
 # urls.py
@@ -12,7 +12,7 @@ agent = AGUIServer(
     registry,
     toolsets=[weather_toolset],
     conversation_store=DjangoSessionConversationStore(),
-    drf_mcp_server=internal_mcp,
+    mcp_server=internal_mcp,
 )
 urlpatterns = [path("agent/", agent.urls)]
 ```
@@ -40,7 +40,7 @@ AGUIServer(registry, config=build_ag_ui_config(retries=5))
     object; `urls.py` can. **No argument below takes one** — there is no
     `import_string` in the package, and a collaborator passed as a string is
     refused when the URL conf is imported, rather than mounting an endpoint that
-    fails on its first request. That is also why `drf_mcp_server=internal_mcp` is
+    fails on its first request. That is also why `mcp_server=internal_mcp` is
     expressible at all — with one global path there was no way to say *which*
     agent bridges to *which* MCP server. See
     [Multiple endpoints](#multiple-endpoints).
@@ -103,7 +103,8 @@ Nest project-specific values somewhere else, not in `DJANGO_AG_UI`.
 | `conversation_store=...` | Server-side conversation persistence. |
 | `attachment_store=...` | Server-side file-upload storage (uploads off when unset). |
 | `transcription_backend=...` | Speech-to-text backend for voice input (voice off when unset). |
-| `drf_mcp_server=...` | drf-mcp server whose tools the agent gets. |
+| `mcp_server=...` | django-spec-mcp server whose tools the agent gets (`[mcp]` extra). |
+| `drf_mcp_server=...` | Deprecated: a drf-mcp server, bridged as before; removed in the next minor. |
 | `service_specs={...}` | django-service-specs specs exposed as tools, no MCP hop — a mapping, a `SpecRegistry`, or a pre-built `SpecToolset` / `SpecCapability` (`[specs]` extra). |
 
 ## Multiple endpoints
@@ -115,7 +116,7 @@ Two AG-UI endpoints in one project, each with its own agent, tools and policy:
 internal = AGUIServer(
     internal_registry,
     namespace="internal-agent",
-    drf_mcp_server=internal_mcp,
+    mcp_server=internal_mcp,
     conversation_store=ScopedConversationStore(store, scope="internal"),
     step_store=ScopedStepStore(DefaultStepStore, scope="internal"),
     config=build_ag_ui_config(tool_guard=ToolGuardConfig(enabled=True)),
@@ -398,7 +399,7 @@ replaces** the built-in [`build_agent`][django_ag_ui.build_agent]. Use it for
 custom model providers, output types, instrumentation, or toolset wiring the
 sugar arguments do not cover. When passed, the view hands construction entirely
 to your factory and does **not** apply `MODEL_SETTINGS`, `RETRIES`, `toolsets`,
-`capabilities`, or the drf-mcp bridge itself — your factory owns all of it.
+`capabilities`, or the MCP bridge itself — your factory owns all of it.
 
 !!! tip "To vary the model or prompt per request, don't reach for this"
     `model_for_request` / `instructions_for_request` cover that without the
@@ -884,16 +885,17 @@ A tuple of allowed (client-declared) content types for voice clips, e.g.
 `("audio/webm", "audio/mp4", "audio/mpeg")`. Empty (the default) accepts any
 type; otherwise a clip whose `Content-Type` is not listed is rejected with `415`.
 
-## `drf_mcp_server=`
+## `mcp_server=`
 
-A `djangorestframework-mcp-server` `MCPServer` instance whose tools are exposed to the agent in-process (requires the `[drf-mcp]` extra).
-`None` (the default) disables the bridge. When set, the view builds a per-request
-[`DRFMCPToolset`](concepts.md#the-drf-mcp-toolset-bridge) carrying the current
-`request`, so the agent acts as the logged-in user and drf-mcp's own validation
-and permission checks apply. See
-[Installation → the `[drf-mcp]` extra](installation.md#the-drf-mcp-extra).
+A [django-spec-mcp](https://github.com/Artui/django-spec-mcp) `MCPServer`
+instance whose tools are exposed to the agent in-process (requires the `[mcp]`
+extra). `None` (the default) disables the bridge. When set, the view builds a
+per-request [`MCPToolset`](concepts.md#the-mcp-toolset-bridge) carrying the
+current `request`, so the agent acts as the logged-in user and the server's own
+argument validation and permission checks apply. See
+[Installation → the `[mcp]` extra](installation.md#the-mcp-extra).
 
-The drf-mcp tools also appear in the
+The server's tools also appear in the
 [tool metadata catalog](concepts.md#tool-metadata-catalog) (mounted automatically
 by `AGUIServer`), which reads each tool's `display_name` / `display_description`
 as the web component's card label.
@@ -901,8 +903,20 @@ as the web component's card label.
 ```python
 from myproject.mcp import server as mcp_server
 
-AGUIServer(registry, drf_mcp_server=mcp_server)
+AGUIServer(registry, mcp_server=mcp_server)
 ```
+
+### `drf_mcp_server=` (deprecated) {#drf_mcp_server}
+
+The keyword `mcp_server=` replaces, kept for one minor with the `[drf-mcp]`
+extra and removed in the next. It takes a `djangorestframework-mcp-server`
+`MCPServer` and bridges it as before, through django-spec-agents'
+`DRFMCPToolset`, and `AGUIServer` warns `DeprecationWarning` naming
+`mcp_server=`. Passing both keywords raises `TypeError`.
+
+Moving is a server change, not only a keyword: register the tools on a
+django-spec-mcp `MCPServer` as kernel specs, install `[mcp]` in place of
+`[drf-mcp]`, and pass that server as `mcp_server=`.
 
 ## `service_specs=`
 
@@ -913,7 +927,7 @@ to the agent as tools **without an MCP server** via django-spec-agents'
 `SpecCapability`. `None` (the default) disables it. Requires the `[specs]` extra
 (`pip install "django-ag-ui[specs]"`), imported lazily.
 
-This is the no-MCP-hop sibling of [`drf_mcp_server=`](#drf_mcp_server): the specs
+This is the no-MCP-hop sibling of [`mcp_server=`](#mcp_server): the specs
 are dispatched in-process through the kernel, enforcing each spec's
 `permissions`. The agent acts as the **logged-in AG-UI user** — bound
 from the run's `deps`, not from a closure over `request`, which is what lets one
@@ -926,7 +940,7 @@ message means fix the argument, a permission error is final) — so it doesn't
 rediscover them by failing a call. Those instructions come from the underlying
 `SpecToolset`, which the capability delegates to, so they reach the system prompt
 exactly once. Use this when you have specs but no reason to stand up
-an MCP server; use `drf_mcp_server=` when you already run one (or want MCP
+an MCP server; use `mcp_server=` when you already run one (or want MCP
 clients to share the tools).
 
 **What a tool reads is declared on its spec.** A spec's `reads` and `shapes`
@@ -988,7 +1002,7 @@ yours only through one of these:
 - a `SpecToolset` or `SpecCapability` built with `conventions=` and passed as
   `service_specs=`;
 - an `MCPServer` built with `conventions=` and passed as
-  [`drf_mcp_server=`](#drf_mcp_server).
+  [`mcp_server=`](#mcp_server).
 
 A mapping or a `SpecRegistry` passed directly gets the default wording, because
 the endpoint builds that capability itself and passes no `conventions=`. To
@@ -1008,7 +1022,7 @@ AGUIServer(
 
 The two packages each export their own `AgentConventions`, configured
 separately: `django_spec_agents.spec_tools`'s for `service_specs=`, and
-`rest_framework_mcp`'s for the server behind `drf_mcp_server=`.
+`django_spec_mcp`'s for the server behind `mcp_server=`.
 
 **This does not cost you the tool-call card labels.** The endpoint attaches
 the object as-is *and* reads its `specs` for the tool catalog and the tool-name
@@ -1235,7 +1249,7 @@ again. Bound that with run-level `UsageLimits`, not with this.
 ### `TOOL_GUARD`
 
 An **opt-in server-side approval gate** for destructive tools. By default a
-server-side tool (a `@tool` registry tool or a drf-mcp-bridged tool) runs
+server-side tool (a `@tool` registry tool or an MCP-bridged tool) runs
 mid-stream with no confirmation — the `destructive` flag reaches only the model
 as a schema hint, not a gate. `TOOL_GUARD` changes that: when enabled, a
 `ToolGuard` capability flips destructive tools to require approval, so the run
@@ -1267,7 +1281,7 @@ DJANGO_AG_UI = {
 mutation in, so one setting covers the tools wherever they came from:
 
 - a registry `@tool(destructive=True)`;
-- a drf-mcp tool whose MCP `readOnlyHint` annotation is `False` (selectors are
+- an MCP-bridged tool whose MCP `readOnlyHint` annotation is `False` (selectors are
   read-only, services mutate; a project can override per registration);
 - an in-process spec attached through
   [`service_specs=`](#service_specs) declaring the same annotation, which the

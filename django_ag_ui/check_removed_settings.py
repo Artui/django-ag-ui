@@ -13,7 +13,7 @@ _REMOVED_SETTINGS: dict[str, str] = {
     "CONVERSATION_STORE": "pass conversation_store=YourStore() to AGUIServer(...)",
     "ATTACHMENT_STORE": "pass attachment_store=YourStore() to AGUIServer(...)",
     "TRANSCRIPTION_BACKEND": "pass transcription_backend=YourBackend() to AGUIServer(...)",
-    "DRF_MCP_SERVER": "pass drf_mcp_server=your_mcp_server to AGUIServer(...)",
+    "DRF_MCP_SERVER": "pass a django-spec-mcp server as mcp_server= to AGUIServer(...)",
     "SERVICE_SPECS": "pass service_specs={...} to AGUIServer(...)",
     "PROVIDER": "pass provider=YourProvider() to AGUIServer(...)",
 }

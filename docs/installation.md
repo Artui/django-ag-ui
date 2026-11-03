@@ -4,7 +4,7 @@
 pip install django-ag-ui
 ```
 
-Core dependencies are `django>=4.2`, `django-spec-agents>=0.2.0`,
+Core dependencies are `django>=4.2`, `django-spec-agents>=0.6.0`,
 `pydantic-ai-slim[ui]>=2.63,<3` and `ag-ui-protocol>=1.0`. The `AGUIAdapter` comes from pydantic-ai-slim and the
 AG-UI wire types from `ag-ui-protocol`; this package does not re-implement
 either. The **slim** package ships the adapter but **no model-provider
@@ -116,9 +116,26 @@ when to lower it, and for why raising the load balancer's timeout instead is the
 wrong fix.
 
 
-## The `[drf-mcp]` extra
+## The `[mcp]` extra
 
-To expose a
+To expose a [django-spec-mcp](https://github.com/Artui/django-spec-mcp) server's
+tools to the agent in-process (no network MCP hop), install the extra:
+
+```bash
+pip install "django-ag-ui[mcp]"
+```
+
+This pulls in `django-spec-agents[mcp]`, whose
+`django_spec_agents.integrations.mcp` holds the bridge
+([`MCPToolset`](concepts.md#the-mcp-toolset-bridge)), and django-spec-mcp with
+the kernel beneath it and no DRF. The bridge is imported lazily, only when an
+`mcp_server=` is passed. See
+[Configuration → `mcp_server=`](configuration.md#mcp_server).
+
+## The `[drf-mcp]` extra (deprecated)
+
+Kept for one minor beside `[mcp]`, which replaces it, and removed in the next,
+with [`drf_mcp_server=`](configuration.md#drf_mcp_server). To expose a
 [`djangorestframework-mcp-server`](https://github.com/Artui/djangorestframework-mcp-server)
 tool registry to the agent in-process (no network MCP hop), install the extra:
 
@@ -128,10 +145,8 @@ pip install "django-ag-ui[drf-mcp]"
 
 This pulls in `djangorestframework-mcp-server` (which in turn pulls
 `djangorestframework-services`), at the floor `pyproject.toml` declares. The bridge
-([`DRFMCPToolset`](concepts.md#the-drf-mcp-toolset-bridge)) is imported lazily,
-only when a `drf_mcp_server=` is passed, so the dependency stays
-optional for projects that do not use it. See
-[Configuration → `drf_mcp_server=`](configuration.md#drf_mcp_server).
+(`DRFMCPToolset`) is imported lazily, only when a `drf_mcp_server=` is passed,
+so the dependency stays optional for projects that do not use it.
 
 ## The `[specs]` extra
 
@@ -159,8 +174,8 @@ kernel's, so a project passing `service_specs=` moves with it:
 - **The specs.** Declare each with `django_service_specs`' `ServiceSpec` or
   `SelectorSpec`, and its `SpecRegistry` for a registry. A value the kernel
   cannot read as a spec raises `TypeError` naming the tool, at construction.
-  The `[drf-mcp]` bridge still takes drf-services specs, which is what an
-  `MCPServer` registers.
+  The `[drf-mcp]` bridge still takes drf-services specs, which is what a
+  drf-mcp `MCPServer` registers.
 - **Permissions.** Each spec declares `permissions=`, a list of the kernel's
   permission checks, where it declared `permission_classes=`. An open one says
   `permissions=[Unrestricted()]`.

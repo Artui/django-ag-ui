@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.73.0] — 2026-11-03
+
+### Added
+
+- **`AGUIServer(mcp_server=...)` and the `[mcp]` extra.** A
+  [django-spec-mcp](https://github.com/Artui/django-spec-mcp) `MCPServer` passed
+  as `mcp_server=` has its tools bridged into the agent in process through
+  django-spec-agents' `MCPToolset`, acting as the request's user, and listed in
+  the tool catalog by their `display_name`. A refusal streams as a failed call
+  carrying the service's sentence. `pip install "django-ag-ui[mcp]"` installs
+  `django-spec-agents[mcp]`. `DjangoAGUIView` and `ToolsView` take the same
+  keyword.
+
+### Changed
+
+- **django-spec-agents is floored at 0.6.0**, core and `[specs]` alike, the
+  first release with `MCPToolset` and `build_tool_catalog(mcp_server=)`, which
+  `ToolsView` now calls on every mount.
+
+### Deprecated
+
+- **`drf_mcp_server=` and the `[drf-mcp]` extra**, removed in the next minor.
+  `AGUIServer(drf_mcp_server=...)` warns `DeprecationWarning` naming
+  `mcp_server=`, and still bridges a drf-mcp server through `DRFMCPToolset`,
+  which django-spec-agents now deprecates too. Moving means registering the tools
+  on a django-spec-mcp server as kernel specs and passing it as `mcp_server=`.
+  Passing both keywords raises `TypeError`.
+
 ## [0.72.0] — 2026-10-31
 
 ### Added
@@ -4214,7 +4242,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.72.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.73.0...HEAD
+[0.73.0]: https://github.com/Artui/django-ag-ui/compare/v0.72.0...v0.73.0
 [0.72.0]: https://github.com/Artui/django-ag-ui/compare/v0.71.0...v0.72.0
 [0.71.0]: https://github.com/Artui/django-ag-ui/compare/v0.70.0...v0.71.0
 [0.70.0]: https://github.com/Artui/django-ag-ui/compare/v0.69.1...v0.70.0

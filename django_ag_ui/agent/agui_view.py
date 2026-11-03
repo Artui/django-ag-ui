@@ -66,7 +66,7 @@ class DjangoAGUIView:
     that turns off.
 
     **Authentication is the host's responsibility, and the view fails closed.**
-    Tools (and the ``drf-mcp`` bridge) act as ``request.user``; if your
+    Tools (and the MCP bridge) act as ``request.user``; if your
     middleware hasn't authenticated the request, that is ``AnonymousUser`` — a
     data-exposure footgun. ``require_authenticated`` therefore defaults to
     **True**: an anonymous request gets a 401 before any agent runs. Pass
@@ -108,6 +108,7 @@ class DjangoAGUIView:
         toolsets: list[Any] | None = None,
         capabilities: list[Any] | None = None,
         agent_factory: AgentFactoryFn | None = None,
+        mcp_server: Any = None,
         drf_mcp_server: Any = None,
         service_specs: dict[str, Any] | None = None,
         spec_source: Any = None,
@@ -132,7 +133,15 @@ class DjangoAGUIView:
         self._toolsets = toolsets
         self._capabilities = capabilities
         self._agent_factory = agent_factory
-        self._drf_mcp_server = drf_mcp_server
+        if mcp_server is not None and drf_mcp_server is not None:
+            raise TypeError("DjangoAGUIView() takes mcp_server or drf_mcp_server, not both")
+        # One server, whichever keyword named it: the claimed names read either
+        # kind the same way. The keyword decides only the bridge, because a
+        # drf-mcp server's errors are not django-spec-mcp's and ``MCPToolset``
+        # would miss them. ``AGUIServer`` warns about the old keyword; built
+        # directly, ``DRFMCPToolset`` warns on every run.
+        self._mcp_server = mcp_server if mcp_server is not None else drf_mcp_server
+        self._bridges_drf_mcp = drf_mcp_server is not None
         self._service_specs = service_specs
         # The argument as given, when it was a registry -- see
         # ``_resolve_spec_source``. Only the capability wants it; the mapping
@@ -336,25 +345,25 @@ class DjangoAGUIView:
     def _claimed_names(self) -> set[str]:
         """Tool names already spoken for, in ``build_tool_catalog``'s precedence.
 
-        Registry → drf-mcp → spec → attachment: each source excludes names an
+        Registry → MCP server → spec → attachment: each source excludes names an
         earlier one claimed, so a name exposed by two of them cannot reach
         pydantic-ai as a duplicate and raise ``UserError`` mid-run while the
         catalog looks clean. Every name here is fixed at construction — only the
         *objects* are request-bound.
 
-        **This is what a later source excludes, so it is not what the drf-mcp
+        **This is what a later source excludes, so it is not what the MCP
         bridge starts from** — it already contains the bridge's own names. See
         ``_run_toolsets``.
         """
         seen = self._registry_names()
-        if self._drf_mcp_server is not None:
-            seen.update(binding.name for binding in self._drf_mcp_server.tools.all())
+        if self._mcp_server is not None:
+            seen.update(binding.name for binding in self._mcp_server.tools.all())
         return seen
 
     def _run_toolsets(self, request: HttpRequest) -> list[Any]:
         """The request-bound toolsets this run adds to the agent's own.
 
-        Both close over the live ``request`` — the drf-mcp bridge so the agent
+        Both close over the live ``request`` — the MCP bridge so the agent
         acts as the logged-in user, the attachment toolset so the model reads
         only that user's files — so neither may live on the reused agent.
         Pydantic-AI takes them as *additional* toolsets for the run.
@@ -362,13 +371,13 @@ class DjangoAGUIView:
         The bridge is handed the **registry's** names, not the claimed set: the
         claimed set already folds in the bridge's own registry, so starting
         there made the bridge exclude every tool it exists to expose — a
-        ``DRFMCPToolset`` yielding nothing, on every request, with no error
-        anywhere while ``GET tools/`` went on advertising them.
-        ``_drf_mcp_toolsets`` adds the server's names afterwards, which is what
-        the spec and attachment sources below must exclude.
+        bridge yielding nothing, on every request, with no error anywhere while
+        ``GET tools/`` went on advertising them. ``_mcp_toolsets`` adds the
+        server's names afterwards, which is what the spec and attachment sources
+        below must exclude.
         """
         seen = self._registry_names()
-        toolsets = self._drf_mcp_toolsets(self._drf_mcp_server, request, seen)
+        toolsets = self._mcp_toolsets(request, seen)
         # Reserve the spec names between the two, exactly as the catalog's
         # precedence has it, so an attachment tool can't shadow a spec tool.
         seen.update(self._service_specs or {})
@@ -402,20 +411,29 @@ class DjangoAGUIView:
             return self._instructions_for_request(request)
         return self._resolve_instructions()
 
-    def _drf_mcp_toolsets(self, server: Any, request: HttpRequest, seen: set[str]) -> list[Any]:
-        """Build the per-request drf-mcp toolset, or ``[]`` when not configured.
+    def _mcp_toolsets(self, request: HttpRequest, seen: set[str]) -> list[Any]:
+        """Build the per-request MCP bridge, or ``[]`` when no server is configured.
 
-        Imported lazily so ``rest_framework_mcp`` stays an optional extra; the
-        toolset carries ``request`` so the agent acts as the logged-in user.
-        Excludes names already in ``seen`` (registry tools win) and reserves the
-        server's whole ``tools.all()`` registry into it — the same source
+        ``MCPToolset`` for a django-spec-mcp server, ``DRFMCPToolset`` for one
+        passed as the deprecated ``drf_mcp_server=``. Imported lazily so each
+        server package stays an optional extra; the toolset carries ``request``
+        so the agent acts as the logged-in user. Excludes names already in
+        ``seen`` (registry tools win) and reserves the server's whole
+        ``tools.all()`` registry into it — the same source
         ``build_tool_catalog`` dedups against.
         """
+        server = self._mcp_server
         if server is None:
             return []
-        from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
+        exclude_names = frozenset(seen)
+        if self._bridges_drf_mcp:
+            from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
 
-        toolset = DRFMCPToolset(server, request, exclude_names=frozenset(seen))
+            toolset: Any = DRFMCPToolset(server, request, exclude_names=exclude_names)
+        else:
+            from django_spec_agents.integrations.mcp import MCPToolset
+
+            toolset = MCPToolset(server, request, exclude_names=exclude_names)
         seen.update(binding.name for binding in server.tools.all())
         return [toolset]
 
@@ -427,7 +445,7 @@ class DjangoAGUIView:
         toolset through the run's ``deps``, not a closure over ``request`` —
         ``SpecToolset``'s default extractor reads ``ctx.deps.user`` — which is
         why this is a capability on the reused agent rather than a per-run
-        toolset. Excludes names already in ``seen`` (registry + drf-mcp win the
+        toolset. Excludes names already in ``seen`` (registry + MCP server win the
         collision) and reserves the spec names.
         """
         if self._spec_capability is not None:
@@ -575,7 +593,7 @@ class DjangoAGUIView:
         """Build the per-request ``read_attachment`` toolset, or ``[]`` when off.
 
         Empty when uploads are disabled (the default ``NullAttachmentStore``) or
-        when ``read_attachment`` is already claimed by a registry / drf-mcp / spec
+        when ``read_attachment`` is already claimed by a registry / MCP server / spec
         tool — those win, and pydantic-ai would otherwise raise ``UserError`` for
         the duplicate name at run time. The toolset carries ``request`` so the
         model reads only the acting user's files.
@@ -615,7 +633,7 @@ class DjangoAGUIView:
         Returns the status to deny with (``401`` when ``require_authenticated``
         is set and the resolved user is anonymous, ``403`` when the ``authorize``
         predicate rejects an established user), or ``None`` to proceed. The
-        resolved user is assigned onto ``request.user`` so tools, the drf-mcp
+        resolved user is assigned onto ``request.user`` so tools, the MCP
         bridge and conversation ownership act as it. Without a hook, the
         middleware's lazy ``request.user`` is materialized in a worker thread
         first: touching it on the loop with DB-backed sessions raises

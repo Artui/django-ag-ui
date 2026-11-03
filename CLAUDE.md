@@ -86,7 +86,7 @@ the JSON Schema as `x-destructive: true`. **What that flag gates depends on wher
 - **Client-registered tools** (the web component's `registerTool`, executed in the browser) are
   gated — `@artooi/ag-ui-web-component` shows an inline confirmation card before dispatching to
   the local handler.
-- **Server-side tools** (this package's `@tool` registry, and drf-mcp-bridged tools) are **not**
+- **Server-side tools** (this package's `@tool` registry, and MCP-bridged tools) are **not**
   gated by default. They run **server-side, mid-stream**, so by the time the browser sees
   `TOOL_CALL_END` the tool already executed; the `x-destructive` / `x-confirm` stamps reach only
   the **LLM** (as schema hints), never a browser gate.
@@ -97,7 +97,7 @@ the JSON Schema as `x-destructive: true`. **What that flag gates depends on wher
   **defers** and finishes on a `RUN_FINISHED` *interrupt* the client approves/denies (via
   `RunAgentInput.resume[]`), the standard AG-UI tool-approval loop. **Destructiveness is read
   from four vocabularies** (every django-spec-agents release): the registry
-  `@tool(destructive=True)` flag; `DESTRUCTIVE_METADATA_KEY`, which the drf-mcp bridge maps
+  `@tool(destructive=True)` flag; `DESTRUCTIVE_METADATA_KEY`, which the MCP bridges map
   `readOnlyHint is False` onto; `metadata["annotations"]["readOnlyHint"] is False`, which an
   in-process `SpecToolset` on the `service_specs=` path writes instead; and the `x-destructive`
   schema stamp `build_input_schema` emits. The middle two matter here because the *same*
