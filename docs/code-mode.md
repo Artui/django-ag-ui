@@ -1,6 +1,6 @@
 # Batching tool calls with CodeMode
 
-When the agent has many tools — especially a large drf-mcp bridge — each call is
+When the agent has many tools — especially a large MCP bridge — each call is
 its own model round-trip, and every tool's schema bloats the prompt.
 [`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness)'s
 **`CodeMode`** capability collapses them into a single sandboxed `run_code` tool:
@@ -9,7 +9,7 @@ the model writes Python that calls the tools as functions (with loops,
 round-trip.
 
 This is a composition of two things django-ag-ui already gives you — the
-in-process [drf-mcp bridge](configuration.md#drf_mcp_server) and the
+in-process [MCP bridge](configuration.md#mcp_server) and the
 [`capabilities=`](configuration.md#capabilities) seam — plus the optional
 `[code-mode]` extra.
 
@@ -50,11 +50,11 @@ DJANGO_AG_UI = {"MODEL": "anthropic:claude-sonnet-4.6"}
 from myproject.agent import code_mode
 from myproject.mcp import server as mcp_server
 
-agent = AGUIServer(registry, drf_mcp_server=mcp_server, capabilities=[code_mode])
+agent = AGUIServer(registry, mcp_server=mcp_server, capabilities=[code_mode])
 ```
 
-Now the agent exposes one `run_code` tool instead of the individual DRF tools;
-the model batches its DRF work into a single sandboxed script.
+Now the agent exposes one `run_code` tool instead of the individual MCP tools;
+the model batches that work into a single sandboxed script.
 
 ### Wrapping only some tools
 
@@ -70,18 +70,18 @@ def code_mode():
     return CodeMode(tools=lambda ctx, td: td.name != "projects.delete")
 ```
 
-## Typed stubs — keep drf-mcp's output schema on
+## Typed stubs — keep the MCP server's output schema on
 
 CodeMode renders each wrapped tool as a **typed** Python stub so the model knows
 what each call returns. A tool with **no return schema** renders `-> Any` and
 CodeMode emits a warning — the model loses that type information.
 
-django-ag-ui's drf-mcp bridge carries drf-mcp's `outputSchema` onto the tool's
-`return_schema`, so bridged tools render typed **as long as drf-mcp advertises
-the output schema** — which it does by default
-(`REST_FRAMEWORK_MCP["INCLUDE_OUTPUT_SCHEMA"] = True`). Keep it on (and give your
-services an output serializer) for the best CodeMode experience; a service with
-no output serializer advertises no schema and its stub falls back to `-> Any`.
+django-ag-ui's MCP bridge carries the server's `outputSchema` onto the tool's
+`return_schema`, so bridged tools render typed **as long as the server
+advertises the output schema** — which django-spec-mcp does by default
+(`SPEC_MCP["INCLUDE_OUTPUT_SCHEMA"] = True`). Keep it on (and declare each
+spec's output) for the best CodeMode experience; a tool with no declared output
+advertises no schema and its stub falls back to `-> Any`.
 
 !!! note
     `CodeMode` is one of several `pydantic-ai-harness` capabilities that drop

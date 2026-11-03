@@ -1,7 +1,7 @@
-"""A spec mapping whose names collide with the drf-mcp fixture + read_attachment.
+"""A spec mapping whose names collide with the MCP fixture + read_attachment.
 
 Used to prove the cross-toolset collision guard: ``add`` collides with the
-drf-mcp ``test`` server's ``add`` tool (drf-mcp wins), ``read_attachment``
+django-spec-mcp ``test`` server's ``add`` tool (the server wins), ``read_attachment``
 collides with the built-in attachment tool (spec wins over it), and
 ``unique_spec`` has no collision (it survives).
 """

@@ -40,14 +40,14 @@ class ToolsView:
         | None = None,
         authorize: AuthorizePredicate | None = None,
         csrf_exempt: bool | None = None,
-        drf_mcp_server: Any = None,
+        mcp_server: Any = None,
         service_specs: dict[str, Any] | None = None,
         spec_capability: Any = None,
     ) -> None:
         self._registry = registry
         # The same collaborators the agent view holds, so the catalog lists the
         # tools this endpoint's agent can actually wield — not another's.
-        self._drf_mcp_server = drf_mcp_server
+        self._mcp_server = mcp_server
         # Held so a pre-built toolset's specs still reach the catalog, which is
         # what keeps the tool-call card labels.
         self._service_specs = service_specs
@@ -77,7 +77,7 @@ class ToolsView:
             return HttpResponseNotAllowed(["GET"])
         catalog = build_tool_catalog(
             self._registry,
-            drf_mcp_server=self._drf_mcp_server,
+            mcp_server=self._mcp_server,
             service_specs=self._service_specs,
         )
         return JsonResponse(catalog, safe=False)

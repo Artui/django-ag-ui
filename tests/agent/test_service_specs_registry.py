@@ -458,19 +458,19 @@ class TestPreBuiltToolset:
     def test_a_name_the_bridged_mcp_server_owns_is_refused_too(self) -> None:
         """The other claiming source, and the one that fails latest of all.
 
-        The mapping path already excludes both the registry and the drf-mcp
+        The mapping path already excludes both the registry and the MCP
         server, so checking only the registry here made the two shapes of
         ``service_specs=`` disagree about what counts as a collision — and the
-        drf-mcp half surfaced as a pydantic-ai ``UserError`` mid-run, once the
+        MCP half surfaced as a pydantic-ai ``UserError`` mid-run, once the
         bridge yielded its own ``add``.
         """
-        from tests.integrations.drf_server import server as mcp_server
+        from tests.integrations.spec_mcp_server import server as mcp_server
 
         with pytest.raises(ImproperlyConfigured) as excinfo:
             AGUIServer(
                 ToolRegistry(),
                 model=TestModel(),
-                drf_mcp_server=mcp_server,
+                mcp_server=mcp_server,
                 service_specs=SpecToolset({"add": _service()}),
             )
 
@@ -478,34 +478,34 @@ class TestPreBuiltToolset:
         assert "'add'" in message
         # Names *which* source claimed it, since the two are renamed in
         # different places.
-        assert "drf-mcp" in message
+        assert "the bridged MCP server" in message
 
     def test_a_name_no_source_owns_still_constructs(self) -> None:
-        from tests.integrations.drf_server import server as mcp_server
+        from tests.integrations.spec_mcp_server import server as mcp_server
 
         AGUIServer(
             ToolRegistry(),
             model=TestModel(),
-            drf_mcp_server=mcp_server,
+            mcp_server=mcp_server,
             service_specs=SpecToolset({"list_widgets": _selector()}),
         )
 
     def test_the_registry_wins_the_naming_when_both_sources_claim_it(self) -> None:
         """Precedence is the view's own: registry first, then the bridge."""
-        from tests.integrations.drf_server import server as mcp_server
+        from tests.integrations.spec_mcp_server import server as mcp_server
 
         registry = ToolRegistry()
 
         @tool(registry)
         def add() -> str:
-            """Collides with both the spec tool and the drf-mcp tool."""
+            """Collides with both the spec tool and the bridged tool."""
             return "hi"
 
         with pytest.raises(ImproperlyConfigured) as excinfo:
             AGUIServer(
                 registry,
                 model=TestModel(),
-                drf_mcp_server=mcp_server,
+                mcp_server=mcp_server,
                 service_specs=SpecToolset({"add": _service()}),
             )
 

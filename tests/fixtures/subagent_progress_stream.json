@@ -12,12 +12,14 @@
       "type": "RUN_STARTED",
       "timestamp": 1735689600000,
       "threadId": "thread-fixture",
-      "runId": "run-fixture"
+      "runId": "run-fixture",
+      "protocolVersion": "1.0"
     },
     {
       "type": "TEXT_MESSAGE_START",
       "timestamp": 1735689600000,
-      "messageId": "message-1"
+      "messageId": "message-1",
+      "role": "assistant"
     },
     {
       "type": "TEXT_MESSAGE_END",
@@ -129,7 +131,8 @@
     {
       "type": "TEXT_MESSAGE_START",
       "timestamp": 1735689600000,
-      "messageId": "message-3"
+      "messageId": "message-3",
+      "role": "assistant"
     },
     {
       "type": "TEXT_MESSAGE_END",
@@ -185,7 +188,8 @@
     {
       "type": "TEXT_MESSAGE_START",
       "timestamp": 1735689600000,
-      "messageId": "message-5"
+      "messageId": "message-5",
+      "role": "assistant"
     },
     {
       "type": "TEXT_MESSAGE_CONTENT",

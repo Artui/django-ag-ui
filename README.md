@@ -32,7 +32,7 @@ browser half is
   construction.
 - **Authentication, closed by default** — every route refuses anonymous
   requests (`401`) until you say otherwise, and a `get_user(request)` hook
-  establishes the user tools, the drf-mcp bridge, and conversation ownership
+  establishes the user tools, the MCP bridge, and conversation ownership
   act as. See [Security defaults](#security-defaults).
 - **One-object mounting** — an `AGUIServer(registry, …)` config object exposing a
   namespaced `.urls`, mounted the `admin.site` way with
@@ -78,8 +78,9 @@ browser half is
   load balancer counting idle seconds does not sever a stream mid-answer. An AWS
   ALB's `idle_timeout` and nginx's `proxy_read_timeout` both default to 60.
 - **Reach external tools** — compose any Pydantic-AI toolset, including an
-  in-process [`drf-mcp`](https://github.com/Artui/djangorestframework-mcp-server)
-  bridge (the `[drf-mcp]` extra) so the agent can query DRF-exposed data.
+  in-process [django-spec-mcp](https://github.com/Artui/django-spec-mcp) bridge
+  (`mcp_server=`, the `[mcp]` extra) so the agent calls an MCP server's tools
+  without a network hop.
 - **Spec tools, no MCP hop** — pass `service_specs=` a `name → spec` mapping
   of [django-service-specs](https://github.com/Artui/django-service-specs) specs,
   and the agent calls them in-process via
@@ -152,7 +153,7 @@ DJANGO_AG_UI = {
 Frontend-declared tools in the request are merged into the agent's catalog
 automatically; server-side tools run in-process. See the
 [docs](https://artui.github.io/django-ag-ui/) for the full settings reference,
-the persistence stores, and the `drf-mcp` bridge.
+the persistence stores, and the MCP bridge.
 
 ## Security defaults
 

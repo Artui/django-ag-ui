@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 from ag_ui.core import (
+    ActivityDeltaEvent,
+    ActivityMessage,
+    ActivitySnapshotEvent,
     AssistantMessage,
     FunctionCall,
     ReasoningEndEvent,
@@ -268,14 +271,15 @@ def test_a_call_with_no_parent_keeps_the_dumped_id() -> None:
 
 def test_text_answers_whose_counts_disagree_all_keep_the_dumped_ids() -> None:
     # Pairing the one streamed id with the first answer would be a guess, and a
-    # wrong guess names a different message.
+    # wrong guess names a different message. The first pair holds the same text,
+    # so only the count says the pairing is a guess.
     transcript = RunTranscript()
-    _streamed_text(transcript, "s1", "only one")
+    _streamed_text(transcript, "s1", "same")
 
     restamped = transcript.with_streamed_ids(
         [
-            AssistantMessage(id="d1", role="assistant", content="one"),
-            AssistantMessage(id="d2", role="assistant", content="two"),
+            AssistantMessage(id="d1", role="assistant", content="same"),
+            AssistantMessage(id="d2", role="assistant", content="same"),
         ]
     )
 
@@ -395,3 +399,226 @@ def test_a_signature_only_reasoning_still_pairs() -> None:
     )
 
     assert _ids(restamped) == ["z1"]
+
+
+def _snapshot(message_id: str, activity_type: str, **content: Any) -> ActivitySnapshotEvent:
+    return ActivitySnapshotEvent(
+        message_id=message_id, activity_type=activity_type, content=content
+    )
+
+
+def _activity(message_id: str, activity_type: str, **content: Any) -> ActivityMessage:
+    return ActivityMessage(id=message_id, activity_type=activity_type, content=content)
+
+
+def test_activities_pair_by_position_within_their_type() -> None:
+    # The injected ``compaction`` streams and is never dumped, and a file is
+    # dumped and never streamed: neither unsettles the compactions' pairing.
+    transcript = RunTranscript()
+    transcript.add(_snapshot("s1", "pydantic_ai_compaction", content="first"))
+    transcript.add(_snapshot("ours", "compaction", removed=4))
+    transcript.add(_snapshot("s2", "pydantic_ai_compaction", content="second"))
+
+    restamped = transcript.with_streamed_ids(
+        [
+            _activity("d1", "pydantic_ai_compaction", content="first"),
+            _activity("file", "pydantic_ai_file", url="u"),
+            _activity("d2", "pydantic_ai_compaction", content="second"),
+        ]
+    )
+
+    assert _ids(restamped) == ["s1", "file", "s2"]
+
+
+def test_activities_whose_counts_disagree_keep_the_dumped_ids() -> None:
+    # The first pair holds the same content, so only the count refuses it.
+    transcript = RunTranscript()
+    transcript.add(_snapshot("s1", "pydantic_ai_compaction", content="first"))
+
+    restamped = transcript.with_streamed_ids(
+        [
+            _activity("d1", "pydantic_ai_compaction", content="first"),
+            _activity("d2", "pydantic_ai_compaction", content="first"),
+        ]
+    )
+
+    assert _ids(restamped) == ["d1", "d2"]
+
+
+def test_an_activity_whose_content_disagrees_keeps_the_dumped_id() -> None:
+    # One activity each side, so the count alone would pair them.
+    transcript = RunTranscript()
+    transcript.add(_snapshot("s1", "pydantic_ai_compaction", content="streamed"))
+
+    restamped = transcript.with_streamed_ids(
+        [_activity("d1", "pydantic_ai_compaction", content="dumped")]
+    )
+
+    assert _ids(restamped) == ["d1"]
+
+
+def test_an_activity_a_delta_changed_keeps_the_dumped_id() -> None:
+    # The patch is not applied, so the content the client ended with is unknown;
+    # even a dump that matches the snapshot is not paired with it.
+    transcript = RunTranscript()
+    transcript.add(_snapshot("s1", "pydantic_ai_compaction", content="first"))
+    transcript.add(
+        ActivityDeltaEvent(
+            message_id="s1",
+            activity_type="pydantic_ai_compaction",
+            patch=[{"op": "replace", "path": "/content", "value": "first"}],
+        )
+    )
+
+    restamped = transcript.with_streamed_ids(
+        [_activity("d1", "pydantic_ai_compaction", content="first")]
+    )
+
+    assert _ids(restamped) == ["d1"]
+
+
+def test_a_delta_with_no_snapshot_still_counts_its_activity() -> None:
+    # The client was announced an activity it has no content for; the dumped one
+    # is not paired across it.
+    transcript = RunTranscript()
+    transcript.add(
+        ActivityDeltaEvent(message_id="s0", activity_type="pydantic_ai_compaction", patch=[])
+    )
+    transcript.add(_snapshot("s1", "pydantic_ai_compaction", content="first"))
+
+    restamped = transcript.with_streamed_ids(
+        [_activity("d1", "pydantic_ai_compaction", content="first")]
+    )
+
+    assert _ids(restamped) == ["d1"]
+
+
+def test_a_second_snapshot_keeps_the_place_and_takes_the_content() -> None:
+    transcript = RunTranscript()
+    transcript.add(_snapshot("s1", "pydantic_ai_compaction", content="draft"))
+    transcript.add(_snapshot("s2", "pydantic_ai_compaction", content="other"))
+    transcript.add(_snapshot("s1", "pydantic_ai_compaction", content="final"))
+
+    restamped = transcript.with_streamed_ids(
+        [
+            _activity("d1", "pydantic_ai_compaction", content="final"),
+            _activity("d2", "pydantic_ai_compaction", content="other"),
+        ]
+    )
+
+    assert _ids(restamped) == ["s1", "s2"]
+
+
+def test_a_snapshot_that_does_not_replace_keeps_the_first_content() -> None:
+    transcript = RunTranscript()
+    transcript.add(_snapshot("s1", "pydantic_ai_compaction", content="first"))
+    transcript.add(
+        ActivitySnapshotEvent(
+            message_id="s1",
+            activity_type="pydantic_ai_compaction",
+            content={"content": "ignored"},
+            replace=False,
+        )
+    )
+
+    restamped = transcript.with_streamed_ids(
+        [_activity("d1", "pydantic_ai_compaction", content="first")]
+    )
+
+    assert _ids(restamped) == ["s1"]
+
+
+def test_a_dumped_canonical_system_is_not_a_difference() -> None:
+    # An OpenAI compaction: the dump stamps the response's canonical_system
+    # beside the part, which the stream has no response to read it from.
+    transcript = RunTranscript()
+    transcript.add(
+        _snapshot(
+            "s1",
+            "pydantic_ai_compaction",
+            id="c1",
+            provider_name="openai",
+            provider_details={"encrypted_content": "x"},
+        )
+    )
+
+    restamped = transcript.with_streamed_ids(
+        [
+            _activity(
+                "d1",
+                "pydantic_ai_compaction",
+                id="c1",
+                provider_name="openai",
+                provider_details={"encrypted_content": "x"},
+                canonical_system="openai",
+            )
+        ]
+    )
+
+    assert _ids(restamped) == ["s1"]
+
+
+def test_a_difference_beside_the_canonical_system_still_refuses() -> None:
+    transcript = RunTranscript()
+    transcript.add(
+        _snapshot(
+            "s1",
+            "pydantic_ai_compaction",
+            id="c1",
+            provider_name="openai",
+            provider_details={"encrypted_content": "x"},
+        )
+    )
+
+    restamped = transcript.with_streamed_ids(
+        [
+            _activity(
+                "d1",
+                "pydantic_ai_compaction",
+                id="c1",
+                provider_name="openai",
+                provider_details={"encrypted_content": "y"},
+                canonical_system="openai",
+            )
+        ]
+    )
+
+    assert _ids(restamped) == ["d1"]
+
+
+def test_a_two_activity_type_with_a_delta_on_one_keeps_both_dumped_ids() -> None:
+    # The delta empties only s2's content, yet the type is judged whole: the
+    # unchanged s1 is not lent either, because which dumped activity the
+    # changed one is cannot be told.
+    transcript = RunTranscript()
+    transcript.add(_snapshot("s1", "pydantic_ai_compaction", content="first"))
+    transcript.add(_snapshot("s2", "pydantic_ai_compaction", content="second"))
+    transcript.add(
+        ActivityDeltaEvent(
+            message_id="s2",
+            activity_type="pydantic_ai_compaction",
+            patch=[{"op": "replace", "path": "/content", "value": "second"}],
+        )
+    )
+
+    restamped = transcript.with_streamed_ids(
+        [
+            _activity("d1", "pydantic_ai_compaction", content="first"),
+            _activity("d2", "pydantic_ai_compaction", content="second"),
+        ]
+    )
+
+    assert _ids(restamped) == ["d1", "d2"]
+
+
+def test_a_failed_or_cancelled_run_stores_no_activities() -> None:
+    # ``messages()`` is what the failed and cancelled exits store: an activity the
+    # stream carried is not among them, whatever else the run streamed.
+    transcript = RunTranscript()
+    _streamed_text(transcript, "s1", "partial answer")
+    transcript.add(_snapshot("a1", "pydantic_ai_compaction", content="summary"))
+
+    stored = transcript.messages()
+
+    assert [type(message) for message in stored] == [AssistantMessage]
+    assert not any(isinstance(message, ActivityMessage) for message in stored)

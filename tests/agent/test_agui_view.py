@@ -19,16 +19,10 @@ from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
+from django_spec_mcp import AgentConventions as MCPAgentConventions
+from django_spec_mcp import MCPServer
 from pydantic_ai.models.function import DeltaToolCall, FunctionModel
 from pydantic_ai.models.test import TestModel
-from rest_framework import serializers
-from rest_framework.exceptions import ValidationError
-from rest_framework.permissions import AllowAny
-from rest_framework_mcp import AgentConventions as MCPAgentConventions
-from rest_framework_mcp import MCPServer, QueryParam
-from rest_framework_services.types.selector_kind import SelectorKind
-from rest_framework_services.types.selector_spec import SelectorSpec
-from rest_framework_services.types.service_spec import ServiceSpec
 
 from django_ag_ui.agent.agui_server import _resolve_spec_source
 from django_ag_ui.agent.agui_view import DjangoAGUIView
@@ -36,13 +30,18 @@ from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.authed_request_factory import AuthedRequestFactory
 
 
-def _run_input(content: str, run_id: str = "r1", thread_id: str = "t1") -> bytes:
+def _run_input(
+    content: str, run_id: str = "r1", thread_id: str = "t1", *, message_id: str = "u1"
+) -> bytes:
+    # ``message_id`` matters on a resume: the run holds its history on the
+    # server, and a turn posted under the id of a stored user message is that
+    # message resubmitted, so it replaces the turn rather than following it.
     return json.dumps(
         {
             "threadId": thread_id,
             "runId": run_id,
             "state": {},
-            "messages": [{"id": "u1", "role": "user", "content": content}],
+            "messages": [{"id": message_id, "role": "user", "content": content}],
             "tools": [],
             "context": [],
             "forwardedProps": {},
@@ -573,21 +572,22 @@ async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
     assert await StoredConversation.objects.acount() == 0
 
 
-async def test_drf_mcp_toolset_built_per_request_when_configured() -> None:
-    from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
+async def test_a_spec_mcp_server_is_bridged_by_mcp_toolset() -> None:
+    # ``MCPToolset`` rather than a duck-typed pass-through: a django-spec-mcp
+    # server's refusals are raised as failed calls, not returned as successes.
+    from django_spec_agents.integrations.mcp import MCPToolset
 
+    from tests.integrations.spec_mcp_server import server as spec_mcp_server
+
+    view = DjangoAGUIView(_registry(), model=TestModel(), mcp_server=spec_mcp_server)
+
+    (toolset,) = view._mcp_toolsets(RequestFactory().post("/agent/"), set())
+    assert isinstance(toolset, MCPToolset)
+
+
+async def test_no_mcp_toolset_without_a_server() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
-    request = RequestFactory().post("/agent/")
-    from tests.integrations.drf_server import server as drf_server
-
-    toolsets = view._drf_mcp_toolsets(drf_server, request, set())
-    assert len(toolsets) == 1
-    assert isinstance(toolsets[0], DRFMCPToolset)
-
-
-async def test_no_drf_mcp_toolset_without_the_setting() -> None:
-    view = DjangoAGUIView(_registry(), model=TestModel())
-    assert view._drf_mcp_toolsets(None, RequestFactory().post("/agent/"), set()) == []
+    assert view._mcp_toolsets(RequestFactory().post("/agent/"), set()) == []
 
 
 _DEFAULT_ATTACHMENT_STORE = (
@@ -634,7 +634,7 @@ async def test_no_attachment_toolset_without_the_setting() -> None:
 
 async def test_attachment_toolset_skipped_when_a_prior_tool_owns_the_name() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
-    # ``read_attachment`` already claimed upstream (registry / drf-mcp / spec):
+    # ``read_attachment`` already claimed upstream (registry / MCP / spec):
     # the attachment toolset yields to it rather than raising a duplicate.
     seen = {"read_attachment"}
     assert (
@@ -644,73 +644,53 @@ async def test_attachment_toolset_skipped_when_a_prior_tool_owns_the_name() -> N
 
 
 async def test_seen_set_guards_three_way_name_collisions() -> None:
-    # drf-mcp -> spec -> attachment precedence, so a name exposed by two sources
+    # MCP -> spec -> attachment precedence, so a name exposed by two sources
     # can't reach pydantic-ai as a duplicate. Driven through the view's own
     # composition rather than the builders by hand: the name set is now computed
     # once at build time while the toolsets are still built per run, and the
     # thing worth guarding is that splitting them left the precedence intact.
-    from tests.integrations.drf_server import server as drf_server
     from tests.integrations.drf_specs_colliding import SPECS as colliding_specs
+    from tests.integrations.spec_mcp_server import server as spec_mcp_server
 
     view = DjangoAGUIView(
         _registry(),
         model=TestModel(),
-        drf_mcp_server=drf_server,
+        mcp_server=spec_mcp_server,
         service_specs=colliding_specs,
         attachment_store=_DEFAULT_ATTACHMENT_STORE,
     )
     request = RequestFactory().post("/agent/")
 
-    # The registry's names and drf-mcp's are claimed before anything is built.
+    # The registry's names and the MCP server's are claimed before anything is built.
     claimed = view._claimed_names()
     assert {"double", "add", "invalid", "denied"} <= claimed
 
-    # spec: ``add`` collides with drf-mcp (dropped, drf-mcp wins); ``unique_spec``
+    # spec: ``add`` collides with the server (dropped, the server wins); ``unique_spec``
     # survives; ``read_attachment`` is claimed by the spec capability.
     (spec_capability,) = view._spec_capabilities(colliding_specs, claimed)
     spec_names = set(spec_capability.get_toolset()._specs)
     assert "add" not in spec_names
     assert "unique_spec" in spec_names
 
-    # So the run gets the drf-mcp toolset and no attachment toolset — the spec
+    # So the run gets the MCP toolset and no attachment toolset — the spec
     # already owns ``read_attachment``.
-    assert [type(t).__name__ for t in view._run_toolsets(request)] == ["DRFMCPToolset"]
+    assert [type(t).__name__ for t in view._run_toolsets(request)] == ["MCPToolset"]
 
 
-async def test_the_drf_mcp_bridge_exposes_the_servers_own_tools() -> None:
+async def test_the_mcp_bridge_exposes_the_servers_own_tools() -> None:
     # The bridge excluded the names it was built to expose: the per-run toolset
     # was handed the *claimed* set, which already folds in the server's whole
     # registry, so every bridged tool was filtered out of its own toolset and
     # the model saw none of them — silently, while GET tools/ went on
     # advertising them.
-    from tests.integrations.drf_server import server as drf_server
+    from tests.integrations.spec_mcp_server import server as spec_mcp_server
 
-    view = DjangoAGUIView(_registry(), model=TestModel(), drf_mcp_server=drf_server)
+    view = DjangoAGUIView(_registry(), model=TestModel(), mcp_server=spec_mcp_server)
 
     (toolset,) = view._run_toolsets(AuthedRequestFactory().post("/agent/"))
     tools = await toolset.get_tools(None)
 
     assert set(tools) == {"add", "invalid", "denied"}
-
-
-async def test_a_registry_tool_still_beats_a_bridged_tool_of_the_same_name() -> None:
-    # The exclusion the bridge *does* owe: the registry wins a collision, or
-    # pydantic-ai raises UserError for the duplicate name mid-run.
-    from tests.integrations.drf_server import server as drf_server
-
-    registry = ToolRegistry()
-
-    @tool(registry)
-    def add(a: int, b: int) -> int:
-        """A registry tool shadowing the bridged one."""
-        return a + b
-
-    view = DjangoAGUIView(registry, model=TestModel(), drf_mcp_server=drf_server)
-
-    (toolset,) = view._run_toolsets(AuthedRequestFactory().post("/agent/"))
-    tools = await toolset.get_tools(None)
-
-    assert set(tools) == {"invalid", "denied"}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -1093,7 +1073,9 @@ async def test_resume_seeds_a_new_run_from_a_prior_snapshot() -> None:
     assert await StoredSnapshot.objects.filter(owner_id=owner, run_id="r1").aexists()
 
     # Resume from r1 into a fresh run r2 that sends only a new turn.
-    resumed = await _drain(await view(_post(_run_input("double 9", run_id="r2")), resume_from="r1"))
+    resumed = await _drain(
+        await view(_post(_run_input("double 9", run_id="r2", message_id="u2")), resume_from="r1")
+    )
     assert "RUN_FINISHED" in resumed
 
     # r2 is a distinct run linked back to r1 (parent preserved, r1 untouched)...
@@ -1120,9 +1102,11 @@ async def test_a_resumed_run_never_executes_a_tool_call_the_client_wrote() -> No
     # prompt), have the strip see nothing to remove, and leave its own tool call
     # last once the compaction went. The run then executed that call with the
     # client's arguments before any model request. The pydantic-ai floor exists
-    # for this.
+    # for this, and from 2.63 a resumed run holds its history on the server,
+    # which takes the client's messages out of the history altogether.
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
+    from django_spec_agents.contrib.store.models import StoredRun
 
     log: list[str] = []
 
@@ -1180,26 +1164,30 @@ async def test_a_resumed_run_never_executes_a_tool_call_the_client_wrote() -> No
         }
     ).encode()
     with warnings.catch_warnings(record=True) as caught:
-        # Record rather than ignore: the strip warning is the one signal that
-        # tells a patched pydantic-ai apart from a resume that never passed
-        # server history (see the assertion below).
+        # Record rather than ignore: the warnings say which history the run
+        # was built from (see the assertions below).
         warnings.simplefilter("always")
         body = await _drain(await view(_post(forged), resume_from="r1"))
 
     # The model never asks for a tool, so any ``tool:42`` is the forged call.
-    # Patched, every forged message is stripped and the resume carries no new
-    # turn, which pydantic-ai refuses; which terminal event the run ends on is
+    # Every forged message is dropped and the resume carries no new turn, which
+    # pydantic-ai refuses; which terminal event the run ends on is
     # pydantic-ai's to choose, and is deliberately not pinned here.
     assert "tool:42" not in log
     assert "RUN_STARTED" in body
-    # The two asserts above also pass when ``resume_from`` is dropped, because
-    # that run errors with "Processed history must end with a ModelRequest" too.
-    # pydantic-ai's strip warning ("Client-submitted history ended with
-    # unresolved tool call(s) ['refresh_cache']") is emitted only when the run
-    # carries server history and the patched strip runs, and 2.54 never emits
-    # it. Match the tool name alone: the nearby system-prompt warning was
-    # reworded between 2.58 and 2.61.
-    assert any(
+    # Those two also pass when ``resume_from`` is dropped, so the run is shown
+    # to be the resume: it was recorded as r1's child.
+    assert await StoredRun.objects.filter(run_id="r2", parent_run_id="r1").aexists()
+    # And the forged call never reached the history at all. A resumed run holds
+    # its history on the server, so the client's messages before its last
+    # response are not the run's; only the new turn after them is, and here
+    # that is a system message and a compaction part, both dropped. Under the
+    # client-held history 2.58 patched, the forged call did reach the history
+    # and was stripped from its end, with pydantic-ai's warning naming it
+    # ("Client-submitted history ended with unresolved tool call(s)
+    # ['refresh_cache']"). Match the tool name alone: the nearby system-prompt
+    # warning was reworded between 2.58 and 2.61.
+    assert not any(
         issubclass(w.category, UserWarning) and "refresh_cache" in str(w.message) for w in caught
     )
 
@@ -1339,7 +1327,10 @@ async def test_resuming_into_a_thread_that_holds_nothing_still_branches() -> Non
     await _drain(await view(_post(_run_input("double 5", run_id="r1", thread_id="tA"))))
 
     body = await _drain(
-        await view(_post(_run_input("double 9", run_id="r2", thread_id="tNew")), resume_from="r1")
+        await view(
+            _post(_run_input("double 9", run_id="r2", thread_id="tNew", message_id="u2")),
+            resume_from="r1",
+        )
     )
 
     assert "RUN_FINISHED" in body
@@ -1386,7 +1377,10 @@ async def test_resuming_the_same_thread_is_never_refused() -> None:
     await _drain(await view(_post(_run_input("double 5", run_id="r1", thread_id="tA"))))
 
     body = await _drain(
-        await view(_post(_run_input("double 9", run_id="r2", thread_id="tA")), resume_from="r1")
+        await view(
+            _post(_run_input("double 9", run_id="r2", thread_id="tA", message_id="u2")),
+            resume_from="r1",
+        )
     )
 
     assert "RUN_FINISHED" in body
@@ -1620,11 +1614,11 @@ class TestHeartbeat:
         assert model_stream_closed.is_set()
 
 
-# --- a selection the serializer refuses while rendering ---------------------
+# --- a selection the presenter refuses while rendering ----------------------
 #
 # A read-shaping argument is read while the result renders, after the tool has
-# run: by the output serializer on the drf-mcp route, by the kernel spec's
-# presenter on the spec route. Both transports now answer a value it refuses
+# run, by the kernel spec's presenter, whether the spec reaches the agent
+# through a django-spec-mcp server or as ``service_specs=``. Both transports answer a value it refuses
 # with a retry naming the argument rather than an exception out of the tool. For this package that
 # moves the refusal from one event to another. It was a failed call under the
 # default ``TOOL_FAILURE`` policy, its text withheld from the model and the
@@ -1633,37 +1627,7 @@ class TestHeartbeat:
 # the refusal's own client-facing message, and only ever about a value the model
 # sent; anything else a render raises is still a failure the policy withholds.
 #
-# The drf-mcp route registers drf-services specs, the spec route serves
-# django-service-specs specs, so each case declares one of each, with the same
-# rows and the same refusal.
-
-
-class _SelectableRow(serializers.Serializer):
-    """A row reading its own ``?fields=id,name``; no selection library behind it."""
-
-    id = serializers.IntegerField()
-    name = serializers.CharField()
-
-    def to_representation(self, instance: Any) -> Any:
-        data = super().to_representation(instance)
-        raw = self.context["request"].query_params.get("fields")
-        if not raw:
-            return data
-        wanted = [name.strip() for name in raw.split(",")]
-        for name in wanted:
-            if name not in data:
-                raise ValidationError(f"Unknown field `{name}`.", code="unknown_field")
-        return {name: data[name] for name in wanted}
-
-
-_ROWS_SPEC = SelectorSpec(
-    kind=SelectorKind.LIST,
-    selector=lambda: [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}],
-    output_serializer=_SelectableRow,
-    permission_classes=[AllowAny],
-    # Declared on the spec, so both routes read the one declaration.
-    reads=[QueryParam("fields")],
-)
+# Both routes serve the same kernel spec, so each case declares it once.
 
 
 def _rows() -> list[dict[str, Any]]:
@@ -1671,7 +1635,7 @@ def _rows() -> list[dict[str, Any]]:
 
 
 class _SelectableRowPresenter(kernel.Presenter):
-    """The kernel twin of ``_SelectableRow``: a row reading its own ``fields`` shape."""
+    """A row reading its own ``fields`` shape; no selection library behind it."""
 
     def output(self) -> kernel.Output:
         return kernel.Output(
@@ -1704,13 +1668,10 @@ _KERNEL_ROWS_SPEC = kernel.SelectorSpec(
 
 def _bridged_rows() -> dict[str, Any]:
     server = MCPServer(name="paged")
-    server.register_selector_tool(
-        name="list_rows",
-        description="List rows.",
-        spec=_ROWS_SPEC,
-        paginate=True,
+    server.register_tool(
+        _KERNEL_ROWS_SPEC, name="list_rows", description="List rows.", paginate=True
     )
-    return {"drf_mcp_server": server}
+    return {"mcp_server": server}
 
 
 def _spec_rows() -> dict[str, Any]:
@@ -1757,7 +1718,7 @@ def _selecting_model() -> FunctionModel:
     return FunctionModel(stream_function=stream_fn)
 
 
-@pytest.mark.parametrize("route", [_bridged_rows, _spec_rows], ids=["drf-mcp", "spec-tools"])
+@pytest.mark.parametrize("route", [_bridged_rows, _spec_rows], ids=["mcp", "spec-tools"])
 async def test_a_selection_refused_while_rendering_streams_as_a_retry_on_both_routes(
     route: Any,
 ) -> None:
@@ -1786,23 +1747,14 @@ async def test_a_selection_refused_while_rendering_streams_as_a_retry_on_both_ro
 # --- a list that is not found ----------------------------------------------
 #
 # A LIST selector that raises ``Http404`` has nothing to list, and both routes
-# now answer that as a failed call reading ``not found``. Below drf-mcp 0.53.1
-# the bridged route served it as a successful empty list, so a model read "no
-# rows" where the selection named nothing, and the transcript said the opposite
-# of what the spec route said for the same call. The ``[drf-mcp]`` floor is
-# what moves it, and this test is what holds that floor.
+# answer that as a failed call reading ``not found``. The drf-mcp bridge this
+# package once took served it as a successful empty list below drf-mcp 0.53.1,
+# so a model read "no rows" where the selection named nothing, and the
+# transcript said the opposite of what the spec route said for the same call.
 
 
 def _missing_rows() -> list[dict[str, Any]]:
     raise Http404("no such board")
-
-
-_MISSING_SPEC = SelectorSpec(
-    kind=SelectorKind.LIST,
-    selector=_missing_rows,
-    output_serializer=_SelectableRow,
-    permission_classes=[AllowAny],
-)
 
 
 _KERNEL_MISSING_SPEC = kernel.SelectorSpec(
@@ -1815,8 +1767,10 @@ _KERNEL_MISSING_SPEC = kernel.SelectorSpec(
 
 def _bridged_missing() -> dict[str, Any]:
     server = MCPServer(name="missing")
-    server.register_selector_tool(name="list_rows", description="List rows.", spec=_MISSING_SPEC)
-    return {"drf_mcp_server": server}
+    server.register_tool(
+        _KERNEL_MISSING_SPEC, name="list_rows", description="List rows.", paginate=True
+    )
+    return {"mcp_server": server}
 
 
 def _spec_missing() -> dict[str, Any]:
@@ -1837,7 +1791,7 @@ def _listing_model() -> FunctionModel:
     return FunctionModel(stream_function=stream_fn)
 
 
-@pytest.mark.parametrize("route", [_bridged_missing, _spec_missing], ids=["drf-mcp", "spec-tools"])
+@pytest.mark.parametrize("route", [_bridged_missing, _spec_missing], ids=["mcp", "spec-tools"])
 async def test_a_list_that_is_not_found_is_a_failed_call_on_both_routes(route: Any) -> None:
     view = DjangoAGUIView(ToolRegistry(), model=_listing_model(), **route())
 
@@ -1869,9 +1823,9 @@ async def test_a_list_that_is_not_found_is_a_failed_call_on_both_routes(route: A
 # For this package that moves the refusal from withheld to streamed, as a
 # ``TOOL_CALL_RESULT`` with no ``outcome``, sent as it is. Both routes write
 # the same sentence, naming only the arguments the model left out, never a
-# value it sent: drf-mcp words its missing-argument refusal as the Pydantic-AI
-# toolset does, and django-spec-agents' bridge sends it without appending
-# a detail that only repeats it.
+# value it sent: django-spec-mcp words its missing-argument refusal as the
+# Pydantic-AI toolset does, and django-spec-agents' bridge sends it without
+# appending a detail that only repeats it.
 
 
 def _row_by_pk(*, pk: int) -> dict[str, Any]:
@@ -1881,19 +1835,6 @@ def _row_by_pk(*, pk: int) -> dict[str, Any]:
 def _rename_row(*, instance: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
     """Rename a row."""
     return {**instance, **data}
-
-
-class _RenameRow(serializers.Serializer):
-    name = serializers.CharField()
-
-
-_RENAME_SPEC = ServiceSpec(
-    service=_rename_row,
-    atomic=False,
-    input_serializer=_RenameRow,
-    instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_row_by_pk),
-    permission_classes=[AllowAny],
-)
 
 
 class _RenameRowForm(forms.Form):
@@ -1913,7 +1854,7 @@ _KERNEL_RENAME_SPEC = kernel.ServiceSpec(
     service=_rename_row,
     atomic=False,
     validator=kernel.FormValidator(_RenameRowForm),
-    instance_selector_spec=_kernel_row_lookup(),
+    instance_selector_spec=_kernel_row_lookup().derive(permissions=None),
     permissions=[kernel.Unrestricted()],
 )
 
@@ -1922,8 +1863,8 @@ _KERNEL_ROW_SPEC = _kernel_row_lookup()
 
 def _bridged_rename() -> dict[str, Any]:
     server = MCPServer(name="rows")
-    server.register_service_tool(name="rename_row", description="Rename a row.", spec=_RENAME_SPEC)
-    return {"drf_mcp_server": server}
+    server.register_tool(_KERNEL_RENAME_SPEC, name="rename_row", description="Rename a row.")
+    return {"mcp_server": server}
 
 
 def _spec_rename() -> dict[str, Any]:
@@ -1932,17 +1873,10 @@ def _spec_rename() -> dict[str, Any]:
     return {"service_specs": specs, "spec_capability": capability, "spec_source": source}
 
 
-_ROW_SPEC = SelectorSpec(
-    kind=SelectorKind.RETRIEVE,
-    selector=_row_by_pk,
-    permission_classes=[AllowAny],
-)
-
-
 def _bridged_row() -> dict[str, Any]:
     server = MCPServer(name="rows")
-    server.register_selector_tool(name="get_row", description="Read a row.", spec=_ROW_SPEC)
-    return {"drf_mcp_server": server}
+    server.register_tool(_KERNEL_ROW_SPEC, name="get_row", description="Read a row.")
+    return {"mcp_server": server}
 
 
 def _spec_row() -> dict[str, Any]:
@@ -1982,7 +1916,7 @@ _MISSING_PK = "Missing required argument(s): `pk`."
         (_bridged_row, "get_row", {}, {"id": 1, "name": "a"}),
         (_spec_row, "get_row", {}, {"id": 1, "name": "a"}),
     ],
-    ids=["service-drf-mcp", "service-spec-tools", "selector-drf-mcp", "selector-spec-tools"],
+    ids=["service-mcp", "service-spec-tools", "selector-mcp", "selector-spec-tools"],
 )
 async def test_a_call_missing_its_row_lookup_streams_as_a_retry_on_both_routes(
     route: Any, tool_name: str, args: dict[str, Any], row: dict[str, Any]
@@ -2017,7 +1951,7 @@ async def test_a_call_missing_its_row_lookup_streams_as_a_retry_on_both_routes(
 # endpoint passes none when it builds that object itself, so custom wording
 # reaches a run only through an object the consumer built: a ``SpecToolset``
 # or ``SpecCapability`` given as ``service_specs=``, or the ``MCPServer`` given
-# as ``drf_mcp_server=``. A mapping or a ``SpecRegistry`` is built into a
+# as ``mcp_server=``. A mapping or a ``SpecRegistry`` is built into a
 # capability here, with the default wording.
 
 _ASK_AGAIN = "Send {names} as well."
@@ -2042,8 +1976,8 @@ def _capability_reworded() -> dict[str, Any]:
 
 def _server_reworded() -> dict[str, Any]:
     server = MCPServer(name="rows", conventions=MCPAgentConventions(missing_arguments=_ASK_AGAIN))
-    server.register_selector_tool(name="get_row", description="Read a row.", spec=_ROW_SPEC)
-    return {"drf_mcp_server": server}
+    server.register_tool(_KERNEL_ROW_SPEC, name="get_row", description="Read a row.")
+    return {"mcp_server": server}
 
 
 def _registry_row() -> dict[str, Any]:

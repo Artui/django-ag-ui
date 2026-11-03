@@ -22,11 +22,13 @@ from pydantic_ai.messages import ModelMessage
 
 from django_ag_ui.agent.build_client_context_toolset import build_client_context_toolset
 from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
+from django_ag_ui.agent.continued_history import continued_history
 from django_ag_ui.agent.guarded_stream import guarded_stream
 from django_ag_ui.agent.heartbeat_stream import heartbeat_stream
 from django_ag_ui.agent.inject_compaction_events import inject_compaction_events
 from django_ag_ui.agent.inject_invalidation_events import inject_invalidation_events
 from django_ag_ui.agent.inject_subagent_events import inject_subagent_events
+from django_ag_ui.agent.lend_stored_ids import lend_stored_ids
 from django_ag_ui.agent.outcome_agui_adapter import OutcomeAGUIAdapter
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_transcript import RunTranscript
@@ -52,6 +54,12 @@ class AgentSession:
     (drive [`stream`][django_ag_ui.AgentSession.stream] directly) and keeps the
     SSE transport swappable — a future WebSocket transport reuses the session
     unchanged.
+
+    A resumed or forked run passes the source run's snapshot as
+    ``message_history``, which makes the history the server's: the run takes
+    only the client's new turn from ``run_input``. ``source_messages`` is then
+    the source thread's stored conversation, if there is one, and the snapshot's
+    messages are stored under the ids it holds for them rather than fresh ones.
     """
 
     def __init__(
@@ -65,6 +73,7 @@ class AgentSession:
         config: AGUIConfig,
         conversation_store: ConversationStore,
         message_history: list[ModelMessage] | None = None,
+        source_messages: list[Message] | None = None,
         model: Any = None,
         instructions: str | None = None,
         toolsets: list[Any] | None = None,
@@ -93,6 +102,9 @@ class AgentSession:
         # run loads it from the step store). ``None`` for a normal run, where the
         # client owns the prior turns and sends them in ``run_input``.
         self._message_history = message_history
+        # The source thread's stored conversation, which names the snapshot's
+        # messages the way the client last saw them; see ``_prior_messages``.
+        self._source_messages = source_messages
         # Memoised on first use rather than built here: dumping the prior
         # conversation is proportional to its whole length, and a run with
         # nothing to persist to never needs it at all.
@@ -110,6 +122,12 @@ class AgentSession:
             # A plain string at the config boundary; the adapter types it as
             # the Literal["server", "client"].
             manage_system_prompt=cast("Any", config.manage_system_prompt),
+            # A run seeded from a snapshot holds its history on the server: the
+            # adapter runs on the snapshot plus only the client's new turn, so a
+            # client that replays its transcript is not sent to the model twice,
+            # and one that resubmits a stored message replaces that turn. A plain
+            # run keeps the default, where the client's messages are the history.
+            manage_message_history="client" if message_history is None else "server",
             allow_uploaded_files=config.allow_uploaded_files,
         )
 
@@ -123,8 +141,9 @@ class AgentSession:
         persists the partial exchange and audits the cancellation.
         """
         transcript = RunTranscript()
-        # The adapter composes ``[*message_history, *client_messages]``, so a
-        # resumed run's server-loaded snapshot is prepended to the new turn.
+        # A resumed run's adapter holds the history on the server: it runs on
+        # the snapshot (cut where the client resubmitted a stored message) and
+        # the client's new turn, which ``_prior_messages`` mirrors.
         native = self._adapter.run_stream_native(
             message_history=self._message_history,
             deps=self._deps,
@@ -297,10 +316,14 @@ class AgentSession:
     def _prior_messages(self) -> list[Message]:
         """Everything before this run's own output, in the client's own shape.
 
-        Server-loaded history first (a resumed / forked run's snapshot, dumped to
-        the wire shape), then the messages the client posted — the same order
+        A plain run's prior conversation is what the client posted. A resumed or
+        forked run's is what the run continued from: the snapshot's history,
+        dumped to the wire shape -- cut where the client resubmitted a stored
+        message, as the adapter cuts it -- then the client's new turn, the
+        messages it posted after its last response. That is the order
         ``run_stream_native`` composes them in, so the stored thread reads the
-        way the run did.
+        way the run did, and a client that replays its whole transcript on a
+        resume no longer has it stored twice (``continued_history``).
 
         **The client's messages are stored verbatim, never re-dumped** from the
         model's history: a round-trip through pydantic-ai's types drops the
@@ -323,6 +346,12 @@ class AgentSession:
         file, so dumping it unstripped would write that file back into the row as
         base64. What the client posted is not this server's to edit.
 
+        The dumped history then takes the ids the source thread's stored row
+        holds for the same messages (``lend_stored_ids``), after the strip
+        because the row was saved stripped: the dump names every message the run
+        generated afresh, so without the row an answer a client rated by its id
+        would be a different message after this save.
+
         Memoised, because the answer cannot change during a run and up to three
         exits ask for it: a resumed run would otherwise dump, strip and retain
         an independent copy of the whole prior conversation for each. Callers
@@ -330,12 +359,20 @@ class AgentSession:
         safely.
         """
         if self._prior is None:
-            self._prior = [
-                *strip_binary_content(
-                    OutcomeAGUIAdapter.dump_messages(self._message_history or [])
-                ),
-                *self._run_input.messages,
-            ]
+            if self._message_history is None:
+                self._prior = list(self._run_input.messages)
+            else:
+                history, new_turn = continued_history(
+                    self._message_history, self._run_input.messages
+                )
+                kept = strip_binary_content(OutcomeAGUIAdapter.dump_messages(history))
+                if self._source_messages:
+                    kept = lend_stored_ids(
+                        kept,
+                        self._source_messages,
+                        reserved={message.id for message in new_turn},
+                    )
+                self._prior = [*kept, *new_turn]
         return self._prior
 
     def _on_complete(self, transcript: RunTranscript) -> Callable[[Any], Awaitable[None]] | None:

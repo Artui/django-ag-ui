@@ -35,9 +35,9 @@ with per-tool risk metadata.
   ([`ConversationStore`][django_ag_ui.ConversationStore]), off by default — with
   a **thread history** drawer endpoint ([`ThreadsView`][django_ag_ui.ThreadsView])
   and an opt-in ready-made durable store.
-- An optional **drf-mcp bridge** that exposes a
-  [`djangorestframework-mcp-server`](https://github.com/Artui/djangorestframework-mcp-server)
-  registry to the agent in-process.
+- An optional **MCP bridge** that exposes a
+  [django-spec-mcp](https://github.com/Artui/django-spec-mcp) server's tools to
+  the agent in-process.
 
 ## Where it sits
 
@@ -78,9 +78,9 @@ multi-worker deployments are safe.
 ## Next steps
 
 - [Installation](installation.md) — `pip install`, the ASGI requirement, the
-  `[drf-mcp]` extra.
+  `[mcp]` extra.
 - [Quickstart](quickstart.md) — register tools and mount the view.
 - [Configuration](configuration.md) — every `DJANGO_AG_UI` settings key.
 - [Key concepts](concepts.md) — registry, audit, streaming, persistence, the
-  drf-mcp bridge.
+  MCP bridge.
 - [API reference](api.md) — autodoc of the public surface.

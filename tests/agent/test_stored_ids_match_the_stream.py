@@ -318,11 +318,12 @@ async def test_a_resumed_run_from_a_bare_snapshot_still_streams_its_new_ids() ->
 
 
 async def test_a_snapshots_generated_turns_are_named_afresh_on_every_save() -> None:
-    # The documented limit, pinned so it is noticed when it lifts: an earlier
+    # A snapshot with no recorded ids and no row gets fresh ids. An earlier
     # run's answer reaches a snapshot as a ``ModelResponse`` carrying no UI id,
-    # and pydantic-ai's dump mints a new one each time, so two resumed runs from
-    # one snapshot store the same earlier answer under two ids. Nothing this run
-    # streamed names it, so there is no id here to keep.
+    # and pydantic-ai's dump mints a new one each time; what lends it the id it
+    # streamed under is the source thread's stored row, and this session is
+    # handed none, so two resumed runs from one snapshot store the same earlier
+    # answer under two ids. Nothing this run streamed names it either.
     store = _Store()
 
     def history() -> list[Any]:

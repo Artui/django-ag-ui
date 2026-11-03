@@ -4,6 +4,7 @@ import warnings
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
+from ag_ui.core import Message
 from asgiref.sync import markcoroutinefunction, sync_to_async
 from django.core.exceptions import ImproperlyConfigured
 from django.core.handlers.asgi import ASGIRequest
@@ -20,6 +21,7 @@ from django_spec_agents.agent.build_model import build_model
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
+from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
@@ -37,6 +39,7 @@ from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.persistence.utils import messages_from_jsonable
 from django_ag_ui.reject_async_throttle import reject_async_throttle
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
@@ -63,7 +66,7 @@ class DjangoAGUIView:
     that turns off.
 
     **Authentication is the host's responsibility, and the view fails closed.**
-    Tools (and the ``drf-mcp`` bridge) act as ``request.user``; if your
+    Tools (and the MCP bridge) act as ``request.user``; if your
     middleware hasn't authenticated the request, that is ``AnonymousUser`` — a
     data-exposure footgun. ``require_authenticated`` therefore defaults to
     **True**: an anonymous request gets a 401 before any agent runs. Pass
@@ -105,7 +108,7 @@ class DjangoAGUIView:
         toolsets: list[Any] | None = None,
         capabilities: list[Any] | None = None,
         agent_factory: AgentFactoryFn | None = None,
-        drf_mcp_server: Any = None,
+        mcp_server: Any = None,
         service_specs: dict[str, Any] | None = None,
         spec_source: Any = None,
         spec_capability: Any = None,
@@ -129,7 +132,7 @@ class DjangoAGUIView:
         self._toolsets = toolsets
         self._capabilities = capabilities
         self._agent_factory = agent_factory
-        self._drf_mcp_server = drf_mcp_server
+        self._mcp_server = mcp_server
         self._service_specs = service_specs
         # The argument as given, when it was a registry -- see
         # ``_resolve_spec_source``. Only the capability wants it; the mapping
@@ -205,6 +208,7 @@ class DjangoAGUIView:
                 status=400,
             )
         message_history: list[Any] | None = None
+        source_messages: list[Message] | None = None
         if resume_from is not None:
             loaded = await self._load_resume_history(request, resume_from)
             if loaded is None:
@@ -223,6 +227,7 @@ class DjangoAGUIView:
                     },
                     status=409,
                 )
+            source_messages = await self._source_messages(request, source_thread_id)
         # The transport ends here: the run's orchestration (adapter, stream
         # composition, persistence, cancel handling) lives on AgentSession.
         session = AgentSession(
@@ -238,6 +243,7 @@ class DjangoAGUIView:
             config=self._config,
             conversation_store=self._conversation_store,
             message_history=message_history,
+            source_messages=source_messages,
         )
         response = StreamingHttpResponse(session.stream(), content_type="text/event-stream")
         response["Cache-Control"] = "no-cache"
@@ -330,25 +336,25 @@ class DjangoAGUIView:
     def _claimed_names(self) -> set[str]:
         """Tool names already spoken for, in ``build_tool_catalog``'s precedence.
 
-        Registry → drf-mcp → spec → attachment: each source excludes names an
+        Registry → MCP server → spec → attachment: each source excludes names an
         earlier one claimed, so a name exposed by two of them cannot reach
         pydantic-ai as a duplicate and raise ``UserError`` mid-run while the
         catalog looks clean. Every name here is fixed at construction — only the
         *objects* are request-bound.
 
-        **This is what a later source excludes, so it is not what the drf-mcp
+        **This is what a later source excludes, so it is not what the MCP
         bridge starts from** — it already contains the bridge's own names. See
         ``_run_toolsets``.
         """
         seen = self._registry_names()
-        if self._drf_mcp_server is not None:
-            seen.update(binding.name for binding in self._drf_mcp_server.tools.all())
+        if self._mcp_server is not None:
+            seen.update(binding.name for binding in self._mcp_server.tools.all())
         return seen
 
     def _run_toolsets(self, request: HttpRequest) -> list[Any]:
         """The request-bound toolsets this run adds to the agent's own.
 
-        Both close over the live ``request`` — the drf-mcp bridge so the agent
+        Both close over the live ``request`` — the MCP bridge so the agent
         acts as the logged-in user, the attachment toolset so the model reads
         only that user's files — so neither may live on the reused agent.
         Pydantic-AI takes them as *additional* toolsets for the run.
@@ -356,13 +362,13 @@ class DjangoAGUIView:
         The bridge is handed the **registry's** names, not the claimed set: the
         claimed set already folds in the bridge's own registry, so starting
         there made the bridge exclude every tool it exists to expose — a
-        ``DRFMCPToolset`` yielding nothing, on every request, with no error
-        anywhere while ``GET tools/`` went on advertising them.
-        ``_drf_mcp_toolsets`` adds the server's names afterwards, which is what
-        the spec and attachment sources below must exclude.
+        bridge yielding nothing, on every request, with no error anywhere while
+        ``GET tools/`` went on advertising them. ``_mcp_toolsets`` adds the
+        server's names afterwards, which is what the spec and attachment sources
+        below must exclude.
         """
         seen = self._registry_names()
-        toolsets = self._drf_mcp_toolsets(self._drf_mcp_server, request, seen)
+        toolsets = self._mcp_toolsets(request, seen)
         # Reserve the spec names between the two, exactly as the catalog's
         # precedence has it, so an attachment tool can't shadow a spec tool.
         seen.update(self._service_specs or {})
@@ -396,20 +402,22 @@ class DjangoAGUIView:
             return self._instructions_for_request(request)
         return self._resolve_instructions()
 
-    def _drf_mcp_toolsets(self, server: Any, request: HttpRequest, seen: set[str]) -> list[Any]:
-        """Build the per-request drf-mcp toolset, or ``[]`` when not configured.
+    def _mcp_toolsets(self, request: HttpRequest, seen: set[str]) -> list[Any]:
+        """Build the per-request MCP bridge, or ``[]`` when no server is configured.
 
-        Imported lazily so ``rest_framework_mcp`` stays an optional extra; the
-        toolset carries ``request`` so the agent acts as the logged-in user.
-        Excludes names already in ``seen`` (registry tools win) and reserves the
-        server's whole ``tools.all()`` registry into it — the same source
+        ``MCPToolset`` for a django-spec-mcp server, imported lazily so the
+        server package stays an optional extra; the toolset carries ``request``
+        so the agent acts as the logged-in user. Excludes names already in
+        ``seen`` (registry tools win) and reserves the server's whole
+        ``tools.all()`` registry into it — the same source
         ``build_tool_catalog`` dedups against.
         """
+        server = self._mcp_server
         if server is None:
             return []
-        from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
+        from django_spec_agents.integrations.mcp import MCPToolset
 
-        toolset = DRFMCPToolset(server, request, exclude_names=frozenset(seen))
+        toolset = MCPToolset(server, request, exclude_names=frozenset(seen))
         seen.update(binding.name for binding in server.tools.all())
         return [toolset]
 
@@ -421,7 +429,7 @@ class DjangoAGUIView:
         toolset through the run's ``deps``, not a closure over ``request`` —
         ``SpecToolset``'s default extractor reads ``ctx.deps.user`` — which is
         why this is a capability on the reused agent rather than a per-run
-        toolset. Excludes names already in ``seen`` (registry + drf-mcp win the
+        toolset. Excludes names already in ``seen`` (registry + MCP server win the
         collision) and reserves the spec names.
         """
         if self._spec_capability is not None:
@@ -511,6 +519,37 @@ class DjangoAGUIView:
         record = await store.get_run(run_id=resume_from)
         return None if record is None else record.conversation_id
 
+    async def _source_messages(
+        self, request: HttpRequest, source_thread_id: str | None
+    ) -> list[Message] | None:
+        """The source thread's stored conversation, or ``None`` when there is none to read.
+
+        A resumed or forked run lends its dumped history the ids this row holds
+        for the same messages (see ``AgentSession._prior_messages``): the dump
+        names every message an earlier run generated afresh, and the row is
+        where the ids the client was streamed were kept. It costs one load per
+        resume or fork, and only where a thread could be attributed, which is
+        only on an endpoint that persists conversations.
+
+        Loaded as the acting user, as the threads view loads it, so the row is
+        read from this caller's own conversations. Every way of not having it
+        -- no row, a store refusing an anonymous caller, a row that no longer
+        parses -- means only that the history is stored under fresh ids, which
+        is no reason to fail the run.
+        """
+        if source_thread_id is None:
+            return None
+        try:
+            conversation = await self._conversation_store.load(source_thread_id, request=request)
+        except AnonymousOperationError:
+            return None
+        if conversation is None:
+            return None
+        try:
+            return messages_from_jsonable(conversation.messages)
+        except ValidationError:
+            return None
+
     async def _would_overwrite_another_thread(
         self, request: HttpRequest, source_thread_id: str | None, thread_id: str
     ) -> bool:
@@ -538,7 +577,7 @@ class DjangoAGUIView:
         """Build the per-request ``read_attachment`` toolset, or ``[]`` when off.
 
         Empty when uploads are disabled (the default ``NullAttachmentStore``) or
-        when ``read_attachment`` is already claimed by a registry / drf-mcp / spec
+        when ``read_attachment`` is already claimed by a registry / MCP server / spec
         tool — those win, and pydantic-ai would otherwise raise ``UserError`` for
         the duplicate name at run time. The toolset carries ``request`` so the
         model reads only the acting user's files.
@@ -578,7 +617,7 @@ class DjangoAGUIView:
         Returns the status to deny with (``401`` when ``require_authenticated``
         is set and the resolved user is anonymous, ``403`` when the ``authorize``
         predicate rejects an established user), or ``None`` to proceed. The
-        resolved user is assigned onto ``request.user`` so tools, the drf-mcp
+        resolved user is assigned onto ``request.user`` so tools, the MCP
         bridge and conversation ownership act as it. Without a hook, the
         middleware's lazy ``request.user`` is materialized in a worker thread
         first: touching it on the loop with DB-backed sessions raises

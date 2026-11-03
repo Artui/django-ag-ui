@@ -7,6 +7,132 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.74.0] — 2026-11-03
+
+### Changed
+
+- **django-spec-agents is floored at 0.6.2**, core, `[mcp]` and `[specs]`
+  alike. A call the `mcp_server=` server refuses for permission (JSON-RPC
+  `-32006`) now ends the run in `RUN_ERROR`: the bridge raises Django's
+  `PermissionDenied`, which the failure policy passes through. Below it the
+  refusal was a failed call the default `TOOL_FAILURE` policy redacts, and the
+  run finished as though the model had only been told no. A business-rule
+  refusal still streams as a failed call.
+
+### Removed
+
+- **`drf_mcp_server=` and the `[drf-mcp]` extra**, deprecated in 0.73.0 for
+  `mcp_server=` and `[mcp]`. `AGUIServer`, `DjangoAGUIView` and `ToolsView`
+  raise `TypeError` for the keyword as for any they do not take, so a mount
+  still passing it fails at construction rather than on its first request once
+  django-spec-agents drops `DRFMCPToolset`. The per-run deprecation warning
+  goes with it. Register the tools on a django-spec-mcp `MCPServer` as kernel
+  specs and pass that as `mcp_server=`.
+
+### Fixed
+
+- **A stored activity keeps the id it streamed under.** A completed run stored
+  each activity under a fresh id rather than the `messageId` of its
+  `ACTIVITY_SNAPSHOT`, and a resumed or forked run minted another one on every
+  save, so pydantic-ai's `pydantic_ai_compaction` activity, which the client
+  had materialised under the streamed id, was a different message after a
+  reload. Activities are now matched as answers and reasoning are: on a
+  completed run by position among the streamed activities of the same type,
+  only when the counts agree and every pair has the same content, leaving
+  aside the `canonical_system` the stored copy of a compaction carries and its
+  snapshot does not (always there for OpenAI); on a resume or fork against the
+  source thread's stored row, per type, by the same position-and-content rule
+  with the row allowed to hold more: the row must hold at least as many
+  activities of the type as the snapshot, the first of them pair with the
+  snapshot's by position, and only when every pair's content is equal does each
+  take its pair's id. The stored copy and the resumed dump both carry the
+  `canonical_system`, so a resume compares them as they are, and the stored
+  copy keeps it. An activity is never lent an id from another position of the
+  row, or when the row holds fewer; the type keeps fresh ids instead. An
+  activity an `ACTIVITY_DELTA` changed is matched to nothing, so its type keeps
+  fresh ids.
+
+## [0.73.0] — 2026-11-03
+
+### Added
+
+- **`AGUIServer(mcp_server=...)` and the `[mcp]` extra.** A
+  [django-spec-mcp](https://github.com/Artui/django-spec-mcp) `MCPServer` passed
+  as `mcp_server=` has its tools bridged into the agent in process through
+  django-spec-agents' `MCPToolset`, acting as the request's user, and listed in
+  the tool catalog by their `display_name`. A refusal streams as a failed call
+  carrying the service's sentence. `pip install "django-ag-ui[mcp]"` installs
+  `django-spec-agents[mcp]`. `DjangoAGUIView` and `ToolsView` take the same
+  keyword.
+
+### Changed
+
+- **django-spec-agents is floored at 0.6.0**, core and `[specs]` alike, the
+  first release with `MCPToolset` and `build_tool_catalog(mcp_server=)`, which
+  `ToolsView` now calls on every mount.
+
+### Deprecated
+
+- **`drf_mcp_server=` and the `[drf-mcp]` extra**, removed in the next minor.
+  `AGUIServer(drf_mcp_server=...)` warns `DeprecationWarning` naming
+  `mcp_server=`, and still bridges a drf-mcp server through `DRFMCPToolset`,
+  which django-spec-agents now deprecates too. Moving means registering the tools
+  on a django-spec-mcp server as kernel specs and passing it as `mcp_server=`.
+  Passing both keywords raises `TypeError`.
+
+## [0.72.0] — 2026-10-31
+
+### Added
+
+- **`AgentSession(source_messages=...)`.** The source thread's stored
+  conversation, for a resumed or forked run: the snapshot's messages are stored
+  under the ids it holds for them. `DjangoAGUIView` loads it from the
+  conversation store, as the acting user, on every resume or fork where the
+  source run's thread is known, which costs one extra row load there.
+
+### Changed
+
+- **pydantic-ai-slim is floored at 2.63**, the first release whose adapter can
+  take a stored history as the conversation (`manage_message_history="server"`).
+- **A resumed or forked run holds its history on the server.** It runs on the
+  snapshot plus only the client's new turn, the messages posted after its last
+  assistant or reasoning message, so sending the whole transcript and sending
+  only the new turn reach the run alike. A new turn whose message carries the
+  id of a stored user message is that message resubmitted (an edit, a
+  regenerate, a retry): the history is cut just before it, keeping the tool
+  results that stored turn carried, and the run replaces the turn instead of
+  adding a copy. A client that posts a genuinely new message under an id the
+  thread already used now replaces that message. The stored thread reads the
+  way the run did: the kept history, then the new turn as posted, minus a tool
+  result the kept history already answers, which the run drops too. Tool results
+  answering no pending call, and a client's compaction parts, never reach the
+  run and are stored as posted. The client's messages before the new turn never
+  reach the run at all, which also closes the class of forged history the 0.71.0
+  floor patched.
+- **The stream carries `TEXT_MESSAGE_START`'s `role` again, and a new
+  `protocolVersion` on `RUN_STARTED`**, as pydantic-ai 2.63 writes them. The wire fixture
+  at `tests/fixtures/subagent_progress_stream.json` is regenerated with them,
+  and its pre-2.60 recording is retired, since the floor no longer reaches it.
+
+### Fixed
+
+- **A resumed run sent a replayed transcript to the model twice.** A client
+  that posts its whole conversation on a resume, as a third-party AG-UI client
+  does, had the snapshot's turns prepended to its own copy of them: the model
+  saw every earlier message twice, and the thread was stored with them twice.
+- **The earlier messages of a resumed or forked thread keep their ids.** Not
+  only an earlier run's answers, which 0.68.3 named as stored under fresh ids,
+  but everything the snapshot dumps without one: a response that called tools,
+  reasoning, and a tool result the client posted ahead of another, which
+  pydantic-ai folds into one message keeping only the last id. Each now takes
+  the id the source thread's stored conversation holds for it, so a rating
+  keyed by an answer's `messageId` still finds it after the next save. Matched
+  in order and per kind, never looked up out of order, and an id is lent once:
+  a row that was deleted, overwritten or describes another conversation leaves
+  fresh ids. **A fork keeps the source's
+  ids**, so one id can name a message in two threads; key anything attached to
+  a message by thread and message id together.
+
 ## [0.71.0] — 2026-10-31
 
 ### Security
@@ -4161,7 +4287,10 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.71.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.74.0...HEAD
+[0.74.0]: https://github.com/Artui/django-ag-ui/compare/v0.73.0...v0.74.0
+[0.73.0]: https://github.com/Artui/django-ag-ui/compare/v0.72.0...v0.73.0
+[0.72.0]: https://github.com/Artui/django-ag-ui/compare/v0.71.0...v0.72.0
 [0.71.0]: https://github.com/Artui/django-ag-ui/compare/v0.70.0...v0.71.0
 [0.70.0]: https://github.com/Artui/django-ag-ui/compare/v0.69.1...v0.70.0
 [0.69.1]: https://github.com/Artui/django-ag-ui/compare/v0.69.0...v0.69.1

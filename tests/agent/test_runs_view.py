@@ -378,11 +378,13 @@ class TestPreview:
         assert seen == [request]
 
 
-def _turns(*turns: tuple[str, str], run_id: str) -> bytes:
+def _turns(*turns: tuple[str, str], run_id: str, first_id: int = 0) -> bytes:
     """A ``RunAgentInput`` posting a thread, as the client does on every run.
 
     Each turn is ``(role, content)``, so a test states the thread it posts rather
-    than only the newest message.
+    than only the newest message. ``first_id`` numbers the messages from past
+    those a resumed run's snapshot already holds: a resume holds its history on
+    the server, and a turn posted under a stored message's id replaces it.
     """
     return json.dumps(
         {
@@ -391,7 +393,7 @@ def _turns(*turns: tuple[str, str], run_id: str) -> bytes:
             "state": {},
             "messages": [
                 {"id": f"m{index}", "role": role, "content": content}
-                for index, (role, content) in enumerate(turns)
+                for index, (role, content) in enumerate(turns, start=first_id)
             ],
             "tools": [],
             "context": [],
@@ -470,7 +472,11 @@ class TestPreviewOfRecordedRuns:
         """
         view = DjangoAGUIView(ToolRegistry(), model=TestModel(), step_store=DefaultStepStore)
         await _run(view, _turns(("user", "What is on the board?"), run_id="r1"))
-        await _run(view, _turns(("user", "Move standup to Friday"), run_id="r2"), resume_from="r1")
+        await _run(
+            view,
+            _turns(("user", "Move standup to Friday"), run_id="r2", first_id=1),
+            resume_from="r1",
+        )
 
         rows = (await _body(await RunsView(DefaultStepStore)(_get())))["runs"]
 
@@ -526,7 +532,11 @@ class TestPreviewOfRecordedRuns:
             )
         )
         view = DjangoAGUIView(ToolRegistry(), model=TestModel(), step_store=DefaultStepStore)
-        await _run(view, _turns(("user", "Move standup to Friday"), run_id="r2"), resume_from="r1")
+        await _run(
+            view,
+            _turns(("user", "Move standup to Friday"), run_id="r2", first_id=1),
+            resume_from="r1",
+        )
         resumed = await store.latest_snapshot(run_id="r2")
         assert resumed is not None
         # The premise: one request holds the tool's return, its file and the turn.
