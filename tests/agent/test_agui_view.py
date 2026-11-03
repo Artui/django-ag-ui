@@ -581,18 +581,32 @@ async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
 async def test_drf_mcp_toolset_built_per_request_when_configured() -> None:
     from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
 
-    view = DjangoAGUIView(_registry(), model=TestModel())
-    request = RequestFactory().post("/agent/")
     from tests.integrations.drf_server import server as drf_server
 
-    toolsets = view._drf_mcp_toolsets(drf_server, request, set())
+    view = DjangoAGUIView(_registry(), model=TestModel(), drf_mcp_server=drf_server)
+    request = RequestFactory().post("/agent/")
+
+    toolsets = view._mcp_toolsets(request, set())
     assert len(toolsets) == 1
     assert isinstance(toolsets[0], DRFMCPToolset)
 
 
-async def test_no_drf_mcp_toolset_without_the_setting() -> None:
+async def test_a_spec_mcp_server_is_bridged_by_mcp_toolset() -> None:
+    # The keyword picks the bridge: a django-spec-mcp server's errors are not
+    # drf-mcp's, so the old bridge would let them through as successes.
+    from django_spec_agents.integrations.mcp import MCPToolset
+
+    from tests.integrations.spec_mcp_server import server as spec_mcp_server
+
+    view = DjangoAGUIView(_registry(), model=TestModel(), mcp_server=spec_mcp_server)
+
+    (toolset,) = view._mcp_toolsets(RequestFactory().post("/agent/"), set())
+    assert isinstance(toolset, MCPToolset)
+
+
+async def test_no_mcp_toolset_without_a_server() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
-    assert view._drf_mcp_toolsets(None, RequestFactory().post("/agent/"), set()) == []
+    assert view._mcp_toolsets(RequestFactory().post("/agent/"), set()) == []
 
 
 _DEFAULT_ATTACHMENT_STORE = (

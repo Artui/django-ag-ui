@@ -47,7 +47,7 @@ AG-UI passes these extensions through verbatim. A client (such as the
 an inline confirmation card (showing `x-confirm` as the prompt and `x-summary`
 as the card label). **The wire stays vanilla AG-UI** — this gating is purely
 client-side and applies only to **client-registered** tools. Server-side tools
-(this package's `@tool` registry and drf-mcp-bridged tools) run mid-stream and
+(this package's `@tool` registry and MCP-bridged tools) run mid-stream and
 are **not** gated: `x-destructive` reaches the LLM as a schema hint, but no
 server-side confirmation happens today. A real server-side gate is planned (a
 `ToolGuard` + typed `ask_user` mechanism).
@@ -72,7 +72,7 @@ Each registry tool is registered as a plain Pydantic-AI tool. When an
 `audit_logger` is set, `build_agent` composes an
 [`AuditCapability`][django_ag_ui.AuditCapability] — a Pydantic-AI capability on
 the `wrap_tool_execute` lifecycle hook — that times and records **every** tool
-the agent runs: registry tools and composed toolsets (drf-mcp / spec /
+the agent runs: registry tools and composed toolsets (MCP / spec /
 attachment / skill tools) alike. Frontend tools declared in the request are
 merged by the adapter and are not registered here.
 
@@ -118,7 +118,7 @@ instance. On each POST it:
    `{"error": "authentication required"}` (pass `require_authenticated=False`
    to serve them deliberately). Establishing *who* is acting is still the
    **host's responsibility**: a `get_user(request)` callable's return value is
-   assigned onto `request.user`, so tools, the drf-mcp bridge, and conversation
+   assigned onto `request.user`, so tools, the MCP bridge, and conversation
    ownership act as that user. `get_user` may be **sync or async**; sync hooks
    run off the event loop in Django's sync executor, so the canonical token
    lookup Just Works:
@@ -242,7 +242,7 @@ pydantic-ai's own per-run parameters:
 
 | Rides the run | Why it can't sit on the agent |
 | --- | --- |
-| The drf-mcp toolset | Closes over the request so the agent acts as the logged-in user |
+| The MCP toolset | Closes over the request so the agent acts as the logged-in user |
 | The `read_attachment` toolset | Closes over the request so the model reads only that user's files |
 | The `StepPersistence` capability | Keyed on *this* run's id |
 | `AgentDeps` (acting user, client IP) | Per-run by definition |
@@ -280,7 +280,7 @@ and the second failure is silent. Two named axes can be reasoned about, and both
 ride the run rather than the agent.
 
 They also sidestep the [`agent_factory=`](configuration.md#agent_factory) cliff:
-supplying a factory turns off the drf-mcp bridge, the spec capability, step
+supplying a factory turns off the MCP bridge, the spec capability, step
 persistence, the attachment toolset, `MODEL_SETTINGS`, `RETRIES`, `toolsets` and
 `capabilities` in one go. Varying the model per tenant should not cost all of
 that.
@@ -383,7 +383,7 @@ The web component fetches this endpoint via its `data-skills-url` attribute.
 ## Tool metadata catalog
 
 Server-side tools — the `@tool` registry and (when
-[`drf_mcp_server=`](configuration.md#drf_mcp_server) is set) the drf-mcp tools —
+[`mcp_server=`](configuration.md#mcp_server) is set) the MCP server's tools —
 execute **server-side**, so their JSON Schema never reaches the browser. A client
 therefore can't read an `x-summary` off the schema to label a tool-call card.
 The **tool catalog** is the channel for those labels: a small read-only JSON
@@ -397,14 +397,14 @@ builds the catalog as a list of entries, each
 - `summary` is **always present**, resolved from a fallback chain:
   registry tools use `@tool(summary=…)`
   ([`ToolSpec.summary`][django_ag_ui.ToolSpec]) → a prettified tool name
-  (`query_model` → `"Query model"`); drf-mcp tools use `display_name` → `title`
+  (`query_model` → `"Query model"`); an MCP server's tools use `display_name` → `title`
   → a prettified name.
 - `description` (a longer blurb, e.g. for a tooltip) is included only when
-  available — `ToolSpec.description` for registry tools, or drf-mcp
+  available — `ToolSpec.description` for registry tools, or the MCP binding's
   `display_description` → `description`.
 
-Registry tools win on name collisions. The drf-mcp `display_name` /
-`display_description` are drf-mcp's **binding metadata** (consumer-only, never on
+Registry tools win on name collisions. The `display_name` /
+`display_description` are the MCP server's **binding metadata** (consumer-only, never on
 the MCP wire), so the catalog surfaces friendly labels for those tools too.
 
 `ToolsView` (`django_ag_ui.ToolsView`) — a GET-only callable view holding the
@@ -728,24 +728,29 @@ There is no setting to turn this off — cancellation handling is
 transport-level, and partial persistence simply follows the store you already
 configured (matching the client, which keeps the partial assistant bubble).
 
-## The drf-mcp toolset bridge
+## The MCP toolset bridge
 
-With the [`[drf-mcp]` extra](installation.md#the-drf-mcp-extra) installed and
-[`drf_mcp_server=`](configuration.md#drf_mcp_server) set, the view builds a
-per-request `DRFMCPToolset` — a Pydantic-AI toolset (an `AbstractToolset`
-subclass) that exposes a
-`djangorestframework-mcp-server` registry's tools to the agent **in-process**,
-with no network MCP hop.
+With the [`[mcp]` extra](installation.md#the-mcp-extra) installed and
+[`mcp_server=`](configuration.md#mcp_server) set, the view builds a
+per-request `MCPToolset` — a Pydantic-AI toolset (an `AbstractToolset`
+subclass) from django-spec-agents that exposes a django-spec-mcp server's tools
+to the agent **in-process**, with no network MCP hop.
 
-- Tool schemas are sourced from drf-mcp's own `tools/list` (via its public
-  `MCPServer.list_tools`), so the agent sees the full advertised `inputSchema` —
-  including a selector tool's filter / ordering / pagination arguments and the
-  `additionalProperties` policy — not just the input serializer's fields.
-- Execution routes through drf-mcp's public `MCPServer.acall_tool` (its in-process
-  transport surface, drf-mcp 0.9+), so serializer validation and permissions are
-  honoured exactly as over HTTP — without reaching into handler internals.
+- Tool schemas are sourced from the server's own `tools/list` (via its public
+  `MCPServer.list_tools`), so the agent sees the full advertised `inputSchema`
+  the server builds from each spec's declared parameters.
+- Execution routes through the server's public `MCPServer.acall_tool`, its
+  in-process transport surface, so the kernel's argument validation and each
+  spec's permissions are honoured exactly as over HTTP.
+- A refusal comes back as a failed call carrying the service's sentence, and a
+  value the spec refuses as a retry naming the argument, rather than either
+  reading as a successful result.
 - The toolset hands the Django `request` and `request.user` to those methods, so
   the agent acts as the **logged-in AG-UI user**.
 
-The bridge is imported lazily, only when `drf_mcp_server=` is set, keeping
-`rest_framework_mcp` an optional dependency.
+The bridge is imported lazily, only when `mcp_server=` is set, keeping
+`django_spec_mcp` an optional dependency.
+
+The deprecated [`drf_mcp_server=`](configuration.md#drf_mcp_server-deprecated)
+builds `DRFMCPToolset` instead, for a `djangorestframework-mcp-server` server,
+for one more minor.

@@ -223,8 +223,8 @@ browser.
 
 Each entry is `{"name", "summary", "description"?}`; `summary` falls back from
 `@tool(summary=…)` to a prettified tool name. With
-[`drf_mcp_server=`](configuration.md#drf_mcp_server) set, the catalog also surfaces
-the drf-mcp tools, using their `display_name` as the label. See
+[`mcp_server=`](configuration.md#mcp_server) set, the catalog also surfaces
+the MCP server's tools, using their `display_name` as the label. See
 [Tool metadata catalog](concepts.md#tool-metadata-catalog).
 
 ## What next

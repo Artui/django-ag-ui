@@ -28,6 +28,7 @@ from django_ag_ui import AGUIServer, ToolRegistry
         "drf_mcp_server",
         "get_user",
         "instructions_for_request",
+        "mcp_server",
         "model_for_request",
         "provider",
         "service_specs",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import warnings
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -45,7 +46,7 @@ class AGUIServer:
     """One config object that mounts an AG-UI endpoint and its sub-views.
 
     The Django-idiomatic front door for the package — the ``admin.site`` idiom
-    and the mirror of drf-mcp's ``MCPServer``. Construct it once with the tool
+    and the mirror of django-spec-mcp's ``MCPServer``. Construct it once with the tool
     registry (plus optional stores / auth), then mount its **namespaced**
     [`urls`][django_ag_ui.AGUIServer.urls] with ``path()``:
 
@@ -140,6 +141,21 @@ class AGUIServer:
     structurally because ``django_spec_agents.spec_tools``' own types cannot be
     named from a package that only optionally installs what they import. Requires
     the ``django-ag-ui[specs]`` extra.
+
+    **MCP tools.** ``mcp_server`` takes a django-spec-mcp ``MCPServer`` and
+    bridges its tools into the agent in process, through django-spec-agents'
+    ``MCPToolset``: the advertised schemas, argument validation and permissions
+    are the HTTP transport's own, acting as the request's user, with no network
+    hop. Its tools are listed in the tool catalog after the registry's, and a
+    registry tool wins a name both define. Requires the ``django-ag-ui[mcp]``
+    extra.
+
+        AGUIServer(registry, mcp_server=mcp_server)
+
+    ``drf_mcp_server`` is that keyword's deprecated alias for a drf-mcp server,
+    kept for one minor with the ``[drf-mcp]`` extra: it warns
+    ``DeprecationWarning`` and still bridges through ``DRFMCPToolset``. Passing
+    both raises ``TypeError``.
 
     **One agent, many runs.** The endpoint builds its agent once and reuses it
     rather than re-deriving every tool's JSON Schema per request.
@@ -236,6 +252,7 @@ class AGUIServer:
         toolsets: list[Any] | None = None,
         capabilities: list[Any] | None = None,
         agent_factory: AgentFactoryFn | None = None,
+        mcp_server: Any = None,
         drf_mcp_server: Any = None,
         service_specs: Mapping[str, Any]
         | SpecSource
@@ -260,6 +277,7 @@ class AGUIServer:
             deps_factory=deps_factory,
             drf_mcp_server=drf_mcp_server,
             get_user=get_user,
+            mcp_server=mcp_server,
             instructions_for_request=instructions_for_request,
             model_for_request=model_for_request,
             provider=provider,
@@ -304,7 +322,7 @@ class AGUIServer:
             if transcription_backend is not None
             else NullTranscriptionBackend()
         )
-        self._drf_mcp_server = drf_mcp_server
+        self._mcp_server = _resolve_mcp_server(mcp_server, drf_mcp_server)
         self._transcribe_throttle = transcribe_throttle
         # Normalised once, here, so the spec capability, the tool catalog and the
         # view's tool-name reservation all see a plain mapping. A registry
@@ -326,7 +344,7 @@ class AGUIServer:
         if self._spec_capability is None and self._service_specs:
             _reject_unguarded_specs(self._service_specs)
         if self._spec_capability is not None:
-            _reject_spec_name_collisions(self._service_specs or {}, registry, drf_mcp_server)
+            _reject_spec_name_collisions(self._service_specs or {}, registry, self._mcp_server)
         self._step_store = step_store
         self._deps_factory = deps_factory
         self._view = DjangoAGUIView(
@@ -339,6 +357,7 @@ class AGUIServer:
             toolsets=toolsets,
             capabilities=capabilities,
             agent_factory=agent_factory,
+            mcp_server=mcp_server,
             drf_mcp_server=drf_mcp_server,
             service_specs=self._service_specs,
             spec_capability=self._spec_capability,
@@ -371,7 +390,7 @@ class AGUIServer:
                 "tools/",
                 ToolsView(
                     self._registry,
-                    drf_mcp_server=self._drf_mcp_server,
+                    mcp_server=self._mcp_server,
                     service_specs=self._service_specs,
                     spec_capability=self._spec_capability,
                     **self._policy,
@@ -476,8 +495,32 @@ def _resolve_spec_source(
     return dict(specs), SpecCapability.from_toolset(service_specs), None
 
 
+def _resolve_mcp_server(mcp_server: Any, drf_mcp_server: Any) -> Any:
+    """The one MCP server ``mcp_server=`` or its deprecated alias names, or ``None``.
+
+    ``drf_mcp_server=`` stays for one minor, for the drf-mcp server it always
+    took, and the view still bridges that through ``DRFMCPToolset``; the
+    warning names the keyword that replaces it. Naming two servers is refused
+    rather than resolved, since either choice drops a server the caller asked
+    for.
+    """
+    if mcp_server is not None and drf_mcp_server is not None:
+        raise TypeError("AGUIServer() takes mcp_server or drf_mcp_server, not both")
+    if drf_mcp_server is None:
+        return mcp_server
+    warnings.warn(
+        "AGUIServer(drf_mcp_server=) and the django-ag-ui[drf-mcp] extra are deprecated "
+        "and are removed in the next minor: pass a django-spec-mcp server as mcp_server=, "
+        "with the django-ag-ui[mcp] extra.",
+        DeprecationWarning,
+        # Past this helper and ``AGUIServer.__init__``, to the caller's line.
+        stacklevel=3,
+    )
+    return drf_mcp_server
+
+
 def _reject_spec_name_collisions(
-    specs: Mapping[str, Any], registry: ToolRegistry, drf_mcp_server: Any
+    specs: Mapping[str, Any], registry: ToolRegistry, mcp_server: Any
 ) -> None:
     """Refuse a pre-built toolset whose tool names this endpoint already owns.
 
@@ -488,16 +531,16 @@ def _reject_spec_name_collisions(
     clean.
 
     **Both** claiming sources are checked, in the view's own precedence order:
-    the ``@tool`` registry and the bridged drf-mcp server. Checking the registry
+    the ``@tool`` registry and the bridged MCP server. Checking the registry
     alone was the narrower half of the same guard, and the half that fails later
     — the mapping path already excludes both, so the two shapes of
     ``service_specs=`` disagreed about what counted as a collision, and the
-    drf-mcp one surfaced only once the bridge actually yielded its tools.
+    MCP one surfaced only once the bridge actually yielded its tools.
     """
     claimed: dict[str, str] = {binding.spec.name: "the @tool registry" for binding in registry}
-    if drf_mcp_server is not None:
-        for binding in drf_mcp_server.tools.all():
-            claimed.setdefault(binding.name, "the bridged drf-mcp server")
+    if mcp_server is not None:
+        for binding in mcp_server.tools.all():
+            claimed.setdefault(binding.name, "the bridged MCP server")
     clashing = sorted(set(specs) & set(claimed))
     if not clashing:
         return

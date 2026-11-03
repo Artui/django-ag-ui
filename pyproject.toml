@@ -41,7 +41,13 @@ dependencies = [
     # policies, audit, user resolution, and the storage contracts. It is the
     # merge of django-pydantic-agent, the host, and djangorestframework-pydantic-ai,
     # which it carries as ``django_spec_agents.spec_tools`` behind ``[specs]``.
-    # Floored at 0.2.0, where ``[specs]`` is the kernel alone and the toolset
+    # Floored at 0.6.0, where ``build_tool_catalog`` takes ``mcp_server=``,
+    # which ``ToolsView`` passes on every mount whichever keyword named the
+    # server, and where ``integrations.mcp.MCPToolset`` bridges a
+    # django-spec-mcp server for ``mcp_server=``. Below it the keyword is a
+    # ``TypeError`` on every ``GET tools/``. Held by
+    # ``tests/agent/test_mcp_server.py``.
+    # 0.2.0 was the floor before that, where ``[specs]`` is the kernel alone and the toolset
     # serves django-service-specs specs, read through ``kernel_spec``: the
     # ``service_specs=`` pre-check reads the compiled spec's ``permissions``,
     # and the toolset reads the run's request from ``AgentDeps.call_context``,
@@ -66,7 +72,7 @@ dependencies = [
     # ``DefaultMemoryStore`` from it, and ``check_docs_snippets.py`` resolves those
     # imports against the installed package, so a page a valid install cannot
     # follow fails there rather than quietly.
-    "django-spec-agents>=0.2.0",
+    "django-spec-agents>=0.6.0",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
@@ -146,6 +152,8 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a drf-mcp-server tool registry as a
 # Pydantic-AI toolset (the agent calls DRF tools without a network hop).
+# Deprecated with ``drf_mcp_server=``, for ``[mcp]`` below, and removed with it
+# in the next minor.
 # Floored at 0.53.1, where a list selector raising ``Http404`` is a failed call
 # reading not found, as it is through ``[specs]``; 0.53.0 served it as a
 # successful empty list, so a model read "no rows" where the selection named
@@ -277,10 +285,17 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # 0.37 was the previous floor, the first release carrying drf-services>=0.49
 # after a serializer that nests itself crashed the catalog walk. Subsumed.
 drf-mcp = ["djangorestframework-mcp-server>=0.53.1"]
+# In-process bridge that exposes a django-spec-mcp server's tools as a
+# Pydantic-AI toolset (``mcp_server=``), the successor of ``[drf-mcp]`` above,
+# which stays one minor as a deprecated alias. Floored at 0.6.0, the first
+# django-spec-agents release carrying ``integrations.mcp.MCPToolset`` and
+# ``build_tool_catalog(mcp_server=)``; its own ``[mcp]`` extra floors
+# django-spec-mcp.
+mcp = ["django-spec-agents[mcp]>=0.6.0"]
 # Expose django-service-specs specs directly as agent tools via django-spec-agents'
 # ``spec_tools.SpecCapability`` -- no MCP server in the path (service_specs=).
-# Floored with the core dependency above, at 0.2.0, for the reasons given there.
-specs = ["django-spec-agents[specs]>=0.2.0"]
+# Floored with the core dependency above, at 0.6.0, for the reasons given there.
+specs = ["django-spec-agents[specs]>=0.6.0"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via capabilities=.
@@ -317,8 +332,9 @@ dev = [
     "django-stubs>=5.0",
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
     "djangorestframework-mcp-server>=0.53.1",
-    # The [specs] extra's backing package, so its capability + tests run in dev.
-    "django-spec-agents[specs]>=0.2.0",
+    # The [specs] and [mcp] extras' backing package, so the spec capability, the
+    # spec-mcp bridge and their tests run in dev.
+    "django-spec-agents[specs,mcp]>=0.6.0",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
@@ -355,6 +371,13 @@ filterwarnings = [
     # is asserted. (Matched without the "django-ag-ui:" prefix — a colon in the
     # pattern is pytest's own field separator.)
     "ignore:.*AG-UI endpoint is CSRF-exempt",
+    # The drf-mcp route is deprecated for one minor and still tested on every
+    # path it reaches, so both its warnings would be in every such test:
+    # ``AGUIServer``'s for the keyword, and django-spec-agents' for the bridge
+    # this view builds per run. ``pytest.warns`` still sees each, which is where
+    # the deprecation is asserted.
+    "ignore:AGUIServer\\(drf_mcp_server=\\) and the django-ag-ui\\[drf-mcp\\] extra are deprecated",
+    "ignore:DRFMCPToolset and the \\[drf-mcp\\] extra are deprecated",
 ]
 
 [tool.coverage.run]
@@ -418,7 +441,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.72.0"
+current_version = "0.73.0"
 allow_dirty = false
 commit = false
 tag = false

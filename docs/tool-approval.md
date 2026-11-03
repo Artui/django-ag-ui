@@ -35,13 +35,13 @@ Now any **destructive** tool defers for approval. A tool counts as destructive
 when:
 
 - it is a registry tool declared `@tool(destructive=True)`; **or**
-- it is a drf-mcp bridged tool whose MCP `readOnlyHint` annotation is `False`
+- it is an MCP-bridged tool whose MCP `readOnlyHint` annotation is `False`
   (selectors are read-only, services mutate — the bridge maps this automatically,
   and a project can override it per registration); **or**
 - it is an **in-process** spec attached through
   [`service_specs=`](configuration.md#service_specs) whose MCP annotations say
   `readOnlyHint` is `False`, which the toolset writes for every `ServiceSpec`
-  (a `SelectorSpec` is read-only), as the drf-mcp bridge does without the MCP
+  (a `SelectorSpec` is read-only), as the MCP bridge does without the MCP
   hop; **or**
 - its JSON Schema carries the `x-destructive` stamp at the root, which is what
   [`build_input_schema`][django_ag_ui.build_input_schema] writes — so a tool you
@@ -56,7 +56,7 @@ or metadata of another shape leaves the tool alone — silence is not a claim, a
 
 !!! note "Why all four"
 
-    The guard once read only the drf-mcp metadata key, so the *same* spec was
+    The guard once read only the MCP bridge's metadata key, so the *same* spec was
     gated over the bridge and ungated in process: a transport swap silently
     removed the gate. Every release of django-spec-agents, this package's
     runtime, reads all four.
@@ -241,6 +241,6 @@ the tool result. See the web component's
 
 `TOOL_GUARD` is a **UX gate**, not an authorization boundary. It asks the acting
 user to confirm an action *they are already allowed to take*. It does not decide
-*who* may call a tool — that is the job of your permissions (drf-mcp permission
-classes, the `authorize` hook, `get_user`). Enable the gate for destructive
+*who* may call a tool — that is the job of your permissions (each spec's
+`permissions`, the `authorize` hook, `get_user`). Enable the gate for destructive
 actions a user should consciously confirm; enforce access separately.
