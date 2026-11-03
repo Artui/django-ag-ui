@@ -18,6 +18,9 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from typing import Any
 
 import pytest
@@ -26,8 +29,16 @@ from django.contrib.auth import get_user_model
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.types.conversation import Conversation
-from pydantic_ai.messages import ModelMessage, ModelRequest, ToolReturnPart, UserPromptPart
-from pydantic_ai.models.function import DeltaToolCall, FunctionModel
+from pydantic_ai.messages import (
+    CompactionPart,
+    ModelMessage,
+    ModelRequest,
+    ModelResponseStreamEvent,
+    ToolReturnPart,
+    UserPromptPart,
+)
+from pydantic_ai.models import StreamedResponse
+from pydantic_ai.models.function import DeltaToolCall, FunctionModel, FunctionStreamedResponse
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
@@ -393,3 +404,93 @@ async def test_a_row_that_cannot_be_read_costs_the_ids_not_the_run(lose_the_row:
     row = _row(store)
     assert _contents(row, "user") == ["warm up", "next"]
     assert answer_id not in [m["id"] for m in row]
+
+
+@dataclass
+class _CompactingResponse(FunctionStreamedResponse):
+    """A streamed response that opens with a provider's compaction part."""
+
+    summary: str = ""
+
+    async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
+        yield self._parts_manager.handle_part(
+            vendor_part_id="compaction", part=CompactionPart(content=self.summary)
+        )
+        async for event in super()._get_event_iterator():
+            yield event
+
+
+class _CompactingModel(FunctionModel):
+    """Every response opens with a compaction, as a provider's own compaction streams.
+
+    ``FunctionModel`` streams only text, thinking and tool calls, while a
+    provider's compaction reaches the AG-UI stream as a part of its own
+    (``handle_compaction``), so the response is wrapped. Each summary is
+    numbered, so an id lent to the wrong compaction shows.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(stream_function=_answer_done)
+        self.compactions = 0
+
+    @asynccontextmanager
+    async def request_stream(self, *args: Any, **kwargs: Any) -> AsyncIterator[StreamedResponse]:
+        async with super().request_stream(*args, **kwargs) as response:
+            self.compactions += 1
+            yield _CompactingResponse(
+                model_request_parameters=response.model_request_parameters,
+                _model_name=response.model_name,
+                _iter=response._iter,
+                summary=f"summary {self.compactions}",
+            )
+
+
+async def _answer_done(messages: list[ModelMessage], info: Any) -> Any:
+    yield "done"
+
+
+def _activity_snapshots(body: str) -> list[dict[str, Any]]:
+    return [frame for frame in _frames(body) if frame["type"] == "ACTIVITY_SNAPSHOT"]
+
+
+def _activities(row: list[dict[str, Any]]) -> list[tuple[str, Any]]:
+    return [(m["id"], m["content"]) for m in row if m["role"] == "activity"]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_compaction_is_stored_under_the_id_it_streamed_under() -> None:
+    store = _ThreadStore()
+    view = _view(await _user_named("compacted"), store, _CompactingModel())
+    body = await _drain(await view(_post(_body([_user("u1", "hello")], run_id="r1"))))
+
+    (snapshot,) = _activity_snapshots(body)
+    assert snapshot["activityType"] == "pydantic_ai_compaction"
+    assert _activities(_row(store)) == [(snapshot["messageId"], snapshot["content"])]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_compaction_keeps_its_streamed_id_after_a_resume_and_a_fork() -> None:
+    store = _ThreadStore()
+    view = _view(await _user_named("resumer"), store, _CompactingModel())
+    first = await _drain(await view(_post(_body([_user("u1", "hello")], run_id="r1"))))
+    (snapshot,) = _activity_snapshots(first)
+    second = await _drain(
+        await view(_post(_body([_user("u2", "again")], run_id="r2")), resume_from="r1")
+    )
+    (later,) = _activity_snapshots(second)
+    await _drain(
+        await view(
+            _post(_body([_user("u3", "elsewhere")], run_id="r3", thread_id="t2")),
+            resume_from="r2",
+        )
+    )
+
+    resumed = _activities(_row(store))
+    assert resumed == [
+        (snapshot["messageId"], {"content": "summary 1"}),
+        (later["messageId"], {"content": "summary 2"}),
+    ]
+    forked = _row(store, "t2")
+    assert _activities(forked)[:2] == resumed
+    _assert_no_id_twice(_row(store))
+    _assert_no_id_twice(forked)

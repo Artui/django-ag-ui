@@ -463,7 +463,11 @@ a tool result under the `messageId` of its `TOOL_CALL_RESULT`, and forwarded
 reasoning under the `messageId` of its `REASONING_START`, so anything a client
 keys by message id still finds its message after the thread is reloaded, and a
 later turn that posts those ids back stores the same message under the same id.
-That holds whichever way the run ends: completed, failed or cancelled.
+That holds whichever way the run ends: completed, failed or cancelled. An
+activity a completed run stores, such as pydantic-ai's `pydantic_ai_compaction`,
+is stored under the `messageId` of its `ACTIVITY_SNAPSHOT`, which is the id the
+client materialised it under. A failed or cancelled run does not store the
+activities it streamed itself.
 
 **A stored message never carries another message's id.** Where the server cannot
 tell for certain which streamed message a stored one is, it gives the stored one
@@ -475,7 +479,11 @@ of its own. An id the client keys something by is then lost for that message
 rather than lent to its neighbour, so a rating never lands on the wrong answer.
 The check covers the run as a whole, since the stream marks no boundary between
 one model response and the next: when it fails for one answer, every text-only
-answer of that run keeps a fresh id.
+answer of that run keeps a fresh id. Activities are checked the same way, per
+activity type and by content, and an activity an `ACTIVITY_DELTA` changed
+leaves every activity of its type with a fresh id: the server does not apply
+the patch, so it cannot tell which stored activity holds what the client ended
+with.
 
 The earlier turns a [resumed or forked run](step-persistence.md) is seeded with
 are stored from the step store's snapshot, where nothing an earlier run
@@ -484,8 +492,9 @@ posted ahead of another: pydantic-ai keeps only the last id of the messages it
 folds into one. So when a conversation store is configured, the run reads the
 source thread's stored conversation and gives each earlier message the id that
 row holds for the same message: a tool result by its call, a response that
-called tools by its calls, an answer or reasoning by its text, walked in order
-so a repeated "ok" takes the id of the matching "ok" and not an earlier one.
+called tools by its calls, an answer or reasoning by its text, an activity by its
+type and content, walked in order so a repeated "ok" takes the id of the
+matching "ok" and not an earlier one.
 The same never-lend rule holds: a message the row does not hold -- the row was
 deleted, overwritten, or describes a different conversation -- is stored under
 a fresh id. Without a conversation store there is no row to read and nothing is

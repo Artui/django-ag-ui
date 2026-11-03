@@ -27,6 +27,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   goes with it. Register the tools on a django-spec-mcp `MCPServer` as kernel
   specs and pass that as `mcp_server=`.
 
+### Fixed
+
+- **A stored activity keeps the id it streamed under.** A completed run stored
+  each activity under a fresh id rather than the `messageId` of its
+  `ACTIVITY_SNAPSHOT`, and a resumed or forked run minted another one on every
+  save, so pydantic-ai's `pydantic_ai_compaction` activity, which the client
+  had materialised under the streamed id, was a different message after a
+  reload. Activities are now matched as answers and reasoning are: on a
+  completed run by position among the streamed activities of the same type,
+  only when the counts agree and every pair has the same content; on a resume
+  or fork by type and content against the source thread's stored row, in
+  order. An activity an `ACTIVITY_DELTA` changed is matched to nothing, so its
+  type keeps fresh ids.
+
 ## [0.73.0] — 2026-11-03
 
 ### Added

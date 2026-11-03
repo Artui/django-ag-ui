@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ag_ui.core import (
+    ActivityMessage,
     AssistantMessage,
     FunctionCall,
     Message,
@@ -153,3 +154,36 @@ def test_a_calling_message_takes_the_id_of_the_one_with_its_calls() -> None:
     )
 
     assert _ids(lent) == ["second"]
+
+
+def _activity(message_id: str, activity_type: str, **content: object) -> ActivityMessage:
+    return ActivityMessage(id=message_id, activity_type=activity_type, content=content)
+
+
+def test_an_activity_takes_the_id_of_the_stored_one_with_its_content() -> None:
+    dumped = [
+        _activity("fresh-1", "pydantic_ai_compaction", content="first"),
+        _activity("fresh-2", "pydantic_ai_compaction", content="second"),
+    ]
+    stored = [
+        _activity("streamed-1", "pydantic_ai_compaction", content="first"),
+        _activity("streamed-2", "pydantic_ai_compaction", content="second"),
+        _activity("later", "pydantic_ai_compaction", content="third"),
+    ]
+
+    assert _ids(lend_stored_ids(dumped, stored)) == ["streamed-1", "streamed-2"]
+
+
+def test_an_activity_whose_content_differs_keeps_its_id() -> None:
+    dumped = [_activity("fresh", "pydantic_ai_compaction", content="first")]
+    stored = [_activity("streamed", "pydantic_ai_compaction", content="rewritten")]
+
+    assert _ids(lend_stored_ids(dumped, stored)) == ["fresh"]
+
+
+def test_an_activity_matches_within_its_own_type_only() -> None:
+    # The same payload under another activity type is another activity.
+    dumped = [_activity("fresh", "pydantic_ai_compaction", content="same")]
+    stored = [_activity("other", "compaction", content="same")]
+
+    assert _ids(lend_stored_ids(dumped, stored)) == ["fresh"]

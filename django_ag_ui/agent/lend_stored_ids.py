@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Collection, Hashable, Sequence
+from collections.abc import Collection, Sequence
 
-from ag_ui.core import AssistantMessage, Message, ReasoningMessage, ToolMessage
+from ag_ui.core import ActivityMessage, AssistantMessage, Message, ReasoningMessage, ToolMessage
 
 
 def lend_stored_ids(
@@ -28,7 +28,8 @@ def lend_stored_ids(
     - an assistant message with tool calls by its calls' ids;
     - a text-only assistant message, or a reasoning message, by its text with
       every newline removed (a row stored from a failed run's transcript holds
-      the text as it streamed, where the dump joins a message's parts with one).
+      the text as it streamed, where the dump joins a message's parts with one);
+    - an activity message by its content, within its ``activity_type``.
 
     **In order and per kind**, never by lookup: each kind walks the row once,
     and a message takes the first row message of its kind at or after the last
@@ -49,7 +50,7 @@ def lend_stored_ids(
     ``test_a_reserved_id_is_not_lent``; without ``lent in carried``,
     ``test_an_id_another_message_carries_is_not_lent``.
     """
-    rows: dict[str, list[tuple[Hashable, str]]] = {}
+    rows: dict[str, list[tuple[object, str]]] = {}
     for message in stored:
         keyed = _kind_and_key(message)
         if keyed is not None:
@@ -69,8 +70,13 @@ def lend_stored_ids(
     return out
 
 
-def _kind_and_key(message: Message) -> tuple[str, Hashable] | None:
-    """The kind a message is matched within, and the key it is matched by."""
+def _kind_and_key(message: Message) -> tuple[str, object] | None:
+    """The kind a message is matched within, and the key it is matched by.
+
+    A key is compared, never hashed: an activity's is its content, a dict.
+    Each activity type is a kind of its own; matched as one kind,
+    ``test_an_activity_matches_within_its_own_type_only`` fails.
+    """
     if isinstance(message, ToolMessage):
         return "tool", message.tool_call_id
     if isinstance(message, AssistantMessage):
@@ -79,11 +85,13 @@ def _kind_and_key(message: Message) -> tuple[str, Hashable] | None:
         return "text", _flat(message.content)
     if isinstance(message, ReasoningMessage):
         return "reasoning", _flat(message.content)
+    if isinstance(message, ActivityMessage):
+        return f"activity:{message.activity_type}", message.content
     return None
 
 
 def _next_match(
-    rows: dict[str, list[tuple[Hashable, str]]], cursors: Counter[str], kind: str, key: Hashable
+    rows: dict[str, list[tuple[object, str]]], cursors: Counter[str], kind: str, key: object
 ) -> str | None:
     """The id of the next row message of ``kind`` with ``key``, consuming the row up to it."""
     row = rows.get(kind, [])
