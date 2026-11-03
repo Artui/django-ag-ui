@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import AsyncIterator, Iterator, Sequence
+from collections.abc import AsyncIterator, Callable, Iterator, Sequence
 from dataclasses import dataclass, field
-from typing import TypeGuard, TypeVar
+from typing import Any, TypeGuard, TypeVar
 
 from ag_ui.core import (
+    ActivityDeltaEvent,
+    ActivityMessage,
+    ActivitySnapshotEvent,
     AssistantMessage,
     BaseEvent,
     FunctionCall,
@@ -26,6 +29,8 @@ from ag_ui.core import (
 from django_ag_ui.agent.stamp_outcome import OUTCOME_FIELD, stamp_outcome
 
 _T = TypeVar("_T")
+_S = TypeVar("_S")
+_D = TypeVar("_D")
 
 
 @dataclass
@@ -44,6 +49,19 @@ class _PendingCall:
     name: str
     parent_message_id: str | None
     args: list[str] = field(default_factory=list)
+
+
+@dataclass
+class _Activity:
+    """A streamed activity: its type, and its content as the client last had it.
+
+    The content is ``None`` once an ``ACTIVITY_DELTA`` changed it: the delta is a
+    JSON patch, and rather than apply it here the activity is left with no
+    content to compare, which pairs it with nothing.
+    """
+
+    activity_type: str
+    content: dict[str, Any] | None
 
 
 class RunTranscript:
@@ -71,6 +89,8 @@ class RunTranscript:
         self._call_parents: list[tuple[str, str | None]] = []
         # Each streamed reasoning message's deltas, by id, in the order announced.
         self._reasoning: dict[str, list[str]] = {}
+        # Each streamed activity, by id, in the order announced.
+        self._activities: dict[str, _Activity] = {}
 
     async def observe(self, stream: AsyncIterator[BaseEvent]) -> AsyncIterator[BaseEvent]:
         """Pass ``stream`` through unchanged, recording every event."""
@@ -114,6 +134,12 @@ class RunTranscript:
             self._reasoning.setdefault(event.message_id, [])
         elif isinstance(event, ReasoningMessageContentEvent):
             self._reasoning.setdefault(event.message_id, []).append(event.delta)
+        elif isinstance(event, ActivitySnapshotEvent):
+            self._snapshot(event)
+        elif isinstance(event, ActivityDeltaEvent):
+            self._activities.setdefault(
+                event.message_id, _Activity(event.activity_type, None)
+            ).content = None
 
     def messages(self) -> list[Message]:
         """The reconstructed messages, in stream order.
@@ -164,7 +190,11 @@ class RunTranscript:
           opens is announced as;
         - a text-only assistant message, and a reasoning message, by position
           among the streamed ones of its kind, only when the two counts agree
-          *and* every pair holds the same text.
+          *and* every pair holds the same text;
+        - an activity message by position among the streamed activities of its
+          ``activity_type``, by the same rule, with its content for the text.
+          An activity an ``ACTIVITY_DELTA`` changed holds no content to compare,
+          so its type keeps the dumped ids.
 
         **No message is ever lent another message's id**, and the text is what
         holds that: an assistant message takes a streamed id only when it holds
@@ -214,11 +244,14 @@ class RunTranscript:
         texts = _by_position(
             [(item.message_id, "".join(item.text)) for item in self._items if _is_text_draft(item)],
             [message.content for message in messages if _is_text_answer(message)],
+            _same_text,
         )
         reasonings = _by_position(
             [(message_id, "".join(deltas)) for message_id, deltas in self._reasoning.items()],
             [message.content for message in messages if isinstance(message, ReasoningMessage)],
+            _same_text,
         )
+        activities = self._activities_by_type(messages)
 
         claimed: set[str] = set()
         out: list[Message] = []
@@ -233,6 +266,8 @@ class RunTranscript:
                 )
             elif isinstance(message, ReasoningMessage):
                 streamed = next(reasonings, None)
+            elif isinstance(message, ActivityMessage):
+                streamed = next(activities[message.activity_type], None)
             else:
                 streamed = None
             if streamed is None or streamed in claimed:
@@ -241,6 +276,47 @@ class RunTranscript:
             claimed.add(streamed)
             out.append(message.model_copy(update={"id": streamed}))
         return out
+
+    def _snapshot(self, event: ActivitySnapshotEvent) -> None:
+        """Record an ``ACTIVITY_SNAPSHOT``, the way the client applies one.
+
+        A second snapshot for an id keeps the first one's place and takes its
+        content, unless it says ``replace=False``, which asks the client to keep
+        what it has (``threads_view._with_activities`` keeps place and content
+        the same way). Without the ``replace`` check
+        ``test_a_snapshot_that_does_not_replace_keeps_the_first_content`` fails.
+        """
+        known = self._activities.get(event.message_id)
+        if known is None:
+            self._activities[event.message_id] = _Activity(event.activity_type, event.content)
+        elif event.replace is not False:
+            known.content = event.content
+
+    def _activities_by_type(self, messages: Sequence[Message]) -> dict[str, Iterator[str]]:
+        """The streamed activity ids to lend, per type ``messages`` dumps an activity of.
+
+        Per type, because which activities stream and which dump differ by type:
+        ``inject_compaction_events``' ``compaction``, a chart and suggestions
+        stream and are never dumped, while a ``pydantic_ai_file`` is dumped and
+        never streamed. Pairing all activities as one kind would fail the count
+        whenever one of those is in the run.
+        """
+        dumped: dict[str, list[dict[str, Any]]] = {}
+        for message in messages:
+            if isinstance(message, ActivityMessage):
+                dumped.setdefault(message.activity_type, []).append(message.content)
+        return {
+            activity_type: _by_position(
+                [
+                    (message_id, activity.content)
+                    for message_id, activity in self._activities.items()
+                    if activity.activity_type == activity_type
+                ],
+                contents,
+                _same_content,
+            )
+            for activity_type, contents in dumped.items()
+        }
 
     def _draft_for(self, message_id: str) -> _Draft:
         for item in reversed(self._items):
@@ -269,27 +345,30 @@ def _is_text_answer(message: Message) -> TypeGuard[AssistantMessage]:
     return not message.tool_calls
 
 
-def _by_position(streamed: list[tuple[str, str]], dumped: list[str | None]) -> Iterator[str]:
+def _by_position(
+    streamed: list[tuple[str, _S]], dumped: list[_D], same: Callable[[_S, _D], bool]
+) -> Iterator[str]:
     """The ids of ``streamed`` in order, when it pairs one-for-one with ``dumped``.
 
-    ``streamed`` is each announced message's id and text, ``dumped`` each dumped
-    message's content. A count that disagrees means some message of the kind was
-    announced and not dumped, or dumped and not announced, and nothing says
-    which; pairing the rest by position would shift every id after it onto the
-    wrong message. A count that agrees can still be two such disagreements
-    cancelling out, which is what the text check catches.
+    ``streamed`` is each announced message's id and content, ``dumped`` each
+    dumped message's content, and ``same`` says whether a pair is one message.
+    A count that disagrees means some message of the kind was announced and not
+    dumped, or dumped and not announced, and nothing says which; pairing the
+    rest by position would shift every id after it onto the wrong message. A
+    count that agrees can still be two such disagreements cancelling out, which
+    is what the content check catches.
 
-    ``test_text_answers_whose_counts_disagree_all_keep_the_dumped_ids`` fails
-    without the count check; without the text check
+    ``test_text_answers_whose_counts_disagree_all_keep_the_dumped_ids`` and
+    ``test_activities_whose_counts_disagree_keep_the_dumped_ids`` fail without the
+    count check; without the content check
     ``test_a_split_answer_and_a_tool_spoken_text_borrow_no_id``,
-    ``test_a_split_answer_and_a_joined_answer_borrow_no_id`` and
-    ``test_reasoning_whose_text_disagrees_keeps_the_dumped_id`` fail.
+    ``test_a_split_answer_and_a_joined_answer_borrow_no_id``,
+    ``test_reasoning_whose_text_disagrees_keeps_the_dumped_id`` and
+    ``test_an_activity_whose_content_disagrees_keeps_the_dumped_id`` fail.
     """
     if len(streamed) != len(dumped):
         return iter(())
-    if not all(
-        _same_text(text, content) for (_, text), content in zip(streamed, dumped, strict=True)
-    ):
+    if not all(same(text, content) for (_, text), content in zip(streamed, dumped, strict=True)):
         return iter(())
     return iter([message_id for message_id, _ in streamed])
 
@@ -303,6 +382,14 @@ def _same_text(streamed: str, dumped: str | None) -> bool:
     fails.
     """
     return streamed.replace("\n", "") == (dumped or "").replace("\n", "")
+
+
+def _same_content(streamed: dict[str, Any] | None, dumped: dict[str, Any]) -> bool:
+    """Whether a streamed activity's content and a dumped one's are one content.
+
+    ``None`` is an activity a delta changed, which is no dumped content.
+    """
+    return streamed == dumped
 
 
 def _take(queues: dict[str, deque[_T]], key: str) -> _T | None:
