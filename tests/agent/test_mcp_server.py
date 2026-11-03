@@ -14,13 +14,18 @@ from typing import Any
 
 import pytest
 from django.http import StreamingHttpResponse
+from django_service_specs import Parameter, Parameters, ServiceSpec, Unrestricted
+from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
+from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_mcp import MCPServer
 from pydantic_ai.models.function import DeltaToolCall, FunctionModel
 from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.tools_view import ToolsView
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.authed_request_factory import AuthedRequestFactory
 from tests.integrations.drf_server import server as drf_server
 from tests.integrations.spec_mcp_server import server as spec_mcp_server
@@ -38,6 +43,12 @@ def _run_input(content: str) -> bytes:
             "forwardedProps": {},
         }
     ).encode()
+
+
+def _post(content: str) -> Any:
+    return AuthedRequestFactory().post(
+        "/agent/", data=_run_input(content), content_type="application/json"
+    )
 
 
 async def _events(response: StreamingHttpResponse) -> list[dict[str, Any]]:
@@ -109,6 +120,82 @@ async def test_a_spec_mcp_refusal_streams_as_a_failed_call() -> None:
     assert "denied by policy" in result["content"]
 
 
+async def test_a_value_the_spec_refuses_streams_as_a_retry() -> None:
+    # A retry, not a failure: the result carries no ``outcome`` and the
+    # kernel's sentence reaches the model to correct the call.
+    server = AGUIServer(
+        ToolRegistry(), model=_calling("invalid", {"a": 1, "b": 2}), mcp_server=spec_mcp_server
+    )
+
+    events = await _events(await _views(server)["endpoint"](_post("try it")))
+
+    assert events[-1]["type"] == "RUN_FINISHED"
+    (result,) = [event for event in events if event["type"] == "TOOL_CALL_RESULT"]
+    assert result.get("outcome", "absent") == "absent"
+    assert "must be even" in result["content"]
+
+
+async def test_the_tool_guard_gates_a_bridged_service() -> None:
+    # A ``ServiceSpec`` mutates, so django-spec-mcp marks it not read-only and
+    # the guard defers the call to the client's approval instead of running it.
+    server = AGUIServer(
+        ToolRegistry(),
+        model=_calling("add", {"a": 2, "b": 3}),
+        mcp_server=spec_mcp_server,
+        config=build_ag_ui_config(tool_guard=ToolGuardConfig(enabled=True)),
+    )
+
+    events = await _events(await _views(server)["endpoint"](_post("add 2 and 3")))
+
+    assert "TOOL_CALL_RESULT" not in [event["type"] for event in events]
+    assert events[-1]["type"] == "RUN_FINISHED"
+    assert events[-1]["outcome"]["type"] == "interrupt"
+
+
+async def test_a_registry_tool_beats_a_bridged_tool_of_the_same_name() -> None:
+    registry = ToolRegistry()
+
+    @tool(registry)
+    def add(a: int, b: int) -> int:
+        """A registry tool shadowing the bridged one."""
+        return a + b
+
+    view = DjangoAGUIView(registry, model=TestModel(), mcp_server=spec_mcp_server)
+
+    (toolset,) = view._run_toolsets(AuthedRequestFactory().post("/agent/"))
+    assert set(await toolset.get_tools(None)) == {"invalid", "denied"}
+
+
+async def test_a_bridged_tool_keeps_its_name_from_the_attachment_toolset() -> None:
+    # The bridge reserves its own names for the sources after it, so an
+    # attachment toolset cannot offer a second ``read_attachment``.
+    def read_attachment(*, attachment_id: str) -> dict[str, Any]:
+        """Read an attachment the project's own way."""
+        return {"id": attachment_id}
+
+    bridged = MCPServer(name="attachments")
+    bridged.register_tool(
+        ServiceSpec(
+            service=read_attachment,
+            reads=Parameters.of(Parameter("attachment_id", "string", required=True)),
+            permissions=[Unrestricted()],
+            atomic=False,
+        ),
+        name="read_attachment",
+    )
+    view = DjangoAGUIView(
+        ToolRegistry(),
+        model=TestModel(),
+        mcp_server=bridged,
+        attachment_store=(
+            "django_spec_agents.contrib.store.default_attachment_store.DefaultAttachmentStore"
+        ),
+    )
+
+    toolsets = view._run_toolsets(AuthedRequestFactory().post("/agent/"))
+    assert [type(toolset).__name__ for toolset in toolsets] == ["MCPToolset"]
+
+
 def test_the_catalog_lists_a_spec_mcp_servers_tools() -> None:
     server = AGUIServer(ToolRegistry(), model=TestModel(), mcp_server=spec_mcp_server)
     tools = _views(server)["tools"]
@@ -161,14 +248,18 @@ def test_a_tools_view_built_directly_still_takes_the_old_keyword() -> None:
 
 
 @pytest.mark.parametrize(
-    "build",
+    ("name", "build"),
     [
-        lambda **kw: AGUIServer(ToolRegistry(), model=TestModel(), **kw),
-        lambda **kw: DjangoAGUIView(ToolRegistry(), model=TestModel(), **kw),
-        lambda **kw: ToolsView(ToolRegistry(), **kw),
+        ("AGUIServer", lambda **kw: AGUIServer(ToolRegistry(), model=TestModel(), **kw)),
+        ("DjangoAGUIView", lambda **kw: DjangoAGUIView(ToolRegistry(), model=TestModel(), **kw)),
+        ("ToolsView", lambda **kw: ToolsView(ToolRegistry(), **kw)),
     ],
     ids=["AGUIServer", "DjangoAGUIView", "ToolsView"],
 )
-def test_both_server_keywords_are_refused(build: Any) -> None:
-    with pytest.raises(TypeError, match="takes mcp_server or drf_mcp_server, not both"):
+def test_both_server_keywords_are_refused(name: str, build: Any) -> None:
+    # Matched on the constructor's own name: ``AGUIServer`` builds the view, so
+    # without it the view's refusal would answer for the server's.
+    with pytest.raises(
+        TypeError, match=rf"^{name}\(\) takes mcp_server or drf_mcp_server, not both"
+    ):
         build(mcp_server=spec_mcp_server, drf_mcp_server=drf_server)

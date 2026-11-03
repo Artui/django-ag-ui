@@ -751,6 +751,6 @@ to the agent **in-process**, with no network MCP hop.
 The bridge is imported lazily, only when `mcp_server=` is set, keeping
 `django_spec_mcp` an optional dependency.
 
-The deprecated [`drf_mcp_server=`](configuration.md#drf_mcp_server-deprecated)
+The deprecated [`drf_mcp_server=`](configuration.md#drf_mcp_server)
 builds `DRFMCPToolset` instead, for a `djangorestframework-mcp-server` server,
 for one more minor.

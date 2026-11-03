@@ -906,7 +906,7 @@ from myproject.mcp import server as mcp_server
 AGUIServer(registry, mcp_server=mcp_server)
 ```
 
-### `drf_mcp_server=` (deprecated)
+### `drf_mcp_server=` (deprecated) {#drf_mcp_server}
 
 The keyword `mcp_server=` replaces, kept for one minor with the `[drf-mcp]`
 extra and removed in the next. It takes a `djangorestframework-mcp-server`
