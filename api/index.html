@@ -2728,45 +2728,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#django_spec_agents.integrations.drf_mcp.DRFMCPToolset" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        DRFMCPToolset
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="DRFMCPToolset">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#django_spec_agents.integrations.drf_mcp.DRFMCPToolset.get_tools" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        get_tools
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#django_spec_agents.integrations.drf_mcp.DRFMCPToolset.get_instructions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        get_instructions
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#django_spec_agents.agent.attachment_toolset.build_attachment_toolset" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4835,45 +4796,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#django_spec_agents.integrations.drf_mcp.DRFMCPToolset" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        DRFMCPToolset
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="DRFMCPToolset">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#django_spec_agents.integrations.drf_mcp.DRFMCPToolset.get_tools" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        get_tools
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#django_spec_agents.integrations.drf_mcp.DRFMCPToolset.get_instructions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        get_instructions
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#django_spec_agents.agent.attachment_toolset.build_attachment_toolset" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5169,16 +5091,18 @@ as the matching <code>x-*</code> schema key.</p>
 reads <code>Annotated[T, ...]</code> as <code>T</code> plus what its metadata maps to: a
 <code>Field</code>'s <code>description</code>, <code>title</code> and <code>examples</code>, and the bounds of a
 <code>Field</code> or of <code>annotated_types</code> metadata. A string or forward reference
-nested in an annotation is resolved against <code>fn</code>'s module globals.
-Anything richer, or a nested reference that does not resolve, falls back to
-an empty fragment, imposing no type constraint but staying wire-valid; so
+nested in an annotation is resolved in the globals the top level is
+evaluated in. Anything richer, or a nested reference that does not resolve,
+falls back to an empty fragment, imposing no type constraint but staying
+wire-valid; so
 does a bound that is not an <code>int</code> or <code>float</code> (a <code>Decimal</code>, a
 <code>date</code>), and <code>examples</code> that do not serialise to JSON. An annotation
 that does not evaluate at the top level raises <code>NameError</code> under either
 strategy, from <code>inspect.signature</code>.</p>
 <p><code>SchemaStrategy.PYDANTIC</code> builds a pydantic model over the same
 parameters and returns its JSON Schema, so it covers whatever pydantic
-does, and raises where pydantic does: on a type it cannot schematise, an
+does, keyed by parameter name rather than a <code>Field</code> alias, and raises
+where pydantic does: on a type it cannot schematise, an
 unresolvable reference (<code>NameError</code>), or a parameter pydantic would not
 hold as a field (<code>TypeError</code>).</p>
 <p><code>destructive</code> / <code>category</code> / <code>confirm</code> / <code>summary</code> are stamped at the
@@ -6153,10 +6077,6 @@ registry tool wins a name both define. Requires the <code>django-ag-ui[mcp]</cod
 extra.</p>
 <div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, mcp_server=mcp_server)
 </code></pre></div>
-<p><code>drf_mcp_server</code> is that keyword's deprecated alias for a drf-mcp server,
-kept for one minor with the <code>[drf-mcp]</code> extra: it warns
-<code>DeprecationWarning</code> and still bridges through <code>DRFMCPToolset</code>. Passing
-both raises <code>TypeError</code>.</p>
 <p><strong>One agent, many runs.</strong> The endpoint builds its agent once and reuses it
 rather than re-deriving every tool's JSON Schema per request.
 <code>model_for_request(request)</code> and <code>instructions_for_request(request)</code> are
@@ -11665,7 +11585,7 @@ those are not offered that step, and the instructions name
 each with its <code>reason</code>, so a model asked for one can say why rather than
 guess or deny the operation exists. A server declaring no such condition
 answers that without leaving the event loop.</p>
-<p>Failures split three ways, along MCP's protocol-vs-tool boundary:</p>
+<p>Failures split four ways, along MCP's protocol-vs-tool boundary:</p>
 <ul>
 <li>JSON-RPC <code>-32602</code> and tool-level <code>validation_error</code> and
   <code>input_required</code> results raise <code>pydantic_ai.ModelRetry</code>, so the model
@@ -11674,11 +11594,14 @@ answers that without leaving the event loop.</p>
 <li>every other tool-level failure (<code>service_error</code>, <code>not_found</code>, a
   timeout, an oversized result) raises <code>pydantic_ai.ToolFailed</code>, so the
   model reads the sentence and the call is recorded <code>outcome="failed"</code>;</li>
-<li>protocol faults raise <code>RuntimeError</code> and abort the run: auth, a
-  permission refusing the user (<code>-32006</code>), rate limits, and an internal
-  error (<code>-32603</code>), which is also the answer to a service asking for an
-  input its spec does not declare in <code>reads=</code>, since no answer to it
-  could reach the service.</li>
+<li>a permission refusing the user (<code>-32006</code>) raises Django's
+  <code>PermissionDenied</code>, which <code>ToolFailurePolicy</code> passes through by
+  default, so the run ends;</li>
+<li>every other protocol fault raises <code>RuntimeError</code>: auth, rate limits,
+  and an internal error (<code>-32603</code>), which is also the answer to a
+  service asking for an input its spec does not declare in <code>reads=</code>,
+  since no answer to it could reach the service. <code>ToolFailurePolicy</code>
+  converts it to a failed call, so the run goes on.</li>
 </ul>
 <p>Running in process, the server has no client to ask, so a service's
 <code>AdditionalInputRequired</code> for inputs its spec declares arrives degraded,
@@ -11838,237 +11761,6 @@ now perform. The call enforces every condition whatever was offered.</p>
   </span>
 
 <a href="#django_spec_agents.integrations.mcp.MCPToolset.get_instructions" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_instructions</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Name each tool left out this step, with the reason its condition gives.</p>
-<p><code>get_tools</code> withholds such a tool, so without this the model sees
-neither it nor any sign it exists, and a user asking for it gets a guess
-where a sentence was available. <code>None</code> when nothing is left out, which
-is every step for a server declaring no operation condition.</p>
-<p>Asked separately from <code>get_tools</code>, as the spec-tools route asks: the
-run context carries no key that could safely scope one answer to one
-step, and asking twice costs a second evaluation of conditions that read
-only seeds. A condition flipping between the two reads can leave one
-step's tools and instructions disagreeing about a tool; the call's own
-enforcement is authoritative either way.</p>
-
-
-    </div>
-
-</div>
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="django_spec_agents.integrations.drf_mcp.DRFMCPToolset" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">DRFMCPToolset</span>
-
-
-<a href="#django_spec_agents.integrations.drf_mcp.DRFMCPToolset" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="pydantic_ai.toolsets.AbstractToolset">AbstractToolset</span>[<span title="typing.Any">Any</span>]</code></p>
-
-
-
-        <p>Exposes a drf-mcp <code>MCPServer</code>'s tools as a Pydantic-AI toolset.</p>
-<p>Deprecated: constructing one warns <code>DeprecationWarning</code>. Use
-<code>MCPToolset</code> and the <code>[mcp]</code> extra; this class is removed in the next
-minor.</p>
-<p>Built per request, so the agent acts as the request's logged-in user. Both
-schemas and execution route through drf-mcp's public in-process surface
-(<code>MCPServer.list_tools</code> / <code>acall_tool</code>), so the advertised
-parameters, serializer validation and permissions match the HTTP transport
-exactly — without the network hop. Tool definitions carry the default
-<code>kind="function"</code>, the in-process kind the run loop calls itself; an
-<code>external</code> tool would instead be deferred to the client and never run.</p>
-<p><strong>Definitions once, availability every step.</strong> drf-mcp leaves a tool out of
-<code>tools/list</code> while an operation-scope affordance refuses it, and whether one
-does can change mid-run — an admin closes the books. So the definitions are
-listed once, with every tool the user may see, and each step asks drf-mcp
-which of them a fresh listing would leave out (<code>aunavailable_tools</code>):
-those are not offered that step, and the instructions name
-each with its <code>reason</code>, so a model asked for one can say why rather than
-guess or deny the operation exists. A server declaring no such condition
-answers that without leaving the event loop.</p>
-<p>Failures split three ways, along MCP's protocol-vs-tool boundary:</p>
-<ul>
-<li>JSON-RPC <code>-32602</code> and tool-level <code>validation_error</code> and
-  <code>input_required</code> results raise <code>pydantic_ai.ModelRetry</code>, so the model
-  calls again with the field errors fixed or the missing input supplied,
-  instead of the run dying;</li>
-<li>every other tool-level failure (<code>service_error</code>, <code>not_found</code>, a
-  timeout, an oversized result) raises <code>pydantic_ai.ToolFailed</code>, so the
-  model reads the sentence and the call is recorded <code>outcome="failed"</code>;</li>
-<li>protocol faults (auth, rate limits, an internal error) raise
-  <code>RuntimeError</code> and abort the run.</li>
-</ul>
-<p>The mapping is the one <code>spec_tools</code> applies to the same
-exceptions raised in process, and a refusal reads identically through both:
-<code>The books are closed. (code: books_closed)</code>.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>server</code>
-            </td>
-            <td>
-                  <code><span title="typing.Any">Any</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The drf-mcp <code>MCPServer</code> whose registry is bridged.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>request</code>
-            </td>
-            <td>
-                  <code><span title="django.http.HttpRequest">HttpRequest</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The request carried into every call; its <code>user</code> is the
-acting user.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>exclude_names</code>
-            </td>
-            <td>
-                  <code><span title="frozenset">frozenset</span>[<span title="str">str</span>]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Names the <code>@tool</code> registry has already claimed. A
-colliding drf-mcp tool is skipped, so the registry wins — the rule
-<code>build_tool_catalog</code> applies — because pydantic-ai raises
-<code>UserError</code> for a duplicate name at run time.</p>
-              </div>
-            </td>
-            <td>
-                  <code><span title="frozenset">frozenset</span>()</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>max_retries</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Per-tool retry budget: how many times a <code>ModelRetry</code> is
-fed back to the model before the run aborts. The default matches
-pydantic-ai's own function-tool default.</p>
-              </div>
-            </td>
-            <td>
-                  <code>1</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="django_spec_agents.integrations.drf_mcp.DRFMCPToolset.get_tools" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">get_tools</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#django_spec_agents.integrations.drf_mcp.DRFMCPToolset.get_tools" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_tools</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolsetTool</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>The tools this step may call: every definition, less the unavailable.</p>
-<p>Definitions come from drf-mcp's <code>tools/list</code> once per toolset, which is
-once per request. Availability is asked again here every step, because
-pydantic-ai calls this once per step and a condition may flip between
-two: offering a tool drf-mcp would leave out only invites a refusal, and
-withholding one that became available hides an operation the model could
-now perform. The call enforces every condition whatever was offered.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="django_spec_agents.integrations.drf_mcp.DRFMCPToolset.get_instructions" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">get_instructions</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#django_spec_agents.integrations.drf_mcp.DRFMCPToolset.get_instructions" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_instructions</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
 </span></code></pre></div>
 

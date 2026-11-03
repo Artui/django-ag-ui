@@ -411,17 +411,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-drf-mcp-extra-deprecated" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The [drf-mcp] extra (deprecated)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#the-specs-extra" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -895,17 +884,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-drf-mcp-extra-deprecated" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The [drf-mcp] extra (deprecated)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#the-specs-extra" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1100,22 +1078,11 @@ tools to the agent in-process (no network MCP hop), install the extra:</p>
 the kernel beneath it and no DRF. The bridge is imported lazily, only when an
 <code>mcp_server=</code> is passed. See
 <a href="../configuration/#mcp_server">Configuration → <code>mcp_server=</code></a>.</p>
-<h2 id="the-drf-mcp-extra-deprecated">The <code>[drf-mcp]</code> extra (deprecated)<a class="headerlink" href="#the-drf-mcp-extra-deprecated" title="Permanent link">&para;</a></h2>
-<p>Kept for one minor beside <code>[mcp]</code>, which replaces it, and removed in the next,
-with <a href="../configuration/#drf_mcp_server"><code>drf_mcp_server=</code></a>. To expose a
-<a href="https://github.com/Artui/djangorestframework-mcp-server"><code>djangorestframework-mcp-server</code></a>
-tool registry to the agent in-process (no network MCP hop), install the extra:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[drf-mcp]&quot;</span>
-</span></code></pre></div>
-<p>This pulls in <code>djangorestframework-mcp-server</code> (which in turn pulls
-<code>djangorestframework-services</code>), at the floor <code>pyproject.toml</code> declares. The bridge
-(<code>DRFMCPToolset</code>) is imported lazily, only when a <code>drf_mcp_server=</code> is passed,
-so the dependency stays optional for projects that do not use it.</p>
 <h2 id="the-specs-extra">The <code>[specs]</code> extra<a class="headerlink" href="#the-specs-extra" title="Permanent link">&para;</a></h2>
 <p>To expose <a href="https://artui.github.io/django-service-specs/">django-service-specs</a>
 specs to the agent as tools with no MCP server in the path (<code>service_specs=</code>),
 install the extra:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[specs]&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[specs]&quot;</span>
 </span></code></pre></div>
 <p>This pulls in <code>django-spec-agents[specs]</code>, whose <code>django_spec_agents.spec_tools</code>
 holds the <code>SpecToolset</code> and <code>SpecCapability</code> the endpoint builds, with the
@@ -1130,9 +1097,7 @@ kernel's, so a project passing <code>service_specs=</code> moves with it:</p>
   <code>djangorestframework-services</code> or <code>djangorestframework-pydantic-ai</code> any more.</li>
 <li><strong>The specs.</strong> Declare each with <code>django_service_specs</code>' <code>ServiceSpec</code> or
   <code>SelectorSpec</code>, and its <code>SpecRegistry</code> for a registry. A value the kernel
-  cannot read as a spec raises <code>TypeError</code> naming the tool, at construction.
-  The <code>[drf-mcp]</code> bridge still takes drf-services specs, which is what a
-  drf-mcp <code>MCPServer</code> registers.</li>
+  cannot read as a spec raises <code>TypeError</code> naming the tool, at construction.</li>
 <li><strong>Permissions.</strong> Each spec declares <code>permissions=</code>, a list of the kernel's
   permission checks, where it declared <code>permission_classes=</code>. An open one says
   <code>permissions=[Unrestricted()]</code>.</li>

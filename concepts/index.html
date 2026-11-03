@@ -1796,7 +1796,11 @@ a tool result under the <code>messageId</code> of its <code>TOOL_CALL_RESULT</co
 reasoning under the <code>messageId</code> of its <code>REASONING_START</code>, so anything a client
 keys by message id still finds its message after the thread is reloaded, and a
 later turn that posts those ids back stores the same message under the same id.
-That holds whichever way the run ends: completed, failed or cancelled.</p>
+That holds whichever way the run ends: completed, failed or cancelled. An
+activity a completed run stores, such as pydantic-ai's <code>pydantic_ai_compaction</code>,
+is stored under the <code>messageId</code> of its <code>ACTIVITY_SNAPSHOT</code>, which is the id the
+client materialised it under. A failed or cancelled run does not store the
+activities it streamed itself.</p>
 <p><strong>A stored message never carries another message's id.</strong> Where the server cannot
 tell for certain which streamed message a stored one is, it gives the stored one
 a fresh id instead: reasoning withheld by <code>FORWARD_REASONING</code>, which was never
@@ -1807,7 +1811,12 @@ of its own. An id the client keys something by is then lost for that message
 rather than lent to its neighbour, so a rating never lands on the wrong answer.
 The check covers the run as a whole, since the stream marks no boundary between
 one model response and the next: when it fails for one answer, every text-only
-answer of that run keeps a fresh id.</p>
+answer of that run keeps a fresh id. Activities are checked the same way, per
+activity type and by content, leaving aside the <code>canonical_system</code> a stored
+compaction carries and its <code>ACTIVITY_SNAPSHOT</code> cannot; an activity an
+<code>ACTIVITY_DELTA</code> changed leaves every activity of its type with a fresh id: the
+server does not apply the patch, so it cannot tell which stored activity holds
+what the client ended with.</p>
 <p>The earlier turns a <a href="../step-persistence/">resumed or forked run</a> is seeded with
 are stored from the step store's snapshot, where nothing an earlier run
 generated carries an id of its own, and neither does a tool result the client
@@ -1817,6 +1826,14 @@ source thread's stored conversation and gives each earlier message the id that
 row holds for the same message: a tool result by its call, a response that
 called tools by its calls, an answer or reasoning by its text, walked in order
 so a repeated "ok" takes the id of the matching "ok" and not an earlier one.
+An activity is paired by position within its type instead: the row must hold at
+least as many activities of the type as the earlier turns do, the first of them
+pair with the earlier turns' activities in order, and only when every pair holds
+the same content does each take its pair's id. The stored row and the earlier
+turns both carry a compaction's <code>canonical_system</code>, so the contents are compared
+as they are. When the row holds fewer, or any pair differs -- a failed earlier
+run's compaction, which the row does not hold, is the usual cause -- every
+activity of that type is stored under a fresh id, never another activity's.
 The same never-lend rule holds: a message the row does not hold -- the row was
 deleted, overwritten, or describes a different conversation -- is stored under
 a fresh id. Without a conversation store there is no row to read and nothing is
@@ -2084,17 +2101,18 @@ to the agent <strong>in-process</strong>, with no network MCP hop.</p>
 <li>Execution routes through the server's public <code>MCPServer.acall_tool</code>, its
   in-process transport surface, so the kernel's argument validation and each
   spec's permissions are honoured exactly as over HTTP.</li>
-<li>A refusal comes back as a failed call carrying the service's sentence, and a
-  value the spec refuses as a retry naming the argument, rather than either
-  reading as a successful result.</li>
+<li>A business-rule refusal comes back as a failed call carrying the service's
+  sentence, and a value the spec refuses as a retry naming the argument, rather
+  than either reading as a successful result.</li>
+<li>A permission check refusing the acting user ends the run: the bridge raises
+  Django's <code>PermissionDenied</code>, which the failure policy passes through, so the
+  stream closes on <code>RUN_ERROR</code> rather than handing the model a failed call to
+  answer.</li>
 <li>The toolset hands the Django <code>request</code> and <code>request.user</code> to those methods, so
   the agent acts as the <strong>logged-in AG-UI user</strong>.</li>
 </ul>
 <p>The bridge is imported lazily, only when <code>mcp_server=</code> is set, keeping
 <code>django_spec_mcp</code> an optional dependency.</p>
-<p>The deprecated <a href="../configuration/#drf_mcp_server"><code>drf_mcp_server=</code></a>
-builds <code>DRFMCPToolset</code> instead, for a <code>djangorestframework-mcp-server</code> server,
-for one more minor.</p>
 
 
 

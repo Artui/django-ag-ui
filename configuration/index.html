@@ -794,23 +794,6 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="mcp_server=">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#drf_mcp_server" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        drf_mcp_server= (deprecated)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
         <li class="md-nav__item">
@@ -1629,23 +1612,6 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="mcp_server=">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#drf_mcp_server" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        drf_mcp_server= (deprecated)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
         <li class="md-nav__item">
@@ -2007,10 +1973,6 @@ believes it configured, and a warning would scroll past in a deploy log.</p>
 <tr>
 <td><code>mcp_server=...</code></td>
 <td>django-spec-mcp server whose tools the agent gets (<code>[mcp]</code> extra).</td>
-</tr>
-<tr>
-<td><code>drf_mcp_server=...</code></td>
-<td>Deprecated: a drf-mcp server, bridged as before; removed in the next minor.</td>
 </tr>
 <tr>
 <td><code>service_specs={...}</code></td>
@@ -2690,15 +2652,11 @@ as the web component's card label.</p>
 </span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
 </span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">mcp_server</span><span class="o">=</span><span class="n">mcp_server</span><span class="p">)</span>
 </span></code></pre></div>
-<h3 id="drf_mcp_server"><code>drf_mcp_server=</code> (deprecated)<a class="headerlink" href="#drf_mcp_server" title="Permanent link">&para;</a></h3>
-<p>The keyword <code>mcp_server=</code> replaces, kept for one minor with the <code>[drf-mcp]</code>
-extra and removed in the next. It takes a <code>djangorestframework-mcp-server</code>
-<code>MCPServer</code> and bridges it as before, through django-spec-agents'
-<code>DRFMCPToolset</code>, and <code>AGUIServer</code> warns <code>DeprecationWarning</code> naming
-<code>mcp_server=</code>. Passing both keywords raises <code>TypeError</code>.</p>
-<p>Moving is a server change, not only a keyword: register the tools on a
-django-spec-mcp <code>MCPServer</code> as kernel specs, install <code>[mcp]</code> in place of
-<code>[drf-mcp]</code>, and pass that server as <code>mcp_server=</code>.</p>
+<p>A drf-mcp server is not taken: <code>drf_mcp_server=</code>, its keyword until 0.74.0,
+raises <code>TypeError</code> as any keyword the constructor does not take. Moving is a
+server change, not only a keyword: register the tools on a django-spec-mcp
+<code>MCPServer</code> as kernel specs, install <code>[mcp]</code>, and pass that server as
+<code>mcp_server=</code>.</p>
 <h2 id="service_specs"><code>service_specs=</code><a class="headerlink" href="#service_specs" title="Permanent link">&para;</a></h2>
 <p>A <code>name -&gt; spec</code> mapping of
 <a href="https://artui.github.io/django-service-specs/">django-service-specs</a>
