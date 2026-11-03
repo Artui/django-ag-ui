@@ -2689,6 +2689,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCPToolset
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCPToolset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset.get_tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset.get_instructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_instructions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#django_spec_agents.integrations.drf_mcp.DRFMCPToolset" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4757,6 +4796,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCPToolset
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCPToolset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset.get_tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset.get_instructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_instructions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#django_spec_agents.integrations.drf_mcp.DRFMCPToolset" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4854,8 +4932,12 @@ is importable directly, e.g. <code>from django_ag_ui import ToolRegistry</code>.
 
         <p>An ordered, named collection of server-side tools.</p>
 <p>State lives on the instance — a transport holds one, tests build a fresh one
-per scenario. Each tool's JSON Schema is derived once at registration, and
-either sync or async callables can be dispatched.</p>
+per scenario. Each tool's JSON Schema is derived once at registration, with
+<code>schema_strategy</code> (see
+<a class="autorefs autorefs-internal" title="build_input_schema" href="#django_ag_ui.build_input_schema"><code>build_input_schema</code></a>), and either
+sync or async callables can be dispatched.</p>
+<p>The strategy shapes <code>ToolBinding.input_schema</code> only. The schema the agent
+offers the model for a registry tool is pydantic-ai's own, whichever is set.</p>
 
 
 
@@ -5074,15 +5156,31 @@ as the matching <code>x-*</code> schema key.</p>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">category</span><span class="p">:</span> <span class="n">ToolCategory</span> <span class="o">=</span> <span class="n">ToolCategory</span><span class="o">.</span><span class="n">OTHER</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">confirm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">summary</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">schema_strategy</span><span class="p">:</span> <span class="n">SchemaStrategy</span> <span class="o">=</span> <span class="n">SchemaStrategy</span><span class="o">.</span><span class="n">HAND_BUILT</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
         <p>Derive a JSON Schema object from <code>fn</code>'s parameters.</p>
-<p>Covers <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>list[T]</code>, <code>dict[str,
-Any]</code> and <code>X | None</code> unions. Anything richer falls back to an empty
-fragment, imposing no type constraint but staying wire-valid.</p>
+<p><code>schema_strategy</code> picks the derivation. The default,
+<code>SchemaStrategy.HAND_BUILT</code>, covers <code>str</code>, <code>int</code>, <code>float</code>,
+<code>bool</code>, <code>list[T]</code>, <code>dict[str, Any]</code> and <code>X | None</code> unions, and
+reads <code>Annotated[T, ...]</code> as <code>T</code> plus what its metadata maps to: a
+<code>Field</code>'s <code>description</code>, <code>title</code> and <code>examples</code>, and the bounds of a
+<code>Field</code> or of <code>annotated_types</code> metadata. A string or forward reference
+nested in an annotation is resolved against <code>fn</code>'s module globals.
+Anything richer, or a nested reference that does not resolve, falls back to
+an empty fragment, imposing no type constraint but staying wire-valid; so
+does a bound that is not an <code>int</code> or <code>float</code> (a <code>Decimal</code>, a
+<code>date</code>), and <code>examples</code> that do not serialise to JSON. An annotation
+that does not evaluate at the top level raises <code>NameError</code> under either
+strategy, from <code>inspect.signature</code>.</p>
+<p><code>SchemaStrategy.PYDANTIC</code> builds a pydantic model over the same
+parameters and returns its JSON Schema, so it covers whatever pydantic
+does, and raises where pydantic does: on a type it cannot schematise, an
+unresolvable reference (<code>NameError</code>), or a parameter pydantic would not
+hold as a field (<code>TypeError</code>).</p>
 <p><code>destructive</code> / <code>category</code> / <code>confirm</code> / <code>summary</code> are stamped at the
 schema root as the matching <code>x-*</code> extension keys, which AG-UI passes
 through verbatim to the client.</p>
@@ -5090,6 +5188,29 @@ through verbatim to the client.</p>
 left out. Pydantic-AI fills it from the run — it is how a tool reaches the
 acting user — so advertising it would ask the model to invent a value for
 something it cannot supply.</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>when <code>schema_strategy</code> is not a <code>SchemaStrategy</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -5931,7 +6052,7 @@ default: an anonymous <code>GET</code> is a <code>401</code> until you pass
 
         <p>One config object that mounts an AG-UI endpoint and its sub-views.</p>
 <p>The Django-idiomatic front door for the package — the <code>admin.site</code> idiom
-and the mirror of drf-mcp's <code>MCPServer</code>. Construct it once with the tool
+and the mirror of django-spec-mcp's <code>MCPServer</code>. Construct it once with the tool
 registry (plus optional stores / auth), then mount its <strong>namespaced</strong>
 <a class="autorefs autorefs-internal" title="urls
 
@@ -6023,6 +6144,19 @@ labels. The parameter's union covers all four shapes, the last two matched
 structurally because <code>django_spec_agents.spec_tools</code>' own types cannot be
 named from a package that only optionally installs what they import. Requires
 the <code>django-ag-ui[specs]</code> extra.</p>
+<p><strong>MCP tools.</strong> <code>mcp_server</code> takes a django-spec-mcp <code>MCPServer</code> and
+bridges its tools into the agent in process, through django-spec-agents'
+<code>MCPToolset</code>: the advertised schemas, argument validation and permissions
+are the HTTP transport's own, acting as the request's user, with no network
+hop. Its tools are listed in the tool catalog after the registry's, and a
+registry tool wins a name both define. Requires the <code>django-ag-ui[mcp]</code>
+extra.</p>
+<div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, mcp_server=mcp_server)
+</code></pre></div>
+<p><code>drf_mcp_server</code> is that keyword's deprecated alias for a drf-mcp server,
+kept for one minor with the <code>[drf-mcp]</code> extra: it warns
+<code>DeprecationWarning</code> and still bridges through <code>DRFMCPToolset</code>. Passing
+both raises <code>TypeError</code>.</p>
 <p><strong>One agent, many runs.</strong> The endpoint builds its agent once and reuses it
 rather than re-deriving every tool's JSON Schema per request.
 <code>model_for_request(request)</code> and <code>instructions_for_request(request)</code> are
@@ -6179,7 +6313,7 @@ everything else varies by riding the <em>run</em> instead. <code>agent_factory</
 over construction wholesale — see <a class="autorefs autorefs-internal" title="AGUIServer" href="#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> for what
 that turns off.</p>
 <p><strong>Authentication is the host's responsibility, and the view fails closed.</strong>
-Tools (and the <code>drf-mcp</code> bridge) act as <code>request.user</code>; if your
+Tools (and the MCP bridge) act as <code>request.user</code>; if your
 middleware hasn't authenticated the request, that is <code>AnonymousUser</code> — a
 data-exposure footgun. <code>require_authenticated</code> therefore defaults to
 <strong>True</strong>: an anonymous request gets a 401 before any agent runs. Pass
@@ -6418,10 +6552,12 @@ that exception.</p>
 <p><strong>A destructive tool is not confirmed unless a config asks for it.</strong> The
 approval interrupt exists only when <code>config.tool_guard</code> is enabled, and
 even then it reaches a tool only if that tool's source declares the mutation
-— a registry <code>@tool(destructive=True)</code>, an MCP <code>readOnlyHint</code> of
-<code>False</code>, an <code>x-destructive</code> schema stamp, or an explicit
-<code>require_approval</code> name. With no <code>tool_guard</code>, every server-side tool
-here runs the moment the model calls it. The browser's own confirmation card
+— a registry <code>@tool(destructive=True)</code>, an MCP tool, bridged or
+carrying its annotations in a toolset's own metadata, whose <code>readOnlyHint</code>
+is not true and <code>destructiveHint</code> is not false, an <code>x-destructive</code>
+schema stamp, or an explicit <code>require_approval</code> name. With no
+<code>tool_guard</code>, every server-side tool here runs the moment the model calls
+it. The browser's own confirmation card
 is no substitute: it is driven by a client-registered tool's schema and never
 sees a tool that executes server-side. A transport describing this agent to
 the model should say which of the two it configured.</p>
@@ -7877,17 +8013,15 @@ approval, and a call deferred to external execution are not executions. A
 call held for approval is recorded when it is resumed and runs, like any
 other; a call deferred to external execution never runs in this process,
 so it has no record here.</p>
-<p><strong>How it gets the same record on every release.</strong> pydantic-ai 2.54 moved
-every capability's <code>before_tool_execute</code>, <code>on_tool_execute_error</code> and
-<code>after_tool_execute</code> inside the <code>wrap_tool_execute</code> chain, where
-earlier releases ran them around it, so no wrapper position sees the raw
-outcome on both. Audit is pinned <strong>innermost</strong>, which makes its
-<code>before_tool_execute</code> the last to run and its <code>on_tool_execute_error</code>
-and <code>after_tool_execute</code> the first, and observes the tool from all four
-hooks. Its wrapper is the only one that writes the record, once, as it
-exits, preferring what the hooks captured over what it saw itself. Before
-2.54 the innermost wrapper encloses the tool alone and what it sees is
-already the raw outcome; from 2.54 it encloses every hook, and for what
+<p><strong>How it gets the tool's own record.</strong> pydantic-ai runs every capability's
+<code>before_tool_execute</code>, <code>on_tool_execute_error</code> and
+<code>after_tool_execute</code> inside the <code>wrap_tool_execute</code> chain, so no
+wrapper position sees the raw outcome. Audit is pinned <strong>innermost</strong>,
+which makes its <code>before_tool_execute</code> the last to run and its
+<code>on_tool_execute_error</code> and <code>after_tool_execute</code> the first, and
+observes the tool from all four hooks. Its wrapper is the only one that
+writes the record, once, as it exits, preferring what the hooks captured
+over what it saw itself. The wrapper encloses every hook, and for what
 sorts ahead of audit the captures are what keep the record the tool's.</p>
 <p><strong>A capability that sorts after audit runs between audit and the tool.</strong>
 One does when it is innermost and passed to a single run, since
@@ -7896,11 +8030,11 @@ pydantic-ai sorts those after the agent's own capabilities whatever
 innermost tier; and wherever it is composed, when its own ordering places
 it inside audit, as an innermost <code>CapabilityOrdering</code> with
 <code>wrapped_by=[AuditCapability]</code> does. What such a capability does can
-reach the record, on every pydantic-ai and through any of its hooks, and
+reach the record, through any of its hooks, and
 the record is then not the tool's own. These are measured examples, not
 a list of the only ways:</p>
 <ul>
-<li>From 2.54, through its <code>before_tool_execute</code>,
+<li>Through its <code>before_tool_execute</code>,
   <code>on_tool_execute_error</code> and <code>after_tool_execute</code>: a record misses
   its argument rewrite, records a <code>ModelRetry</code> its
   <code>before_tool_execute</code> raises as a failure though the tool never ran,
@@ -7908,7 +8042,7 @@ a list of the only ways:</p>
   of the tool's, records a <code>ModelRetry</code> its <code>after_tool_execute</code>
   raises as a failure though the tool succeeded, measures its result
   rewrite, and times its hooks with the tool.</li>
-<li>From 2.54, through its <code>wrap_tool_execute</code>, when the tool raised
+<li>Through its <code>wrap_tool_execute</code>, when the tool raised
   <code>ModelRetry</code> or <code>ToolFailed</code>, which pydantic-ai routes past every
   error and result hook, audit's included: a record carries its rewrite
   of the message, as pydantic-ai-harness's <code>result_guard</code> does,
@@ -7920,13 +8054,6 @@ a list of the only ways:</p>
   success, the tool gets one record, of its first run. Reruns it makes
   concurrently share one record, which can pair one run's arguments with
   another's result.</li>
-<li>Before 2.54, through its <code>wrap_tool_execute</code>: a record misses an
-  argument rewrite there, records a recovery as a success, an exception
-  of its own in place of the tool's and a <code>ModelRetry</code> raised before
-  the tool runs as a failure, measures a result rewrite, carries a
-  rewrite of a failed tool's message, and times the wrapper with the
-  tool. If it runs the tool again, the one record holds the last run's
-  outcome, with the arguments audit passed on and the time of every run.</li>
 </ul>
 <p>A <code>SkipToolExecution</code> veto from it is still not recorded. Everything
 composed through <code>AgentConfig.capabilities</code> is unaffected unless its own
@@ -8088,26 +8215,28 @@ constraints.</p>
     <div class="doc doc-contents ">
 
         <p>Write the call's one record on the way out, and hand the result back as is.</p>
-<p>What this wrapper sees depends on the release: the tool alone before
-2.54, every capability's hooks around it from 2.54. Either way the
-hooks below have recorded the tool's side first where they could, and
+<p>This wrapper sees every capability's hooks around the tool. The hooks
+below have recorded the tool's side first where they could, and
 <code>settle</code> keeps the first account it is given, so what is written is
 the tool's whenever nothing sorts between audit and the tool (see the
 class). A call whose <code>before_tool_execute</code> never ran here never
 reached the tool, and is not recorded.</p>
-<p>Every entry starts a fresh execution, because pydantic-ai lets an outer
-wrapper call its handler more than once and each call runs the tool
-again. Before 2.54 <code>before_tool_execute</code> runs once, ahead of every
-wrapper, so whether the call reached the tool is carried over from what
-it left in this context. From 2.54 it runs again inside each entry and
-says so itself, unless a capability ahead of audit stops that entry
-first. The reset on the way out is what keeps the previous entry's
-"reached" from carrying into one stopped that way, which would record
-a call that never ran. Coverage cannot see it go missing, since the
-line runs either way; from 2.54
-<code>test_a_rerun_refused_ahead_of_audit_is_not_recorded</code> fails without
-it. Before 2.54 there is no such entry, because audit's
-<code>before_tool_execute</code> has run ahead of every one.</p>
+<p>Every entry starts a fresh, unreached execution, because pydantic-ai
+lets an outer wrapper call its handler more than once and each call
+runs the tool again. <code>before_tool_execute</code> runs again inside each
+entry and says so itself, unless a capability ahead of audit stops
+that entry first; an entry stopped that way is not recorded, whatever
+an earlier entry, or an outer call of a nested run, reached.</p>
+<p>The reset on the way out puts back what the context held before. Code
+mode awaits a nested call inline, in <code>run_code</code>'s own task, when the
+nested tool is marked sequential or the run is, so that call's wrapper
+sets the variable in the context <code>run_code</code>'s own hooks read. Without
+the reset they would settle the nested call's execution and leave
+<code>run_code</code>'s to its wrapper, whose record then describes another
+capability's rewrite of the result and times its hooks.
+<code>test_a_code_mode_call_keeps_its_own_record_around_inline_nested_calls</code>
+fails without it. Coverage cannot see it go missing, since the line
+runs either way.</p>
 
 
     </div>
@@ -8140,9 +8269,8 @@ it. Before 2.54 there is no such entry, because audit's
         <p>Note that the call reached the tool, with the arguments it gets.</p>
 <p>Innermost, so this runs after every other capability's
 <code>before_tool_execute</code>, and nothing else stands between it and the
-tool, unless a capability sorts after audit (see the class). Bound to
-the context here as well as in the wrapper because before 2.54 this
-hook runs first, and the wrapper reads it from there.</p>
+tool, unless a capability sorts after audit (see the class). It runs
+inside the wrapper, so the execution is the wrapper's own for this call.</p>
 
 
     </div>
@@ -11343,9 +11471,10 @@ uninferable prefix, or its extra is not installed. Pass a
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_tool_catalog</span><span class="p">(</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">ToolRegistry</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">drf_mcp_server</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">service_specs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">mcp_server</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">drf_mcp_server</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">service_specs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -11356,7 +11485,7 @@ browser and a web component cannot read an <code>x-summary</code> off it. This c
 is that channel: the component fetches it and maps tool name to label.</p>
 <p>Each entry is <code>{"name", "summary", "description"?}</code>. <code>summary</code> is always
 present, resolved from <code>@tool(summary=...)</code> for registry tools and from
-<code>display_name</code> then <code>title</code> for drf-mcp ones, falling back to a
+<code>display_name</code> then <code>title</code> for an MCP server's, falling back to a
 prettified name. <code>description</code> is carried through when the source has one.</p>
 <p><strong>The catalog covers these sources and no others.</strong> A tool attached through
 a transport's <code>capabilities=</code> / <code>toolsets=</code> is not listed and its card
@@ -11396,6 +11525,24 @@ Route spec tools through a transport's <code>service_specs=</code> to keep label
           </tr>
           <tr class="doc-section-item">
             <td>
+                <code>mcp_server</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An MCP server whose registered tools are appended: a
+django-spec-mcp <code>MCPServer</code>, or a drf-mcp one, whose bindings
+carry the same four label fields.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                 <code>drf_mcp_server</code>
             </td>
             <td>
@@ -11403,7 +11550,9 @@ Route spec tools through a transport's <code>service_specs=</code> to keep label
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A drf-mcp server whose registered tools are appended.</p>
+                <p>Deprecated, removed in the next minor: the name
+<code>mcp_server</code> had while the only server was drf-mcp's. It takes
+the same server; passing both raises <code>TypeError</code>.</p>
               </div>
             </td>
             <td>
@@ -11454,6 +11603,267 @@ described by its service or selector callable's docstring.</p>
     </table>
 
 
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Both <code>mcp_server</code> and <code>drf_mcp_server</code> were passed.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.integrations.mcp.MCPToolset" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">MCPToolset</span>
+
+
+<a href="#django_spec_agents.integrations.mcp.MCPToolset" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic_ai.toolsets.AbstractToolset">AbstractToolset</span>[<span title="typing.Any">Any</span>]</code></p>
+
+
+
+        <p>Exposes a django-spec-mcp <code>MCPServer</code>'s tools as a Pydantic-AI toolset.</p>
+<p>Built per request, so the agent acts as the request's logged-in user. Both
+schemas and execution route through django-spec-mcp's public in-process
+surface (<code>MCPServer.list_tools</code> / <code>acall_tool</code>), so the advertised
+parameters, the kernel's argument validation and the spec's permissions
+match the HTTP transport exactly, without the network hop. Tool definitions carry the default
+<code>kind="function"</code>, the in-process kind the run loop calls itself; an
+<code>external</code> tool would instead be deferred to the client and never run.</p>
+<p><strong>Definitions once, availability every step.</strong> django-spec-mcp leaves a tool
+out of <code>tools/list</code> while an operation-scope affordance refuses it, and
+whether one does can change mid-run — an admin closes the books. So the
+definitions are listed once, with every tool the user may see, and each step
+asks django-spec-mcp which of them a fresh listing would leave out
+(<code>aunavailable_tools</code>):
+those are not offered that step, and the instructions name
+each with its <code>reason</code>, so a model asked for one can say why rather than
+guess or deny the operation exists. A server declaring no such condition
+answers that without leaving the event loop.</p>
+<p>Failures split three ways, along MCP's protocol-vs-tool boundary:</p>
+<ul>
+<li>JSON-RPC <code>-32602</code> and tool-level <code>validation_error</code> and
+  <code>input_required</code> results raise <code>pydantic_ai.ModelRetry</code>, so the model
+  calls again with the field errors fixed or the missing input supplied,
+  instead of the run dying;</li>
+<li>every other tool-level failure (<code>service_error</code>, <code>not_found</code>, a
+  timeout, an oversized result) raises <code>pydantic_ai.ToolFailed</code>, so the
+  model reads the sentence and the call is recorded <code>outcome="failed"</code>;</li>
+<li>protocol faults raise <code>RuntimeError</code> and abort the run: auth, a
+  permission refusing the user (<code>-32006</code>), rate limits, and an internal
+  error (<code>-32603</code>), which is also the answer to a service asking for an
+  input its spec does not declare in <code>reads=</code>, since no answer to it
+  could reach the service.</li>
+</ul>
+<p>Running in process, the server has no client to ask, so a service's
+<code>AdditionalInputRequired</code> for inputs its spec declares arrives degraded,
+as <code>input_required</code>.</p>
+<p>The mapping is the one <code>spec_tools</code> applies to the same exceptions raised
+in process, except for a selector's <code>AdditionalInputRequired</code>:
+django-spec-mcp builds no input round for a selector, so it arrives as a
+service error and raises <code>ToolFailed</code>, where <code>spec_tools</code> raises
+<code>ModelRetry</code>. A refusal reads identically through both:
+<code>The books are closed. (code: books_closed)</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>server</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The django-spec-mcp <code>MCPServer</code> whose registry is bridged.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>request</code>
+            </td>
+            <td>
+                  <code><span title="django.http.HttpRequest">HttpRequest</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The request carried into every call; its <code>user</code> is the
+acting user.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>exclude_names</code>
+            </td>
+            <td>
+                  <code><span title="frozenset">frozenset</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Names the <code>@tool</code> registry has already claimed. A
+colliding server tool is skipped, so the registry wins — the rule
+<code>build_tool_catalog</code> applies — because pydantic-ai raises
+<code>UserError</code> for a duplicate name at run time.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="frozenset">frozenset</span>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_retries</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-tool retry budget: how many times a <code>ModelRetry</code> is
+fed back to the model before the run aborts. The default matches
+pydantic-ai's own function-tool default.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.integrations.mcp.MCPToolset.get_tools" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_tools</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.integrations.mcp.MCPToolset.get_tools" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_tools</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolsetTool</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The tools this step may call: every definition, less the unavailable.</p>
+<p>Definitions come from django-spec-mcp's <code>tools/list</code> once per toolset, which is
+once per request. Availability is asked again here every step, because
+pydantic-ai calls this once per step and a condition may flip between
+two: offering a tool django-spec-mcp would leave out only invites a refusal, and
+withholding one that became available hides an operation the model could
+now perform. The call enforces every condition whatever was offered.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.integrations.mcp.MCPToolset.get_instructions" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_instructions</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.integrations.mcp.MCPToolset.get_instructions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_instructions</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Name each tool left out this step, with the reason its condition gives.</p>
+<p><code>get_tools</code> withholds such a tool, so without this the model sees
+neither it nor any sign it exists, and a user asking for it gets a guess
+where a sentence was available. <code>None</code> when nothing is left out, which
+is every step for a server declaring no operation condition.</p>
+<p>Asked separately from <code>get_tools</code>, as the spec-tools route asks: the
+run context carries no key that could safely scope one answer to one
+step, and asking twice costs a second evaluation of conditions that read
+only seeds. A condition flipping between the two reads can leave one
+step's tools and instructions disagreeing about a tool; the call's own
+enforcement is authoritative either way.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
     </div>
 
 </div>
@@ -11476,6 +11886,9 @@ described by its service or selector callable's docstring.</p>
 
 
         <p>Exposes a drf-mcp <code>MCPServer</code>'s tools as a Pydantic-AI toolset.</p>
+<p>Deprecated: constructing one warns <code>DeprecationWarning</code>. Use
+<code>MCPToolset</code> and the <code>[mcp]</code> extra; this class is removed in the next
+minor.</p>
 <p>Built per request, so the agent acts as the request's logged-in user. Both
 schemas and execution route through drf-mcp's public in-process surface
 (<code>MCPServer.list_tools</code> / <code>acall_tool</code>), so the advertised

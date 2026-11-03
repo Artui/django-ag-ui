@@ -503,10 +503,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#typed-stubs-keep-drf-mcps-output-schema-on" class="md-nav__link">
+  <a href="#typed-stubs-keep-the-mcp-servers-output-schema-on" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Typed stubs — keep drf-mcp's output schema on
+        Typed stubs — keep the MCP server's output schema on
       
     </span>
   </a>
@@ -830,10 +830,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#typed-stubs-keep-drf-mcps-output-schema-on" class="md-nav__link">
+  <a href="#typed-stubs-keep-the-mcp-servers-output-schema-on" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Typed stubs — keep drf-mcp's output schema on
+        Typed stubs — keep the MCP server's output schema on
       
     </span>
   </a>
@@ -866,7 +866,7 @@
 
 
 <h1 id="batching-tool-calls-with-codemode">Batching tool calls with CodeMode<a class="headerlink" href="#batching-tool-calls-with-codemode" title="Permanent link">&para;</a></h1>
-<p>When the agent has many tools — especially a large drf-mcp bridge — each call is
+<p>When the agent has many tools — especially a large MCP bridge — each call is
 its own model round-trip, and every tool's schema bloats the prompt.
 <a href="https://github.com/pydantic/pydantic-ai-harness"><code>pydantic-ai-harness</code></a>'s
 <strong><code>CodeMode</code></strong> capability collapses them into a single sandboxed <code>run_code</code> tool:
@@ -874,7 +874,7 @@ the model writes Python that calls the tools as functions (with loops,
 <code>asyncio.gather</code>, intermediate variables) and gets the result in <strong>one</strong>
 round-trip.</p>
 <p>This is a composition of two things django-ag-ui already gives you — the
-in-process <a href="../configuration/#drf_mcp_server">drf-mcp bridge</a> and the
+in-process <a href="../configuration/#mcp_server">MCP bridge</a> and the
 <a href="../configuration/#capabilities"><code>capabilities=</code></a> seam — plus the optional
 <code>[code-mode]</code> extra.</p>
 <h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
@@ -903,10 +903,10 @@ return one. Add one that returns a <code>CodeMode</code>:</p>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">code_mode</span>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">myproject.mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">server</span> <span class="k">as</span> <span class="n">mcp_server</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">drf_mcp_server</span><span class="o">=</span><span class="n">mcp_server</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">code_mode</span><span class="p">])</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">mcp_server</span><span class="o">=</span><span class="n">mcp_server</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">code_mode</span><span class="p">])</span>
 </span></code></pre></div>
-<p>Now the agent exposes one <code>run_code</code> tool instead of the individual DRF tools;
-the model batches its DRF work into a single sandboxed script.</p>
+<p>Now the agent exposes one <code>run_code</code> tool instead of the individual MCP tools;
+the model batches that work into a single sandboxed script.</p>
 <h3 id="wrapping-only-some-tools">Wrapping only some tools<a class="headerlink" href="#wrapping-only-some-tools" title="Permanent link">&para;</a></h3>
 <p>Pass a name list or a predicate to <code>tools=</code> to split the toolset — matching
 tools go behind <code>run_code</code>, the rest stay as direct tool calls. This is useful
@@ -917,16 +917,18 @@ read-only ones:</p>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="c1"># Batch everything except the approval-gated delete.</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="k">return</span> <span class="n">CodeMode</span><span class="p">(</span><span class="n">tools</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">td</span><span class="p">:</span> <span class="n">td</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;projects.delete&quot;</span><span class="p">)</span>
 </span></code></pre></div>
-<h2 id="typed-stubs-keep-drf-mcps-output-schema-on">Typed stubs — keep drf-mcp's output schema on<a class="headerlink" href="#typed-stubs-keep-drf-mcps-output-schema-on" title="Permanent link">&para;</a></h2>
+<h2 id="typed-stubs-keep-the-mcp-servers-output-schema-on">Typed stubs — keep the MCP server's output schema on<a class="headerlink" href="#typed-stubs-keep-the-mcp-servers-output-schema-on" title="Permanent link">&para;</a></h2>
 <p>CodeMode renders each wrapped tool as a <strong>typed</strong> Python stub so the model knows
 what each call returns. A tool with <strong>no return schema</strong> renders <code>-&gt; Any</code> and
 CodeMode emits a warning — the model loses that type information.</p>
-<p>django-ag-ui's drf-mcp bridge carries drf-mcp's <code>outputSchema</code> onto the tool's
-<code>return_schema</code>, so bridged tools render typed <strong>as long as drf-mcp advertises
-the output schema</strong> — which it does by default
-(<code>REST_FRAMEWORK_MCP["INCLUDE_OUTPUT_SCHEMA"] = True</code>). Keep it on (and give your
-services an output serializer) for the best CodeMode experience; a service with
-no output serializer advertises no schema and its stub falls back to <code>-&gt; Any</code>.</p>
+<p>django-ag-ui's MCP bridge carries the server's <code>outputSchema</code> onto the tool's
+<code>return_schema</code>, so bridged tools render typed <strong>as long as the server
+advertises the output schema</strong> — which django-spec-mcp does by default
+(<code>SPEC_MCP["INCLUDE_OUTPUT_SCHEMA"] = True</code>). Keep it on (and declare each
+spec's output) for the best CodeMode experience; a tool with no declared output
+advertises no schema and its stub falls back to <code>-&gt; Any</code>. The deprecated
+<code>drf_mcp_server=</code> bridge does the same with drf-mcp's
+<code>REST_FRAMEWORK_MCP["INCLUDE_OUTPUT_SCHEMA"]</code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p><code>CodeMode</code> is one of several <code>pydantic-ai-harness</code> capabilities that drop

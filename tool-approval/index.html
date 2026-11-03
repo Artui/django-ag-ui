@@ -984,13 +984,13 @@ packages:</p>
 when:</p>
 <ul>
 <li>it is a registry tool declared <code>@tool(destructive=True)</code>; <strong>or</strong></li>
-<li>it is a drf-mcp bridged tool whose MCP <code>readOnlyHint</code> annotation is <code>False</code>
+<li>it is an MCP-bridged tool whose MCP <code>readOnlyHint</code> annotation is <code>False</code>
   (selectors are read-only, services mutate — the bridge maps this automatically,
   and a project can override it per registration); <strong>or</strong></li>
 <li>it is an <strong>in-process</strong> spec attached through
   <a href="../configuration/#service_specs"><code>service_specs=</code></a> whose MCP annotations say
   <code>readOnlyHint</code> is <code>False</code>, which the toolset writes for every <code>ServiceSpec</code>
-  (a <code>SelectorSpec</code> is read-only), as the drf-mcp bridge does without the MCP
+  (a <code>SelectorSpec</code> is read-only), as the MCP bridge does without the MCP
   hop; <strong>or</strong></li>
 <li>its JSON Schema carries the <code>x-destructive</code> stamp at the root, which is what
   <a class="autorefs autorefs-internal" title="build_input_schema" href="../api/#django_ag_ui.build_input_schema"><code>build_input_schema</code></a> writes — so a tool you
@@ -1004,7 +1004,7 @@ or metadata of another shape leaves the tool alone — silence is not a claim, a
 <code>REQUIRE_APPROVAL</code> is the answer for a tool whose source declares nothing.</p>
 <div class="admonition note">
 <p class="admonition-title">Why all four</p>
-<p>The guard once read only the drf-mcp metadata key, so the <em>same</em> spec was
+<p>The guard once read only the MCP bridge's metadata key, so the <em>same</em> spec was
 gated over the bridge and ungated in process: a transport swap silently
 removed the gate. Every release of django-spec-agents, this package's
 runtime, reads all four.</p>
@@ -1155,8 +1155,8 @@ the tool result. See the web component's
 <h2 id="security-note">Security note<a class="headerlink" href="#security-note" title="Permanent link">&para;</a></h2>
 <p><code>TOOL_GUARD</code> is a <strong>UX gate</strong>, not an authorization boundary. It asks the acting
 user to confirm an action <em>they are already allowed to take</em>. It does not decide
-<em>who</em> may call a tool — that is the job of your permissions (drf-mcp permission
-classes, the <code>authorize</code> hook, <code>get_user</code>). Enable the gate for destructive
+<em>who</em> may call a tool — that is the job of your permissions (each spec's
+<code>permissions</code>, the <code>authorize</code> hook, <code>get_user</code>). Enable the gate for destructive
 actions a user should consciously confirm; enforce access separately.</p>
 
 
