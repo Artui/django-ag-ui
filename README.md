@@ -80,8 +80,7 @@ browser half is
 - **Reach external tools** — compose any Pydantic-AI toolset, including an
   in-process [django-spec-mcp](https://github.com/Artui/django-spec-mcp) bridge
   (`mcp_server=`, the `[mcp]` extra) so the agent calls an MCP server's tools
-  without a network hop. `drf_mcp_server=` and `[drf-mcp]` are its deprecated
-  alias for a drf-mcp server, removed in the next minor.
+  without a network hop.
 - **Spec tools, no MCP hop** — pass `service_specs=` a `name → spec` mapping
   of [django-service-specs](https://github.com/Artui/django-service-specs) specs,
   and the agent calls them in-process via

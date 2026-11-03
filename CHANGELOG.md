@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **django-spec-agents is floored at 0.6.2**, core, `[mcp]` and `[specs]`
+  alike. A call the `mcp_server=` server refuses for permission (JSON-RPC
+  `-32006`) now ends the run in `RUN_ERROR`: the bridge raises Django's
+  `PermissionDenied`, which the failure policy passes through. Below it the
+  refusal was a failed call the default `TOOL_FAILURE` policy redacts, and the
+  run finished as though the model had only been told no. A business-rule
+  refusal still streams as a failed call.
+
+### Removed
+
+- **`drf_mcp_server=` and the `[drf-mcp]` extra**, deprecated in 0.73.0 for
+  `mcp_server=` and `[mcp]`. `AGUIServer`, `DjangoAGUIView` and `ToolsView`
+  raise `TypeError` for the keyword as for any they do not take, so a mount
+  still passing it fails at construction rather than on its first request once
+  django-spec-agents drops `DRFMCPToolset`. The per-run deprecation warning
+  goes with it. Register the tools on a django-spec-mcp `MCPServer` as kernel
+  specs and pass that as `mcp_server=`.
+
 ## [0.73.0] — 2026-11-03
 
 ### Added

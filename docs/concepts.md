@@ -742,15 +742,15 @@ to the agent **in-process**, with no network MCP hop.
 - Execution routes through the server's public `MCPServer.acall_tool`, its
   in-process transport surface, so the kernel's argument validation and each
   spec's permissions are honoured exactly as over HTTP.
-- A refusal comes back as a failed call carrying the service's sentence, and a
-  value the spec refuses as a retry naming the argument, rather than either
-  reading as a successful result.
+- A business-rule refusal comes back as a failed call carrying the service's
+  sentence, and a value the spec refuses as a retry naming the argument, rather
+  than either reading as a successful result.
+- A permission check refusing the acting user ends the run: the bridge raises
+  Django's `PermissionDenied`, which the failure policy passes through, so the
+  stream closes on `RUN_ERROR` rather than handing the model a failed call to
+  answer.
 - The toolset hands the Django `request` and `request.user` to those methods, so
   the agent acts as the **logged-in AG-UI user**.
 
 The bridge is imported lazily, only when `mcp_server=` is set, keeping
 `django_spec_mcp` an optional dependency.
-
-The deprecated [`drf_mcp_server=`](configuration.md#drf_mcp_server)
-builds `DRFMCPToolset` instead, for a `djangorestframework-mcp-server` server,
-for one more minor.

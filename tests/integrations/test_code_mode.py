@@ -1,8 +1,8 @@
-"""The drf-mcp bridge composed with a harness ``CodeMode`` capability.
+"""The MCP bridge composed with a harness ``CodeMode`` capability.
 
 Two halves:
 
-- The **bridge** carries drf-mcp's ``outputSchema`` onto ``ToolDefinition.return_schema``
+- The **bridge** carries django-spec-mcp's ``outputSchema`` onto ``ToolDefinition.return_schema``
   (no harness needed) — the input CodeMode reads to type its stubs.
 - The **recipe**: with ``CodeMode`` in the agent's capabilities, the bridged tools
   collapse into one sandboxed ``run_code`` tool, and a tool that carries a return
@@ -21,13 +21,13 @@ from django.http import HttpRequest
 from django.test import RequestFactory
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.types.agent_config import AgentConfig
-from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
+from django_spec_agents.integrations.mcp import MCPToolset
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from tests.integrations.drf_server import server as untyped_server
-from tests.integrations.drf_server_typed import server as typed_server
+from tests.integrations.spec_mcp_server import server as untyped_server
+from tests.integrations.spec_mcp_server_typed import server as typed_server
 
 
 def _request() -> HttpRequest:
@@ -40,7 +40,7 @@ def _request() -> HttpRequest:
 
 
 def test_bridge_carries_output_schema_as_return_schema() -> None:
-    defs = {d.name: d for d in DRFMCPToolset(typed_server, _request())._load_tool_defs()}
+    defs = {d.name: d for d in MCPToolset(typed_server, _request())._load_tool_defs()}
     add = defs["add_typed"]
     assert add.return_schema == {
         "type": "object",
@@ -51,9 +51,9 @@ def test_bridge_carries_output_schema_as_return_schema() -> None:
 
 
 def test_bridge_omits_return_schema_when_no_output_schema() -> None:
-    # A service with no output serializer advertises no ``outputSchema``, so the
+    # A service with no presenter advertises no ``outputSchema``, so the
     # def carries none — the stub falls back to ``-> Any``.
-    defs = {d.name: d for d in DRFMCPToolset(untyped_server, _request())._load_tool_defs()}
+    defs = {d.name: d for d in MCPToolset(untyped_server, _request())._load_tool_defs()}
     add = defs["add"]
     assert add.return_schema is None
     assert add.include_return_schema is False
@@ -63,7 +63,7 @@ def test_bridge_omits_return_schema_when_no_output_schema() -> None:
 
 
 async def _compose_with_code_mode(server: Any) -> tuple[list[str], list[str]]:
-    """Build ``build_agent`` + a drf-mcp toolset + ``CodeMode``, run once, and
+    """Build ``build_agent`` + an MCP toolset + ``CodeMode``, run once, and
     return (tool names the model saw, CodeMode's ``-> Any`` warnings)."""
     # The [harness] extra (with its [code-mode] sandbox) is a dev dependency, so
     # this runs in CI; importorskip only guards a stripped-down environment.
@@ -79,7 +79,7 @@ async def _compose_with_code_mode(server: Any) -> tuple[list[str], list[str]]:
         ToolRegistry(),
         AgentConfig(
             model=FunctionModel(model_fn),
-            toolsets=[DRFMCPToolset(server, _request())],
+            toolsets=[MCPToolset(server, _request())],
             capabilities=[code_mode.CodeMode()],
         ),
     )
@@ -90,7 +90,7 @@ async def _compose_with_code_mode(server: Any) -> tuple[list[str], list[str]]:
     return seen.get("tools", []), any_warnings
 
 
-async def test_code_mode_collapses_typed_drf_mcp_tools_into_run_code() -> None:
+async def test_code_mode_collapses_typed_mcp_tools_into_run_code() -> None:
     tools, any_warnings = await _compose_with_code_mode(typed_server)
     # The bridged tool is wrapped: the model sees only ``run_code``, not ``add_typed``.
     assert "run_code" in tools

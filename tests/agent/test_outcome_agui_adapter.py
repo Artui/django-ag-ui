@@ -396,21 +396,20 @@ async def test_a_failed_call_reaches_the_browser_with_the_outcome_on_both_carrie
     assert result["outcome"] == "failed"
 
 
-async def test_a_refused_drf_mcp_tool_reaches_the_browser_marked_failed() -> None:
-    """The same marking for a tool bridged from ``drf_mcp_server=``.
+async def test_a_refused_mcp_tool_reaches_the_browser_marked_failed() -> None:
+    """The same marking for a tool bridged from ``mcp_server=``.
 
-    That bridge is django-spec-agents', and in django-pydantic-agent, its
-    predecessor, below 0.23 it *returned* the
-    server's refusal as ``{"error": ...}``, the tool's value, which pydantic-ai
-    records as a success: the result above reached the browser with no
-    ``outcome`` at all, and a refused call rendered as a completed one. This is
-    the test holding that constraint. The declared floor has moved past 0.23 and
-    subsumes it, so this names the release the behaviour arrived in rather than
-    the band the pin currently states.
+    The bridge is django-spec-agents'. Its drf-mcp predecessor, in
+    django-pydantic-agent below 0.23, *returned* the server's refusal as
+    ``{"error": ...}``, the tool's value, which pydantic-ai records as a
+    success: the result above reached the browser with no ``outcome`` at all,
+    and a refused call rendered as a completed one. The django-spec-mcp bridge
+    raises a business-rule refusal as a failed call from its first release;
+    this holds it there.
     """
-    from tests.integrations.drf_server import server as drf_server
+    from tests.integrations.spec_mcp_server import server as spec_mcp_server
 
-    view = DjangoAGUIView(ToolRegistry(), model=TestModel(), drf_mcp_server=drf_server)
+    view = DjangoAGUIView(ToolRegistry(), model=TestModel(), mcp_server=spec_mcp_server)
     request = AuthedRequestFactory().post("/agent/")
     (bridge,) = view._run_toolsets(request)
 

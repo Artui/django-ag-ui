@@ -1,9 +1,9 @@
 """``AGUIServer(mcp_server=...)``: a django-spec-mcp server bridged into the agent.
 
 Driven end to end through the mounted endpoint and its tool catalog, over a
-server registering kernel specs only, so nothing on this path is drf-mcp's. The
-deprecated ``drf_mcp_server=`` alias is held beside it: it still bridges a
-drf-mcp server, and says which keyword replaces it.
+server registering kernel specs only, so nothing on this path is drf-mcp's.
+``drf_mcp_server=``, the keyword's alias for a drf-mcp server, is gone, and
+refused as any keyword a constructor does not take.
 """
 
 from __future__ import annotations
@@ -27,7 +27,6 @@ from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.authed_request_factory import AuthedRequestFactory
-from tests.integrations.drf_server import server as drf_server
 from tests.integrations.spec_mcp_server import server as spec_mcp_server
 
 
@@ -182,6 +181,7 @@ async def test_a_bridged_tool_keeps_its_name_from_the_attachment_toolset() -> No
             atomic=False,
         ),
         name="read_attachment",
+        description="Read an attachment.",
     )
     view = DjangoAGUIView(
         ToolRegistry(),
@@ -214,52 +214,17 @@ def test_mcp_server_is_not_deprecated() -> None:
         _views(server)["tools"](AuthedRequestFactory().get("/agent/tools/"))
 
 
-def test_drf_mcp_server_warns_and_names_its_replacement() -> None:
-    with pytest.warns(
-        DeprecationWarning, match=r"pass a django-spec-mcp server as mcp_server="
-    ) as record:
-        AGUIServer(ToolRegistry(), model=TestModel(), drf_mcp_server=drf_server)
-
-    # Pointed at the line that passed the old keyword, not at this package.
-    (warning,) = [w for w in record if "AGUIServer(drf_mcp_server=)" in str(w.message)]
-    assert warning.filename == __file__
-
-
-async def test_drf_mcp_server_still_bridges_a_drf_mcp_server() -> None:
-    from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
-
-    with pytest.warns(DeprecationWarning):
-        server = AGUIServer(ToolRegistry(), model=TestModel(), drf_mcp_server=drf_server)
-    views = _views(server)
-
-    (toolset,) = views["endpoint"]._run_toolsets(AuthedRequestFactory().post("/agent/"))
-    assert isinstance(toolset, DRFMCPToolset)
-    catalog = json.loads(views["tools"](AuthedRequestFactory().get("/agent/tools/")).content)
-    assert {entry["name"] for entry in catalog} == {"add", "invalid", "denied"}
-
-
-def test_a_tools_view_built_directly_still_takes_the_old_keyword() -> None:
-    # ``AGUIServer`` hands its catalog the server under the new keyword whichever
-    # one it was given, so only a ``ToolsView`` built by hand reaches this.
-    view = ToolsView(ToolRegistry(), drf_mcp_server=drf_server)
-
-    catalog = json.loads(view(AuthedRequestFactory().get("/agent/tools/")).content)
-    assert {entry["name"] for entry in catalog} == {"add", "invalid", "denied"}
-
-
 @pytest.mark.parametrize(
-    ("name", "build"),
+    "build",
     [
-        ("AGUIServer", lambda **kw: AGUIServer(ToolRegistry(), model=TestModel(), **kw)),
-        ("DjangoAGUIView", lambda **kw: DjangoAGUIView(ToolRegistry(), model=TestModel(), **kw)),
-        ("ToolsView", lambda **kw: ToolsView(ToolRegistry(), **kw)),
+        lambda **kw: AGUIServer(ToolRegistry(), model=TestModel(), **kw),
+        lambda **kw: DjangoAGUIView(ToolRegistry(), model=TestModel(), **kw),
+        lambda **kw: ToolsView(ToolRegistry(), **kw),
     ],
     ids=["AGUIServer", "DjangoAGUIView", "ToolsView"],
 )
-def test_both_server_keywords_are_refused(name: str, build: Any) -> None:
-    # Matched on the constructor's own name: ``AGUIServer`` builds the view, so
-    # without it the view's refusal would answer for the server's.
-    with pytest.raises(
-        TypeError, match=rf"^{name}\(\) takes mcp_server or drf_mcp_server, not both"
-    ):
-        build(mcp_server=spec_mcp_server, drf_mcp_server=drf_server)
+def test_the_removed_drf_mcp_server_keyword_is_refused(build: Any) -> None:
+    # Refused before anything is built, so a mount still passing the old
+    # keyword fails at import rather than on its first request.
+    with pytest.raises(TypeError, match=r"unexpected keyword argument 'drf_mcp_server'"):
+        build(drf_mcp_server=spec_mcp_server)

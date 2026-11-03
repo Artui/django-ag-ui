@@ -25,7 +25,6 @@ from django_ag_ui import AGUIServer, ToolRegistry
         "authorize",
         "conversation_store",
         "deps_factory",
-        "drf_mcp_server",
         "get_user",
         "instructions_for_request",
         "mcp_server",
