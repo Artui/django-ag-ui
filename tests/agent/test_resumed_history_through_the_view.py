@@ -33,6 +33,7 @@ from pydantic_ai.messages import (
     CompactionPart,
     ModelMessage,
     ModelRequest,
+    ModelResponse,
     ModelResponseStreamEvent,
     ToolReturnPart,
     UserPromptPart,
@@ -40,6 +41,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models import StreamedResponse
 from pydantic_ai.models.function import DeltaToolCall, FunctionModel, FunctionStreamedResponse
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from tests.agent.test_agui_view import _drain, _post, _registry, _ThreadStore
@@ -488,6 +490,24 @@ def _compactions(row: list[dict[str, Any]]) -> list[tuple[str, str]]:
     ]
 
 
+def _stamp_the_dump_writes(provider: str | None) -> str | None:
+    """The ``canonical_system`` pydantic-ai's own dump stores beside a compaction.
+
+    Read from the producer rather than written down: pydantic-ai 2.64 stamps
+    the response's ``canonical_system`` on the part, while 2.63, the floor,
+    stamps nothing. What the row keeps has to be what the dump wrote.
+    """
+    part = (
+        CompactionPart(provider_name=provider, provider_details={"encrypted_content": "s"})
+        if provider
+        else CompactionPart(content="s")
+    )
+    response = ModelResponse(parts=[part], provider_name=provider)
+    response.canonical_system = provider
+    (activity,) = AGUIAdapter.dump_messages([response])
+    return activity.content.get("canonical_system")
+
+
 _PROVIDERS = pytest.mark.parametrize("provider", [None, "openai"], ids=["plain", "openai"])
 
 
@@ -504,7 +524,7 @@ async def test_a_compaction_is_stored_under_the_id_it_streamed_under(provider: s
     # The shape the lending has to see past: only the stored copy is stamped.
     (stored,) = [m["content"] for m in _row(store) if m["role"] == "activity"]
     assert "canonical_system" not in snapshot["content"]
-    assert stored.get("canonical_system") == provider
+    assert stored.get("canonical_system") == _stamp_the_dump_writes(provider)
 
 
 @_PROVIDERS
@@ -537,7 +557,7 @@ async def test_a_compaction_keeps_its_streamed_id_after_a_resume_and_a_fork(
     # pydantic-ai reads it back from the row when it reloads the thread.
     for row in (_row(store), forked):
         stamps = [m["content"].get("canonical_system") for m in row if m["role"] == "activity"]
-        assert stamps[:2] == [provider, provider]
+        assert stamps[:2] == [_stamp_the_dump_writes(provider)] * 2
 
 
 @pytest.mark.django_db(transaction=True)
