@@ -388,8 +388,17 @@ def _same_content(streamed: dict[str, Any] | None, dumped: dict[str, Any]) -> bo
     """Whether a streamed activity's content and a dumped one's are one content.
 
     ``None`` is an activity a delta changed, which is no dumped content.
+
+    The dumped content is compared without its ``canonical_system`` key. As of
+    pydantic-ai 2.64.0 the dump writes a compaction part with the response's
+    ``canonical_system`` beside it (``part_canonical_system``), while the stream's
+    ``handle_compaction`` sees only the part and has no response to read it from;
+    an ``OpenAIProvider`` response always carries one, so every OpenAI compaction
+    differs from its snapshot by that key alone. Any other difference still
+    refuses the id. Without the removal
+    ``test_a_dumped_canonical_system_is_not_a_difference`` fails.
     """
-    return streamed == dumped
+    return streamed == {key: value for key, value in dumped.items() if key != "canonical_system"}
 
 
 def _take(queues: dict[str, deque[_T]], key: str) -> _T | None:

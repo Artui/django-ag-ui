@@ -408,14 +408,35 @@ async def test_a_row_that_cannot_be_read_costs_the_ids_not_the_run(lose_the_row:
 
 @dataclass
 class _CompactingResponse(FunctionStreamedResponse):
-    """A streamed response that opens with a provider's compaction part."""
+    """A streamed response that opens with a provider's compaction part.
+
+    With a ``provider`` it is shaped as OpenAI's: the summary is encrypted in
+    ``provider_details``, and the response is stamped with the provider's
+    ``canonical_system``, which the dump carries beside the part and the stream
+    does not.
+    """
 
     summary: str = ""
+    provider: str | None = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.canonical_system = self.provider
+
+    @property
+    def provider_name(self) -> str | None:
+        return self.provider
 
     async def _get_event_iterator(self) -> AsyncIterator[ModelResponseStreamEvent]:
-        yield self._parts_manager.handle_part(
-            vendor_part_id="compaction", part=CompactionPart(content=self.summary)
+        part = (
+            CompactionPart(
+                provider_name=self.provider,
+                provider_details={"encrypted_content": self.summary},
+            )
+            if self.provider
+            else CompactionPart(content=self.summary)
         )
+        yield self._parts_manager.handle_part(vendor_part_id="compaction", part=part)
         async for event in super()._get_event_iterator():
             yield event
 
@@ -429,8 +450,9 @@ class _CompactingModel(FunctionModel):
     numbered, so an id lent to the wrong compaction shows.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, provider: str | None) -> None:
         super().__init__(stream_function=_answer_done)
+        self.compacting_provider = provider
         self.compactions = 0
 
     @asynccontextmanager
@@ -442,6 +464,7 @@ class _CompactingModel(FunctionModel):
                 _model_name=response.model_name,
                 _iter=response._iter,
                 summary=f"summary {self.compactions}",
+                provider=self.compacting_provider,
             )
 
 
@@ -453,25 +476,44 @@ def _activity_snapshots(body: str) -> list[dict[str, Any]]:
     return [frame for frame in _frames(body) if frame["type"] == "ACTIVITY_SNAPSHOT"]
 
 
-def _activities(row: list[dict[str, Any]]) -> list[tuple[str, Any]]:
-    return [(m["id"], m["content"]) for m in row if m["role"] == "activity"]
+def _compactions(row: list[dict[str, Any]]) -> list[tuple[str, str]]:
+    """Each stored activity's id and the summary it holds, in either shape."""
+    return [
+        (
+            m["id"],
+            m["content"].get("content") or m["content"]["provider_details"]["encrypted_content"],
+        )
+        for m in row
+        if m["role"] == "activity"
+    ]
 
 
+_PROVIDERS = pytest.mark.parametrize("provider", [None, "openai"], ids=["plain", "openai"])
+
+
+@_PROVIDERS
 @pytest.mark.django_db(transaction=True)
-async def test_a_compaction_is_stored_under_the_id_it_streamed_under() -> None:
+async def test_a_compaction_is_stored_under_the_id_it_streamed_under(provider: str | None) -> None:
     store = _ThreadStore()
-    view = _view(await _user_named("compacted"), store, _CompactingModel())
+    view = _view(await _user_named("compacted"), store, _CompactingModel(provider))
     body = await _drain(await view(_post(_body([_user("u1", "hello")], run_id="r1"))))
 
     (snapshot,) = _activity_snapshots(body)
     assert snapshot["activityType"] == "pydantic_ai_compaction"
-    assert _activities(_row(store)) == [(snapshot["messageId"], snapshot["content"])]
+    assert _compactions(_row(store)) == [(snapshot["messageId"], "summary 1")]
+    # The shape the lending has to see past: only the stored copy is stamped.
+    (stored,) = [m["content"] for m in _row(store) if m["role"] == "activity"]
+    assert "canonical_system" not in snapshot["content"]
+    assert stored.get("canonical_system") == provider
 
 
+@_PROVIDERS
 @pytest.mark.django_db(transaction=True)
-async def test_a_compaction_keeps_its_streamed_id_after_a_resume_and_a_fork() -> None:
+async def test_a_compaction_keeps_its_streamed_id_after_a_resume_and_a_fork(
+    provider: str | None,
+) -> None:
     store = _ThreadStore()
-    view = _view(await _user_named("resumer"), store, _CompactingModel())
+    view = _view(await _user_named("resumer"), store, _CompactingModel(provider))
     first = await _drain(await view(_post(_body([_user("u1", "hello")], run_id="r1"))))
     (snapshot,) = _activity_snapshots(first)
     second = await _drain(
@@ -485,12 +527,9 @@ async def test_a_compaction_keeps_its_streamed_id_after_a_resume_and_a_fork() ->
         )
     )
 
-    resumed = _activities(_row(store))
-    assert resumed == [
-        (snapshot["messageId"], {"content": "summary 1"}),
-        (later["messageId"], {"content": "summary 2"}),
-    ]
+    resumed = _compactions(_row(store))
+    assert resumed == [(snapshot["messageId"], "summary 1"), (later["messageId"], "summary 2")]
     forked = _row(store, "t2")
-    assert _activities(forked)[:2] == resumed
+    assert _compactions(forked)[:2] == resumed
     _assert_no_id_twice(_row(store))
     _assert_no_id_twice(forked)

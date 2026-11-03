@@ -524,3 +524,61 @@ def test_a_snapshot_that_does_not_replace_keeps_the_first_content() -> None:
     )
 
     assert _ids(restamped) == ["s1"]
+
+
+def test_a_dumped_canonical_system_is_not_a_difference() -> None:
+    # An OpenAI compaction: the dump stamps the response's canonical_system
+    # beside the part, which the stream has no response to read it from.
+    transcript = RunTranscript()
+    transcript.add(
+        _snapshot(
+            "s1",
+            "pydantic_ai_compaction",
+            id="c1",
+            provider_name="openai",
+            provider_details={"encrypted_content": "x"},
+        )
+    )
+
+    restamped = transcript.with_streamed_ids(
+        [
+            _activity(
+                "d1",
+                "pydantic_ai_compaction",
+                id="c1",
+                provider_name="openai",
+                provider_details={"encrypted_content": "x"},
+                canonical_system="openai",
+            )
+        ]
+    )
+
+    assert _ids(restamped) == ["s1"]
+
+
+def test_a_difference_beside_the_canonical_system_still_refuses() -> None:
+    transcript = RunTranscript()
+    transcript.add(
+        _snapshot(
+            "s1",
+            "pydantic_ai_compaction",
+            id="c1",
+            provider_name="openai",
+            provider_details={"encrypted_content": "x"},
+        )
+    )
+
+    restamped = transcript.with_streamed_ids(
+        [
+            _activity(
+                "d1",
+                "pydantic_ai_compaction",
+                id="c1",
+                provider_name="openai",
+                provider_details={"encrypted_content": "y"},
+                canonical_system="openai",
+            )
+        ]
+    )
+
+    assert _ids(restamped) == ["d1"]
