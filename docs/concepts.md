@@ -466,7 +466,8 @@ later turn that posts those ids back stores the same message under the same id.
 That holds whichever way the run ends: completed, failed or cancelled. An
 activity a completed run stores, such as pydantic-ai's `pydantic_ai_compaction`,
 is stored under the `messageId` of its `ACTIVITY_SNAPSHOT`, which is the id the
-client materialised it under; a failed or cancelled run stores no activities.
+client materialised it under. A failed or cancelled run does not store the
+activities it streamed itself.
 
 **A stored message never carries another message's id.** Where the server cannot
 tell for certain which streamed message a stored one is, it gives the stored one
