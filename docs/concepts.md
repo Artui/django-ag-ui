@@ -480,10 +480,11 @@ rather than lent to its neighbour, so a rating never lands on the wrong answer.
 The check covers the run as a whole, since the stream marks no boundary between
 one model response and the next: when it fails for one answer, every text-only
 answer of that run keeps a fresh id. Activities are checked the same way, per
-activity type and by content, and an activity an `ACTIVITY_DELTA` changed
-leaves every activity of its type with a fresh id: the server does not apply
-the patch, so it cannot tell which stored activity holds what the client ended
-with.
+activity type and by content, leaving aside the `canonical_system` a stored
+compaction carries and its `ACTIVITY_SNAPSHOT` cannot; an activity an
+`ACTIVITY_DELTA` changed leaves every activity of its type with a fresh id: the
+server does not apply the patch, so it cannot tell which stored activity holds
+what the client ended with.
 
 The earlier turns a [resumed or forked run](step-persistence.md) is seeded with
 are stored from the step store's snapshot, where nothing an earlier run

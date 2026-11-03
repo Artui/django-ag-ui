@@ -36,10 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   had materialised under the streamed id, was a different message after a
   reload. Activities are now matched as answers and reasoning are: on a
   completed run by position among the streamed activities of the same type,
-  only when the counts agree and every pair has the same content; on a resume
-  or fork by type and content against the source thread's stored row, in
-  order. An activity an `ACTIVITY_DELTA` changed is matched to nothing, so its
-  type keeps fresh ids.
+  only when the counts agree and every pair has the same content, leaving
+  aside the `canonical_system` the stored copy of a compaction carries and its
+  snapshot does not (always there for OpenAI); on a resume or fork by type and
+  content against the source thread's stored row, in order. An activity an
+  `ACTIVITY_DELTA` changed is matched to nothing, so its type keeps fresh ids.
 
 ## [0.73.0] — 2026-11-03
 
