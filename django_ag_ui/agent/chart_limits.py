@@ -1,20 +1,3 @@
-"""The bounds a chart payload has to satisfy on *both* sides of the wire.
-
-These mirror the web component's own limits exactly, and that is the whole
-point of the module: the client refuses a payload outside them and has no
-channel to say so, so a producer that does not know the same numbers ships
-charts that vanish. Three constants and one validator, in one place, because the
-first version of this feature bounded the consumer and forgot the producer --
-and the failure looked like nothing happening at all.
-
-Keep in step with ``MAX_MAGNITUDE``, ``MAX_POINTS`` and ``MAX_LABELS`` in the
-component's ``src/ui/chart_spec_from.ts`` -- **all** of them, which is the
-lesson the third one taught: mirroring two of the client's three bounds left the
-same silent-drop hole the module exists to close. A mismatch is invisible in
-both test suites: each side passes its own, and only a payload crossing the gap
-between them fails.
-"""
-
 from __future__ import annotations
 
 import math
@@ -48,19 +31,7 @@ both, which is why the client carries two and so does this side.
 
 
 def validate_point(where: str, point: object) -> None:
-    """Refuse a number the client will not read, naming ``where`` it came from.
-
-    ``Decimal`` is the case worth naming: a Django ``Sum`` over a
-    ``DecimalField`` is the likeliest source of chart numbers in this ecosystem,
-    and Pydantic serialises it as a JSON *string*. The client reads only JSON
-    numbers and drops the whole chart, with no error on either side. Refused
-    rather than coerced, because rounding somebody's money to a float behind
-    their back is the wrong favour: call ``float()`` where the precision you are
-    giving up is visible.
-
-    ``bool`` is excluded for the reason it usually surprises people: it is an
-    ``int`` to Python, so it would plot as 0 or 1 rather than announce itself.
-    """
+    """Refuse a number the client will not read, naming ``where`` it came from."""
     if isinstance(point, bool) or not isinstance(point, int | float):
         raise ValueError(
             f"{where} has a point of type {type(point).__name__}; the client reads only "

@@ -1,5 +1,3 @@
-"""``inject_compaction_events`` — surface recorded compactions on the AG-UI stream."""
-
 from __future__ import annotations
 
 import uuid
@@ -14,22 +12,7 @@ COMPACTION_ACTIVITY_TYPE = "compaction"
 
 
 async def inject_compaction_events(stream: AsyncIterator[BaseEvent]) -> AsyncIterator[BaseEvent]:
-    """Forward ``stream``, interleaving an activity event per recorded compaction.
-
-    Establishes the per-run sink that ``CompactionObserver`` writes into,
-    then drains it as the stream advances. The agent run happens *inside* this
-    iteration, so a compaction surfaces immediately above the turn that ran with
-    the shortened history.
-
-    An ``ACTIVITY_SNAPSHOT`` rather than a ``CUSTOM`` event, so the wire stays
-    vanilla AG-UI and ours is not a privileged client. Each carries a fresh
-    ``message_id``: a compaction is a distinct occurrence, not a mutation of a
-    prior one.
-
-    The final drain after the loop is load-bearing — a run's last compaction is
-    recorded during the model request that produces the closing events, and
-    would otherwise be dropped.
-    """
+    """Forward ``stream``, interleaving an activity event per recorded compaction."""
     sink: list[Compaction] = []
     token = COMPACTION_SINK.set(sink)
     try:

@@ -1,5 +1,3 @@
-"""``ChartSpec`` — the data a chart is drawn from, on the way to the browser."""
-
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -14,31 +12,7 @@ from django_ag_ui.agent.types.chart_series import ChartSeries
 
 @dataclass(frozen=True)
 class ChartSpec:
-    """A chart, as data rather than as markup.
-
-    Sent as the content of an ``ACTIVITY_SNAPSHOT``, which the client draws
-    itself. Nothing here is HTML and nothing here is interpreted as HTML: the
-    server chooses the numbers and the browser chooses the DOM, which is what
-    keeps a pushed visual off the sanitiser's surface entirely.
-
-    Frozen at the top level: ``labels``, ``series`` and the points inside them
-    are copied to tuples and ``metadata`` to a read-only mapping, so a list
-    handed in cannot be appended to after it has been checked. A **nested**
-    structure inside ``metadata`` is still shared with the caller, and nothing
-    reads it here anyway.
-
-    Frozen, and **not usefully hashable** -- ``__hash__`` exists but raises,
-    because ``metadata`` is part of a spec's value, so
-    excluding it to buy a hash would make two specs carrying different payloads
-    compare equal. That is the ordinary situation for a record with a mapping
-    field; nothing here needs to be a dict key.
-
-    **The client is the authority on shape.** It refuses a spec whose series
-    disagree in length with the labels, because a chart that is subtly
-    misaligned still reads as authoritative --
-    [`validate`][django_ag_ui.ChartSpec.validate] catches that here instead, on
-    the side that can name the offending series.
-    """
+    """A chart, as data rather than as markup."""
 
     labels: tuple[str, ...]
     series: tuple[ChartSeries, ...]
@@ -56,10 +30,7 @@ class ChartSpec:
     mid-stream, after the response has already begun."""
 
     def __post_init__(self) -> None:
-        # Coerced before validating, because a list passed in would otherwise
-        # pass the length check and then be appended to afterwards -- the frozen
-        # dataclass freezes the *binding*, not what it points at, so a spec
-        # validated at construction could still reach the wire misaligned.
+        # Coerced before validating: a frozen dataclass freezes the binding, not its contents.
         object.__setattr__(self, "labels", tuple(self.labels))
         object.__setattr__(
             self, "series", tuple(ChartSeries(s.label, tuple(s.points)) for s in self.series)
@@ -68,15 +39,7 @@ class ChartSpec:
         self.validate()
 
     def validate(self) -> None:
-        """Raise ``ValueError`` for a spec the client would refuse to draw.
-
-        Checked at construction rather than at send time so a mistake surfaces
-        where the data is assembled. The client refuses the same shapes and
-        **silently draws nothing** -- it has no channel to complain on -- so a
-        spec that gets past here reaches a user as a chart that simply is not
-        there. Failing at construction names which series is wrong, on the side
-        that can fix it.
-        """
+        """Raise ``ValueError`` for a spec the client would refuse to draw."""
         if not self.labels:
             raise ValueError("a chart needs at least one label")
         if not self.series:
@@ -90,10 +53,6 @@ class ChartSpec:
             if not isinstance(label, str):
                 raise ValueError(f"label {label!r} is not a string; the client refuses the spec")
         if len(self.labels) > MAX_LABELS:
-            # Checked separately from the point budget below, because the two
-            # bounds are independent: a one-series spec of 3000 labels carries
-            # 3000 points -- far inside MAX_POINTS -- and is still refused on
-            # arrival, with nothing reported on either side.
             raise ValueError(
                 f"this chart carries {len(self.labels)} labels, over the client's "
                 f"{MAX_LABELS} limit; it would be refused on arrival, and drawing one "
@@ -109,10 +68,6 @@ class ChartSpec:
             )
         for entry in self.series:
             if not isinstance(entry.label, str):
-                # Checked here rather than on ``ChartSeries`` so it is refused
-                # alongside the labels it sits beside; a lazy translation object
-                # is the likely culprit and it does not fail until encode time,
-                # which is mid-stream with the headers already sent.
                 raise ValueError(
                     f"series label {entry.label!r} is not a string (got "
                     f"{type(entry.label).__name__}); wrap a lazy translation in str() "
@@ -128,10 +83,6 @@ class ChartSpec:
 
     def as_content(self) -> dict[str, Any]:
         """The activity payload the client reads."""
-        # ``metadata`` spread first so it cannot shadow anything this record
-        # owns. ``title`` is popped rather than merely written after, because it
-        # is conditional: a spec with no title would otherwise let a stray
-        # metadata key supply one, which is shadowing by omission.
         content: dict[str, Any] = {key: value for key, value in self.metadata.items()}
         content.pop("title", None)
         content.update(
@@ -141,9 +92,6 @@ class ChartSpec:
                 "series": [{"label": s.label, "points": list(s.points)} for s in self.series],
             }
         )
-        # Omitted rather than sent as null: the client treats a non-string title
-        # as absent either way, and a null in the payload reads as a title that
-        # failed to render.
         if self.title is not None:
             content["title"] = self.title
         return content

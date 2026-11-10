@@ -1,5 +1,3 @@
-"""``SubAgentObserver`` -- make a delegated sub-agent's work visible to the client."""
-
 from __future__ import annotations
 
 import asyncio
@@ -70,52 +68,7 @@ _DELEGATION: ContextVar[_Delegation | None] = ContextVar(
 
 
 class SubAgentObserver(WrapperCapability[Any]):
-    """Wraps a ``SubAgents`` capability and reports each delegation as it happens.
-
-    A delegated child runs to completion inside one ``delegate_task`` tool call,
-    and a tool call emits nothing between its arguments and its result. So a
-    parent that hands a long task to a sub-agent shows a tool card that simply
-    sits there -- for a minute, for five -- with no way to tell a working run
-    from a wedged one. Wrapping the capability is the seam for saying so:
-
-        capabilities=[SubAgentObserver(SubAgents(agents=[...], agent_folders=None))]
-
-    Opt-in by construction: passing ``SubAgents`` unwrapped emits nothing, and
-    costs nothing.
-
-    What reaches the client rides **two carriers, on purpose**. The delegation's
-    own lifetime goes on the protocol's ``SUBAGENT_STARTED`` / ``_FINISHED`` /
-    ``_ERROR`` events, built by ``subagent_lifecycle``; each tool call the child
-    makes goes on a ``CUSTOM`` event, whose wire contract is
-    [`SUBAGENT_EVENT_NAME`][django_ag_ui.SUBAGENT_EVENT_NAME]. Both key on the
-    parent's own ``delegate_task`` tool call id -- as ``parentToolCallId`` and as
-    ``delegationId`` respectively -- so a client augments the card it already
-    drew rather than opening a second row beside it.
-
-    The split is not a transitional state. Moving the steps to the protocol's
-    own vocabulary would mean ordinary ``TOOL_CALL_*`` events tagged with
-    ``subagentRunId``, and those are materialised into the persisted message
-    list and replayed on every thread restore -- which would redraw a finished
-    run's progress as though it were live. ``subagent_progress`` carries the
-    full reasoning.
-
-    **The observer installs itself onto the capability you hand it.** Reporting
-    a child's tool calls needs ``SubAgents.event_stream_handler``, which only the
-    capability that starts the child run can pass on, so construction sets that
-    field on the wrapped instance. Two consequences worth stating rather than
-    discovering: wrapping a ``SubAgents`` that *already* carries a handler is
-    refused (silently replacing it would lose whatever it was for), and the
-    instance you passed is the one that changed. The second is harmless in a way
-    worth knowing -- the installed handler announces onto
-    ``SUBAGENT_SINK``, which no run outside this transport's stream ever binds,
-    so the same instance reused at an unwrapped endpoint behaves exactly as it
-    did before.
-
-    Subclassing ``WrapperCapability`` (pydantic-ai's supported wrapper, analogous
-    to ``WrapperToolset``) rather than hand-rolling a proxy keeps the rest of the
-    capability protocol intact -- ordering, the ``has_*`` hook-introspection
-    flags and every other lifecycle method delegate untouched.
-    """
+    """Wraps a ``SubAgents`` capability and reports each delegation as it happens."""
 
     def __init__(self, wrapped: Any) -> None:
         _install_handler(wrapped, self._forward_child_events)
@@ -123,18 +76,7 @@ class SubAgentObserver(WrapperCapability[Any]):
 
     @property
     def _delegate_tool_name(self) -> str:
-        """The wrapped capability's delegate-tool name, read on access.
-
-        A wrapper is rebound as a shallow copy when what it wraps returns a
-        fresh instance for a run, and a value cached at construction would then
-        describe the capability that was replaced. ``SubAgents.tool_name`` is
-        configurable, so reading it late is the difference between observing an
-        endpoint that renamed the tool and observing nothing at all.
-
-        Cast because ``wrapped`` is typed as the capability protocol, which has
-        no ``tool_name``. That the field is there is exactly what construction
-        refused to proceed without.
-        """
+        """The wrapped capability's delegate-tool name, read on access."""
         return str(cast("Any", self.wrapped).tool_name)
 
     async def wrap_tool_execute(
@@ -146,25 +88,7 @@ class SubAgentObserver(WrapperCapability[Any]):
         args: dict[str, Any],
         handler: Any,
     ) -> Any:
-        """Announce the delegation this call is, then run it.
-
-        This hook fires for **every** tool in the parent run, not only the ones
-        the wrapped capability contributed -- pydantic-ai composes one root
-        capability and asks it about each call -- so the delegate tool is picked
-        out by name and everything else is delegated untouched.
-
-        **Every exit path closes the delegation it opened, cancellation
-        included** -- which reverses an earlier choice here, and the reason is
-        worth keeping. Not announcing on ``asyncio.CancelledError`` was defended
-        as "a cancelled run is a client that has gone away, and there is nobody
-        left to tell", and that holds only when the whole *run* was cancelled. A
-        single tool call can be cancelled while the run continues, and under the
-        protocol's own lifecycle an unclosed delegation is not merely a missing
-        line: ``@ag-ui/client`` refuses ``RUN_FINISHED`` while any delegation is
-        still open, so the omission would take down the run it was trying not to
-        disturb. Announcing into a sink nobody is draining costs nothing, which
-        makes the safe direction the cheap one.
-        """
+        """Announce the delegation this call is, then run it."""
         if call.tool_name != self._delegate_tool_name:
             return await super().wrap_tool_execute(
                 ctx, call=call, tool_def=tool_def, args=args, handler=handler
@@ -180,11 +104,6 @@ class SubAgentObserver(WrapperCapability[Any]):
                 ctx, call=call, tool_def=tool_def, args=args, handler=handler
             )
         except BaseException:
-            # ``BaseException`` rather than ``Exception``, so that a cancelled
-            # tool call closes its delegation too -- see the note above. Named,
-            # and nothing more: the exception's own words are written for an
-            # operator, and what the *model* is told travels the ordinary tool
-            # result, which the client renders on the card this belongs to.
             _emit(_lifecycle(delegation, phase="failed"))
             raise
         else:
@@ -194,21 +113,9 @@ class SubAgentObserver(WrapperCapability[Any]):
             _DELEGATION.reset(token)
 
     async def _forward_child_events(self, ctx: Any, events: AsyncIterable[Any]) -> None:
-        """The ``SubAgents.event_stream_handler``: report the child's tool calls.
-
-        Only the child's *function* tool calls are forwarded. Its text and its
-        output-tool traffic are left alone: progress is a status line, not a
-        second transcript, and an output tool is how a child returns its answer
-        rather than something it did along the way.
-
-        Consuming the stream is this handler's obligation -- upstream hands it
-        over and does not iterate it itself.
-        """
+        """The ``SubAgents.event_stream_handler``: report the child's tool calls."""
         delegation = _DELEGATION.get()
         async for event in events:
-            # ``None`` cannot happen on the path that installs this handler
-            # (only a delegation starts a child run), and is checked anyway
-            # because a handler is a plain callable that anything can call.
             if delegation is None:
                 continue
             if isinstance(event, FunctionToolCallEvent):
@@ -223,15 +130,6 @@ class SubAgentObserver(WrapperCapability[Any]):
                     )
                 )
             elif isinstance(event, FunctionToolResultEvent):
-                # A retry is the child's tool telling the child's model to try
-                # again -- the one outcome distinguishable from here without
-                # reading the result's contents. It is a ``RetryPromptPart`` up
-                # to pydantic-ai 2.59 and the call's own ``ToolReturnPart``
-                # marked ``"retried"`` from 2.60, so both are asked for. One
-                # expression, so coverage sees neither half: delete the first and
-                # ``test_a_child_tool_result_reports_whether_it_landed`` fails,
-                # delete the second and
-                # ``test_a_child_tool_call_marked_retried_did_not_land`` does.
                 part = event.part
                 ok = not (
                     isinstance(part, RetryPromptPart)  # ty: ignore[deprecated]
@@ -263,12 +161,7 @@ def _lifecycle(
 
 
 def _emit(event: BaseEvent) -> None:
-    """Queue one event for the run currently streaming, if there is one.
-
-    The no-sink case is the ordinary one outside this transport -- a delegation
-    driven from a management command, a worker or a test binds no channel -- and
-    it is why every caller can announce unconditionally.
-    """
+    """Queue one event for the run currently streaming, if there is one."""
     sink = SUBAGENT_SINK.get()
     if sink is None:
         return
@@ -276,13 +169,7 @@ def _emit(event: BaseEvent) -> None:
 
 
 def _install_handler(wrapped: Any, handler: Any) -> None:
-    """Point the wrapped capability's ``event_stream_handler`` at ``handler``.
-
-    Refuses anything that is not shaped like a ``SubAgents`` -- the field it
-    needs is the one that carries child events out, and a capability without it
-    would wrap cleanly and then report only the delegation's start and end,
-    which is the failure that looks like it works.
-    """
+    """Point the wrapped capability's ``event_stream_handler`` at ``handler``."""
     if not hasattr(wrapped, "event_stream_handler") or not hasattr(wrapped, "tool_name"):
         raise ImproperlyConfigured(
             "SubAgentObserver(...) takes a pydantic-ai-harness SubAgents capability; "

@@ -1,5 +1,3 @@
-"""``subagent_progress`` -- an AG-UI event reporting a step inside a delegation."""
-
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -107,19 +105,7 @@ def subagent_progress(
     tool_name: str,
     ok: bool | None = None,
 ) -> CustomEvent:
-    """One step event for the delegation ``delegation_id``.
-
-    See [`SUBAGENT_EVENT_NAME`][django_ag_ui.SUBAGENT_EVENT_NAME] for the wire
-    contract this builds; the arguments are its keys.
-
-    The tool fields are required rather than optional, unlike the version of
-    this that also carried the lifecycle: every phase left here *is* a tool
-    phase, so a step without a tool is not a case to degrade but a caller bug.
-
-    The keys are camelCase because AG-UI's own envelope is -- a client reading
-    ``toolCallId`` off every other event should not have to read ``tool_call_id``
-    off this one.
-    """
+    """One step event for the delegation ``delegation_id``."""
     value: dict[str, Any] = {
         "delegationId": delegation_id,
         "agent": agent,

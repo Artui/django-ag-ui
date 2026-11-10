@@ -1,5 +1,3 @@
-"""``suggestions_activity`` -- an AG-UI event offering follow-up prompts."""
-
 from __future__ import annotations
 
 import uuid
@@ -42,39 +40,7 @@ with a border. Mirrored on the client for the same reason as the count.
 def suggestions_activity(
     prompts: Sequence[str], *, suggestions_id: str | None = None
 ) -> ActivitySnapshotEvent:
-    """Offer up to ``MAX_SUGGESTIONS`` follow-up prompts as clickable chips.
-
-    Emitted by the project from its own code, after a tool ran or a turn
-    finished -- wherever it knows what the user is likely to want next.
-    Registered skill chips cannot do this: they are static and host-configured,
-    so they can offer *"summarize this"* but never *"want me to update the
-    shipping address too?"*.
-
-    Clicking a chip sends that text as the user's message. So a prompt is
-    **written as the user would say it**, first person and complete, not as a
-    label: ``"Update the shipping address too"``, not ``"Shipping address"``.
-
-    ``suggestions_id`` is the identity of *this set*, not of this event -- the
-    same contract as ``chart_id``. Omit it and every push draws its own row,
-    under the answer it follows, which is what suits a set offered per turn.
-    Send the same one again to **replace** a row already on screen, in the place
-    it was drawn.
-
-    It is an AG-UI ``message_id`` and shares that namespace, so a set sent under
-    an id an assistant turn already used replaces *that message*. Prefixing is
-    enough, and the generated ids do it (``suggestions-<uuid>``).
-
-    Chips are content, so they persist and a reload puts them back. Rows from
-    earlier turns stay above, reading as what was offered then; nothing expires
-    them, and a project that wants exactly one row keeps one id.
-
-    Raises:
-        ValueError: If ``prompts`` is empty, carries more than
-            ``MAX_SUGGESTIONS``, or holds a prompt that is blank or longer than
-            ``MAX_SUGGESTION_CHARS``. Raised here rather than trimmed, because
-            the client cannot report what it dropped and the failure would be a
-            suggestion that silently never appears.
-    """
+    """Offer up to ``MAX_SUGGESTIONS`` follow-up prompts as clickable chips."""
     if not prompts:
         raise ValueError(
             "suggestions_activity() needs at least one prompt; to take the chips "

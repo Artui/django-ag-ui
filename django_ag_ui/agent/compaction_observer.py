@@ -1,5 +1,3 @@
-"""``CompactionObserver`` — make a compaction capability's work visible to the client."""
-
 from __future__ import annotations
 
 from contextvars import ContextVar
@@ -33,27 +31,7 @@ class Compaction:
 
 
 class CompactionObserver(WrapperCapability[Any]):
-    """Wraps a compaction capability and records each time it trims the history.
-
-    Compaction is deliberately invisible upstream — it happens inside
-    ``before_model_request`` and emits nothing — so a user watching a long run
-    sees earlier turns silently vanish from the model's view with no explanation.
-    Wrapping the capability is the seam for saying so:
-
-        capabilities=[CompactionObserver(SlidingWindowCompaction(max_messages=80))]
-
-    Opt-in by construction: passing the strategy unwrapped emits nothing.
-
-    Subclassing ``WrapperCapability`` (pydantic-ai's supported wrapper, analogous
-    to ``WrapperToolset``) rather than hand-rolling a proxy keeps the rest of the
-    capability protocol intact — ordering, the ``has_*`` hook-introspection flags
-    and every other lifecycle method delegate untouched.
-
-    Detection is a message-count comparison across the delegated call, because
-    that is all the upstream contract exposes. A strategy that rewrites history
-    without shortening it registers nothing, which is the honest limit of this
-    seam and matches what the indicator claims: turns were dropped.
-    """
+    """Wraps a compaction capability and records each time it trims the history."""
 
     def __init__(self, wrapped: Any) -> None:
         super().__init__(wrapped)

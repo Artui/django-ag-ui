@@ -10,37 +10,7 @@ _INLINE_SOURCE = "data"
 
 
 def strip_binary_content(messages: Sequence[Message]) -> list[Message]:
-    """Copies of ``messages`` with inlined file bytes removed.
-
-    ``read_attachment`` hands the model a PDF or image as a ``ToolReturn``
-    carrying ``BinaryContent``, which serialises onto the wire as a synthetic
-    ``user`` message holding a base64 ``data`` source. Persisted, a 2.6 MB PDF
-    becomes roughly 3.5 MB of base64 in one conversation row, refetched on every
-    thread load and re-posted on every turn after a reload. The bytes never reach
-    the live event stream, so dropping the stored copy just makes the model call
-    ``read_attachment`` again — which is already what a same-session follow-up
-    does.
-
-    **Only server-generated messages are ever passed through this**, under
-    [`AgentSession`][django_ag_ui.AgentSession]'s rule that the
-    server never persists bytes it generated and never discards bytes the client
-    sent. An inline image a front end sends reaches both the model and the row
-    untouched.
-
-    Textual parts survive, so a mixed message loses only its payload, and a part
-    carrying a ``url`` or a provider ``file`` handle rather than inline ``data``
-    is a reference, not a payload, and is kept. A message left with no content
-    at all is dropped rather than stored as a blank chat row. A message whose
-    content is a plain string is returned unchanged — the same object, not a
-    copy.
-
-    Copies are made with ``model_copy``, **never by re-validating**: a round-trip
-    through ``load_messages`` / ``dump_messages`` discards both ``metadata`` and
-    ``model_extra`` (and below pydantic-ai-slim 2.48 regenerates every message
-    id as well), which between them are where
-    a client's ``attachments`` refs ride -- ``metadata`` from the web component's
-    AG-UI 1.0 client, the top-level field before it.
-    """
+    """Copies of ``messages`` with inlined file bytes removed."""
     kept: list[Message] = []
     for message in messages:
         content = message.content
@@ -61,11 +31,6 @@ def _is_inline_binary(part: Any) -> bool:
     """Whether ``part`` carries bytes inline rather than a reference to them."""
     if part.type == _TEXT_PART:
         return False
-    # ``image`` / ``audio`` / ``video`` / ``document`` parts, whose source is
-    # inline base64 (``data``), a ``url`` pointing at the bytes, or a ``file``
-    # handle a model provider issued for bytes it already holds. Only the first
-    # puts the bytes in the row. The flat ``binary`` part that predated sources
-    # left the protocol in its 1.0, so every non-text part carries one.
     return part.source.type == _INLINE_SOURCE
 
 

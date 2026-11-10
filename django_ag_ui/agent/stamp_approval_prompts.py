@@ -1,5 +1,3 @@
-"""``stamp_approval_prompts`` — give a gated call a question a person can read."""
-
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Mapping
@@ -13,29 +11,7 @@ async def stamp_approval_prompts(
     *,
     prompts: Mapping[str, str],
 ) -> AsyncIterator[BaseEvent]:
-    """Forward ``stream``, adding a human-readable prompt to each approval interrupt.
-
-    A gated tool defers instead of running, and the interrupt announcing it
-    carries the question the client will ask. Pydantic-AI generates that question
-    from the call itself — ``Approve create_event({"title": "Design sync"})?`` —
-    which is accurate and not something to put in front of a person. The client
-    already reads ``x-confirm`` off a tool's schema for the confirmation it gates
-    in the browser, so the same key is stamped here, on the interrupt's
-    ``metadata``: one concept for both gates, whichever end does the gating.
-
-    Where the phrase comes from, in order: an explicit ``APPROVAL_PROMPTS`` entry,
-    then the tool's own ``confirm=`` (already on its schema as ``x-confirm``, and
-    resolved into ``prompts`` by :class:`AGUIServer`). A tool with neither keeps
-    the generated question, and an interrupt that already carries an ``x-confirm``
-    of its own is left alone — a tool that raised
-    :class:`~pydantic_ai.exceptions.ApprovalRequired` with its own metadata has
-    said something more specific than any static mapping can.
-
-    Interrupts name a ``tool_call_id`` rather than a tool, so the names are
-    learned from the ``TOOL_CALL_START`` events that precede them in the same
-    stream. That is why this wraps the stream rather than post-processing the
-    terminal event alone.
-    """
+    """Forward ``stream``, adding a human-readable prompt to each approval interrupt."""
     names: dict[str, str] = {}
     async for event in stream:
         if isinstance(event, ToolCallStartEvent):

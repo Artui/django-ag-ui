@@ -1,5 +1,3 @@
-"""``ChartKind`` — how the client draws a spec."""
-
 from __future__ import annotations
 
 from typing import Literal
