@@ -24,42 +24,7 @@ from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 
 
 class TranscribeView:
-    """Owner-scoped speech-to-text endpoint (async, multipart in / JSON out).
-
-    Mounted by [`AGUIServer`][django_ag_ui.AGUIServer] whenever
-    ``transcription_backend=`` is a live
-    [`TranscriptionBackend`][django_ag_ui.TranscriptionBackend]:
-
-    - ``POST <prefix>transcribe/`` → multipart audio under the ``audio`` field;
-      validates size/type from ``DJANGO_AG_UI`` settings, runs the backend, and
-      returns ``200`` with ``{"text": "<transcript>"}``.
-
-    The audio is transcribed and discarded — nothing is stored — so unlike
-    [`AttachmentsView`][django_ag_ui.AttachmentsView] there is
-    no download/delete route. The view carries the same authentication seam as
-    [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView] (``require_authenticated`` /
-    ``get_user``), closed by default — which matters here beyond consistency:
-    the backend spends money per request, so an open route is a bill as well as
-    a leak.
-
-    **Authentication is not a spend limit**, which is why ``throttle`` is here
-    too: an authenticated caller looping small valid clips reaches the provider
-    on every request. It takes the same [`Throttle`][django_ag_ui.Throttle] the
-    agent endpoint takes and runs at the same point — after authentication, so a
-    limiter can key on the acting user, and before the body is parsed. Give it
-    its *own* limiter rather than sharing the agent's: one instance is one
-    counter, so a shared one would let voice input consume the run budget.
-
-    **The size cap aborts the upload rather than measuring it afterwards.** A
-    ``CappedUploadHandler`` is inserted before the multipart body is parsed, so a
-    clip over ``TRANSCRIPTION_MAX_BYTES`` is refused mid-stream instead of being
-    spooled to a temp file in full and answered ``413`` once it is already on
-    disk.
-
-    With the default
-    [`NullTranscriptionBackend`][django_ag_ui.NullTranscriptionBackend] a request
-    returns ``410`` (off): mount the view with a real backend to enable it.
-    """
+    """Owner-scoped speech-to-text endpoint (async, multipart in / JSON out)."""
 
     def __init__(
         self,
@@ -79,17 +44,13 @@ class TranscribeView:
         self._authorize_predicate = authorize
         reject_async_throttle(throttle, allows="clip")
         self._throttle = throttle
-        # Load-bearing here, unlike on the read-only catalogs: the only route is
-        # POST, so CsrfViewMiddleware checks every request this view serves and a
-        # token-less client could not reach the backend at all.
+        # Load-bearing here: the only route is POST, so CsrfViewMiddleware checks every request.
         warn_if_csrf_unstated(csrf_exempt, get_user)
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
-        # Mark this callable instance async so Django awaits ``__call__``.
         markcoroutinefunction(cast("Any", self))
 
     async def __call__(self, request: HttpRequest) -> HttpResponseBase:
-        # First, so ``request.user`` is materialized off the event loop and a
-        # backend that scopes by user is loop-safe.
+        # First, so ``request.user`` is materialized before a user-scoped backend runs.
         deny = await aauthorize(
             request,
             get_user=self._get_user,
@@ -106,12 +67,8 @@ class TranscribeView:
         if throttled is not None:
             return throttled
         settings = self._config
-        # Before parsing, so an oversized clip aborts mid-stream rather than
-        # spooling the whole body to a temp file first.
         guard = CappedUploadHandler(settings.transcription_max_bytes)
         request.upload_handlers.insert(0, guard)
-        # Off the event loop: Django may spill an in-cap recording to a temp
-        # file, which is blocking I/O.
         audio = await sync_to_async(_read_audio)(request)
         if guard.exceeded:
             return JsonResponse(
@@ -129,12 +86,7 @@ class TranscribeView:
         return JsonResponse({"text": text})
 
     async def _throttled(self, request: HttpRequest) -> HttpResponseBase | None:
-        """Apply the ``throttle`` hook, or ``None`` when the clip may proceed.
-
-        The same shape and the same ordering as the agent endpoint's, so a
-        project protecting both writes one kind of limiter and reads one kind of
-        429.
-        """
+        """Apply the ``throttle`` hook, or ``None`` when the clip may proceed."""
         if self._throttle is None:
             return None
         retry_after = await sync_to_async(self._throttle.consume, thread_sensitive=True)(request)
@@ -146,11 +98,7 @@ class TranscribeView:
 
 
 def _read_audio(request: HttpRequest) -> UploadedFile | None:
-    """The single uploaded clip under the ``audio`` field, or ``None``.
-
-    Returns ``None`` for zero files (nothing posted) or more than one (the
-    composer records one clip per request), so the caller answers ``400``.
-    """
+    """The single uploaded clip under the ``audio`` field, or ``None``."""
     files = request.FILES.getlist("audio")
     if len(files) != 1:
         return None
@@ -158,13 +106,7 @@ def _read_audio(request: HttpRequest) -> UploadedFile | None:
 
 
 def _validate_type(audio: UploadedFile, allowed_types: tuple[str, ...]) -> JsonResponse | None:
-    """Enforce the configured type allowlist; ``None`` when accepted.
-
-    An empty ``allowed_types`` accepts any declared content type. The content
-    type is client-declared, so it is a coarse filter — the backend decides what
-    to do with the bytes. Size is not checked here: the upload handler already
-    refused anything over the cap while the body was still arriving.
-    """
+    """Enforce the configured type allowlist; ``None`` when accepted."""
     if allowed_types and (audio.content_type or "") not in allowed_types:
         return JsonResponse(
             {"error": f"content type {audio.content_type!r} is not allowed"}, status=415
