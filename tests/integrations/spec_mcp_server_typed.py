@@ -1,11 +1,3 @@
-"""A django-spec-mcp ``MCPServer`` whose tool has a **presenter declaring its output**.
-
-Unlike ``spec_mcp_server`` (services with no presenter, so no output schema),
-this fixture's tool advertises an ``outputSchema``, so the bridge can carry a
-``return_schema`` onto the tool def — the input a harness ``CodeMode``
-capability needs to render the tool as a **typed** Python stub.
-"""
-
 from __future__ import annotations
 
 from typing import Any
