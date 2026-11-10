@@ -137,21 +137,11 @@ async def test_get_user_hook_opens_the_endpoint() -> None:
 
 @override_settings(DJANGO_AG_UI={"TRANSCRIPTION_MAX_BYTES": 4})
 async def test_oversize_is_aborted_mid_parse_rather_than_spooled() -> None:
-    """413 is the same answer either way; what changed is what it costs to give.
-
-    Checking ``audio.size`` after ``request.FILES`` means Django has already
-    written the whole part out — to ``FILE_UPLOAD_TEMP_DIR`` once it outgrows
-    memory — so the cap bounded what reached the backend, not what reached the
-    disk. No Django-level ceiling covers that either:
-    ``DATA_UPLOAD_MAX_MEMORY_SIZE`` excludes file uploads and
-    ``FILE_UPLOAD_MAX_MEMORY_SIZE`` only chooses memory over a temp file.
-    """
+    """413 is the same answer either way; what changed is what it costs to give."""
     request = _audio_request(content=b"x" * 4096)
     response = await TranscribeView(_FakeBackend())(request)
 
     assert response.status_code == 413
-    # Nothing was assembled: the guard stopped the parser while the body was
-    # still arriving, so there is no file to have spooled.
     assert list(request.FILES.keys()) == []
 
 
@@ -179,12 +169,7 @@ class _Throttle:
 
 
 async def test_a_throttle_can_limit_the_endpoint() -> None:
-    """Authentication bounds who may spend, not how often.
-
-    The backend is a paid provider call per request, so an authenticated caller
-    looping small valid clips is a bill. This is the only seam that stops it
-    without middleware.
-    """
+    """Authentication bounds who may spend, not how often."""
     throttle = _Throttle(allow=1)
     view = TranscribeView(_FakeBackend(), throttle=throttle)
 
@@ -219,19 +204,11 @@ async def test_the_throttle_runs_before_the_body_is_parsed() -> None:
     request = _audio_request(content=b"x" * 512)
     await TranscribeView(_FakeBackend(), throttle=_Throttle())(request)
 
-    # Django caches the parsed multipart body on the request the first time it is
-    # read, so the absence of that cache is the fact worth asserting: reading
-    # ``request.FILES`` here would parse it and prove nothing.
     assert "_files" not in request.__dict__
 
 
 async def test_an_async_consume_is_refused_at_construction() -> None:
-    """A coroutine is neither None nor an int, so it would read as rate limited.
-
-    Caught where it can be read as a misconfiguration rather than at request
-    time, where every clip would come back 429 with a coroutine for a
-    ``Retry-After``.
-    """
+    """A coroutine is neither None nor an int, so it would read as rate limited."""
 
     class AsyncThrottle:
         async def consume(self, request: HttpRequest) -> int | None:

@@ -249,15 +249,13 @@ async def test_download_and_delete_are_cross_owner_scoped() -> None:
     assert (await view(_req("get", "A"), attachment_id=ref.id)).status_code == 200
     assert (await view(_req("get", "B"), attachment_id=ref.id)).status_code == 404
 
-    # B's DELETE is owner-scoped too: it removes nothing, so A's file survives.
     assert (await view(_req("delete", "B"), attachment_id=ref.id)).status_code == 204
     assert (await view(_req("get", "A"), attachment_id=ref.id)).status_code == 200
 
 
 @override_settings(DJANGO_AG_UI={"ATTACHMENT_MAX_BYTES": 3})
 async def test_oversize_upload_is_aborted_before_reaching_the_store() -> None:
-    # The size guard aborts an oversized upload mid-parse, so the store's
-    # ``save`` is never called (the bytes never fully spool).
+    # The size guard aborts mid-parse, so save is never called and the bytes never fully spool.
     store = _FakeStore()
     response = await AttachmentsView(store)(_upload_request(content=b"way too big"))
     assert response.status_code == 413

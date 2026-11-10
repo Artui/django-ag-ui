@@ -16,7 +16,7 @@ def test_aborts_once_cumulative_bytes_exceed_the_cap() -> None:
     handler = CappedUploadHandler(max_bytes=5)
     handler.receive_data_chunk(b"abc", 0)  # 3 bytes — under
     with pytest.raises(StopUpload):
-        handler.receive_data_chunk(b"def", 3)  # 6 bytes — over
+        handler.receive_data_chunk(b"def", 3)
     assert handler.exceeded is True
 
 

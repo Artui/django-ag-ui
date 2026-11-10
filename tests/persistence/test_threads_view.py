@@ -110,12 +110,7 @@ async def test_detail_get_returns_messages() -> None:
 
 
 async def test_detail_get_serves_the_protocol_key_names() -> None:
-    """A thread stored in the old spelling still reaches the client usable.
-
-    The endpoint used to hand storage records straight out, which meant a
-    client looking for ``toolCalls`` found ``tool_calls`` and rendered a
-    transcript with every tool call and result missing.
-    """
+    """A thread stored in the old spelling still reaches the client usable."""
     store = _FakeStore(
         conversations={
             "t1": Conversation(
@@ -242,21 +237,7 @@ async def test_detail_patch_non_object_body_is_400() -> None:
 
 
 async def test_detail_patch_body_nested_past_the_decoder_is_400() -> None:
-    """A body nested deeper than ``json.loads`` can follow is refused like any bad body.
-
-    The body has to outgrow every stack the suite runs on. From Python 3.14 the
-    decoder's reach is the decoding thread's real C stack rather than a counter,
-    and the deepest measured is about 599,000 levels, on the main thread under
-    macOS ``make``, which raises its children's stack to 64 MB. A million closed
-    levels is past that, and at two million bytes it stays under Django's
-    default ``DATA_UPLOAD_MAX_MEMORY_SIZE`` of 2.5 MB.
-
-    The premise is asserted first, on this thread, because the view decodes on
-    the coroutine that awaits it. That assertion is what gives the test its
-    subject. A body that decoded would come back as a list, and a list is
-    refused as "not an object" with the very same 400, so without it the test
-    would pass on a view that lets the overflow escape as a 500.
-    """
+    """A body nested deeper than ``json.loads`` can follow is refused like any bad body."""
     depth = 1_000_000
     body = "[" * depth + "]" * depth
     with pytest.raises(RecursionError):
@@ -265,9 +246,6 @@ async def test_detail_patch_body_nested_past_the_decoder_is_400() -> None:
     request = AuthedRequestFactory().patch(
         "/agent/threads/t1/", data=body, content_type="application/json"
     )
-    # Under the cap, so the body is read rather than refused for its size: a
-    # ``RequestDataTooBig`` also becomes a 400 once Django's handler maps it,
-    # and that 400 is not this view's answer.
     assert int(request.META["CONTENT_LENGTH"]) == len(body)
     assert len(body) < settings.DATA_UPLOAD_MAX_MEMORY_SIZE
     response = await ThreadsView(store)(request, thread_id="t1")
@@ -434,13 +412,7 @@ async def test_anchored_activity_lands_after_its_message() -> None:
 
 
 async def test_activity_reaches_the_wire_in_the_protocol_spelling() -> None:
-    """``activityType``, not ``activity_type``.
-
-    The web component's replay reads the protocol's camelCase key and ignores a
-    message whose type it cannot see, so a restored chart would be a message in
-    the payload that draws nothing — the same class of defect that once cost a
-    released version of the component on ``toolCalls``.
-    """
+    """``activityType``, not ``activity_type``."""
     source = _StubActivitySource([ThreadActivity(_chart("c1", "signups"))])
     restored = (await _read_thread(source))["messages"][-1]
     assert restored["role"] == "activity"
@@ -455,23 +427,14 @@ async def test_unanchored_activity_lands_at_the_end() -> None:
 
 
 async def test_unknown_anchor_falls_back_to_the_end() -> None:
-    """An anchor the thread has lost keeps the chart, at the price of position.
-
-    Dropping it instead would reintroduce the silently-missing chart this whole
-    seam exists to fix.
-    """
+    """An anchor the thread has lost keeps the chart, at the price of position."""
     source = _StubActivitySource([ThreadActivity(_chart("c1", "signups"), after_message_id="gone")])
     payload = await _read_thread(source)
     assert [m["id"] for m in payload["messages"]] == ["u1", "a1", "u2", "a2", "c1"]
 
 
 async def test_repeated_id_keeps_the_first_position_and_the_last_content() -> None:
-    """A source replaying an append-only log sends a chart and its revision.
-
-    One chart moved; two blocks would read as two measurements. The client
-    replaces in place, which keeps where the first one sat, so collapsing here
-    agrees with it and sends less.
-    """
+    """A source replaying an append-only log sends a chart and its revision."""
     source = _StubActivitySource(
         [
             ThreadActivity(_chart("c1", "before"), after_message_id="a1"),
@@ -495,14 +458,7 @@ async def test_several_activities_share_one_anchor_in_order() -> None:
 
 
 async def test_the_merge_never_writes_back_to_the_store() -> None:
-    """The invariant the whole seam was chosen to keep.
-
-    Persisting activities beside the model history is the road not taken here:
-    it needs an ordering rule, a dedup rule and an answer for what a resumed
-    run does with a snapshot that already contains them. Merging on read costs
-    none of that only if the stored thread really is untouched, so this asserts
-    it against a real store rather than a double that could not write anyway.
-    """
+    """The invariant the whole seam was chosen to keep."""
     store = DjangoSessionConversationStore()
     request = AuthedRequestFactory().get("/agent/threads/t1/")
     request.session = SessionStore()  # type: ignore[attr-defined]
