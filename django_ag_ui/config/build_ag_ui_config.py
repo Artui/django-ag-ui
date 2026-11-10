@@ -37,24 +37,7 @@ def build_ag_ui_config(
     tool_failure: ToolFailureConfig | None = None,
     run_context: RunContextConfig | None = None,
 ) -> AGUIConfig:
-    """Resolve an [`AGUIConfig`][django_ag_ui.AGUIConfig] from ``DJANGO_AG_UI``,
-    applying overrides.
-
-    The single place the scalar settings are read.
-    [`AGUIServer`][django_ag_ui.AGUIServer] calls this
-    once in ``__init__``; nothing reads these settings per request, which is what
-    lets two endpoints in one project hold different values.
-
-    Every argument is ``None`` by default, meaning "take it from settings". Pass
-    one to override just that field for this endpoint:
-
-        AGUIServer(registry, config=build_ag_ui_config(retries=3))
-
-    Use this rather than constructing [`AGUIConfig`][django_ag_ui.AGUIConfig]
-    directly — it is what
-    layers your overrides *over* the project's settings instead of discarding
-    them.
-    """
+    """Resolve an [`AGUIConfig`][django_ag_ui.AGUIConfig] from settings, applying overrides."""
 
     def pick(override: Any, key: str, default: Any) -> Any:
         if override is not None:
@@ -73,9 +56,6 @@ def build_ag_ui_config(
         attachment_allowed_types=tuple(
             pick(attachment_allowed_types, "ATTACHMENT_ALLOWED_TYPES", ()) or ()
         ),
-        # Not read from settings: it is a dataclass rather than a scalar, and the
-        # ecosystem's rule is that collaborators arrive as objects rather than
-        # dotted paths. Pass one to ``build_ag_ui_config`` to change it.
         attachment_inline=attachment_inline,
         manage_system_prompt=str(pick(manage_system_prompt, "MANAGE_SYSTEM_PROMPT", "server")),
         allow_uploaded_files=bool(pick(allow_uploaded_files, "ALLOW_UPLOADED_FILES", False)),
@@ -103,11 +83,7 @@ def build_ag_ui_config(
 
 
 def _parse_tool_guard(raw: Any) -> ToolGuardConfig:
-    """Build a ``ToolGuardConfig`` from the ``TOOL_GUARD`` settings dict.
-
-    Absent / falsy → a disabled config (the default). Names are normalised to
-    ``frozenset`` so lookups in the capability are O(1) and order-insensitive.
-    """
+    """Build a ``ToolGuardConfig`` from the ``TOOL_GUARD`` settings dict."""
     guard: dict[str, Any] = raw or {}
     return ToolGuardConfig(
         enabled=bool(guard.get("ENABLED", False)),
@@ -117,13 +93,7 @@ def _parse_tool_guard(raw: Any) -> ToolGuardConfig:
 
 
 def _parse_tool_failure(raw: Any) -> ToolFailureConfig:
-    """Build a ``ToolFailureConfig`` from the ``TOOL_FAILURE`` settings dict.
-
-    Absent → the record's own defaults, which turn the policy **on**, unlike
-    ``TOOL_GUARD`` above where absent means no gate. Reading ``ENABLED`` with a
-    ``True`` default is what keeps "no settings at all" and "an empty dict" the
-    same answer.
-    """
+    """Build a ``ToolFailureConfig`` from the ``TOOL_FAILURE`` settings dict."""
     failure: dict[str, Any] = raw or {}
     return ToolFailureConfig(
         enabled=bool(failure.get("ENABLED", True)),
@@ -138,24 +108,7 @@ _DELIVERIES: frozenset[str] = frozenset(get_args(ContextDelivery))
 
 
 def _parse_run_context(raw: Any) -> RunContextConfig:
-    """Build a [`RunContextConfig`][django_ag_ui.RunContextConfig] from the
-    ``RUN_CONTEXT`` settings dict.
-
-    Absent or empty → both sources on and the default ceiling, following
-    ``TOOL_FAILURE`` rather than ``TOOL_GUARD``. A project that wants nothing a
-    client puts in ``context`` reaching the model says ``CLIENT_CONTEXT: False``.
-
-    ``MAX_CHARS`` exists because ``context`` is unbounded client-supplied text,
-    limited only by ``DATA_UPLOAD_MAX_MEMORY_SIZE``, and it reaches the model on
-    every request of every run. 20 000 characters is roughly 5 000 tokens: a
-    ceiling on a pathological page, not a budget to plan against.
-
-    ``DELIVERY`` picks the channel and defaults to ``"instructions"``, which is
-    what every release before it did. An unrecognised value **raises** rather
-    than falling back: the two channels have different security properties, so
-    a typo silently resolving to the more permissive one is the one outcome
-    worth refusing at startup.
-    """
+    """Build a [`RunContextConfig`][django_ag_ui.RunContextConfig] from settings."""
     run_context: dict[str, Any] = raw or {}
     delivery = str(run_context.get("DELIVERY", "instructions"))
     if delivery not in _DELIVERIES:
