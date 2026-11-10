@@ -1,15 +1,3 @@
-"""A registry tool is offered, gated and prompted under its registered name.
-
-``@tool(registry, name=...)`` gives a tool a name that differs from its
-function's. This endpoint keys approval prompts by the registered name (the
-``confirm=`` fold in ``AGUIServer``), and ``TOOL_GUARD``'s ``EXEMPT`` and
-``REQUIRE_APPROVAL`` match the name the model calls. All of that agrees only if
-the agent offers the tool under the same name, which is what this pins end to
-end: the name on offer, the gate it trips and the question the interrupt
-carries. An agent that offered the function's own name instead would leave the
-prompt keyed to a tool nobody can call.
-"""
-
 from __future__ import annotations
 
 import json

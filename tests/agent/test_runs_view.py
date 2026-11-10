@@ -49,14 +49,7 @@ def _record(
 
 
 def _snapshot(run_id: str, *, said: Any = None, earlier: Sequence[str] = ()) -> ContinuableSnapshot:
-    """A snapshot, optionally holding the user prompt the row previews.
-
-    ``said`` is the ``UserPromptPart`` content verbatim, so a test can hand over
-    the multi-modal sequence form as readily as a string. ``earlier`` are the
-    prompts of the thread's previous turns, each with its answer: an AG-UI client
-    posts the whole thread on every run, so this is the shape a snapshot from any
-    run after the first has.
-    """
+    """A snapshot, optionally holding the user prompt the row previews."""
     messages: list[Any] = []
     for prompt in earlier:
         messages += [
@@ -64,8 +57,6 @@ def _snapshot(run_id: str, *, said: Any = None, earlier: Sequence[str] = ()) -> 
             ModelResponse(parts=[TextPart(content="done")]),
         ]
     if said is not None:
-        # The answer after the prompt, as a finished run leaves it, so finding the
-        # prompt is a search rather than reading ``messages[-1]``.
         messages += [
             ModelRequest(parts=[UserPromptPart(content=said)]),
             ModelResponse(parts=[TextPart(content="working on it")]),
@@ -112,8 +103,7 @@ def _factory(store: _FakeStore) -> Any:
 
 
 def _get(path: str = "/runs/", *, anonymous: bool = False) -> HttpRequest:
-    # Authenticated by default: the index is owner-scoped and the view refuses
-    # anonymous callers, so a fixture that wants rows has to be a logged-in one.
+    # Authenticated by default: the index is owner-scoped and refuses anonymous callers.
     factory = RequestFactory() if anonymous else AuthedRequestFactory()
     return factory.get(path)
 
@@ -131,11 +121,7 @@ class TestListing:
         assert {row["run_id"] for row in (await _body(response))["runs"]} == {"r1", "r2"}
 
     async def test_serves_the_newest_run_first(self) -> None:
-        """The store answers oldest-first; a person reads a picker top-down.
-
-        Ascending ``started_at`` is the harness protocol's documented order, so
-        the store is right and this view owns the reading order.
-        """
+        """The store answers oldest-first; a person reads a picker top-down."""
         store = _FakeStore(
             [_record("oldest"), _record("middle", minutes=1), _record("newest", minutes=2)]
         )
@@ -180,13 +166,7 @@ class TestPreview:
     """The row's only human-readable field, from the snapshot already loaded."""
 
     async def test_two_runs_in_one_thread_preview_their_own_prompts(self) -> None:
-        """Each run is named by the prompt it was started to answer.
-
-        The second run's snapshot carries the first run's prompt too, because the
-        client posts the whole thread every time. Naming a run by the first
-        prompt in it named every run in a conversation after its opening line,
-        which is the one case the field exists to tell apart.
-        """
+        """Each run is named by the prompt it was started to answer."""
         store = _FakeStore(
             [_record("r1"), _record("r2", minutes=1)],
             {
@@ -209,15 +189,7 @@ class TestPreview:
         ids=["result-only", "file-for-the-model"],
     )
     async def test_a_tool_round_does_not_move_the_preview(self, handed_back: Any) -> None:
-        """An approval or a tool's result is not something the person said.
-
-        A run that continues past an approval is posted with no new user message,
-        only the tool's outcome, so it is still answering the last thing the
-        person asked. A tool may also hand the model a file to read, as
-        ``read_attachment`` does with an image, and pydantic-ai files that as a
-        ``UserPromptPart`` in the request carrying the tool's return. It is the
-        tool's, so having no words it does not turn the preview ``null``.
-        """
+        """An approval or a tool's result is not something the person said."""
         tool_round: list[Any] = [
             ToolReturnPart(tool_name="read", content="read it", tool_call_id="c1")
         ]
@@ -237,12 +209,7 @@ class TestPreview:
         assert row["preview"] == "Read the chart"
 
     async def test_two_messages_in_a_row_preview_the_later(self) -> None:
-        """Consecutive user messages load into one request; the run answers the last.
-
-        A run that failed before replying leaves the person's message unanswered,
-        and the next one follows it with no assistant turn between, so the
-        adapter merges both into a single request.
-        """
+        """Consecutive user messages load into one request; the run answers the last."""
         snapshot = _snapshot("r2", earlier=["What is on the board?"])
         snapshot.messages.extend(
             [
@@ -261,11 +228,7 @@ class TestPreview:
         assert row["preview"] == "Actually, only the first one"
 
     async def test_a_newest_prompt_with_no_words_does_not_borrow_an_older_one(self) -> None:
-        """No words in the run's own prompt is ``null``, never the turn before.
-
-        Falling back to an earlier prompt would name this run after a previous
-        run's question, which is the mislabelling this field must not do.
-        """
+        """No words in the run's own prompt is ``null``, never the turn before."""
         store = _FakeStore(
             [_record("r2")],
             {
@@ -379,13 +342,7 @@ class TestPreview:
 
 
 def _turns(*turns: tuple[str, str], run_id: str, first_id: int = 0) -> bytes:
-    """A ``RunAgentInput`` posting a thread, as the client does on every run.
-
-    Each turn is ``(role, content)``, so a test states the thread it posts rather
-    than only the newest message. ``first_id`` numbers the messages from past
-    those a resumed run's snapshot already holds: a resume holds its history on
-    the server, and a turn posted under a stored message's id replaces it.
-    """
+    """A ``RunAgentInput`` posting a thread, as the client does on every run."""
     return json.dumps(
         {
             "threadId": "t1",
@@ -416,11 +373,7 @@ _PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 
 
 class _ChartStore:
-    """An attachment store in which every id opens as a small PNG.
-
-    An image is the case ``read_attachment`` hands the model as file content
-    rather than text, which is what puts a wordless user part into the snapshot.
-    """
+    """An attachment store in which every id opens as a small PNG."""
 
     async def save(self, upload: Any, *, request: Any) -> AttachmentRef:
         raise NotImplementedError
@@ -435,13 +388,7 @@ class _ChartStore:
 
 @pytest.mark.django_db(transaction=True)
 class TestPreviewOfRecordedRuns:
-    """The previews of runs the endpoint really recorded, not hand-built snapshots.
-
-    The unit tests above build a snapshot by hand, so they agree with whatever
-    shape the test author believed a snapshot has. These post real turns through
-    the run endpoint into the reference step store and read the index back, which
-    is the only place it is shown that a snapshot holds the whole thread.
-    """
+    """The previews of runs the endpoint really recorded, not hand-built snapshots."""
 
     async def test_each_run_in_a_thread_is_named_by_its_own_prompt(self) -> None:
         view = DjangoAGUIView(ToolRegistry(), model=TestModel(), step_store=DefaultStepStore)
@@ -464,12 +411,7 @@ class TestPreviewOfRecordedRuns:
         }
 
     async def test_a_resumed_run_is_named_by_its_new_turn(self) -> None:
-        """Resume and fork seed the source's history server-side, ahead of the turn.
-
-        So the new run's snapshot opens with the source thread's prompts, and its
-        own prompt is the one after them. Lineage is ``parent_run_id``'s job; a
-        child named by its parent's prompt could not be told from it.
-        """
+        """Resume and fork seed the source's history server-side, ahead of the turn."""
         view = DjangoAGUIView(ToolRegistry(), model=TestModel(), step_store=DefaultStepStore)
         await _run(view, _turns(("user", "What is on the board?"), run_id="r1"))
         await _run(
@@ -486,13 +428,7 @@ class TestPreviewOfRecordedRuns:
         ]
 
     async def test_a_run_that_reads_an_attachment_is_named_by_its_prompt(self) -> None:
-        """The file a tool opens for the model lands in the snapshot as a user part.
-
-        So the newest user part in this run's snapshot is the chart, not anything
-        the person typed, and it has no words. The preview still names the
-        question, because a user part that follows a tool's return in the same
-        request is the tool's.
-        """
+        """The file a tool opens for the model lands in the snapshot as a user part."""
         view = DjangoAGUIView(
             ToolRegistry(),
             model=TestModel(call_tools=["read_attachment"]),
@@ -506,15 +442,7 @@ class TestPreviewOfRecordedRuns:
         assert row["preview"] == "What does the attached chart show?"
 
     async def test_a_run_resumed_after_a_tool_round_is_named_by_its_new_turn(self) -> None:
-        """The resumed run's request holds the tool's file and the person's turn.
-
-        A worker killed between a tool round and the model's reply leaves the
-        boundary snapshot taken after the round as the run's last, ending on the
-        request that carries the tool's return and the file it opened. Resuming
-        sends that request again with the new turn, and pydantic-ai merges the
-        two, so the person's words share a request with a tool return. Passing
-        over every user part there would name the resumed run after its parent.
-        """
+        """The resumed run's request holds the tool's file and the person's turn."""
         reader = DjangoAGUIView(
             ToolRegistry(),
             model=TestModel(call_tools=["read_attachment"]),
@@ -525,7 +453,6 @@ class TestPreviewOfRecordedRuns:
         store = DefaultStepStore(_get())
         finished = await store.latest_snapshot(run_id="r1")
         assert finished is not None
-        # What the kill leaves: the same run, its reply never written.
         await store.save_snapshot(
             dataclasses.replace(
                 finished, messages=finished.messages[:-1], step_index=finished.step_index + 1
@@ -539,7 +466,6 @@ class TestPreviewOfRecordedRuns:
         )
         resumed = await store.latest_snapshot(run_id="r2")
         assert resumed is not None
-        # The premise: one request holds the tool's return, its file and the turn.
         assert any(
             [type(part) for part in message.parts]
             == [ToolReturnPart, UserPromptPart, UserPromptPart]
@@ -575,8 +501,7 @@ class TestMethodAndAuth:
         assert response.status_code == 403
 
     async def test_an_anonymous_store_refusal_is_403_not_500(self) -> None:
-        # Only reachable with authentication deliberately waived: otherwise the
-        # anonymous request never reaches the store that refuses it.
+        # Reachable only with authentication waived; else anonymous calls never reach the store.
         store = _FakeStore(raises=AnonymousOperationError("anonymous"))
         view = RunsView(_factory(store), require_authenticated=False)
         response = await view(_get(anonymous=True))
@@ -598,14 +523,7 @@ class TestMethodAndAuth:
 
 
 class TestBounding:
-    """``RUN_LIST_LIMIT`` bounds the expensive half of the response.
-
-    Every row costs a ``latest_snapshot`` call and holds that run's whole message
-    list resident while the rows are built, so an account with a long history
-    turned one GET into ``1 + N`` queries and ``N`` transcripts in memory. The
-    store's own ``list_runs`` still answers unbounded -- the harness protocol has
-    no limit to pass -- so the cap is applied here, before any snapshot is read.
-    """
+    """``RUN_LIST_LIMIT`` bounds the expensive half of the response."""
 
     @override_settings(DJANGO_AG_UI={"RUN_LIST_LIMIT": 2})
     async def test_the_response_is_capped(self) -> None:
@@ -624,11 +542,7 @@ class TestBounding:
 
     @override_settings(DJANGO_AG_UI={"RUN_LIST_LIMIT": 2})
     async def test_the_dropped_runs_cost_no_snapshot_load(self) -> None:
-        """The point of the cap: it bounds the queries, not just the JSON.
-
-        Trimming after the loop would still pay for every run in the ledger --
-        which is the whole cost this finds.
-        """
+        """The point of the cap: it bounds the queries, not just the JSON."""
         store = _FakeStore([_record(f"r{i}", minutes=i) for i in range(10)])
         await RunsView(_factory(store))(_get())
 

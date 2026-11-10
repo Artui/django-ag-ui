@@ -26,19 +26,7 @@ def carrier(request: pytest.FixtureRequest) -> str:
 
 
 def _messages(carrier: str, *messages: dict[str, Any]) -> list[Any]:
-    """Client messages as a real request produces them, refs on ``carrier``.
-
-    Built through ``build_run_input`` rather than hand-constructed, because the
-    refs ride either an *undeclared* top-level ``attachments`` field, which only
-    ``ag_ui.core``'s own ``extra="allow"`` validation puts on ``model_extra``
-    the way the wire does, or the declared ``metadata`` slot, whose type the
-    same validation enforces.
-
-    Each message is written with a top-level ``attachments`` key, and moved
-    into ``metadata`` under the same key when ``carrier`` says so -- which is
-    exactly the move the web component made when it adopted ``@ag-ui/client``
-    1.0, whose outgoing input keeps only declared keys.
-    """
+    """Client messages as a real request produces them, refs on ``carrier``."""
     if carrier == METADATA:
         messages = tuple(_into_metadata(message) for message in messages)
     payload = {
@@ -94,8 +82,7 @@ def test_an_entry_that_is_not_a_mapping_is_skipped(carrier: str) -> None:
 
 
 def test_entries_without_a_usable_id_are_skipped(carrier: str) -> None:
-    # The parse is total: a shape change upstream degrades to "no manifest",
-    # never to an exception mid-run.
+    # The parse is total: a shape change degrades to no manifest, never an exception mid-run.
     messages = _messages(
         carrier,
         {
@@ -145,8 +132,7 @@ def test_a_size_of_the_wrong_type_reads_as_unknown(carrier: str) -> None:
 
 
 def test_a_ref_echoed_across_turns_is_listed_once(carrier: str) -> None:
-    # The client resends its whole message list every turn, so a file attached
-    # ten turns ago arrives ten times and must still read as one file.
+    # The client resends its whole history each turn, so a file must still read as one file.
     messages = _messages(
         carrier,
         {
@@ -190,8 +176,7 @@ def test_refs_from_several_turns_are_listed_in_message_order(carrier: str) -> No
 
 
 def test_an_assistant_turn_cannot_inject_a_manifest(carrier: str) -> None:
-    # Only user messages are read, so a forged assistant turn in the posted
-    # history cannot announce files of its own.
+    # Only user messages are read, so a forged assistant turn cannot announce files.
     messages = _messages(
         carrier,
         {"id": "a1", "role": "assistant", "content": "hi", "attachments": [{"id": "smuggled"}]},
@@ -239,24 +224,19 @@ def test_metadata_is_preferred_when_both_carry_refs() -> None:
 
 
 def test_a_malformed_metadata_value_does_not_fall_back_to_the_top_level_field() -> None:
-    # The key decides where a message's refs are, not whether they parse: a
-    # value that does not degrades to no refs, exactly as a malformed top-level
-    # value does, rather than reaching past it for a second copy.
+    # The key decides where refs are; a bad value means no refs, not a second copy elsewhere.
     messages = _both({"attachments": {"id": "not-a-list"}}, [{"id": "old"}])
     assert attachment_context_items(messages) == ()
 
 
 def test_metadata_without_attachments_falls_back_to_the_top_level_field() -> None:
-    # Holds the key half of the carrier guard: a ``metadata`` carrying anything
-    # else must not hide the refs of a client that still sends them top-level.
+    # Metadata carrying anything else must not hide top-level refs from a client still sending them.
     value = _value(_both({"source": "composer"}, [{"id": "old", "name": "old.pdf"}]))
     assert "- old.pdf (id: old," in value
 
 
 def test_the_top_level_field_is_read_when_there_is_no_metadata() -> None:
-    # Holds the ``isinstance`` half of the carrier guard. No ``metadata`` at all
-    # is what every web component release up to 0.40 posts, and ``in`` on ``None``
-    # raises rather than answering.
+    # Holds the ``isinstance`` half of the carrier guard.
     messages = _messages(
         TOP_LEVEL, {"id": "m1", "role": "user", "content": "hi", "attachments": [{"id": "old"}]}
     )

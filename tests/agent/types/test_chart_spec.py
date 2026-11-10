@@ -1,5 +1,3 @@
-"""A chart's data, checked where it is assembled rather than where it is drawn."""
-
 from __future__ import annotations
 
 from decimal import Decimal
@@ -59,15 +57,13 @@ def test_a_spec_with_no_series_is_refused() -> None:
 
 
 def test_a_series_that_disagrees_with_the_labels_names_itself() -> None:
-    # The client refuses the same shape and silently draws nothing; failing here
-    # says which series is wrong, on the side that can fix it.
+    # The client silently draws nothing for this shape; failing here names the wrong series.
     with pytest.raises(ValueError, match="'short' has 1 points for 2 labels"):
         _spec(series=(ChartSeries("short", (1.0,)),))
 
 
 def test_a_non_string_label_is_refused() -> None:
-    # The client requires every label to be a string and drops the whole spec
-    # otherwise, so a stray int here costs the chart with no error anywhere.
+    # The client drops the whole spec on a non-string label: a stray int costs the chart.
     with pytest.raises(ValueError, match="is not a string"):
         _spec(labels=("a", 2))
 
@@ -80,14 +76,7 @@ def test_a_non_finite_point_is_refused(bad: float) -> None:
 
 
 def test_a_decimal_point_is_refused_rather_than_coerced() -> None:
-    """The case a Django app hits first, and the one that fails most quietly.
-
-    A ``Sum`` over a ``DecimalField`` is the likeliest source of chart numbers
-    here, and Pydantic serialises ``Decimal`` as a JSON *string*. The client
-    reads only numbers, so the entire chart vanishes with nothing reported on
-    either side. Refused rather than coerced: rounding somebody's money to a
-    float on their behalf is the wrong favour.
-    """
+    """The case a Django app hits first, and the one that fails most quietly."""
     with pytest.raises(ValueError, match="reads only JSON numbers"):
         _spec(series=(ChartSeries("s", (Decimal("1.5"), Decimal("2"))),))
 
@@ -99,9 +88,7 @@ def test_a_bool_point_is_refused() -> None:
 
 
 def test_a_list_of_labels_is_frozen_at_construction() -> None:
-    # The frozen dataclass freezes the binding, not what it points at: a list
-    # passed in would pass the length check and could be appended to afterwards,
-    # reaching the wire misaligned.
+    # Freezing the binding does not freeze the list: appending after the check misaligns.
     spec = ChartSpec(labels=["a", "b"], series=[ChartSeries("s", [1.0, 2.0])])
     assert isinstance(spec.labels, tuple)
     assert isinstance(spec.series[0].points, tuple)
@@ -117,23 +104,13 @@ def test_metadata_is_copied_and_read_only() -> None:
 
 
 def test_metadata_cannot_supply_a_title_the_spec_does_not_have() -> None:
-    # Shadowing by omission: `title` is written conditionally, so a stray key
-    # would otherwise slip through on a spec that has no title of its own.
+    # Shadowing by omission: a stray key would slip through on a spec with no title of its own.
     assert "title" not in _spec(metadata={"title": "sneaky"}).as_content()
     assert _spec(title="real", metadata={"title": "sneaky"}).as_content()["title"] == "real"
 
 
 def test_a_spec_over_the_clients_point_ceiling_is_refused() -> None:
-    """Refused rather than sent and discarded.
-
-    The client bounds total points because drawing a spec that large blocks the
-    browser's main thread -- and, once it is in a stored transcript, does so
-    again on every reload. Sending one costs the bandwidth and buys nothing.
-
-    Deliberately **narrow and deep** -- 1000 labels across 21 series -- so it is
-    over the point budget while staying inside the separate label budget, and
-    the message proves which of the two refused it.
-    """
+    """Refused rather than sent and discarded."""
     labels = tuple(str(i) for i in range(1_000))
     series = tuple(ChartSeries(f"s{i}", (1.0,) * 1_000) for i in range(21))
     with pytest.raises(ValueError, match="over the client's 20000 limit"):
@@ -141,13 +118,7 @@ def test_a_spec_over_the_clients_point_ceiling_is_refused() -> None:
 
 
 def test_a_spec_over_the_clients_label_ceiling_is_refused() -> None:
-    """The bound the server used to be missing, and the one nothing reported.
-
-    A single series of 2500 points is far inside ``MAX_POINTS``, so it passed
-    validation, serialised, streamed, and was then dropped by the client's own
-    ``labels.length > MAX_LABELS`` check -- which has no channel to complain on.
-    The user saw no chart and the server logged no error.
-    """
+    """The bound the server used to be missing, and the one nothing reported."""
     labels = tuple(str(i) for i in range(2_500))
     series = (ChartSeries("count", tuple(float(i) for i in range(2_500))),)
     with pytest.raises(ValueError, match="over the client's 2000 limit"):
@@ -155,20 +126,13 @@ def test_a_spec_over_the_clients_label_ceiling_is_refused() -> None:
 
 
 def test_a_spec_at_the_label_ceiling_is_accepted() -> None:
-    # The bound is inclusive on both sides of the wire: the client refuses
-    # *more* than MAX_LABELS, so exactly MAX_LABELS has to pass here too.
+    # The bound is inclusive: the client refuses more than MAX_LABELS, so exactly MAX_LABELS passes.
     labels = tuple(str(i) for i in range(2_000))
     ChartSpec(labels=labels, series=(ChartSeries("count", (1.0,) * 2_000),))
 
 
 def test_a_lazy_translation_as_a_series_label_is_refused() -> None:
-    """The failure this prevents happens at the worst possible moment.
-
-    A lazy string is not a ``str``, and Pydantic cannot serialise it -- so the
-    event raises at *encode* time, mid-stream, after the response headers have
-    already gone out. Refused at construction, where the traceback points at the
-    code that built the spec.
-    """
+    """The failure this prevents happens at the worst possible moment."""
     from django.utils.translation import gettext_lazy as _
 
     with pytest.raises(ValueError, match="is not a string"):
@@ -176,7 +140,6 @@ def test_a_lazy_translation_as_a_series_label_is_refused() -> None:
 
 
 def test_a_non_string_title_is_refused_rather_than_silently_dropped() -> None:
-    # The client reads a non-string title as no title at all, so sending one
-    # loses the heading with nothing reported.
+    # The client reads a non-string title as no title, losing the heading with nothing reported.
     with pytest.raises(ValueError, match="title must be a string"):
         _spec(title=42)

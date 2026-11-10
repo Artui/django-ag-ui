@@ -1,13 +1,3 @@
-"""A call the MCP server refuses for permission ends the run.
-
-django-spec-mcp answers a permission check refusing the acting user with
-JSON-RPC ``-32006``, and django-spec-agents' bridge raises that as Django's
-``PermissionDenied`` from 0.6.2, which the failure policy passes through: the
-run ends in ``RUN_ERROR``. Below it the refusal was a failed call the default
-``TOOL_FAILURE`` policy redacts, so the model was told the tool failed and the
-run finished as though nothing had been refused. This holds the 0.6.2 floor.
-"""
-
 from __future__ import annotations
 
 import json
@@ -101,17 +91,14 @@ async def test_a_permission_refusal_through_mcp_server_ends_the_run() -> None:
     events = await _run(ran)
 
     types = [event["type"] for event in events]
-    # Below 0.6.2 the same call was a redacted failed result the model answered,
-    # and the stream closed on ``RUN_FINISHED``.
+    # Below 0.6.2 the same call was a redacted failed result, and the stream closed on RUN_FINISHED.
     assert types[-1] == "RUN_ERROR"
     assert "RUN_FINISHED" not in types
-    # Refused before the service ran, not after.
     assert ran == []
 
 
 async def test_the_run_error_is_the_refusal_when_detail_is_included() -> None:
-    # Redacted by default, so the sentence above cannot say which failure ended
-    # the run; with the detail opted in it is the server's refusal, by name.
+    # Redacted by default, so the sentence above cannot name the failure; detail opted in names it.
     events = await _run(
         [], config=build_ag_ui_config(tool_failure=ToolFailureConfig(include_detail=True))
     )

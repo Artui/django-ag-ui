@@ -56,11 +56,7 @@ def _session(
     instructions: str | None = None,
     message_history: list[Any] | None = None,
 ) -> AgentSession:
-    """Build a session with its collaborators passed in.
-
-    The session no longer reaches for global settings or resolves a store from a
-    dotted path — the endpoint that owns it hands both over.
-    """
+    """Build a session with its collaborators passed in."""
     return AgentSession(
         agent if agent is not None else Agent(TestModel()),
         run_input if run_input is not None else _run_input(),
@@ -81,9 +77,7 @@ async def _events(session: AgentSession) -> str:
 
 
 async def test_stream_yields_encoded_ag_ui_events_without_a_transport() -> None:
-    # The point of the split: the whole run pipeline is drivable as an async
-    # iterator — no StreamingHttpResponse, no ASGI, no SSE framing assumptions
-    # beyond the adapter's own encoding.
+    # The whole run pipeline is an async iterator: no HTTP, no ASGI, no SSE framing.
     joined = await _events(_session())
     assert "RUN_STARTED" in joined
     assert "RUN_FINISHED" in joined
@@ -101,9 +95,7 @@ def _capturing_agent(seen: dict[str, Any]) -> Agent[None, Any]:
 
 
 async def test_client_posted_system_message_is_stripped_by_default() -> None:
-    # The adapter's sanitize_messages runs on our hand-composed
-    # run_stream_native path: a client that posts a system message cannot
-    # override the server-owned prompt.
+    # A client posting a system message cannot override the server-owned prompt.
     seen: dict[str, Any] = {}
     session = _session(
         _capturing_agent(seen),
@@ -155,9 +147,7 @@ def _thinking_agent() -> Agent[None, Any]:
 
 
 async def test_thinking_streams_as_reasoning_events_by_default() -> None:
-    # Pins the 2.x event naming the reasoning filter relies on: a ThinkingPart
-    # rides the wire as REASONING_* AG-UI events (not the pre-0.1.13
-    # THINKING_* family) and is forwarded by default.
+    # Pins REASONING_* events: a ThinkingPart rides the wire as them, forwarded by default.
     joined = await _events(_session(_thinking_agent()))
     assert "REASONING" in joined
     assert "private pondering" in joined
@@ -165,22 +155,7 @@ async def test_thinking_streams_as_reasoning_events_by_default() -> None:
 
 @override_settings(DJANGO_AG_UI={"MODEL_SETTINGS": {}})
 async def test_reasoning_is_forwarded_with_no_model_settings_at_all() -> None:
-    """The documented claim, pinned on the side that is a disclosure risk.
-
-    Both this field's docstring and its configuration page used to say reasoning
-    was "only emitted if a thinking budget is enabled via ``model_settings``",
-    which invites the reading that an operator who configures nothing cannot
-    leak a chain-of-thought. That is not true of the models, and this package is
-    the last hop before the browser.
-
-    Pydantic-AI's OpenAI-compatible chat path builds a ``ThinkingPart`` out of
-    the provider's ``reasoning`` / ``reasoning_content`` field consulting no
-    setting, and its DeepSeek profile marks ``deepseek-reasoner``
-    ``thinking_always_enabled`` because the model has no off switch. We cannot
-    reach a real provider from here, so what is pinned is our own half: given a
-    response that thinks, an empty ``MODEL_SETTINGS`` forwards it. The two facts
-    together are the hazard.
-    """
+    """The documented claim, pinned on the side that is a disclosure risk."""
     joined = await _events(_session(_thinking_agent()))
 
     assert "REASONING" in joined, "an empty MODEL_SETTINGS did not stop the forwarding"
@@ -209,12 +184,7 @@ async def test_forward_reasoning_opt_out_strips_reasoning_events() -> None:
 
 
 def _approval_agent(calls: list[str]) -> Agent[None, Any]:
-    """A factory-built agent whose one server-side tool requires approval.
-
-    Built through :func:`build_agent` so the test exercises the real
-    ``output_type`` wiring, not a hand-assembled agent. The streamed model calls
-    the tool on the first turn and answers with text once the tool has returned.
-    """
+    """A factory-built agent whose one server-side tool requires approval."""
     from django_spec_agents.agent.agent_factory import build_agent
     from django_spec_agents.agent.types.agent_config import AgentConfig
     from django_spec_agents.registry.tool_registry import ToolRegistry
@@ -251,11 +221,7 @@ def _approval_agent(calls: list[str]) -> Agent[None, Any]:
 
 
 def _approval_run_input(*, resume: list[dict[str, Any]] | None = None) -> Any:
-    """A ``RunAgentInput`` for the approval flow.
-
-    The resume turn re-posts the assistant tool-call message (as an AG-UI client
-    does) alongside the ``resume[]`` array keyed by the interrupt id.
-    """
+    """A ``RunAgentInput`` for the approval flow."""
     messages: list[dict[str, Any]] = [{"id": "m1", "role": "user", "content": "delete widget-1"}]
     payload: dict[str, Any] = {
         "threadId": "t1",
@@ -288,8 +254,7 @@ async def test_server_tool_requiring_approval_interrupts_without_running() -> No
     calls: list[str] = []
     session = _session(_approval_agent(calls), _approval_run_input())
     joined = await _events(session)
-    # The run finishes on an interrupt outcome carrying the tool call id — and the
-    # tool has *not* executed.
+    # The run ends on an interrupt carrying the tool call id; the tool has not executed.
     assert '"type":"interrupt"' in joined
     assert '"toolCallId":"call-1"' in joined
     assert calls == []
@@ -325,12 +290,7 @@ async def test_resume_deny_does_not_run_the_tool() -> None:
 
 
 def _guarded_agent(calls: list[str], *, tool_guard: ToolGuardConfig | None) -> Agent[None, Any]:
-    """A factory-built agent with a destructive **registry** tool + a guard config.
-
-    Unlike ``_approval_agent`` (which hand-flags a ``Tool(requires_approval=True)``),
-    here the tool is a plain ``@tool(destructive=True)`` and the ToolGuard is what
-    turns that into an approval requirement — exactly the piece-B policy path.
-    """
+    """A factory-built agent with a destructive **registry** tool + a guard config."""
     from django_spec_agents.agent.agent_factory import build_agent
     from django_spec_agents.agent.types.agent_config import AgentConfig
     from django_spec_agents.registry.decorator import tool
@@ -374,8 +334,7 @@ async def test_tool_guard_gates_a_destructive_registry_tool() -> None:
 
 
 async def test_tool_guard_disabled_lets_the_tool_run() -> None:
-    # The default posture: no ``TOOL_GUARD`` → the destructive tool runs without a
-    # gate (unchanged behaviour for a project that hasn't opted in).
+    # No TOOL_GUARD: the destructive tool runs ungated, as before any project opts in.
     calls: list[str] = []
     agent = _guarded_agent(calls, tool_guard=None)
     joined = await _events(_session(agent, _approval_run_input()))
@@ -384,11 +343,7 @@ async def test_tool_guard_disabled_lets_the_tool_run() -> None:
 
 
 async def test_a_configured_prompt_reaches_the_interrupt_the_client_reads() -> None:
-    """The generated question is the call itself; this is the readable one.
-
-    End of the chain rather than the transformer in isolation: a guard-gated tool,
-    an interrupt on the wire, and the phrase on it where a client looks.
-    """
+    """The generated question is the call itself; this is the readable one."""
     agent = _guarded_agent([], tool_guard=ToolGuardConfig(enabled=True))
     config = build_ag_ui_config(
         tool_guard=ToolGuardConfig(enabled=True),
@@ -472,12 +427,7 @@ def _failing_agent() -> Agent[Any, Any]:
 
 
 async def test_a_run_that_errors_persists_the_exchange() -> None:
-    """The exit that used to save nothing.
-
-    ``on_complete`` never fires for a failed run and the disconnect guard only
-    sees cancellation, so a run killed by a raising tool left the thread with
-    no record of the turn at all.
-    """
+    """The exit that used to save nothing."""
     store = _RecordingStore()
     session = _session(_failing_agent(), conversation_store=store)
 
@@ -487,8 +437,6 @@ async def test_a_run_that_errors_persists_the_exchange() -> None:
     assert len(store.saved) == 1
     roles = [m["role"] for m in store.saved[0].messages]
     assert roles[0] == "user"
-    # The adapter closes an interrupted call with a tool result, so the stored
-    # exchange carries the tool round rather than a call with no return.
     assert "tool" in roles
 
 
@@ -612,8 +560,7 @@ async def test_the_manifest_can_be_refused_without_losing_client_context() -> No
 
 
 async def test_a_run_with_nothing_to_say_sends_no_fence_at_all() -> None:
-    # The default posture for a project that never populated either source: the
-    # instructions are what the operator wrote, with no empty block bolted on.
+    # A project with no instruction sources gets the operator's text, no empty block.
     seen: dict[str, Any] = {}
     await _events(_session(_capturing_agent(seen), instructions="OPERATOR RULES"))
     instructions = _delivered_instructions(seen)
@@ -629,8 +576,7 @@ async def test_a_context_value_cannot_close_the_block_early() -> None:
 
 
 async def test_the_delivered_block_is_never_persisted() -> None:
-    # Instructions are the delivery vehicle precisely because they stay off the
-    # record: nothing a client announced ends up in the stored thread.
+    # Instructions stay off the record: nothing a client announced reaches the thread.
     store = _RecordingStore()
     session = _session(
         run_input=_run_input(ATTACHMENT_MESSAGE, context=PAGE_CONTEXT),
@@ -661,12 +607,7 @@ def _server_history() -> list[Any]:
 
 
 def _failing_resumed_agent() -> Agent[Any, Any]:
-    """Reaches for a raising tool however the run was seeded.
-
-    ``_failing_agent``'s ``TestModel`` answers with plain text once the history
-    already holds a turn, so a *resumed* failure needs a model that calls the
-    tool unconditionally.
-    """
+    """Reaches for a raising tool however the run was seeded."""
     from pydantic_ai.models.function import DeltaToolCall
 
     async def stream_fn(messages: list, info: Any) -> Any:
@@ -692,12 +633,7 @@ def _parked_agent() -> Agent[None, Any]:
 
 
 async def _cut_mid_stream(session: AgentSession) -> None:
-    """Consume until the first assistant text, then close the stream.
-
-    Closing the generator delivers ``GeneratorExit`` into the disconnect guard —
-    the second of the two shapes a client disconnect arrives in, and the one a
-    test can drive without an ASGI handler.
-    """
+    """Consume until the first assistant text, then close the stream."""
     stream = session.stream()
     async for chunk in stream:
         if "partial answer" in chunk:
@@ -711,15 +647,13 @@ async def test_a_completed_run_stores_the_client_turn_exactly_once_as_sent() -> 
 
     (conversation,) = store.saved
     assert [message["role"] for message in conversation.messages] == ["user", "assistant"]
-    # The client's own id, not a regenerated one — an attachment ref the model
-    # was told about has to still resolve after a reload.
+    # The client's own id, not a regenerated one, so an attachment ref still resolves.
     assert conversation.messages[0]["id"] == "m1"
     assert conversation.messages[0]["attachments"] == ATTACHMENT_MESSAGE[0]["attachments"]
 
 
 async def test_a_completed_run_stores_refs_in_metadata_as_sent() -> None:
-    # The verbatim rule covers the declared ``metadata`` slot the same way it
-    # covers the top-level extra: both die in a re-dump, both survive this.
+    # The verbatim rule covers the declared metadata slot as it does the top-level extra.
     store = _RecordingStore()
     await _events(
         _session(run_input=_run_input(METADATA_ATTACHMENT_MESSAGE), conversation_store=store)
@@ -743,8 +677,7 @@ async def test_a_resumed_run_stores_server_history_then_the_client_turn() -> Non
 
 
 async def test_a_failed_run_keeps_the_prefix_the_completed_run_would_have() -> None:
-    # The gap this closes: the failure path took the client's messages alone, so
-    # a resumed run that died truncated the thread it was resuming.
+    # The failure path kept only the client's messages, truncating a resumed thread.
     store = _RecordingStore()
     session = _session(
         _failing_resumed_agent(),
@@ -812,8 +745,7 @@ async def test_a_client_gone_at_a_heartbeat_closes_the_provider_stream(caplog: A
     spoke: list[str] = []
 
     def at_a_beat_after_speaking(chunk: str) -> bool:
-        # ``startswith``, not ``in``: every event frame carries ``data: `` too, so
-        # a looser match cuts at an ordinary event and passes without a beat.
+        # startswith, not in: every event frame carries data: too, so a looser match cuts early.
         if "partial answer" in chunk:
             spoke.append(chunk)
         return bool(spoke) and chunk.startswith(":")
@@ -829,10 +761,7 @@ async def test_a_client_gone_at_a_heartbeat_closes_the_provider_stream(caplog: A
 async def test_a_client_gone_during_delegation_progress_closes_the_delegation(
     caplog: Any, heartbeat_seconds: float
 ) -> None:
-    # Both settings, because they fail differently: off, the sub-agent stage's
-    # own task is inside the provider's stream; on, the heartbeat's task has
-    # already handed that progress frame over and is idle, while the sub-agent
-    # stage's task one layer down is still inside it.
+    # Both settings, since each fails in a different place.
     closed: list[str] = []
 
     async def stream_fn(messages: list, info: Any) -> Any:
@@ -967,10 +896,8 @@ async def test_a_run_whose_tool_returns_bytes_stores_no_base64() -> None:
     saved = json.dumps(conversation.messages)
     assert PDF_B64 not in saved
     assert PDF_B64 not in joined
-    # The note the tool wrote is a separate string-content tool message, so a
-    # reader still sees which file was read and what the model was told.
+    # The note is a separate string-content tool message, so the reader sees what was read.
     assert "Attached below: report.pdf" in saved
-    # The emptied synthetic user message is gone rather than stored blank.
     assert [message["role"] for message in conversation.messages] == [
         "user",
         "assistant",
@@ -980,15 +907,7 @@ async def test_a_run_whose_tool_returns_bytes_stores_no_base64() -> None:
 
 
 async def test_a_client_posted_inline_image_still_reaches_the_model() -> None:
-    """The guard on where the strip is *not* applied.
-
-    Stripping the posted history as well was the obvious symmetry and the wrong
-    one: `ALLOW_UPLOADED_FILES` governs provider file-id references
-    (`UploadedFile`), not inline content, so a `data`-sourced image part reaches
-    the model on either setting. Taking it off the way in would have silently
-    blinded the model to any pasted image, for the sake of storage the client
-    was paying for anyway.
-    """
+    """The guard on where the strip is *not* applied."""
     seen: dict[str, Any] = {}
     session = _session(_capturing_agent(seen), _run_input(PASTED_IMAGE))
 
@@ -999,10 +918,7 @@ async def test_a_client_posted_inline_image_still_reaches_the_model() -> None:
 
 
 async def test_a_client_posted_inline_image_is_stored_exactly_as_sent() -> None:
-    # The other half of the rule: the server does not edit what the client sent,
-    # bytes included — the same principle that keeps the ids and the
-    # ``attachments`` refs. A row written before the strip existed is cleaned by
-    # ``manage.py agent_store_strip_inline_bytes``, not here.
+    # The server does not edit what the client sent, bytes included; ids and refs survive.
     store = _RecordingStore()
     session = _session(run_input=_run_input(PASTED_IMAGE), conversation_store=store)
 
@@ -1015,8 +931,7 @@ async def test_a_client_posted_inline_image_is_stored_exactly_as_sent() -> None:
 
 
 async def test_a_resumed_runs_server_history_is_dumped_without_its_bytes() -> None:
-    # The step store holds a previous run's messages in pydantic-ai's own types,
-    # bytes included; dumping them would put the base64 straight back in the row.
+    # The step store holds pydantic-ai's own types, bytes included; dumping re-inlines base64.
     from pydantic_ai.messages import BinaryContent
 
     store = _RecordingStore()
@@ -1072,8 +987,7 @@ async def test_a_denied_call_is_stored_marked_denied() -> None:
 
 
 async def test_an_approved_call_is_stored_with_no_outcome() -> None:
-    # Absent means success on the stored copy exactly as on the stream, so a
-    # thread written by this server reads the same as one written before it.
+    # Absent means success on the stored copy, as on the stream.
     store = _RecordingStore()
     resume = [{"interruptId": "int-call-1", "status": "resolved", "payload": {"approved": True}}]
     session = _session(
@@ -1089,8 +1003,7 @@ async def test_an_approved_call_is_stored_with_no_outcome() -> None:
 
 
 async def test_a_call_a_run_error_closed_is_stored_marked_failed() -> None:
-    # The error exit persists what the transcript rebuilt from the events, and
-    # the adapter closes the pending call with a result it marks ``failed``.
+    # The error exit persists the transcript, closing the pending call with a failed result.
     store = _RecordingStore()
 
     await _events(_session(_failing_agent(), conversation_store=store))
@@ -1157,10 +1070,7 @@ def _counting_transcripts(monkeypatch: Any) -> list[_CountingTranscript]:
 async def test_nothing_is_buffered_when_there_is_no_store_to_persist_it(
     monkeypatch: Any,
 ) -> None:
-    # The transcript exists so a *cancelled or failed* run can still be
-    # persisted. With the default NullConversationStore nothing reads it back,
-    # and buffering every text and tool-argument delta of every concurrent run
-    # for the length of the stream is a cost with no reader.
+    # The transcript exists so a *cancelled or failed* run can still be persisted.
     built = _counting_transcripts(monkeypatch)
 
     await _events(_session())
@@ -1183,10 +1093,7 @@ async def test_the_transcript_is_buffered_when_a_store_will_read_it(
 async def test_the_prior_conversation_is_not_dumped_when_nothing_persists(
     monkeypatch: Any,
 ) -> None:
-    # Both non-completing exits eagerly built the prior message list and closed
-    # over it while composing the stream, so a resumed run held two independent
-    # copies of the whole conversation for the stream's lifetime — computed
-    # even with persistence off, where the finalizer can never use them.
+    # Both non-completing exits built the prior messages eagerly, holding two copies all run.
     calls: list[int] = []
     original = AgentSession._prior_messages
 
@@ -1213,10 +1120,7 @@ async def test_the_prior_conversation_is_dumped_at_most_once_per_run() -> None:
 
 
 async def test_a_run_error_does_not_stream_the_exception_text() -> None:
-    # RUN_ERROR carried str(exception) straight to the browser — an ORM error's
-    # SQL and connection target, an OSError's server path, a provider 401
-    # echoing a masked key — which is the disclosure INCLUDE_DETAIL exists to
-    # withhold at the tool level.
+    # RUN_ERROR must not carry str(exception): SQL, paths and keys would reach the browser.
     joined = await _events(_session(_failing_agent()))
 
     assert "RUN_ERROR" in joined
@@ -1265,9 +1169,7 @@ def _session_for(request: Any, store: Any) -> AgentSession:
 
 
 async def test_an_anonymous_run_scopes_the_conversation_to_the_browser_session() -> None:
-    # ``Conversation.owner_id`` is documented as the authorization scope, so
-    # handing every anonymous visitor the same ``None`` collapses them into one
-    # partition in any store that keys on the field as invited.
+    # owner_id is the authorization scope: a shared None would merge every anonymous visitor.
     request = RequestFactory().post("/agent/")
     request.session = SimpleNamespace(session_key="sess-abc")
     store = _RecordingStore()
@@ -1302,8 +1204,7 @@ async def test_an_authenticated_run_still_scopes_to_the_user() -> None:
 
 
 async def test_a_request_without_a_session_still_saves() -> None:
-    # No session middleware: there is no per-visitor key to be had, so the
-    # scope stays unset rather than inventing one.
+    # No session middleware means no per-visitor key, so the scope stays unset.
     store = _RecordingStore()
 
     await _events(_session_for(RequestFactory().post("/agent/"), store))
@@ -1348,16 +1249,7 @@ def _tool_names(seen: dict[str, Any]) -> list[str]:
 
 
 async def test_the_client_block_is_its_own_dynamic_instruction_part() -> None:
-    """Not fused into the operator's literal, and that is load-bearing.
-
-    Pydantic-AI classifies literal strings as ``dynamic=False`` and a callable's
-    result as ``dynamic=True``, sorts static first, and -- with
-    ``anthropic_cache_instructions`` set -- puts the cache breakpoint after the
-    last *static* part. Passed as a string the block fuses into that cached
-    prefix, so every request pays a fresh cache write and never gets a read.
-    Passed as a callable it lands outside the breakpoint while still being read
-    after the rules.
-    """
+    """Not fused into the operator's literal, and that is load-bearing."""
     seen: dict[str, Any] = {}
     session = _session(
         _recording_agent(seen), _run_input(context=PAGE_CONTEXT), instructions="OPERATOR RULES"
@@ -1398,11 +1290,7 @@ async def test_the_tool_channel_offers_a_tool_and_leaves_instructions_alone() ->
 
 @TOOL_DELIVERY
 async def test_the_tool_returns_the_same_fenced_block() -> None:
-    """Same fence, same neutralisation, same ceiling -- only the delivery differs.
-
-    ``TestModel`` calls every tool it is offered, so the block reaching the
-    stream is the tool's return value rather than anything the model composed.
-    """
+    """Same fence, same neutralisation, same ceiling -- only the delivery differs."""
     stream = await _events(_session(Agent(TestModel()), _run_input(context=PAGE_CONTEXT)))
 
     assert CLOSE_SENTINEL in stream
@@ -1411,13 +1299,7 @@ async def test_the_tool_returns_the_same_fenced_block() -> None:
 
 @TOOL_DELIVERY
 async def test_the_tool_result_reaches_the_browser_unlike_the_instructions_channel() -> None:
-    """A property of the channel, not a bug in it.
-
-    A tool result is an ordinary part of the exchange, so it streams back and is
-    persisted into the thread, where the instructions channel is neither.
-    Auditability for some projects, an unwanted copy of a page map for others --
-    either way it is written down, and this is what catches it changing.
-    """
+    """A property of the channel, not a bug in it."""
     stream = await _events(_session(Agent(TestModel()), _run_input(context=PAGE_CONTEXT)))
 
     assert "get_client_context" in stream

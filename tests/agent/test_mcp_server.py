@@ -1,11 +1,3 @@
-"""``AGUIServer(mcp_server=...)``: a django-spec-mcp server bridged into the agent.
-
-Driven end to end through the mounted endpoint and its tool catalog, over a
-server registering kernel specs only, so nothing on this path is drf-mcp's.
-``drf_mcp_server=``, the keyword's alias for a drf-mcp server, is gone, and
-refused as any keyword a constructor does not take.
-"""
-
 from __future__ import annotations
 
 import json
@@ -98,9 +90,7 @@ async def test_a_spec_mcp_servers_tool_runs_through_the_endpoint() -> None:
 
 
 async def test_a_spec_mcp_refusal_streams_as_a_failed_call() -> None:
-    # What makes the bridge ``MCPToolset`` rather than a duck-typed pass-through:
-    # the refusal is a failed call carrying the service's sentence, not a
-    # successful result whose payload happens to describe an error.
+    # MCPToolset, not a pass-through: a refusal is a failed call with the service's sentence.
     server = AGUIServer(
         ToolRegistry(), model=_calling("denied", {"a": 1, "b": 2}), mcp_server=spec_mcp_server
     )
@@ -120,8 +110,7 @@ async def test_a_spec_mcp_refusal_streams_as_a_failed_call() -> None:
 
 
 async def test_a_value_the_spec_refuses_streams_as_a_retry() -> None:
-    # A retry, not a failure: the result carries no ``outcome`` and the
-    # kernel's sentence reaches the model to correct the call.
+    # A retry, not a failure: no outcome, and the kernel's sentence reaches the model to correct it.
     server = AGUIServer(
         ToolRegistry(), model=_calling("invalid", {"a": 1, "b": 2}), mcp_server=spec_mcp_server
     )
@@ -135,8 +124,7 @@ async def test_a_value_the_spec_refuses_streams_as_a_retry() -> None:
 
 
 async def test_the_tool_guard_gates_a_bridged_service() -> None:
-    # A ``ServiceSpec`` mutates, so django-spec-mcp marks it not read-only and
-    # the guard defers the call to the client's approval instead of running it.
+    # A ServiceSpec mutates, so the guard defers the call to the client's approval.
     server = AGUIServer(
         ToolRegistry(),
         model=_calling("add", {"a": 2, "b": 3}),
@@ -166,8 +154,6 @@ async def test_a_registry_tool_beats_a_bridged_tool_of_the_same_name() -> None:
 
 
 async def test_a_bridged_tool_keeps_its_name_from_the_attachment_toolset() -> None:
-    # The bridge reserves its own names for the sources after it, so an
-    # attachment toolset cannot offer a second ``read_attachment``.
     def read_attachment(*, attachment_id: str) -> dict[str, Any]:
         """Read an attachment the project's own way."""
         return {"id": attachment_id}
@@ -224,7 +210,6 @@ def test_mcp_server_is_not_deprecated() -> None:
     ids=["AGUIServer", "DjangoAGUIView", "ToolsView"],
 )
 def test_the_removed_drf_mcp_server_keyword_is_refused(build: Any) -> None:
-    # Refused before anything is built, so a mount still passing the old
-    # keyword fails at import rather than on its first request.
+    # Refused before anything is built, so an old keyword fails at import, not on a request.
     with pytest.raises(TypeError, match=r"unexpected keyword argument 'drf_mcp_server'"):
         build(drf_mcp_server=spec_mcp_server)

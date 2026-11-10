@@ -1,16 +1,3 @@
-"""A root URLconf mounting an ``AGUIServer(csrf_exempt=True)`` with every write route.
-
-Used by ``test_agui_server`` to drive the mount through a *real*
-``CsrfViewMiddleware``. The flag assertions elsewhere check what the views
-declare; this checks what Django does with the declaration, which is the half
-that was wrong — the run endpoint carried the flag and the five write routes
-beside it did not, so each one 403'd before reaching its view.
-
-The stores are minimal fakes rather than the contrib models: every route here is
-driven with an empty body so it answers before it touches storage, except the two
-``DELETE``s, which need only an awaitable ``delete``.
-"""
-
 from __future__ import annotations
 
 from typing import Any

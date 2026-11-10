@@ -1,5 +1,3 @@
-"""Dotted-path targets for AGENT_FACTORY / TOOLSETS resolution tests."""
-
 from __future__ import annotations
 
 from typing import Any

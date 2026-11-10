@@ -1,5 +1,3 @@
-"""``deps_factory`` — supplying the per-run dependencies yourself."""
-
 from __future__ import annotations
 
 import json
@@ -45,8 +43,7 @@ def _body(state: Any = None) -> bytes:
 
 
 def _post(state: Any = None) -> Any:
-    # Authenticated: the endpoint refuses anonymous callers by default, and
-    # nothing here is about that refusal.
+    # Authenticated: the endpoint refuses anonymous callers, which nothing here is about.
     return AuthedRequestFactory().post(
         "/agent/", data=_body(state), content_type="application/json"
     )
@@ -76,8 +73,7 @@ class TestTheDefault:
         seen: list[Any] = []
         view = DjangoAGUIView(_recording_registry(seen), model=TestModel())
         request = _post()
-        # An opaque stand-in that also clears the authentication gate, so the
-        # identity assertion below is about deps binding and nothing else.
+        # An opaque stand-in that clears the auth gate, so the identity check is about deps binding.
         user = authenticated_user()
         request.user = user
 
@@ -113,9 +109,7 @@ class TestACustomFactory:
         assert received[0].path == "/agent/"
 
     async def test_seeding_state_with_a_model_gets_it_validated(self) -> None:
-        """The gap this exists to close: pydantic-ai validates inbound state
-        against ``type(deps.state)``, so validation is only possible when the
-        deps arrive pre-seeded with a model instance."""
+        """pydantic-ai validates state against type(deps.state), so deps must arrive pre-seeded."""
         seen: list[Any] = []
         view = DjangoAGUIView(
             _recording_registry(seen),
@@ -145,8 +139,7 @@ class TestTheServerThreadsIt:
         server = AGUIServer(
             _recording_registry(seen),
             model=TestModel(),
-            # ``AgentDeps`` requires ``user``; the sibling
-            # cases above already name it, this one had been leaning on the default.
+            # AgentDeps requires user; this case had leaned on the default.
             deps_factory=lambda _request: _TenantDeps(user="alice", tenant="acme"),
         )
 

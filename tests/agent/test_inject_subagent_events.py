@@ -1,18 +1,3 @@
-"""``inject_subagent_events`` -- putting a delegation's progress on the wire, live.
-
-The property that matters here is *when*, not *what*. A delegated child's whole
-run happens inside one ``delegate_task`` tool call, and the AG-UI stream emits
-nothing from that call's ``TOOL_CALL_END`` until its ``TOOL_CALL_RESULT`` -- so
-an injector that drains between upstream events (which is what the compaction
-and invalidation injectors do, correctly, for what they carry) would hold every
-progress event until the delegation it describes had already finished. That is
-the stall restated, not fixed.
-
-So the load-bearing test below deadlocks rather than merely disagreeing if the
-draining ever goes back to being pull-driven, and is bounded by a timeout so a
-regression fails instead of hanging the suite.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -38,12 +23,7 @@ def _text(message_id: str) -> BaseEvent:
 
 
 def _step(marker: str = "calling search_docs") -> None:
-    """Queue a step event the way the observer does, from inside the stream.
-
-    ``marker`` rides the status line, which is free text, so a test can tell one
-    announcement from another without inventing a phase the contract does not
-    have.
-    """
+    """Queue a step event the way the observer does, from inside the stream."""
     sink = SUBAGENT_SINK.get()
     assert sink is not None
     sink.put_nowait(
@@ -59,12 +39,7 @@ def _step(marker: str = "calling search_docs") -> None:
 
 
 def _close() -> None:
-    """Queue the delegation's own closing event, the way the observer does.
-
-    The other carrier. This injector forwards whatever is queued and has no
-    opinion about which of the two an event came from, which is exactly what the
-    tests below that mix them are for.
-    """
+    """Queue the delegation's own closing event, the way the observer does."""
     sink = SUBAGENT_SINK.get()
     assert sink is not None
     sink.put_nowait(
@@ -91,9 +66,7 @@ async def test_a_stream_with_no_delegation_is_unchanged() -> None:
 
 
 async def test_progress_ships_while_upstream_is_still_blocked() -> None:
-    # The whole feature, as a deadlock: upstream refuses to produce its next
-    # event until the consumer has already seen the progress announced during
-    # this one. Draining between upstream events cannot satisfy that.
+    # The feature as a deadlock: upstream waits for the consumer to see the progress first.
     released = asyncio.Event()
 
     async def upstream() -> AsyncIterator[BaseEvent]:
@@ -120,9 +93,7 @@ async def test_progress_ships_while_upstream_is_still_blocked() -> None:
 
 
 async def test_progress_announced_after_the_last_event_still_ships() -> None:
-    # A delegation's own completion is announced from inside the tool call that
-    # produced the run's last events; without the flush it goes on the floor.
-    # Two of them, so the flush is asserted to be a drain and not one take.
+    # A delegation's completion is announced from inside the last call; without flush it is lost.
     async def upstream() -> AsyncIterator[BaseEvent]:
         yield _text("a")
         _step("second call returned")
@@ -130,8 +101,7 @@ async def test_progress_announced_after_the_last_event_still_ships() -> None:
 
     out = await _collect(inject_subagent_events(upstream()))
 
-    # One from each carrier, which is the sharper version of the same claim: the
-    # flush is a drain, and it is indifferent to what it is draining.
+    # One from each carrier: the flush is a drain, indifferent to what it drains.
     assert [event.type for event in out] == [
         EventType.TEXT_MESSAGE_START,
         EventType.CUSTOM,
@@ -146,8 +116,7 @@ async def test_an_upstream_failure_reaches_the_consumer() -> None:
         yield _text("a")
         raise _Boom
 
-    # Queued behind the events that preceded it rather than surfacing out of
-    # band as a task nobody awaited.
+    # Queued behind the preceding events, not surfacing as a task nobody awaited.
     with pytest.raises(_Boom):
         await _collect(inject_subagent_events(upstream()))
 
@@ -171,8 +140,7 @@ async def test_the_sink_is_reset_when_the_stream_raises() -> None:
     with contextlib.suppress(_Boom):
         await _collect(inject_subagent_events(upstream()))
 
-    # A run that errors mid-stream must not leave the sink bound; the next run
-    # on this task would otherwise announce into a dead queue.
+    # A run that errors mid-stream must not leave the sink bound to the next run's queue.
     assert SUBAGENT_SINK.get() is None
 
 
@@ -190,12 +158,7 @@ def _stalling_upstream(closed: asyncio.Event) -> AsyncIterator[BaseEvent]:
 
 
 async def test_a_consumer_that_stops_early_tears_the_pump_down() -> None:
-    # The disconnect path. The cancellation lands on the pump while it waits for
-    # this generator to take the previous event, *not* inside ``__anext__`` --
-    # so without the pump closing upstream on its way out, the whole chain would
-    # be left suspended at its own yield with its ``finally`` unrun, and
-    # ``guarded_stream`` would be closing the provider's stream one frame out
-    # while the generators above it were still open.
+    # The disconnect path.
     closed = asyncio.Event()
 
     async def abort() -> Any:
@@ -232,10 +195,7 @@ async def test_an_upstream_with_nothing_to_close_is_fine() -> None:
 
 
 async def test_closing_from_another_task_is_survivable() -> None:
-    # The loop's own async-generator finalizer runs ``aclose`` in a context this
-    # generator never set anything in, and ``ContextVar.reset`` refuses a token
-    # from elsewhere. Tearing down has to survive that rather than raise into a
-    # finalizer nobody is watching.
+    # The finalizer runs aclose in a foreign context, and ContextVar.reset refuses that token.
     closed = asyncio.Event()
     stream = inject_subagent_events(_stalling_upstream(closed))
     assert isinstance(await stream.__anext__(), TextMessageStartEvent)
@@ -246,8 +206,7 @@ async def test_closing_from_another_task_is_survivable() -> None:
 
 
 async def test_concurrent_runs_do_not_share_a_channel() -> None:
-    # A ContextVar rather than state on anything long-lived: two runs in flight
-    # must not interleave into each other's transcripts.
+    # A ContextVar, not long-lived state, so two runs in flight cannot interleave transcripts.
     async def run(name: str) -> list[Any]:
         async def upstream() -> AsyncIterator[BaseEvent]:
             yield _text(name)

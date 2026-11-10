@@ -1,12 +1,3 @@
-"""What the heartbeat puts on the wire, and what a client does with it.
-
-The claim being tested is about **bytes**, not about intent: a proxy severs a
-connection it has seen no bytes on, so "we call a heartbeat function" proves
-nothing and "these frames appear in the stream, and a conformant client drops
-them" proves the whole thing. Hence the miniature ``EventSource`` below, which
-implements the one rule the guarantee rests on.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -22,17 +13,7 @@ _INTERVAL = 0.02
 
 
 def _event_source_dispatch(raw: str) -> list[tuple[str, str]]:
-    """Dispatch ``raw`` the way the SSE spec says an ``EventSource`` must.
-
-    The rules that matter here, from the WHATWG event-stream algorithm: a line
-    beginning with a colon is **ignored**, a blank line dispatches the buffered
-    event, and an event whose data buffer is empty is not dispatched at all. That
-    third rule is why a comment cannot even produce a silent empty event -- it
-    never reaches the buffer, so there is nothing to dispatch.
-
-    Written out rather than asserted about because "an EventSource ignores it" is
-    the load-bearing claim of the whole design.
-    """
+    """Dispatch ``raw`` the way the SSE spec says an ``EventSource`` must."""
     dispatched: list[tuple[str, str]] = []
     name = ""
     data: list[str] = []
@@ -87,16 +68,13 @@ async def test_a_silent_stream_carries_comment_frames_until_it_speaks_again() ->
             seen.append(chunk)
 
     consumer = asyncio.ensure_future(_consume())
-    # More than one beat: a single frame could be a coincidence of scheduling,
-    # several is the interval doing its job for as long as the silence lasts.
+    # More than one beat: one frame could be coincidence, several show the interval working.
     await _until(lambda: seen.count(_HEARTBEAT_COMMENT) >= 3)
     gate.set()
     await consumer
 
     assert seen[0] == "data: one\n\n"
     assert seen[-1] == "data: two\n\n"
-    # Every beat fell in the silence between the two real frames, and the real
-    # frames kept their order.
     assert set(seen[1:-1]) == {_HEARTBEAT_COMMENT}
     assert [chunk for chunk in seen if chunk != _HEARTBEAT_COMMENT] == [
         "data: one\n\n",
@@ -123,7 +101,6 @@ async def test_the_frame_is_an_sse_comment_an_event_source_drops() -> None:
     await consumer
 
     assert _HEARTBEAT_COMMENT.startswith(":")
-    # The bytes a proxy counts are on the wire...
     wire = "".join(seen)
     assert _HEARTBEAT_COMMENT in wire
     # ...and the events a client sees are exactly the two the run emitted.
@@ -131,8 +108,7 @@ async def test_the_frame_is_an_sse_comment_an_event_source_drops() -> None:
 
 
 async def test_a_busy_stream_is_not_padded() -> None:
-    """The clock is the wait for the next chunk, so it restarts on every frame.
-    A stream that never goes quiet for a whole interval gets no beats at all."""
+    """The clock is the wait for the next chunk, so it restarts on every frame."""
 
     async def _chatty() -> AsyncIterator[str]:
         for index in range(20):
@@ -146,8 +122,7 @@ async def test_a_busy_stream_is_not_padded() -> None:
 
 
 async def test_the_beat_stops_when_the_run_ends() -> None:
-    """A finished run's response is closed, and a beat outliving it would be a
-    task writing into a socket nobody owns."""
+    """A finished run's response is closed; a beat outliving it writes into a socket nobody owns."""
     gate = asyncio.Event()
     before = asyncio.all_tasks()
     stream = heartbeat_stream(_gated("data: one\n\n", "data: two\n\n", gate), interval=_INTERVAL)
@@ -163,8 +138,6 @@ async def test_the_beat_stops_when_the_run_ends() -> None:
     gate.set()
     await consumer
 
-    # The run is over. Several intervals later the stream has not grown, and
-    # nothing is left running that could grow it.
     ended_with = list(seen)
     await asyncio.sleep(_INTERVAL * 5)
     assert seen == ended_with
@@ -173,9 +146,7 @@ async def test_the_beat_stops_when_the_run_ends() -> None:
 
 
 async def test_closing_the_stream_leaves_no_task_behind() -> None:
-    """``aclose`` is the disconnect path's shape when the generator is closed
-    directly rather than cancelled. A leaked pump per aborted run is the failure
-    this has to not have."""
+    """aclose is the disconnect shape when the generator is closed rather than cancelled."""
     closed = asyncio.Event()
 
     async def _watched() -> AsyncIterator[str]:
@@ -191,15 +162,12 @@ async def test_closing_the_stream_leaves_no_task_behind() -> None:
 
     await stream.aclose()
 
-    # Upstream was closed rather than left to garbage collection, and the pump
-    # that held it is gone.
     assert closed.is_set()
     assert asyncio.all_tasks() - before == set()
 
 
 async def test_cancelling_the_consumer_leaves_no_task_behind() -> None:
-    """The live disconnect path: Django cancels the task consuming the response,
-    and the error lands inside this generator's own wait."""
+    """The live disconnect path: Django cancels the task and the error lands in this wait."""
     closed = asyncio.Event()
 
     async def _watched() -> AsyncIterator[str]:
@@ -218,8 +186,6 @@ async def test_cancelling_the_consumer_leaves_no_task_behind() -> None:
             seen.append(chunk)
 
     consumer = asyncio.ensure_future(_consume())
-    # Past the first beat, so the cancellation lands while the wrapper is parked
-    # in its own wait rather than anywhere upstream.
     await _until(lambda: _HEARTBEAT_COMMENT in seen)
     consumer.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -230,8 +196,7 @@ async def test_cancelling_the_consumer_leaves_no_task_behind() -> None:
 
 
 async def test_an_upstream_exception_reaches_the_consumer() -> None:
-    """Queued by the pump rather than raised in it, so it has to be re-raised
-    here or a failing run would end as a clean close."""
+    """Queued by the pump, not raised in it, so it must be re-raised or a failure looks clean."""
 
     async def _raises() -> AsyncIterator[str]:
         yield "a"
@@ -244,9 +209,7 @@ async def test_an_upstream_exception_reaches_the_consumer() -> None:
 
 
 async def test_backpressure_survives_the_heartbeat() -> None:
-    """A consumer that stops reading still stops the run. The wrapper races a
-    clock, not the producer -- upstream is asked for the next frame only once the
-    previous one has been handed on, exactly as a plain ``async for`` would."""
+    """A consumer that stops reading still stops the run."""
     produced: list[int] = []
 
     async def _counted() -> AsyncIterator[str]:
@@ -257,8 +220,6 @@ async def test_backpressure_survives_the_heartbeat() -> None:
     stream = heartbeat_stream(_counted(), interval=_INTERVAL)
     assert await anext(stream) == "data: 0\n\n"
 
-    # Sit on the first frame for several intervals. The run does not advance:
-    # nothing is produced speculatively to fill a buffer.
     await asyncio.sleep(_INTERVAL * 5)
     assert produced == [0]
 

@@ -33,9 +33,7 @@ from tests.authed_request_factory import AuthedRequestFactory
 def _run_input(
     content: str, run_id: str = "r1", thread_id: str = "t1", *, message_id: str = "u1"
 ) -> bytes:
-    # ``message_id`` matters on a resume: the run holds its history on the
-    # server, and a turn posted under the id of a stored user message is that
-    # message resubmitted, so it replaces the turn rather than following it.
+    # A turn posted under a stored user message's id resubmits that message, replacing the turn.
     return json.dumps(
         {
             "threadId": thread_id,
@@ -50,9 +48,7 @@ def _run_input(
 
 
 def _post(body: bytes, *, anonymous: bool = False):  # noqa: ANN202
-    # Authenticated by default: the endpoint refuses anonymous callers unless
-    # told otherwise, so a fixture that wants to reach the agent has to be a
-    # logged-in caller. ``anonymous=True`` is for the tests about that refusal.
+    # The endpoint refuses anonymous callers, so a fixture reaching the agent must be logged in.
     factory = RequestFactory() if anonymous else AuthedRequestFactory()
     return factory.post("/agent/", data=body, content_type="application/json")
 
@@ -91,8 +87,7 @@ async def test_streams_ag_ui_events() -> None:
 
 @override_settings(DJANGO_AG_UI={"FORWARD_REASONING": False})
 async def test_reasoning_opt_out_still_streams_the_answer() -> None:
-    # With FORWARD_REASONING off the stream is wrapped in the reasoning filter;
-    # a normal run (TestModel emits no reasoning) must still stream end-to-end.
+    # FORWARD_REASONING off still wraps the stream in the reasoning filter; a plain run streams.
     view = DjangoAGUIView(_registry(), model=TestModel())
     response = await view(_post(_run_input("double 5")))
     body = await _drain(response)
@@ -103,10 +98,7 @@ async def test_reasoning_opt_out_still_streams_the_answer() -> None:
 
 @pytest.mark.django_db
 async def test_service_specs_tool_runs_in_process() -> None:
-    # The no-MCP-hop path: a django-service-specs spec passed as service_specs=
-    # is wired as a SpecToolset and executed in-process during the run. The
-    # request arrives with a user the way the auth middleware sets one in a real
-    # deployment (the toolset binds it as the acting user).
+    # No-MCP path: a spec passed as service_specs= is a SpecToolset run in-process.
     from tests.integrations.drf_specs import SPECS
 
     view = DjangoAGUIView(
@@ -122,10 +114,7 @@ async def test_service_specs_tool_runs_in_process() -> None:
 
 @pytest.mark.django_db
 async def test_a_spec_callable_reads_the_run_s_request() -> None:
-    # The default deps put the request the run arrived on in ``call_context``,
-    # and the toolset registers it as the ``request`` seed of every call, so a
-    # spec callable written for HTTP binds the same object here. Without it the
-    # seed is ``None``, and a callable reading ``request.user`` fails mid-run.
+    # The default deps put the arrival request in call_context, seeding every call's request.
     seen: list[Any] = []
 
     def record(request: Any) -> dict[str, bool]:
@@ -151,8 +140,7 @@ async def test_a_spec_callable_reads_the_run_s_request() -> None:
 
 
 def test_view_is_marked_as_a_coroutine_function() -> None:
-    # Django's handler must detect __call__ as async and await it when the
-    # view is mounted; otherwise it returns an unawaited coroutine.
+    # Django's handler must detect __call__ as async, or it returns an unawaited coroutine.
     from asgiref.sync import iscoroutinefunction
 
     assert iscoroutinefunction(DjangoAGUIView(_registry(), model=TestModel()))
@@ -166,10 +154,7 @@ async def test_non_post_is_rejected() -> None:
 
 
 async def test_an_unauthenticated_non_post_is_401_not_405() -> None:
-    # Otherwise an unauthenticated caller learns the route exists before
-    # presenting a credential, while the sibling views answer 401 — and which
-    # routes exist is exactly what says whether a deployment configured a
-    # conversation store, attachments, transcription, skills or step persistence.
+    # Unauthenticated callers get 401 like the sibling views, not a route list.
     view = DjangoAGUIView(_registry(), model=TestModel())
     response = await view(RequestFactory().get("/agent/"))
     assert response.status_code == 401
@@ -185,26 +170,7 @@ async def test_invalid_body_returns_400() -> None:
 
 @pytest.mark.parametrize("where", ["bare", "inside_messages"])
 async def test_body_nested_past_the_decoder_returns_400(where: str) -> None:
-    """A body nested deeper than ``json.loads`` can follow is an invalid run input.
-
-    This is a guard on pydantic-ai, not on this package: the view catches only
-    ``ValidationError`` from ``AGUIAdapter.build_run_input``, and the 400 rests
-    on two things upstream does. ``RunAgentInput.model_validate_json`` stops at
-    its own depth limit and reports a ``ValidationError`` rather than
-    recursing. ``_forward_compat.skip_unknown_tagged_items``, which re-reads a
-    rejected body with ``json.loads``, catches the ``RecursionError`` that
-    re-read raises. If a pydantic-ai release stops doing either, the overflow
-    escapes this view as a 500 and this test fails. It passes on the tree
-    before the thread rename got the same fix, by design: the agent endpoint
-    never had the gap.
-
-    The body is sized and its premise asserted as in the threads view's test of
-    the same name. A million closed levels outgrows every stack the suite runs
-    on, including the 64 MB one under macOS ``make``, and ``json.loads`` is
-    shown to overflow on this thread, which is where the view decodes: it is
-    awaited here directly. The ``messages`` form is the one the re-read looks
-    inside.
-    """
+    """A body nested deeper than ``json.loads`` can follow is an invalid run input."""
     depth = 1_000_000
     nested = "[" * depth + "]" * depth
     if where == "bare":
@@ -213,7 +179,6 @@ async def test_body_nested_past_the_decoder_returns_400(where: str) -> None:
         body = '{"threadId": "t", "runId": "r", "messages": ' + nested + "}"
     with pytest.raises(RecursionError):
         json.loads(body)
-    # Under the cap, so the body is read rather than refused for its size.
     assert len(body) < settings.DATA_UPLOAD_MAX_MEMORY_SIZE
     view = DjangoAGUIView(_registry(), model=TestModel())
     response = await view(_post(body.encode()))
@@ -229,8 +194,7 @@ async def test_csrf_exempt_attribute_default_and_override() -> None:
 
 
 async def test_unstated_csrf_with_no_get_user_warns() -> None:
-    # The combination the require_authenticated default cannot see: callers
-    # authenticated by session cookie, on an endpoint with CSRF turned off.
+    # Session-cookie callers on an endpoint with CSRF off: the case require_authenticated misses.
     with pytest.warns(RuntimeWarning, match="CSRF-exempt"):
         DjangoAGUIView(_registry(), model=TestModel())
 
@@ -245,10 +209,7 @@ async def test_unstated_csrf_with_no_get_user_warns() -> None:
     ids=["csrf-enforced", "csrf-exempt-deliberately", "get-user-hook"],
 )
 async def test_stating_how_requests_authenticate_silences_the_warning(kwargs: dict) -> None:
-    # An explicit csrf_exempt=True is a *decision* (header-authenticated
-    # clients, where CSRF does not apply), so it silences the warning just as
-    # csrf_exempt=False does. Warning on the value rather than on the silence
-    # would fire on a correct configuration with no way to say so.
+    # An explicit csrf_exempt=True is a decision, so it silences the warning as False does.
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         DjangoAGUIView(_registry(), model=TestModel(), **kwargs)
@@ -256,16 +217,7 @@ async def test_stating_how_requests_authenticate_silences_the_warning(kwargs: di
 
 @override_settings(DJANGO_AG_UI={})
 async def test_missing_model_raises_improperly_configured() -> None:
-    """No model passed and none in settings, refused where it is cheap to notice.
-
-    It used to reach the first request. That was inherited rather than chosen:
-    before the agent was built once per endpoint the build took the request, so
-    it could not have happened earlier, and when the request dependency went the
-    timing stayed. Every other collaborator this endpoint takes is checked at
-    construction, for the reason given there -- a misconfiguration that surfaces
-    one request later names a setting the reader has never heard of, from a
-    traceback with no declaration in it.
-    """
+    """No model passed and none in settings, refused where it is cheap to notice."""
     with pytest.raises(ImproperlyConfigured, match="MODEL"):
         DjangoAGUIView(_registry())
 
@@ -296,8 +248,7 @@ async def test_api_key_builds_a_model_with_an_explicit_provider() -> None:
 
 async def test_anonymous_is_rejected_by_default() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
-    # The plain factory builds no `.user`, so the request is unauthenticated —
-    # and nothing had to be passed to have it refused.
+    # The plain factory builds no .user, so the request is unauthenticated and refused.
     response = await view(_post(_run_input("hi"), anonymous=True))
     assert response.status_code == 401
 
@@ -341,7 +292,7 @@ async def test_does_not_warn_under_asgi() -> None:
 
     view = DjangoAGUIView(_registry(), model=TestModel())
     with warnings.catch_warnings():
-        warnings.simplefilter("error")  # any RuntimeWarning would raise
+        warnings.simplefilter("error")
         # GET → refused, but the ASGIRequest path must not warn.
         await view(AsyncRequestFactory().get("/agent/"))
 
@@ -387,8 +338,7 @@ async def test_explicit_audit_logger_wins() -> None:
 
 
 async def test_agent_factory_escape_hatch_takes_over_construction() -> None:
-    # No model passed and none in settings — the factory supplies the model,
-    # proving it fully replaces the built-in construction (no MODEL required).
+    # No model passed and none in settings: the factory supplies it, replacing construction.
     from tests.agent.factories import build_test_agent
 
     view = DjangoAGUIView(_registry(), agent_factory=build_test_agent)
@@ -433,9 +383,7 @@ class TestTheAgentIsBuiltOnce:
         assert one._agent() is not other._agent()
 
     async def test_the_agent_carries_no_instructions_of_its_own(self) -> None:
-        """What makes per-request instructions a replacement rather than an
-        append: pydantic-ai adds run instructions to the agent's, and adding to
-        nothing is exactly setting."""
+        """Per-request instructions replace rather than append: adding to nothing is setting."""
         view = DjangoAGUIView(_registry(), model=TestModel(), instructions="Be terse.")
 
         assert not view._agent()._instructions
@@ -443,14 +391,7 @@ class TestTheAgentIsBuiltOnce:
 
     @override_settings(DJANGO_AG_UI={})
     async def test_a_missing_model_fails_when_the_endpoint_is_built(self) -> None:
-        """The build stays lazy; only the model check moved.
-
-        Those are separable, and keeping them apart is the whole point:
-        constructing the agent resolves the provider, which reads the API key
-        from the environment, so an eager *build* would refuse `manage.py
-        migrate` on a machine with no key. Reading the model touches neither a
-        provider nor a credential.
-        """
+        """The build stays lazy; only the model check moved."""
         with pytest.raises(ImproperlyConfigured, match="MODEL"):
             DjangoAGUIView(_registry())
 
@@ -480,13 +421,7 @@ class TestPerRequestOverrides:
         assert view._run_instructions(_post(_run_input("hi"))) == "Tenant-specific."
 
     async def test_the_instructions_reach_the_model(self) -> None:
-        """The end of the chain the agent's empty ``instructions`` opens up.
-
-        Asserted against the messages the run actually sent, not against the
-        value being forwarded — forwarding it to a parameter pydantic-ai treats
-        as *additional* is the whole risk, and only the messages show whether
-        "additional to nothing" really came out as the instructions.
-        """
+        """The end of the chain the agent's empty ``instructions`` opens up."""
         view = DjangoAGUIView(
             _registry(),
             model=TestModel(),
@@ -505,16 +440,13 @@ class TestPerRequestOverrides:
         instructions = [
             m.instructions for m in result.all_messages() if getattr(m, "instructions", None)
         ]
-        # One per model request (the initial turn and the tool-return turn):
-        # what matters is that the endpoint default never appears.
         assert set(instructions) == {"Tenant-specific."}
 
     @override_settings(
         DJANGO_AG_UI={"MODEL": "anthropic:claude-sonnet-4-5", "API_KEY": "sk-test"},
     )
     async def test_a_hooks_model_string_gets_the_configured_credentials(self) -> None:
-        """A hook returning "provider:name" is treated like the setting, rather
-        than quietly falling back to environment inference."""
+        """A hook returning 'provider:name' is treated like the setting, not env inference."""
         from pydantic_ai.models.anthropic import AnthropicModel
 
         view = DjangoAGUIView(
@@ -552,9 +484,7 @@ async def test_conversation_is_persisted_when_a_store_is_configured() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
-    # An open agent endpoint + a model store that refuses anonymous writes (the
-    # default, no ALLOW_ANONYMOUS): the run streams to completion and the save is
-    # skipped rather than crashing the stream — no row is written.
+    # Open endpoint, store refusing anonymous writes: the run streams and the save is skipped.
     from django_spec_agents.contrib.store.default_conversation_store import (
         DefaultConversationStore,
     )
@@ -573,8 +503,7 @@ async def test_anonymous_run_skips_persistence_when_the_store_refuses() -> None:
 
 
 async def test_a_spec_mcp_server_is_bridged_by_mcp_toolset() -> None:
-    # ``MCPToolset`` rather than a duck-typed pass-through: a django-spec-mcp
-    # server's refusals are raised as failed calls, not returned as successes.
+    # MCPToolset, not a duck-typed pass-through: a refusal is a failed call, not a success.
     from django_spec_agents.integrations.mcp import MCPToolset
 
     from tests.integrations.spec_mcp_server import server as spec_mcp_server
@@ -605,13 +534,7 @@ async def test_attachment_toolset_built_per_request_when_configured() -> None:
 
 
 async def test_the_configured_inline_budget_reaches_the_toolset() -> None:
-    """Not merely stored on the config -- actually handed to the toolset.
-
-    Built without ``inline=``, the substrate's defaults always won and no
-    consumer could alter them: a file above the read-back limit and below this
-    package's own upload cap uploaded, rendered a chip, and came back as a
-    description however often the model asked.
-    """
+    """Not merely stored on the config -- actually handed to the toolset."""
     inline = AttachmentInlineConfig(max_bytes=99, media_types=frozenset({"application/pdf"}))
     view = DjangoAGUIView(
         _registry(), model=TestModel(), config=build_ag_ui_config(attachment_inline=inline)
@@ -621,8 +544,6 @@ async def test_the_configured_inline_budget_reaches_the_toolset() -> None:
         _DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/"), set()
     )
 
-    # The config is captured in the tool's closure, so read it back through the
-    # only thing that observes it: what the tool does with an over-cap file.
     read = toolsets[0].tools["read_attachment"].function
     assert inspect.getclosurevars(read).nonlocals["resolved"] is inline
 
@@ -634,8 +555,7 @@ async def test_no_attachment_toolset_without_the_setting() -> None:
 
 async def test_attachment_toolset_skipped_when_a_prior_tool_owns_the_name() -> None:
     view = DjangoAGUIView(_registry(), model=TestModel())
-    # ``read_attachment`` already claimed upstream (registry / MCP / spec):
-    # the attachment toolset yields to it rather than raising a duplicate.
+    # read_attachment already claimed upstream: the attachment toolset yields, no duplicate.
     seen = {"read_attachment"}
     assert (
         view._attachment_toolsets(_DEFAULT_ATTACHMENT_STORE, RequestFactory().post("/agent/"), seen)
@@ -644,11 +564,7 @@ async def test_attachment_toolset_skipped_when_a_prior_tool_owns_the_name() -> N
 
 
 async def test_seen_set_guards_three_way_name_collisions() -> None:
-    # MCP -> spec -> attachment precedence, so a name exposed by two sources
-    # can't reach pydantic-ai as a duplicate. Driven through the view's own
-    # composition rather than the builders by hand: the name set is now computed
-    # once at build time while the toolsets are still built per run, and the
-    # thing worth guarding is that splitting them left the precedence intact.
+    # MCP, then spec, then attachment precedence: no duplicate name reaches pydantic-ai.
     from tests.integrations.drf_specs_colliding import SPECS as colliding_specs
     from tests.integrations.spec_mcp_server import server as spec_mcp_server
 
@@ -661,28 +577,19 @@ async def test_seen_set_guards_three_way_name_collisions() -> None:
     )
     request = RequestFactory().post("/agent/")
 
-    # The registry's names and the MCP server's are claimed before anything is built.
     claimed = view._claimed_names()
     assert {"double", "add", "invalid", "denied"} <= claimed
 
-    # spec: ``add`` collides with the server (dropped, the server wins); ``unique_spec``
-    # survives; ``read_attachment`` is claimed by the spec capability.
     (spec_capability,) = view._spec_capabilities(colliding_specs, claimed)
     spec_names = set(spec_capability.get_toolset()._specs)
     assert "add" not in spec_names
     assert "unique_spec" in spec_names
 
-    # So the run gets the MCP toolset and no attachment toolset — the spec
-    # already owns ``read_attachment``.
     assert [type(t).__name__ for t in view._run_toolsets(request)] == ["MCPToolset"]
 
 
 async def test_the_mcp_bridge_exposes_the_servers_own_tools() -> None:
-    # The bridge excluded the names it was built to expose: the per-run toolset
-    # was handed the *claimed* set, which already folds in the server's whole
-    # registry, so every bridged tool was filtered out of its own toolset and
-    # the model saw none of them — silently, while GET tools/ went on
-    # advertising them.
+    # The bridge filtered out every tool it was built to expose, leaving the model none.
     from tests.integrations.spec_mcp_server import server as spec_mcp_server
 
     view = DjangoAGUIView(_registry(), model=TestModel(), mcp_server=spec_mcp_server)
@@ -695,9 +602,7 @@ async def test_the_mcp_bridge_exposes_the_servers_own_tools() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_sync_orm_get_user_hook_works_under_async() -> None:
-    # The headline use case: a *sync* hook doing a real ORM lookup. Before
-    # the sync-or-async fix this raised SynchronousOnlyOperation (the hook
-    # ran on the event loop).
+    # The headline use case: a *sync* hook doing a real ORM lookup.
     from django.contrib.auth.models import User
 
     def get_user(request):  # noqa: ANN001, ANN202 — the shape adapters write
@@ -713,8 +618,7 @@ async def test_sync_orm_get_user_hook_works_under_async() -> None:
 
 
 async def test_async_get_user_hook_is_awaited() -> None:
-    # Previously an async hook was called without awaiting → a coroutine
-    # landed on request.user and the gate silently failed.
+    # An async hook called unawaited landed a coroutine on request.user and failed the gate.
     user = SimpleNamespace(is_authenticated=True, username="async-api")
 
     async def get_user(request):  # noqa: ANN001, ANN202
@@ -730,8 +634,7 @@ async def test_async_get_user_hook_is_awaited() -> None:
 
 
 async def test_sync_hook_returning_a_coroutine_is_awaited() -> None:
-    # Belt-and-suspenders: a sync callable wrapping an async fn (e.g. a
-    # functools.partial) must never leak a coroutine onto request.user.
+    # A sync callable wrapping an async fn must never leak a coroutine onto request.user.
     user = SimpleNamespace(is_authenticated=True)
 
     async def _lookup() -> SimpleNamespace:
@@ -771,13 +674,7 @@ class _SpyAuditLogger:
 
 
 async def test_each_request_audits_under_its_own_ip() -> None:
-    """The failure a reused agent would otherwise introduce, and silently.
-
-    The client IP used to be closed over when the agent was constructed. With
-    one agent serving every run, that would stamp every audit record with the
-    IP of whoever arrived first — well-formed records, wrong provenance, and
-    nothing to notice it by. It rides the run's deps instead.
-    """
+    """The failure a reused agent would otherwise introduce, and silently."""
     spy = _SpyAuditLogger()
     view = DjangoAGUIView(_registry(), model=TestModel(), audit_logger=spy)
 
@@ -790,12 +687,7 @@ async def test_each_request_audits_under_its_own_ip() -> None:
 
 
 def _blocking_model(closed: asyncio.Event):  # noqa: ANN202
-    """A model that streams two text deltas, then holds the stream open.
-
-    The ``finally`` records whether the provider stream was torn down — the
-    cancellation test's proof that a client disconnect doesn't leave an
-    orphaned upstream generation.
-    """
+    """A model that streams two text deltas, then holds the stream open."""
     from pydantic_ai.models.function import FunctionModel
 
     async def stream_fn(messages, info):  # noqa: ANN001, ANN202
@@ -810,12 +702,7 @@ def _blocking_model(closed: asyncio.Event):  # noqa: ANN202
 
 
 async def _cancel_mid_stream(response: StreamingHttpResponse, marker: str) -> None:
-    """Consume the SSE stream until ``marker`` appears, then cancel the consumer.
-
-    Mirrors Django's ASGI handler on ``http.disconnect``: the task consuming
-    the response is cancelled, so ``CancelledError`` lands at the innermost
-    ``await`` of the streaming chain.
-    """
+    """Consume the SSE stream until ``marker`` appears, then cancel the consumer."""
     saw_marker = asyncio.Event()
 
     async def _consume() -> None:
@@ -826,8 +713,6 @@ async def _cancel_mid_stream(response: StreamingHttpResponse, marker: str) -> No
 
     task = asyncio.ensure_future(_consume())
     await asyncio.wait_for(saw_marker.wait(), timeout=5)
-    # Let the consumer park at the next __anext__ (blocked on the model) so
-    # the cancellation is delivered inside the streaming chain.
     await asyncio.sleep(0.05)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -854,18 +739,15 @@ async def test_disconnect_persists_partial_audits_and_closes_the_model_stream() 
 
     await _cancel_mid_stream(response, "answer")
 
-    # Provider teardown: the model's stream context was exited, not orphaned.
     assert model_stream_closed.is_set()
 
-    # Partial persistence: the truncated exchange — client history plus the
-    # partially streamed assistant text — landed in the configured store.
+    # Partial persistence: the truncated exchange reached the configured store.
     loaded = await DjangoSessionConversationStore().load("t1", request=request)
     assert loaded is not None
     contents = [message["content"] for message in loaded.messages]
     assert "hi" in contents
     assert "partial answer" in contents
 
-    # Audit: the cancellation is a distinguishable run-level record.
     (event,) = spy.events
     assert event.tool_name == "agent.run"
     assert event.success is False
@@ -876,8 +758,7 @@ async def test_disconnect_persists_partial_audits_and_closes_the_model_stream() 
 
 
 async def test_disconnect_without_a_store_still_audits_and_reraises() -> None:
-    # No conversation_store passed → NullConversationStore: no save attempted,
-    # no error, and the cancellation still re-raises (asserted in the helper).
+    # No conversation_store means Null: no save, no error, and cancellation still re-raises.
     model_stream_closed = asyncio.Event()
     spy = _SpyAuditLogger()
     view = DjangoAGUIView(
@@ -897,10 +778,7 @@ async def test_disconnect_without_a_store_still_audits_and_reraises() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_lazy_request_user_is_materialized_off_the_loop() -> None:
-    # With DB-backed sessions, request.user is a SimpleLazyObject
-    # whose first touch runs ORM queries — forbidden on the event loop. The
-    # view must resolve it in a worker thread, so this passes instead of
-    # raising SynchronousOnlyOperation.
+    # DB-backed request.user is lazy; its first touch runs ORM queries, forbidden on the loop.
     from django.contrib.auth.models import User
     from django.utils.functional import SimpleLazyObject
 
@@ -953,8 +831,7 @@ async def test_step_store_records_the_run_end_to_end() -> None:
     assert "RUN_FINISHED" in body
 
     owner = str(user.pk)
-    # The StepPersistence capability recorded this run, its lifecycle events, and
-    # the tool effect for the "double" call it exercised — all owner-scoped.
+    # The StepPersistence capability recorded the run, its events and tool effect, owner-scoped.
     assert await StoredRun.objects.filter(owner_id=owner, run_id="r1").acount() == 1
     assert await StoredStepEvent.objects.filter(owner_id=owner, run_id="r1").aexists()
     assert await StoredToolEffect.objects.filter(owner_id=owner, run_id="r1").aexists()
@@ -962,16 +839,7 @@ async def test_step_store_records_the_run_end_to_end() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_step_store_records_the_tools_own_exception() -> None:
-    # The step ledger records a failed call from ``StepPersistence``'s error hook, and
-    # django-spec-agents' failure policy converts the same exception into the redacted
-    # ``ToolFailed`` the model is shown. The ledger is what an operator reads to find out why a run
-    # went wrong, so it must hold what the tool raised rather than the policy's copy with the text
-    # withheld. It did on both sides of django-pydantic-agent 0.27, the runtime's predecessor, where
-    # the policy moved: this view attaches ``StepPersistence`` per run, and a per-run capability's
-    # error hook runs before the agent's own, so the policy's move to outermost in 0.27 changes
-    # nothing here. The test holds that, so a later reordering on either side cannot quietly hand
-    # the ledger the copy. A capability passed to the view as ``capabilities=`` is the case 0.27
-    # does change; the next test covers it.
+    # The step ledger records a failed call from its error hook, as the policy redacts it.
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
     from django_spec_agents.contrib.store.models import StoredStepEvent, StoredToolEffect
@@ -991,7 +859,6 @@ async def test_step_store_records_the_tools_own_exception() -> None:
         get_user=lambda _request: user,
     )
     body = await _drain(await view(_post(_run_input("reconcile 7"))))
-    # The policy still answers the model: a failed result, not a failed run.
     assert "RUN_FINISHED" in body
     assert "RUN_ERROR" not in body
     assert "ledger 7 is locked" not in body
@@ -1008,16 +875,7 @@ async def test_step_store_records_the_tools_own_exception() -> None:
 
 @pytest.mark.django_db
 async def test_a_capability_passed_to_the_view_sees_the_tools_own_exception() -> None:
-    # Below 0.27 django-pydantic-agent, the runtime's predecessor, appended its failure policy after
-    # ``capabilities=`` with no position, so it sat inside every capability
-    # passed here that does not pin itself innermost, and pydantic-ai runs
-    # error hooks innermost first: each such capability, this one included,
-    # was handed the policy's redacted ``ToolFailed`` instead of what the tool
-    # raised, so a step recorder
-    # recorded the copy and a capability that recovers by returning a value
-    # recovered from the copy. From 0.27 the policy is pinned outermost and
-    # converts last. This is what that package's 0.27 bought this one, and
-    # it fails on 0.26.
+    # Before 0.27 the failure policy sat inside capabilities, so recorders saw the redacted copy.
     from pydantic_ai.capabilities import AbstractCapability
 
     seen: list[Exception] = []
@@ -1038,8 +896,6 @@ async def test_a_capability_passed_to_the_view_sees_the_tools_own_exception() ->
 
     view = DjangoAGUIView(reg, model=TestModel(), capabilities=[RecordsFailures()])
     body = await _drain(await view(_post(_run_input("reconcile 7"))))
-    # The policy still answers the model after the capability has seen the
-    # failure: a failed result with the text withheld, and the run ends normally.
     assert "RUN_FINISHED" in body
     assert "ledger 7 is locked" not in body
 
@@ -1066,11 +922,9 @@ async def test_resume_seeds_a_new_run_from_a_prior_snapshot() -> None:
     )
     owner = str(user.pk)
 
-    # A first run "r1" records a continuable snapshot for this owner.
     await _drain(await view(_post(_run_input("double 5", run_id="r1"))))
     assert await StoredSnapshot.objects.filter(owner_id=owner, run_id="r1").aexists()
 
-    # Resume from r1 into a fresh run r2 that sends only a new turn.
     resumed = await _drain(
         await view(_post(_run_input("double 9", run_id="r2", message_id="u2")), resume_from="r1")
     )
@@ -1081,7 +935,6 @@ async def test_resume_seeds_a_new_run_from_a_prior_snapshot() -> None:
     assert r2.parent_run_id == "r1"
     r1 = await StoredRun.objects.aget(owner_id=owner, run_id="r1")
     assert r1.parent_run_id is None
-    # ...and r2's snapshot carries the injected r1 history *and* the new turn.
     snap = await StoredSnapshot.objects.filter(owner_id=owner, run_id="r2").order_by("-id").afirst()
     dumped = json.dumps(snap.messages)
     assert "double 5" in dumped
@@ -1090,18 +943,7 @@ async def test_resume_seeds_a_new_run_from_a_prior_snapshot() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_resumed_run_never_executes_a_tool_call_the_client_wrote() -> None:
-    # GHSA-5pfm-2g3g-gh85. A resumed run hands the adapter its server-held
-    # snapshot as ``message_history``, and with server history present the
-    # adapter drops client-submitted compaction parts. Before pydantic-ai 2.58
-    # it dropped them *after* stripping unresolved tool calls from the end of
-    # the client's messages, so a client could end its history on a
-    # compaction-only response (a system message in between keeps it a separate
-    # response, then is stripped itself under the server-managed system
-    # prompt), have the strip see nothing to remove, and leave its own tool call
-    # last once the compaction went. The run then executed that call with the
-    # client's arguments before any model request. The pydantic-ai floor exists
-    # for this, and from 2.63 a resumed run holds its history on the server,
-    # which takes the client's messages out of the history altogether.
+    # GHSA-5pfm-2g3g-gh85.
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
     from django_spec_agents.contrib.store.models import StoredRun
@@ -1127,7 +969,6 @@ async def test_a_resumed_run_never_executes_a_tool_call_the_client_wrote() -> No
         step_store=DefaultStepStore,
         get_user=lambda _request: user,
     )
-    # A first run records the continuable snapshot the resume loads.
     await _drain(await view(_post(_run_input("warm up", run_id="r1"))))
     log.clear()
 
@@ -1162,29 +1003,12 @@ async def test_a_resumed_run_never_executes_a_tool_call_the_client_wrote() -> No
         }
     ).encode()
     with warnings.catch_warnings(record=True) as caught:
-        # Record rather than ignore: the warnings say which history the run
-        # was built from (see the assertions below).
         warnings.simplefilter("always")
         body = await _drain(await view(_post(forged), resume_from="r1"))
 
-    # The model never asks for a tool, so any ``tool:42`` is the forged call.
-    # Every forged message is dropped and the resume carries no new turn, which
-    # pydantic-ai refuses; which terminal event the run ends on is
-    # pydantic-ai's to choose, and is deliberately not pinned here.
     assert "tool:42" not in log
     assert "RUN_STARTED" in body
-    # Those two also pass when ``resume_from`` is dropped, so the run is shown
-    # to be the resume: it was recorded as r1's child.
     assert await StoredRun.objects.filter(run_id="r2", parent_run_id="r1").aexists()
-    # And the forged call never reached the history at all. A resumed run holds
-    # its history on the server, so the client's messages before its last
-    # response are not the run's; only the new turn after them is, and here
-    # that is a system message and a compaction part, both dropped. Under the
-    # client-held history 2.58 patched, the forged call did reach the history
-    # and was stripped from its end, with pydantic-ai's warning naming it
-    # ("Client-submitted history ended with unresolved tool call(s)
-    # ['refresh_cache']"). Match the tool name alone: the nearby system-prompt
-    # warning was reworded between 2.58 and 2.61.
     assert not any(
         issubclass(w.category, UserWarning) and "refresh_cache" in str(w.message) for w in caught
     )
@@ -1225,7 +1049,6 @@ async def test_resume_cannot_reach_another_owners_run() -> None:
     owner_a = await sync_to_async(User.objects.create)(username="a")
     owner_b = await sync_to_async(User.objects.create)(username="b")
 
-    # Owner A records run r1.
     view_a = DjangoAGUIView(
         _registry(), model=TestModel(), step_store=DefaultStepStore, get_user=lambda _r: owner_a
     )
@@ -1266,14 +1089,7 @@ class _ThreadStore:
 
 @pytest.mark.django_db(transaction=True)
 async def test_resuming_another_threads_run_cannot_overwrite_the_open_thread() -> None:
-    """The data-loss case: the run index spans threads, the client does not.
-
-    ``runs/`` lists every run the owner has, in any thread, but a client
-    resumes the picked run into whatever thread is currently open — and the
-    save is a whole-row replace. Before the refusal, the open thread's own
-    turns were gone and it held the source thread's conversation instead:
-    silent, irreversible, and invisible until the user reopened it.
-    """
+    """The data-loss case: the run index spans threads, the client does not."""
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
 
@@ -1287,9 +1103,7 @@ async def test_resuming_another_threads_run_cannot_overwrite_the_open_thread() -
         get_user=lambda _r: user,
     )
 
-    # Thread A holds the run the checkpoint drawer will offer.
     await _drain(await view(_post(_run_input("double 5", run_id="r1", thread_id="tA"))))
-    # Thread B is what the user is actually looking at.
     await _drain(await view(_post(_run_input("double 7", run_id="r2", thread_id="tB"))))
     before = store.rows["tB"].messages
 
@@ -1301,15 +1115,13 @@ async def test_resuming_another_threads_run_cannot_overwrite_the_open_thread() -
     payload = json.loads(response.content)
     assert payload["run_id"] == "r1"
     assert payload["thread_id"] == "tB"
-    # Thread B is untouched, and never adopted thread A's conversation.
     assert store.rows["tB"].messages == before
     assert "double 5" not in json.dumps(store.rows["tB"].messages)
 
 
 @pytest.mark.django_db(transaction=True)
 async def test_resuming_into_a_thread_that_holds_nothing_still_branches() -> None:
-    # Branching a run into its own conversation is the documented way to fork,
-    # so the refusal has to be about *overwriting*, not about crossing threads.
+    # Forking into a new conversation is documented; the refusal is about overwriting.
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
 
@@ -1337,8 +1149,7 @@ async def test_resuming_into_a_thread_that_holds_nothing_still_branches() -> Non
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_stateless_endpoint_never_refuses_a_cross_thread_resume() -> None:
-    # With the default NullConversationStore there is no stored thread to
-    # overwrite, so the refusal must not reach a stateless mount at all.
+    # With the default Null store there is no stored thread to overwrite, so no refusal.
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
 
@@ -1420,8 +1231,7 @@ class TestTheThrottleHook:
         assert isinstance(response, StreamingHttpResponse)
 
     async def test_zero_is_a_refusal_not_an_allowance(self) -> None:
-        # ``0`` means "denied, but the window resets immediately" — distinct
-        # from ``None``, and a falsy check here would have inverted it.
+        # 0 means denied, window resets now: distinct from None, and a falsy check inverts it.
         view = DjangoAGUIView(
             _registry(), model=TestModel(), throttle=self._Counting(retry_after=0)
         )
@@ -1453,8 +1263,7 @@ class TestTheThrottleHook:
         assert throttle.calls == []
 
     async def test_the_body_is_not_parsed_for_a_throttled_run(self) -> None:
-        # A throttled request costs nothing past the auth it already did — an
-        # invalid body would otherwise be reported as 400 ahead of the 429.
+        # A throttled request costs nothing past auth: an invalid body must not report 400 first.
         view = DjangoAGUIView(
             _registry(), model=TestModel(), throttle=self._Counting(retry_after=3)
         )
@@ -1464,9 +1273,7 @@ class TestTheThrottleHook:
         assert response.status_code == 429
 
     def test_an_async_consume_is_refused_at_construction(self) -> None:
-        """Awaiting it silently would make every request a 429 whose
-        ``Retry-After`` is a coroutine — rate-limited rather than
-        misconfigured."""
+        """Awaiting it silently would make every 429 carry a coroutine as Retry-After."""
 
         class _Async:
             async def consume(self, request: Any) -> int | None:
@@ -1482,12 +1289,7 @@ class TestTheThrottleHook:
 
 
 def _gated_model(release: asyncio.Event):  # noqa: ANN202
-    """A model that streams a partial answer, stalls on ``release``, then finishes.
-
-    The shape the heartbeat exists for, and the one no other fixture here
-    produces: a run that is alive and silent. ``_blocking_model`` above never
-    finishes, so it cannot show the beat stopping.
-    """
+    """A model that streams a partial answer, stalls on ``release``, then finishes."""
     from pydantic_ai.models.function import FunctionModel
 
     async def stream_fn(messages, info):  # noqa: ANN001, ANN202
@@ -1499,12 +1301,7 @@ def _gated_model(release: asyncio.Event):  # noqa: ANN202
 
 
 class TestHeartbeat:
-    """The endpoint's side of the idle-proxy problem.
-
-    ``tests/agent/test_heartbeat_stream.py`` proves what the wrapper writes and
-    that an ``EventSource`` drops it. These prove the endpoint actually applies
-    it -- the wiring is the part a refactor silently loses.
-    """
+    """The endpoint's side of the idle-proxy problem."""
 
     HEARTBEAT = ": django-ag-ui heartbeat\n\n"
     INTERVAL = 0.02
@@ -1527,8 +1324,7 @@ class TestHeartbeat:
             await asyncio.sleep(0.005)
 
     async def test_a_stalled_run_keeps_bytes_on_the_wire(self) -> None:
-        """The whole point: a run that is thinking emits nothing of its own, and
-        a proxy counting idle seconds cannot tell that from a dead backend."""
+        """A thinking run emits nothing; an idle proxy cannot tell that from a dead backend."""
         release = asyncio.Event()
         view = DjangoAGUIView(
             _registry(),
@@ -1545,16 +1341,12 @@ class TestHeartbeat:
 
         body = "".join(chunks)
         assert self.HEARTBEAT in body
-        # The run still completed, and the beats did not displace or reorder it.
         assert body.index("RUN_STARTED") < body.index("RUN_FINISHED")
         assert "partial " in body
-        # Nothing beat after the run ended.
         assert chunks[-1] != self.HEARTBEAT
 
     async def test_the_beat_is_invisible_to_an_event_source_client(self) -> None:
-        """Every heartbeat line is an SSE comment, so no ``event:`` line in the
-        response is ever one -- which is what makes it safe to add to a protocol
-        stream nobody is going to re-teach."""
+        """Heartbeats are SSE comments, so no event: line is ever one; safe on a protocol stream."""
         release = asyncio.Event()
         view = DjangoAGUIView(
             _registry(),
@@ -1572,22 +1364,19 @@ class TestHeartbeat:
         assert self.HEARTBEAT in body
         lines = body.split("\n")
         assert any(line.startswith(":") for line in lines)
-        # Nothing a client reads as a field carries the heartbeat's text.
         assert not any(
             line.startswith(("event:", "data:")) and "heartbeat" in line for line in lines
         )
 
     @override_settings(DJANGO_AG_UI={"HEARTBEAT_SECONDS": 0})
     async def test_zero_disables_it(self) -> None:
-        """An endpoint not behind an idle-timeout proxy can turn it off, and then
-        the stream is byte-for-byte what it was before this existed."""
+        """Off for an endpoint not behind an idle proxy: the stream is then unchanged."""
         release = asyncio.Event()
         view = DjangoAGUIView(_registry(), model=_gated_model(release))
         response = await view(_post(_run_input("hi")))
         chunks: list[str] = []
         consumer = self._consume_into(response, chunks)
 
-        # Far longer than the default interval would have needed.
         await asyncio.sleep(0.2)
         assert not any(chunk.startswith(":") for chunk in chunks)
         release.set()
@@ -1596,9 +1385,7 @@ class TestHeartbeat:
         assert "RUN_FINISHED" in "".join(chunks)
 
     async def test_a_disconnect_mid_beat_still_tears_the_provider_stream_down(self) -> None:
-        """The wrapper sits inside ``guarded_stream``, so the guard's contract has
-        to be unchanged by it -- including when the cancellation lands while the
-        heartbeat, not the run, is what the task is parked in."""
+        """Inside guarded_stream: the guard holds when cancelled during a heartbeat."""
         model_stream_closed = asyncio.Event()
         view = DjangoAGUIView(
             _registry(),
@@ -1672,10 +1459,7 @@ def _bridged_rows() -> dict[str, Any]:
 
 
 def _spec_rows() -> dict[str, Any]:
-    # Through the server's own normalising, as ``AGUIServer(service_specs=...)``
-    # hands a pre-built toolset to the view. The ``fields`` shape is declared on
-    # the spec, and the toolset is built from a registry, as a project passing
-    # its registry does.
+    # Through the server's own normalising, as AGUIServer hands a pre-built toolset to the view.
     registry = kernel.SpecRegistry()
     registry.register("list_rows", _KERNEL_ROWS_SPEC)
     toolset = SpecToolset(
@@ -1687,13 +1471,7 @@ def _spec_rows() -> dict[str, Any]:
 
 
 def _settled(parts: Any) -> bool:
-    """Whether ``parts`` answer a call for good, rather than asking for it again.
-
-    A retry is a ``retry-prompt`` part up to pydantic-ai 2.59 and, from 2.60, the
-    call's own ``tool-return`` marked ``outcome="retried"``. A model that stopped
-    at any ``tool-return`` would stop at the retry on the newer half of the range
-    and never make the corrected call these tests are about.
-    """
+    """Whether ``parts`` answer a call for good, rather than asking for it again."""
     return any(
         part.part_kind == "tool-return" and getattr(part, "outcome", None) != "retried"
         for part in parts
@@ -1701,8 +1479,7 @@ def _settled(parts: Any) -> bool:
 
 
 def _selecting_model() -> FunctionModel:
-    """Selects the page envelope first, the way the tool's result documents it,
-    then one row's field once told what the selection applies to."""
+    """Selects the page envelope first, then one row's field, as the tool's result documents."""
     selections = iter(["items", "name"])
 
     async def stream_fn(messages, info):  # noqa: ANN001, ANN202
@@ -1728,12 +1505,8 @@ async def test_a_selection_refused_while_rendering_streams_as_a_retry_on_both_ro
     assert events[-1]["type"] == "RUN_FINISHED"
     results = [event for event in events if event["type"] == "TOOL_CALL_RESULT"]
     # A retry is not a failed call, so neither result carries an ``outcome``.
-    # Before both transports answered with a retry, this was one result marked
-    # ``failed``, with the serializer's words withheld and nothing to correct.
-    # Absent, not ``null``: a stamped ``None`` is a value a client would read.
     assert [event.get("outcome", "absent") for event in results] == ["absent", "absent"]
     retry, page = results
-    # The same sentence whichever route the tool came by, sent as it is.
     assert (
         "`fields` was rejected while rendering the result: Unknown field `items`."
         in retry["content"]
@@ -1884,10 +1657,7 @@ def _spec_row() -> dict[str, Any]:
 def _model_omitting_pk(
     tool_name: str, args: dict[str, Any], advertised: dict[str, Any]
 ) -> FunctionModel:
-    """Calls the tool without naming the row, then names it once told what is missing.
-
-    Records each tool's advertised parameters as the model is handed them.
-    """
+    """Calls the tool without naming the row, then names it once told what is missing."""
     calls = iter([args, {"pk": 1, **args}])
 
     async def stream_fn(messages, info):  # noqa: ANN001, ANN202
@@ -1928,16 +1698,11 @@ async def test_a_call_missing_its_row_lookup_streams_as_a_retry_on_both_routes(
     assert "RUN_ERROR" not in [event["type"] for event in events]
     assert events[-1]["type"] == "RUN_FINISHED"
     results = [event for event in events if event["type"] == "TOOL_CALL_RESULT"]
-    # Below the floors this was one result marked ``failed``, carrying the
-    # policy's withheld sentence, and the model stopped there.
     assert [event.get("outcome", "absent") for event in results] == ["absent", "absent"]
     retry, answered = results
-    # One sentence, sent as it is, naming only the missing ``pk``: ``name``,
-    # which the rename did send, appears nowhere in it, and nothing follows it
-    # that says the same thing again.
+    # One sentence naming only the missing pk; name, which was sent, appears nowhere in it.
     assert retry["content"].split("\n\n")[0] == _MISSING_PK
     assert json.loads(answered["content"]) == row
-    # What made the retry avoidable: the lookup is advertised, and required.
     assert "pk" in advertised[tool_name]["required"]
 
 
@@ -2005,8 +1770,7 @@ async def test_custom_wording_reaches_a_run_only_through_a_built_object(
 
     events = [json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: ")]
     retry = next(event for event in events if event["type"] == "TOOL_CALL_RESULT")
-    # The retry opens with the sentence its route's conventions write, and the
-    # other wording appears nowhere in it.
+    # The retry opens with the sentence its route's conventions write, and no other wording.
     assert retry["content"].startswith(sentence)
     other = _MISSING_PK if sentence == _ASKED_AGAIN else _ASKED_AGAIN
     assert other not in retry["content"]

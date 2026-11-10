@@ -32,8 +32,7 @@ def _names(server: AGUIServer) -> set[str]:
 
 
 def test_urls_returns_admin_style_triple() -> None:
-    # ``(patterns, app_name, namespace)`` — the shape ``path()`` mounts directly,
-    # like ``admin.site.urls`` (no ``include()``).
+    # The (patterns, app_name, namespace) shape path() mounts directly, like admin.site.urls.
     patterns, app_name, namespace = _server().urls
     assert app_name == namespace == DEFAULT_NAMESPACE == "ag_ui"
     assert isinstance(patterns, list)
@@ -76,12 +75,7 @@ def test_tools_view_reuses_the_registry() -> None:
 
 
 def test_a_tools_own_confirm_becomes_its_approval_prompt() -> None:
-    """One question, whichever end gates the call.
-
-    A destructive registry tool already carries a human-readable question for the
-    confirmation the *browser* gates. When the server gates the same tool instead,
-    that question should not silently become the serialized call.
-    """
+    """One question, whichever end gates the call."""
     from django_spec_agents.registry.decorator import tool
 
     registry = ToolRegistry()
@@ -232,8 +226,7 @@ def test_no_activity_source_is_the_default() -> None:
 
 
 def test_no_store_means_no_thread_endpoints() -> None:
-    """Stores are passed, never resolved from a dotted path — so a server with
-    none gets the Null store and doesn't mount the sub-views."""
+    """Stores are passed, never resolved from a dotted path; with none, the Null store is used."""
     assert "threads" not in _names(AGUIServer(ToolRegistry(), model=TestModel()))
 
 
@@ -249,13 +242,7 @@ def test_auth_policy_forwards_to_every_view() -> None:
 
 
 def test_every_view_requires_authentication_by_default() -> None:
-    """A bare mount serves nobody who is not logged in.
-
-    Asserted across *every* pattern rather than on the agent endpoint alone:
-    the thread drawer, the attachment routes and the catalogs are the sub-views
-    where an open default leaks the most, and they are reachable without the
-    agent endpoint ever being called.
-    """
+    """A bare mount serves nobody who is not logged in."""
     server = _server(
         skills=SkillRegistry(),
         conversation_store=_DummyStore(),
@@ -263,46 +250,32 @@ def test_every_view_requires_authentication_by_default() -> None:
         transcription_backend=_DummyTranscriptionBackend(),
     )
     patterns, _, _ = server.urls
-    assert patterns  # a mount with no patterns would pass vacuously
+    assert patterns
     for pattern in patterns:
         assert pattern.callback._require_authenticated is True, pattern.name
 
 
 @pytest.mark.parametrize("stated", [True, False], ids=["exempt", "enforced"])
 def test_csrf_reaches_every_view_in_the_mount(stated: bool) -> None:
-    """One CSRF answer covers the whole mount, not the run endpoint alone.
-
-    **Asserted across every pattern, derived from ``server.urls``, rather than
-    on the agent view or a hand-written list of paths.** ``csrf_exempt`` used to
-    be passed only into ``DjangoAGUIView`` while the sub-views were built from
-    the auth dict beside it, so ``csrf_exempt=True`` exempted the run endpoint
-    and left upload, attachment delete, thread rename, thread delete and
-    transcribe under ``CsrfViewMiddleware`` — a hard 403 each, for exactly the
-    header-authenticated client the exemption is for. A hand-written list could
-    not have covered a route a later release starts mounting; iterating the
-    mount means a new view is included the day it appears.
-    """
+    """One CSRF answer covers the whole mount, not the run endpoint alone."""
     from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 
     server = _server(
         csrf_exempt=stated,
         skills=SkillRegistry(),
-        # With a step store the mount also carries runs/ and the resume + fork
-        # routes, so this covers every view AGUIServer can build.
         step_store=DefaultStepStore,
         conversation_store=_DummyStore(),
         attachment_store=_DummyAttachmentStore(),
         transcription_backend=_DummyTranscriptionBackend(),
     )
     patterns, _, _ = server.urls
-    assert patterns  # a mount with no patterns would pass vacuously
+    assert patterns
     for pattern in patterns:
         assert pattern.callback.csrf_exempt is stated, pattern.name
 
 
 def test_unstated_csrf_is_exempt_across_the_whole_mount() -> None:
-    # The default is *unstated*, which resolves to exempt — and resolves the
-    # same way everywhere, so the mount cannot disagree with itself.
+    # The default is unstated, which resolves to exempt everywhere the same way.
     with pytest.warns(RuntimeWarning, match="CSRF-exempt"):
         server = _server(
             conversation_store=_DummyStore(),
@@ -328,31 +301,13 @@ def test_unstated_csrf_is_exempt_across_the_whole_mount() -> None:
     ],
 )
 def test_exempt_write_routes_reach_their_view_under_csrf_middleware(method: str, url: str) -> None:
-    """The flag is only worth asserting if Django acts on it.
-
-    The attribute test above proves what the views *declare*; this drives the
-    same mount through the real ``CsrfViewMiddleware`` with a client that sends
-    no token, because that is the layer the bug lived at. Any status other than
-    403 means the request reached the view — the middleware rejects before
-    dispatch, so it is reaching the view at all that is under test here, not
-    which answer the view then gives.
-
-    The suite's settings mount no middleware at all, which is why nothing caught
-    this: without ``CsrfViewMiddleware`` in the stack there is no observable
-    difference between an exempt view and an enforced one.
-    """
+    """The flag is only worth asserting if Django acts on it."""
     response = getattr(Client(enforce_csrf_checks=True), method)(url)
     assert response.status_code != 403
 
 
 def test_the_csrf_guard_reaches_the_server_path() -> None:
-    """The check lives on the view, so building a server inherits it.
-
-    That placement is deliberate: both constructors run at import time, so
-    putting it on the view covers ``AGUIServer`` *and* a directly-constructed
-    ``DjangoAGUIView`` with one implementation and one warning, rather than
-    reproducing the gap the unguarded-spec refusal has to document.
-    """
+    """The check lives on the view, so building a server inherits it."""
     with pytest.warns(RuntimeWarning, match="CSRF-exempt"):
         _server()
 
@@ -394,8 +349,7 @@ def test_runs_endpoint_mounts_with_a_step_store() -> None:
 
 
 def test_runs_endpoint_absent_without_a_step_store() -> None:
-    # No store means no ledger to index — the endpoint would answer about
-    # nothing, so it isn't mounted (same rule as resume/fork).
+    # No store means no ledger to index, so the endpoint is not mounted (as resume/fork).
     assert "runs" not in _names(_server())
 
 
@@ -410,8 +364,7 @@ def test_runs_endpoint_carries_the_shared_auth_seam() -> None:
 
 
 def test_throttle_forwards_to_the_agent_endpoint_only() -> None:
-    """The run endpoint is the one that costs a model call per request; the
-    catalogs and the drawer are cheap reads and share the auth seam instead."""
+    """The run endpoint costs a model call per request; the cheap reads share the auth seam."""
 
     class _Throttle:
         def consume(self, request: Any) -> int | None:
@@ -440,12 +393,7 @@ class _NoThrottle:
 
 
 def test_transcribe_throttle_reaches_the_transcribe_view() -> None:
-    """The other route that spends provider money per request.
-
-    Authentication says who may call it, not how often, and the shipped backend
-    is a paid API call per clip — so without a seam here the only defence is
-    whatever the project bolts on in middleware.
-    """
+    """The other route that spends provider money per request."""
     throttle = _NoThrottle()
     server = _server(
         transcription_backend=_DummyTranscriptionBackend(), transcribe_throttle=throttle

@@ -1,17 +1,3 @@
-"""A stored thread names each message by the id its stream announced.
-
-A client keys whatever it attaches to a message -- a rating, a quote, a scroll
-anchor -- by the id it saw on ``TEXT_MESSAGE_START`` or ``TOOL_CALL_RESULT``. If
-the stored copy names the same message differently, everything keyed that way is
-orphaned the moment the thread is reloaded from the server, and on the next turn
-of a session that was *not* reloaded the client posts its own ids back, so the
-same message is stored under one id and then another.
-
-Every assertion here reads the payload the store was handed -- the jsonable,
-camelCase dicts -- against the ``messageId`` fields of the SSE frames, rather than
-round-tripping either through pydantic-ai's types.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -121,13 +107,7 @@ def _answering_agent() -> Agent[None, Any]:
 
 
 def _tool_round_agent() -> Agent[None, Any]:
-    """Two calls in one tool-call-only response, then a text answer.
-
-    Tool-call-only, so the stream opens and closes an empty text message only to
-    give the calls a parent; two calls, so one ``ModelRequest`` dumps as two
-    ``ToolMessage``\\s and the per-message rule upstream applies to a loaded
-    message cannot reach both.
-    """
+    """Two calls in one tool-call-only response, then a text answer."""
 
     async def stream_fn(messages: list, info: Any) -> Any:
         if isinstance(messages[-1], ModelRequest) and any(
@@ -211,9 +191,7 @@ async def test_reasoning_is_stored_under_the_id_it_streamed() -> None:
 
 @override_settings(DJANGO_AG_UI={"FORWARD_REASONING": False})
 async def test_withheld_reasoning_is_stored_under_an_id_of_its_own() -> None:
-    # No reasoning id reached the client, so there is none to keep: the stored
-    # copy keeps the one its dump minted, and the answer beside it still keeps
-    # the id the client did see.
+    # No reasoning id reached the client, so the stored copy keeps the id its dump minted.
     store = _Store()
 
     frames = await _run(_session(_thinking_agent(), store))
@@ -228,9 +206,7 @@ async def test_withheld_reasoning_is_stored_under_an_id_of_its_own() -> None:
 
 
 async def test_the_next_turn_stores_the_earlier_answer_under_the_same_id() -> None:
-    # A session that was not reloaded posts the ids it streamed. Before the
-    # completed run kept them, the first save named the answer one way and the
-    # second save the other.
+    # A session that was not reloaded posts the ids it streamed.
     store = _Store()
     frames = await _run(_session(_answering_agent(), store))
     (streamed,) = _ids(frames, "TEXT_MESSAGE_START")
@@ -268,9 +244,7 @@ def _loaded_history() -> list[Any]:
 
 
 async def test_a_resumed_run_leaves_the_prior_ids_to_the_dump() -> None:
-    # The restamping is scoped to what this run produced: the snapshot's prefix
-    # is stored under whatever ids the dump gives it, and never under one of the
-    # ids this run streamed.
+    # Restamping covers only what this run produced; the snapshot prefix keeps the dump's ids.
     store = _Store()
 
     frames = await _run(_session(_answering_agent(), store, message_history=_loaded_history()))
@@ -285,9 +259,7 @@ async def test_a_resumed_run_leaves_the_prior_ids_to_the_dump() -> None:
 
 
 async def test_a_resumed_run_keeps_the_ids_upstream_restores() -> None:
-    # pydantic-ai restores a loaded message's id on dump from 2.48; below that it
-    # mints fresh ones and there is no prior id left to keep. Probed rather than
-    # read off a version string, so the assertion follows the behaviour.
+    # pydantic-ai restores a loaded message's id on dump from 2.48; below that no prior id is left.
     restores = [m.id for m in AGUIAdapter.dump_messages(_loaded_history())] == ["u0", "a0"]
     if not restores:
         pytest.skip("this pydantic-ai does not restore a loaded message's id on dump")
@@ -301,8 +273,7 @@ async def test_a_resumed_run_keeps_the_ids_upstream_restores() -> None:
 
 
 async def test_a_resumed_run_from_a_bare_snapshot_still_streams_its_new_ids() -> None:
-    # What this run produced is stored the way it streamed, whatever the
-    # snapshot carries.
+    # What this run produced is stored the way it streamed, whatever the snapshot carries.
     store = _Store()
     history = [
         ModelRequest(parts=[UserPromptPart(content="older question")]),
@@ -318,12 +289,7 @@ async def test_a_resumed_run_from_a_bare_snapshot_still_streams_its_new_ids() ->
 
 
 async def test_a_snapshots_generated_turns_are_named_afresh_on_every_save() -> None:
-    # A snapshot with no recorded ids and no row gets fresh ids. An earlier
-    # run's answer reaches a snapshot as a ``ModelResponse`` carrying no UI id,
-    # and pydantic-ai's dump mints a new one each time; what lends it the id it
-    # streamed under is the source thread's stored row, and this session is
-    # handed none, so two resumed runs from one snapshot store the same earlier
-    # answer under two ids. Nothing this run streamed names it either.
+    # A snapshot with no recorded ids and no row gets fresh ids.
     store = _Store()
 
     def history() -> list[Any]:
@@ -341,9 +307,7 @@ async def test_a_snapshots_generated_turns_are_named_afresh_on_every_save() -> N
 
 
 async def test_an_approved_call_resumes_under_the_ids_it_streamed() -> None:
-    # The one path where the client re-posts a message this run then answers:
-    # the approved call's result and the answer after it are new, the tool-call
-    # message they follow is the client's, and no id names two of them.
+    # The approved call's result and the answer after it are new; no id names two of them.
     store = _Store()
     resume = [{"interruptId": "int-call-1", "status": "resolved", "payload": {"approved": True}}]
     session = AgentSession(
@@ -406,11 +370,7 @@ def _after_a_tool_return(messages: list) -> bool:
 
 
 async def test_a_split_answer_and_a_tool_spoken_text_borrow_no_id() -> None:
-    # [Text A, Thinking, ToolCall]: the stream announces A and the calls as one
-    # message, the dump flushes A at the thinking part into one of its own, so
-    # the dump holds a text message the stream never announced alone. The tool
-    # then speaks a text message of its own through its return metadata, which
-    # the stream announces and the dump never holds. The counts agree.
+    # Text, thinking, then a call: the dump flushes the text alone, unannounced.
     async def stream_fn(messages: list, info: Any) -> Any:
         if _after_a_tool_return(messages):
             yield "final"
@@ -452,12 +412,7 @@ async def test_a_split_answer_and_a_tool_spoken_text_borrow_no_id() -> None:
 async def test_a_split_answer_and_a_joined_answer_borrow_no_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The same split, cancelled this time by a join: [Text B, FilePart, Text C]
-    # streams as two text messages, and the dump drops the file part without a
-    # flush, so it holds one ``"B\nC"``. Positionally A would take B's id.
-    #
-    # ``FunctionModel`` streams no file part of its own, so its event iterator is
-    # taught to hand a whole part to the parts manager.
+    # The same split, joined by a cancel: the dump drops the file part and holds one merged text.
     original = function_module.FunctionStreamedResponse._get_event_iterator
 
     async def _one(item: Any) -> Any:

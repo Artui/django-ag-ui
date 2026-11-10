@@ -1,5 +1,3 @@
-"""Tests for ``django_ag_ui.agent.event_timestamp``."""
-
 from __future__ import annotations
 
 import time
@@ -21,11 +19,7 @@ def test_it_is_milliseconds_since_the_epoch() -> None:
 
 
 def test_every_custom_event_this_package_builds_carries_one() -> None:
-    """``CUSTOM`` used to be the only type in the stream without a wall clock.
-
-    Both emitters, asserted together: stamping one and not the other would have
-    traded a gap against the adapter for a gap inside this package.
-    """
+    """``CUSTOM`` used to be the only type in the stream without a wall clock."""
     events: list[CustomEvent] = [
         subagent_progress(
             delegation_id="call-1",
@@ -43,13 +37,7 @@ def test_every_custom_event_this_package_builds_carries_one() -> None:
 
 
 def test_every_event_this_package_builds_itself_carries_one() -> None:
-    """The wider claim, now that this package builds three protocol events too.
-
-    ``AGUIAdapter`` stamps what it emits; anything built here is outside that,
-    so the delegation lifecycle has to stamp itself for the same reason the
-    ``CUSTOM`` pair does. Asserted as one set rather than per builder, so a
-    fourth event type added later fails here unless it is added below.
-    """
+    """The wider claim, now that this package builds three protocol events too."""
     events: list[BaseEvent] = [
         subagent_lifecycle(delegation_id="call-1", agent="researcher", phase=phase)
         for phase in ("started", "finished", "failed")

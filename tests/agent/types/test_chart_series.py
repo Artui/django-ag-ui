@@ -1,5 +1,3 @@
-"""One named run of numbers."""
-
 from __future__ import annotations
 
 from django_ag_ui import ChartSeries
@@ -21,6 +19,5 @@ def test_it_is_frozen() -> None:
 
 
 def test_the_length_agreement_is_not_its_business() -> None:
-    # It has no idea how many labels the chart has, so a series of any length
-    # constructs; ChartSpec is the only thing that can check the pairing.
+    # It cannot know the label count, so any length constructs; ChartSpec alone checks the pairing.
     assert len(ChartSeries("solo", (1.0, 2.0, 3.0)).points) == 3

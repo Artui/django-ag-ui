@@ -1,23 +1,3 @@
-"""The sub-agent progress wire contract, asserted key by key.
-
-A separate lane builds the browser half of this against whatever the server
-emits, in a different repo, and cannot ask questions -- so what the value looks
-like is the deliverable, and these are the assertions that stop it moving by
-accident.
-
-The carrier is the choice being pinned. ``ACTIVITY_SNAPSHOT`` is materialised
-into a ``role="activity"`` message, persisted with the transcript and replayed on
-every thread restore; ``CUSTOM`` is not. Replayed progress is a lie -- a run that
-finished last week would redraw "calling search_docs" on every reload -- so
-progress takes the carrier a chart does not.
-
-That is also why only *these two* phases are here. The delegation's own lifetime
-moved to the protocol's ``SUBAGENT_*`` events, which have the same ephemerality;
-the child's individual tool calls could not follow, because the protocol would
-have them be ordinary ``TOOL_CALL_*`` events tagged with ``subagentRunId``, and
-those are materialised and replayed. See ``test_subagent_lifecycle``.
-"""
-
 from __future__ import annotations
 
 from typing import Literal
@@ -58,8 +38,7 @@ class TestTheEnvelope:
         assert event.name == SUBAGENT_EVENT_NAME == "ag_ui.subagent"
 
     def test_the_wire_shape_is_what_the_client_reads(self) -> None:
-        # Read the payload actually served, by alias, rather than trusting the
-        # Python attribute names to match the wire.
+        # Read the payload served, by alias, not the Python attribute names.
         dumped = _step(phase="tool_call").model_dump(by_alias=True)
 
         assert dumped["type"] == "CUSTOM"
@@ -75,16 +54,13 @@ class TestTheEnvelope:
 
 class TestTheValue:
     def test_every_step_carries_exactly_five_keys(self) -> None:
-        # The whole contract. A client that never expands a row reads the status
-        # line and the delegation it belongs to; one that does reads the tool.
+        # The whole contract.
         value = _step(phase="tool_call").value
 
         assert set(value) == {"delegationId", "agent", "phase", "status", "tool"}
 
     def test_the_delegation_id_is_carried_verbatim(self) -> None:
-        # It is the parent's own delegate_task tool call id -- the toolCallId the
-        # client already drew a card for -- which is what makes this an
-        # augmentation of that card rather than a second row beside it.
+        # The parent's delegate_task call id, the one the client already drew a card for.
         value = subagent_progress(
             delegation_id="pyd_ai_9f2c",
             agent="a",
@@ -99,8 +75,7 @@ class TestTheValue:
     def test_a_tool_call_carries_the_tool_with_an_unknown_outcome(self) -> None:
         value = _step(phase="tool_call").value
 
-        # ``ok`` is present and null rather than absent: a fixed shape is what
-        # lets a client create the row here and update it in place on the result.
+        # ok is present and null, not absent, so the client creates the row and updates it in place.
         assert value["tool"] == {"toolCallId": "sub-1", "name": "search_docs", "ok": None}
 
     def test_a_tool_result_carries_its_outcome_both_ways(self) -> None:
@@ -111,11 +86,7 @@ class TestTheValue:
         assert outcome(False) is False
 
     def test_the_null_outcome_survives_serialisation(self) -> None:
-        # Not a restatement of the builder test above. From 0.1.21 the protocol
-        # omits an unset optional field rather than writing it as null, and the
-        # browser lane refuses a tool record whose ``ok`` is missing -- so what
-        # matters is that this null is still on the wire after a dump, which it
-        # is because it lives in a plain dict rather than in a model field.
+        # Not a restatement of the builder test above.
         dumped = _step(phase="tool_call").model_dump(by_alias=True)
 
         assert "ok" in dumped["value"]["tool"]

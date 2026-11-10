@@ -1,18 +1,3 @@
-"""The heartbeat measured where a proxy measures it: on a socket, as bytes arrive.
-
-Every other heartbeat test reads a response from inside the process, and every
-in-process client holds the body it is reading: ``httpx.ASGITransport`` buffers
-the whole of it before returning, and a ``streaming_content`` loop sees each
-chunk the moment the generator yields it, whatever the transport would have done
-with it afterwards. An idle proxy sees neither. It sees how long the socket went
-without a byte, so that is what is measured here -- a real ASGI server, a raw TCP
-client, and the longest gap between reads while the run is stalled.
-
-The two tests are one experiment. The second runs the same harness with the
-heartbeat off and requires it to *see* the silence, because a harness that
-cannot see a silence would pass the first test for any transport that buffers.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -40,12 +25,7 @@ _INTERVAL = 0.1
 
 
 async def _longest_silence_on_the_wire(heartbeat_seconds: float) -> tuple[float, bytes]:
-    """Serve one stalled run over a real socket; return the longest gap and the bytes.
-
-    The gap is measured only across the stall: from the read that carried the
-    first delta to the moment the run is released. Before that the response is
-    busy, and after it the run finishes on its own.
-    """
+    """Serve one stalled run over a real socket; return the longest gap and the bytes."""
     release = asyncio.Event()
 
     async def stream_fn(messages: list, info: Any) -> AsyncIterator[str]:
@@ -137,8 +117,7 @@ async def _read_one_stalled_run(port: int, release: asyncio.Event) -> tuple[floa
 async def test_a_stalled_run_never_leaves_the_socket_silent_for_an_interval() -> None:
     longest, received = await _longest_silence_on_the_wire(_INTERVAL)
 
-    # Several intervals of slack for a loaded runner, and still well inside the
-    # stall: a heartbeat that did not reach the socket would show the whole of it.
+    # Several intervals of slack for a loaded runner, still well inside the stall.
     assert longest < _STALL / 2, f"the socket went {longest:.2f}s without a byte"
     assert received.count(b": django-ag-ui heartbeat\n\n") >= 3
 

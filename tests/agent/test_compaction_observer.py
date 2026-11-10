@@ -1,10 +1,3 @@
-"""``CompactionObserver`` — recording a wrapped capability's trims.
-
-The observer's whole job is to notice something upstream deliberately does not
-announce, so these pin the noticing: what counts as a compaction, what does not,
-and that wrapping leaves the wrapped capability's behaviour alone.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -31,25 +24,12 @@ _MODEL = TestModel()
 
 
 def _run_context(messages: list[Any]) -> RunContext[None]:
-    """The genuine upstream run context, for the reason the request context is.
-
-    A double carrying only the ``tracer`` and ``model`` a strategy then touched
-    stood in here, and it broke when pydantic-ai-harness started reading
-    ``messages`` and ``run_id`` off the run context -- a failure about our
-    double again, not about the observer. The real dataclass needs three
-    keywords and shares the request context's history.
-    """
+    """The genuine upstream run context, for the reason the request context is."""
     return RunContext(deps=None, model=_MODEL, usage=RunUsage(), messages=messages)
 
 
 def _request_context(messages: list[Any]) -> ModelRequestContext:
-    """The genuine upstream context rather than a stand-in.
-
-    A hand-rolled double carrying only ``messages`` used to stand in here, and it
-    broke the moment a strategy started reading ``model`` off the context — a
-    failure about our double, not about the observer. The real dataclass costs
-    four keywords to build and cannot drift from the contract it models.
-    """
+    """The genuine upstream context rather than a stand-in."""
     return ModelRequestContext(
         model=_MODEL,
         messages=messages,
@@ -59,14 +39,7 @@ def _request_context(messages: list[Any]) -> ModelRequestContext:
 
 
 def _messages(count: int) -> list[Any]:
-    """A history of genuine messages, alternating user turn and model reply.
-
-    Opaque placeholders used to stand in here, and they broke for the same reason
-    the hand-rolled context did: a strategy grew a step that reads the messages
-    rather than counts them, and estimating a token count walks every part. The
-    observer only ever compares lengths, so the placeholders looked equivalent
-    right up until the delegated call stopped tolerating them.
-    """
+    """A history of genuine messages, alternating user turn and model reply."""
     return [
         ModelRequest(parts=[UserPromptPart(content=f"user {index}")])
         if index % 2 == 0
@@ -82,12 +55,7 @@ def _contexts(count: int) -> tuple[RunContext[None], ModelRequestContext]:
 
 
 class _Stub:
-    """The attributes ``WrapperCapability`` reads off whatever it wraps.
-
-    It adopts the wrapped capability's ``id`` and ``defer_loading`` so a wrapper
-    can sit over a *deferred* capability without losing its deferral or its place
-    in the load catalog — so a stub has to carry both.
-    """
+    """The attributes ``WrapperCapability`` reads off whatever it wraps."""
 
     id: str | None = None
     defer_loading: bool = False
@@ -121,11 +89,7 @@ async def test_records_a_real_compaction(sink: list[Compaction]) -> None:
     result = await observer.before_model_request(*_contexts(10))
     after = len(result.messages)
     assert len(sink) == 1
-    # How long a tail the window keeps is upstream's policy, and it has already
-    # moved once (a preserved first user message rides along with the tail). What
-    # belongs to the observer is that it reports the delegated call's real before
-    # and after, so the record is checked against the result rather than a
-    # constant that quietly restates someone else's retention rule.
+    # How long a tail is kept is upstream's policy, and it has moved once already.
     assert after < 10
     assert sink[0].before == 10
     assert sink[0].after == after
@@ -139,8 +103,7 @@ async def test_below_the_threshold_records_nothing(sink: list[Compaction]) -> No
 
 
 async def test_a_capability_that_does_not_shorten_records_nothing(sink: list[Compaction]) -> None:
-    # The seam only exposes message counts, so an in-place rewrite is invisible —
-    # which is honest: the indicator claims turns were dropped, and none were.
+    # Only message counts are exposed, so an in-place rewrite is invisible, which is honest here.
     observer = CompactionObserver(_Rewriter())
     await observer.before_model_request(*_contexts(5))
     assert sink == []
@@ -153,8 +116,7 @@ async def test_passthrough_capability_records_nothing(sink: list[Compaction]) ->
 
 
 async def test_without_a_sink_the_observer_is_inert() -> None:
-    # A capability used outside this transport (a management command, a test)
-    # has no stream to report to; recording must not blow up or leak.
+    # Outside this transport there is no stream; recording must not blow up or leak.
     assert COMPACTION_SINK.get() is None
     observer = CompactionObserver(SlidingWindowCompaction(max_messages=4, keep_messages=2))
     result = await observer.before_model_request(*_contexts(10))
@@ -170,7 +132,6 @@ async def test_wrapping_does_not_change_the_compaction_itself(sink: list[Compact
 
 
 def test_the_wrapped_capability_stays_reachable() -> None:
-    # ``WrapperCapability`` delegates the rest of the protocol; losing that would
-    # silently drop ordering and hook-introspection.
+    # WrapperCapability delegates the rest of the protocol; losing that drops ordering silently.
     inner = SlidingWindowCompaction(max_messages=4)
     assert CompactionObserver(inner).wrapped is inner

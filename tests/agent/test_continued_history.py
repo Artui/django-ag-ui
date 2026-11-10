@@ -1,10 +1,3 @@
-"""``continued_history``, and the parity it exists to keep with the adapter.
-
-The adapter decides the cut of a server-held run in private helpers; this
-module's tests hold the mirror to the run: the same inputs through a model that
-records what it was sent, and through the store, must agree.
-"""
-
 from __future__ import annotations
 
 import json
@@ -139,9 +132,7 @@ def test_an_edited_message_cuts_the_history_before_its_turn() -> None:
 
 
 def test_the_turn_is_named_by_its_last_message() -> None:
-    # Everything after the last response loads into one request, which keeps
-    # the id of the last message folded into it, so a tool result posted ahead
-    # of the edited prompt does not hide the prompt's id.
+    # Everything after the last response loads as one request, keeping the last message id.
     history = _snapshot(
         _user("u1", "a"),
         _calling("a1", "call-1"),
@@ -158,8 +149,6 @@ def test_the_turn_is_named_by_its_last_message() -> None:
 
     kept, new_turn = continued_history(history, posted)
 
-    # The cut request's tool result stays, as the server recorded it; the
-    # client's copy of it is not stored a second time.
     assert kept[:2] == history[:2]
     (results,) = kept[2:]
     assert isinstance(results, ModelRequest)
@@ -168,8 +157,7 @@ def test_the_turn_is_named_by_its_last_message() -> None:
 
 
 def test_only_the_client_copy_of_a_kept_result_is_left_out() -> None:
-    # A result for a call the kept request does not answer is stored as
-    # posted, even when it rides beside a resubmission.
+    # A result for a call the kept request does not answer is stored as posted.
     history = _snapshot(
         _user("u1", "a"),
         _calling("a1", "call-1"),
@@ -208,8 +196,7 @@ def test_a_turn_of_messages_that_load_nothing_cuts_nothing() -> None:
 
 
 def test_only_a_stored_user_turn_is_cut_at() -> None:
-    # A stored request that holds no user prompt cannot be resubmitted, even
-    # when the client knows its id; nor can a response.
+    # A stored request with no user prompt cannot be resubmitted, even if the client knows its id.
     history = _snapshot(
         _user("u1", "a"), _calling("a1", "call-1"), _result("t1", "call-1"), _answer("a2", "b")
     )
@@ -238,8 +225,7 @@ def test_a_legacy_retry_bound_to_a_tool_is_kept_as_a_result() -> None:
 
 
 def test_a_stale_result_does_not_name_the_turn() -> None:
-    # The adapter drops a result for a call that is neither posted nor pending
-    # before it loads the turn, so it is the resubmitted prompt that names it.
+    # A result for a call neither posted nor pending is dropped first, so the prompt names it.
     history = _snapshot(_user("u1", "a"), _answer("a1", "b"))
 
     kept, new_turn = continued_history(
@@ -251,8 +237,7 @@ def test_a_stale_result_does_not_name_the_turn() -> None:
 
 
 def test_a_result_for_a_pending_call_still_names_the_turn() -> None:
-    # A call the stored history waits on is answered by the result, so the
-    # result is part of the turn and, being last, names it: nothing is cut.
+    # A call the stored history waits on is answered by the result, so nothing is cut.
     history = _snapshot(_user("u1", "a"), _calling("a1", "call-1"))
 
     kept, new_turn = continued_history(
@@ -264,9 +249,7 @@ def test_a_result_for_a_pending_call_still_names_the_turn() -> None:
 
 
 def test_a_result_for_a_posted_call_names_the_turn_though_its_call_is_answered() -> None:
-    # The call is posted, so the adapter does not drop the result as stale;
-    # being last, the result names the turn and the prompt before it is not
-    # resubmitted (the adapter sends the model both prompts here).
+    # A posted call is not stale: the result names the turn and the prompt is not resubmitted.
     history = _snapshot(
         _user("u1", "a"),
         _calling("a1", "call-1"),
@@ -481,9 +464,7 @@ async def test_a_client_compaction_part_is_stored_as_posted() -> None:
 async def test_a_stale_result_posted_after_a_resubmission_still_cuts(
     posted: list[dict[str, Any]], shown: list[tuple[Any, ...]], row_ids: list[str]
 ) -> None:
-    # The adapter drops the stale result before it names the turn, so the
-    # resubmitted prompt does and the history is cut; the row keeps the result
-    # as posted but holds each message once.
+    # The stale result is dropped before it names the turn, so the history is cut.
     snapshot = (_user("u1", "a"), _answer("a1", "b"), _user("u2", "c"), _answer("a2", "d"))
 
     with pytest.warns(UserWarning, match="dropped"):
@@ -494,8 +475,7 @@ async def test_a_stale_result_posted_after_a_resubmission_still_cuts(
 
 
 async def test_an_answered_result_resent_without_a_cut_is_stored_once() -> None:
-    # The adapter drops the client's copy of a result the stored history
-    # already answers; storing it would hold one id twice.
+    # The client's copy of a result the stored history already answers is dropped; no id twice.
     snapshot = (
         _user("u1", "a"),
         _calling("a1", "call-1"),
