@@ -10,8 +10,7 @@ CLOSE = f"</{SENTINEL}>"
 
 
 def test_nothing_to_say_renders_no_block() -> None:
-    # The caller skips the block on None, so an empty fence with a paragraph
-    # explaining that it is empty never reaches the model.
+    # The caller skips the block on None, so an empty fence never reaches the model.
     assert render_untrusted_context([], max_chars=1000) is None
 
 
@@ -38,8 +37,7 @@ def test_one_item_is_fenced_labelled_and_framed_as_data() -> None:
 
 
 def test_a_value_cannot_close_the_block_early() -> None:
-    # The forgery that would matter: text after a closing marker reads as if it
-    # came from the operator. Neutralising leaves exactly one real closer.
+    # The forgery that matters: text after a closing marker reads as the operator's.
     rendered = render_untrusted_context(
         [
             UntrustedContextItem(
@@ -110,7 +108,6 @@ def test_a_budget_spent_exactly_still_drops_what_follows_visibly() -> None:
 
 
 def test_a_zero_budget_renders_no_block_at_all() -> None:
-    # Not an empty fence carrying only the truncation marker: with nothing to
-    # say, there is nothing to frame.
+    # Not an empty fence with only the truncation marker: with nothing to say, nothing is framed.
     items = [UntrustedContextItem(label="page", value="/orders/42")]
     assert render_untrusted_context(items, max_chars=0) is None

@@ -144,9 +144,7 @@ async def test_observe_passes_events_through_unchanged_while_recording() -> None
 
 
 def test_reasoning_events_are_tolerated_and_not_persisted() -> None:
-    # Reasoning is ephemeral: the transcript must ignore THINKING_*/REASONING_*
-    # events (no crash, nothing persisted) so a cancelled run reconstructs only
-    # the durable text/tool messages.
+    # Reasoning is ephemeral: a cancelled run reconstructs only the durable text and tool messages.
     transcript = RunTranscript()
     transcript.add(ReasoningStartEvent(message_id="r1"))
     transcript.add(ReasoningMessageContentEvent(message_id="r1", delta="hmm…"))
@@ -189,9 +187,7 @@ def test_an_unstamped_result_is_recorded_with_no_outcome() -> None:
 
 
 def test_only_the_outcome_is_carried_over_from_the_event() -> None:
-    # The dump that stores a completed run has no event metadata to copy, so a
-    # transcript that copied the rest would store a thread differently depending
-    # on how its run ended.
+    # A completed run's dump has no event metadata, so a copy would store threads differently.
     transcript = RunTranscript()
     transcript.add(stamp_outcome(_result(metadata={"trace": "t-1"}), "denied"))
 
@@ -235,8 +231,7 @@ def _ids(messages: list[Any]) -> list[str]:
 
 
 def test_a_streamed_id_is_lent_to_one_message_only() -> None:
-    # A thinking part between two calls of one response: both calls streamed
-    # under one parent, and the dump flushes them into two assistant messages.
+    # Two calls of one response stream under one parent; the dump flushes them as two messages.
     transcript = RunTranscript()
     _streamed_text(transcript, "p")
     _streamed_call(transcript, "c1", "p")
@@ -270,9 +265,7 @@ def test_a_call_with_no_parent_keeps_the_dumped_id() -> None:
 
 
 def test_text_answers_whose_counts_disagree_all_keep_the_dumped_ids() -> None:
-    # Pairing the one streamed id with the first answer would be a guess, and a
-    # wrong guess names a different message. The first pair holds the same text,
-    # so only the count says the pairing is a guess.
+    # Pairing the streamed id with the first answer would be a guess, and a wrong one names another.
     transcript = RunTranscript()
     _streamed_text(transcript, "s1", "same")
 
@@ -287,8 +280,7 @@ def test_text_answers_whose_counts_disagree_all_keep_the_dumped_ids() -> None:
 
 
 def test_an_announced_empty_text_still_counts_by_position() -> None:
-    # ``messages()`` skips an empty draft; the dump keeps the empty text part, so
-    # the count has to read the drafts or every answer after it falls back.
+    # messages() skips an empty draft but the dump keeps the empty text part, so count the drafts.
     transcript = RunTranscript()
     _streamed_text(transcript, "s1")
     _streamed_text(transcript, "s2", "answer")
@@ -362,8 +354,7 @@ def test_reasoning_whose_text_disagrees_keeps_the_dumped_id() -> None:
 
 
 def test_an_answer_whose_parts_the_dump_joined_still_pairs() -> None:
-    # Consecutive text parts stream as one run of deltas and dump joined by a
-    # newline, which the text check must not read as a different answer.
+    # Consecutive text parts stream as one run and dump joined by a newline; do not split them.
     transcript = RunTranscript()
     _streamed_text(transcript, "s1", "first part")
     transcript.add(TextMessageContentEvent(message_id="s1", delta="second part"))
@@ -376,8 +367,7 @@ def test_an_answer_whose_parts_the_dump_joined_still_pairs() -> None:
 
 
 def test_calls_whose_parent_streamed_other_text_keep_the_dumped_id() -> None:
-    # Text, thinking, then a call: the parent streamed the text with the call,
-    # and the dump holds the call alone.
+    # Text, thinking, then a call: the dump holds the call alone, the text went with the call.
     transcript = RunTranscript()
     _streamed_text(transcript, "p", "A")
     _streamed_call(transcript, "c1", "p")
@@ -388,8 +378,7 @@ def test_calls_whose_parent_streamed_other_text_keep_the_dumped_id() -> None:
 
 
 def test_a_signature_only_reasoning_still_pairs() -> None:
-    # A thinking part carrying only a signature opens and closes reasoning with
-    # no text inside, and is still dumped as a reasoning message.
+    # A thinking part with only a signature opens and closes reasoning with no text, still dumped.
     transcript = RunTranscript()
     transcript.add(ReasoningStartEvent(message_id="z1"))
     transcript.add(ReasoningEndEvent(message_id="z1"))
@@ -412,8 +401,7 @@ def _activity(message_id: str, activity_type: str, **content: Any) -> ActivityMe
 
 
 def test_activities_pair_by_position_within_their_type() -> None:
-    # The injected ``compaction`` streams and is never dumped, and a file is
-    # dumped and never streamed: neither unsettles the compactions' pairing.
+    # The injected compaction streams and is never dumped; a file is dumped but never streamed.
     transcript = RunTranscript()
     transcript.add(_snapshot("s1", "pydantic_ai_compaction", content="first"))
     transcript.add(_snapshot("ours", "compaction", removed=4))
@@ -458,8 +446,7 @@ def test_an_activity_whose_content_disagrees_keeps_the_dumped_id() -> None:
 
 
 def test_an_activity_a_delta_changed_keeps_the_dumped_id() -> None:
-    # The patch is not applied, so the content the client ended with is unknown;
-    # even a dump that matches the snapshot is not paired with it.
+    # The patch is not applied, so the final content is unknown; no pairing with the snapshot.
     transcript = RunTranscript()
     transcript.add(_snapshot("s1", "pydantic_ai_compaction", content="first"))
     transcript.add(
@@ -478,8 +465,7 @@ def test_an_activity_a_delta_changed_keeps_the_dumped_id() -> None:
 
 
 def test_a_delta_with_no_snapshot_still_counts_its_activity() -> None:
-    # The client was announced an activity it has no content for; the dumped one
-    # is not paired across it.
+    # The client was announced an activity it has no content for; the dumped one is not paired.
     transcript = RunTranscript()
     transcript.add(
         ActivityDeltaEvent(message_id="s0", activity_type="pydantic_ai_compaction", patch=[])
@@ -529,8 +515,7 @@ def test_a_snapshot_that_does_not_replace_keeps_the_first_content() -> None:
 
 
 def test_a_dumped_canonical_system_is_not_a_difference() -> None:
-    # An OpenAI compaction: the dump stamps the response's canonical_system
-    # beside the part, which the stream has no response to read it from.
+    # An OpenAI compaction: the dump stamps canonical_system, which the stream has no response for.
     transcript = RunTranscript()
     transcript.add(
         _snapshot(
@@ -587,9 +572,7 @@ def test_a_difference_beside_the_canonical_system_still_refuses() -> None:
 
 
 def test_a_two_activity_type_with_a_delta_on_one_keeps_both_dumped_ids() -> None:
-    # The delta empties only s2's content, yet the type is judged whole: the
-    # unchanged s1 is not lent either, because which dumped activity the
-    # changed one is cannot be told.
+    # The delta empties only s2, but the type is judged whole: s1 is not lent either.
     transcript = RunTranscript()
     transcript.add(_snapshot("s1", "pydantic_ai_compaction", content="first"))
     transcript.add(_snapshot("s2", "pydantic_ai_compaction", content="second"))
@@ -612,8 +595,7 @@ def test_a_two_activity_type_with_a_delta_on_one_keeps_both_dumped_ids() -> None
 
 
 def test_a_failed_or_cancelled_run_stores_no_activities() -> None:
-    # ``messages()`` is what the failed and cancelled exits store: an activity the
-    # stream carried is not among them, whatever else the run streamed.
+    # messages() is what failed and cancelled exits store; an announced activity is not among them.
     transcript = RunTranscript()
     _streamed_text(transcript, "s1", "partial answer")
     transcript.add(_snapshot("a1", "pydantic_ai_compaction", content="summary"))

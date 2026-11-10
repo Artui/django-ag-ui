@@ -1,19 +1,3 @@
-"""A resumed or forked run, end to end: what the model sees and what the row keeps.
-
-Driven through ``DjangoAGUIView`` with ``DefaultStepStore`` and a conversation
-store that persists, which is the only path a resume takes in a deployment: the
-first run records a snapshot, ``resume/`` or ``fork/`` seeds the next run from
-it, and the save replaces the whole row. Two things are held here.
-
-The model sees the stored history once, however much of its transcript the
-client replays, and a resubmitted or edited user message replaces the turn it
-names rather than adding a copy; the row reads the way the run did.
-
-The ids a client keyed earlier messages by survive the save: the earlier
-answer keeps the id it streamed under, after one resume and after two, and so
-does a tool result folded into a request ahead of another.
-"""
-
 from __future__ import annotations
 
 import json
@@ -134,9 +118,7 @@ def _view(user: Any, store: _ThreadStore, model: Any) -> DjangoAGUIView:
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_replayed_transcript_reaches_the_model_once() -> None:
-    # A third-party client that replays its whole transcript on a resume. The
-    # snapshot already holds the first two messages, so before the server held
-    # the history the model saw them twice and the row stored them twice.
+    # A third-party client that replays its whole transcript on a resume.
     seen: list[list[ModelMessage]] = []
     store = _ThreadStore()
     view = _view(await _user_named("replayer"), store, _recording_model(seen))
@@ -159,8 +141,7 @@ async def test_a_replayed_transcript_reaches_the_model_once() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_an_edited_message_replaces_the_turn_it_names() -> None:
-    # The client edits its first message: same id, new text. The run replaces
-    # that turn, so neither the model nor the row holds the old text.
+    # The client edits its first message: same id, new text.
     seen: list[list[ModelMessage]] = []
     store = _ThreadStore()
     view = _view(await _user_named("editor"), store, _recording_model(seen))
@@ -177,8 +158,7 @@ async def test_an_edited_message_replaces_the_turn_it_names() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_resubmitted_message_reaches_the_model_once() -> None:
-    # A retry: the same message, under the same id. The run replaces the turn
-    # it names rather than following it with a copy.
+    # A retry: the same message, under the same id.
     seen: list[list[ModelMessage]] = []
     store = _ThreadStore()
     view = _view(await _user_named("resubmitter"), store, _recording_model(seen))
@@ -195,9 +175,7 @@ async def test_a_resubmitted_message_reaches_the_model_once() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_an_edited_later_message_cuts_the_history_there() -> None:
-    # An edit of the second message, posted with the transcript before it: the
-    # history is cut just before the turn it names and the earlier exchange is
-    # kept, once.
+    # An edit of the second message: the history is cut before the turn it names, once.
     seen: list[list[ModelMessage]] = []
     store = _ThreadStore()
     view = _view(await _user_named("retrier"), store, _recording_model(seen))
@@ -235,8 +213,7 @@ async def test_the_earlier_answer_keeps_its_streamed_id_after_one_resume_and_aft
     await _drain(await view(_post(_body([_user("u3", "double 7")], run_id="r3")), resume_from="r2"))
     after_two = _row(store)
 
-    # Every message the first run stored is stored under the same id after
-    # each resume -- the answer, the tool call that preceded it and its result.
+    # Every stored message keeps the same id after each resume: the answer, its call and result.
     assert [m["id"] for m in after_one[: len(stored_first)]] == [m["id"] for m in stored_first]
     assert [m["id"] for m in after_two[: len(stored_first)]] == [m["id"] for m in stored_first]
     assert answer_id in [m["id"] for m in after_two]
@@ -294,11 +271,7 @@ _PICK = {
 
 @pytest.mark.django_db(transaction=True)
 async def test_two_posted_tool_results_for_one_response_keep_their_ids() -> None:
-    # The client answers a response's two calls in one post. They load into one
-    # request, which keeps only the last id, so the first result came back from
-    # every later save under a new one. The calls end their run without a
-    # continuable snapshot, so the client answers them on the plain endpoint,
-    # with the thread as the server stored it, and resumes from that run.
+    # The client answers a response's two calls in one post.
     store = _ThreadStore()
     view = _view(await _user_named("picker"), store, _frontend_tool_model())
     await _drain(await view(_post(_body([_user("u1", "pick two")], run_id="r1", tools=[_PICK]))))
@@ -321,9 +294,7 @@ async def test_two_posted_tool_results_for_one_response_keep_their_ids() -> None
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_row_that_no_longer_matches_lends_no_id() -> None:
-    # The row was overwritten after the snapshot was taken, so it describes a
-    # different conversation: nothing in it names the snapshot's messages, and
-    # none of its ids is lent to them.
+    # The row was overwritten after the snapshot, so it describes a different conversation.
     seen: list[list[ModelMessage]] = []
     store = _ThreadStore()
     view = _view(await _user_named("diverger"), store, _recording_model(seen))
@@ -348,10 +319,7 @@ async def test_a_row_that_no_longer_matches_lends_no_id() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_an_id_the_new_turn_carries_is_not_lent_to_an_earlier_message() -> None:
-    # The client posts its new message under the id the earlier answer streamed
-    # under. The row holds that id for the answer, so lending would hand it
-    # back to the dumped answer too: the new turn's id is reserved, and the
-    # answer keeps a fresh one rather than the row holding one id twice.
+    # The client posts its new message under the id the earlier answer streamed under.
     seen: list[list[ModelMessage]] = []
     store = _ThreadStore()
     view = _view(await _user_named("collider"), store, _recording_model(seen))
@@ -410,13 +378,7 @@ async def test_a_row_that_cannot_be_read_costs_the_ids_not_the_run(lose_the_row:
 
 @dataclass
 class _CompactingResponse(FunctionStreamedResponse):
-    """A streamed response that opens with a provider's compaction part.
-
-    With a ``provider`` it is shaped as OpenAI's: the summary is encrypted in
-    ``provider_details``, and the response is stamped with the provider's
-    ``canonical_system``, which the dump carries beside the part and the stream
-    does not.
-    """
+    """A streamed response that opens with a provider's compaction part."""
 
     summary: str = ""
     provider: str | None = None
@@ -444,13 +406,7 @@ class _CompactingResponse(FunctionStreamedResponse):
 
 
 class _CompactingModel(FunctionModel):
-    """Every response opens with a compaction, as a provider's own compaction streams.
-
-    ``FunctionModel`` streams only text, thinking and tool calls, while a
-    provider's compaction reaches the AG-UI stream as a part of its own
-    (``handle_compaction``), so the response is wrapped. Each summary is
-    numbered, so an id lent to the wrong compaction shows.
-    """
+    """Every response opens with a compaction, as a provider's own compaction streams."""
 
     def __init__(self, provider: str | None) -> None:
         super().__init__(stream_function=_answer_done)
@@ -491,12 +447,7 @@ def _compactions(row: list[dict[str, Any]]) -> list[tuple[str, str]]:
 
 
 def _stamp_the_dump_writes(provider: str | None) -> str | None:
-    """The ``canonical_system`` pydantic-ai's own dump stores beside a compaction.
-
-    Read from the producer rather than written down: pydantic-ai 2.64 stamps
-    the response's ``canonical_system`` on the part, while 2.63, the floor,
-    stamps nothing. What the row keeps has to be what the dump wrote.
-    """
+    """The ``canonical_system`` pydantic-ai's own dump stores beside a compaction."""
     part = (
         CompactionPart(provider_name=provider, provider_details={"encrypted_content": "s"})
         if provider
@@ -553,8 +504,7 @@ async def test_a_compaction_keeps_its_streamed_id_after_a_resume_and_a_fork(
     assert _compactions(forked)[:2] == resumed
     _assert_no_id_twice(_row(store))
     _assert_no_id_twice(forked)
-    # Dropping the key is a step of the comparison, never of what is stored:
-    # pydantic-ai reads it back from the row when it reloads the thread.
+    # Dropping the key is a step of the comparison only; pydantic-ai reads it back from the row.
     for row in (_row(store), forked):
         stamps = [m["content"].get("canonical_system") for m in row if m["role"] == "activity"]
         assert stamps[:2] == [_stamp_the_dump_writes(provider)] * 2
@@ -562,8 +512,7 @@ async def test_a_compaction_keeps_its_streamed_id_after_a_resume_and_a_fork(
 
 @pytest.mark.django_db(transaction=True)
 async def test_an_edited_resubmit_keeps_the_streamed_id_of_the_compaction_it_kept() -> None:
-    # r1 and r2 each compact; r3 edits the second user message, so the snapshot
-    # holds r1's compaction while the row holds both.
+    # r1 and r2 compact; r3 edits the second user message, so the row holds both compactions.
     store = _ThreadStore()
     view = _view(await _user_named("editor"), store, _CompactingModel(None))
     first = await _drain(await view(_post(_body([_user("u1", "first")], run_id="r1"))))

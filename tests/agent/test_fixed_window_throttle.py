@@ -42,8 +42,7 @@ class TestTheWindow:
         assert 1 <= retry_after <= 60
 
     def test_never_reports_zero(self) -> None:
-        # A client reads 0 as "retry immediately", which is the one answer a
-        # limiter must not give: it turns a rate limit into a busy loop.
+        # A client reads 0 as retry immediately: a limiter must not turn a limit into a busy loop.
         throttle = FixedWindowThrottle(max_runs=1, per_seconds=1)
         request = _request()
         throttle.consume(request)
@@ -79,8 +78,7 @@ class TestBuckets:
         assert throttle.consume(request) is not None
 
     def test_an_anonymous_user_object_buckets_by_ip_not_by_pk(self) -> None:
-        # AnonymousUser has no pk and is_authenticated is False; bucketing it as
-        # a user would collapse every anonymous caller into one quota.
+        # AnonymousUser has no pk; bucketing it as a user would merge every anonymous caller.
         from django.contrib.auth.models import AnonymousUser
 
         throttle = FixedWindowThrottle(max_runs=1, per_seconds=60)
@@ -90,8 +88,7 @@ class TestBuckets:
         assert throttle.consume(_request(user=AnonymousUser(), ip="203.0.113.9")) is not None
 
     def test_namespaces_do_not_share_a_counter(self) -> None:
-        # Two limits on one endpoint — a burst and a steady-state — must not
-        # spend each other's quota.
+        # Two limits on one endpoint must not spend each other's quota.
         burst = FixedWindowThrottle(max_runs=1, per_seconds=60, namespace="burst")
         steady = FixedWindowThrottle(max_runs=1, per_seconds=60, namespace="steady")
         request = _request()
@@ -129,17 +126,10 @@ class TestConstruction:
 def test_an_eviction_between_add_and_incr_is_treated_as_a_fresh_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``incr`` raises when the key is gone — evicted, or the window expired in
-    the moment since ``add`` reported it present.
-
-    Simulated rather than waited for: the real trigger is a cache eviction
-    landing between two calls microseconds apart, and the branch it reaches
-    decides whether the endpoint raises a 500 at everyone or re-seeds the
-    window. Patching ``incr`` is the only way to make that instant reproducible.
-    """
+    """incr raises when the key is gone: evicted, or expired since add reported it present."""
     throttle = FixedWindowThrottle(max_runs=5, per_seconds=60)
     request = _request()
-    assert throttle.consume(request) is None  # seeds the window
+    assert throttle.consume(request) is None
 
     def _evicted(key: str) -> int:
         raise ValueError(f"key {key!r} not found")
@@ -148,8 +138,6 @@ def test_an_eviction_between_add_and_incr_is_treated_as_a_fresh_window(
         "django_ag_ui.agent.fixed_window_throttle.cache.incr", _evicted, raising=True
     )
 
-    # Re-seeded rather than raising, and counted as the first call in the window.
     assert throttle.consume(request) is None
     monkeypatch.undo()
-    # The re-seed really happened: the counter resumes from that fresh 1.
     assert throttle.consume(request) is None

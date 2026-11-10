@@ -51,14 +51,7 @@ async def _drain(events: Any) -> list[BaseEvent]:
 
 
 def _stream() -> _OutcomeEventStream:
-    """A standalone event stream, with no run behind it.
-
-    ``None`` is passed explicitly rather than relying on the field's default,
-    because there was not one at the declared pydantic-ai floor: ``run_input``
-    only stopped being a required positional argument later in the 2.x line, and
-    the base class documents ``None`` as the standalone-encoder case at every
-    version. Dropping the argument passes locally and fails the floor job.
-    """
+    """A standalone event stream, with no run behind it."""
     return _OutcomeEventStream(None)
 
 
@@ -67,19 +60,7 @@ def _tool_return(**kwargs: Any) -> ToolReturnPart:
 
 
 def _extras(event: BaseEvent) -> dict[str, Any]:
-    """The additive fields on ``event``, as a mapping to test membership against.
-
-    Membership rather than ``getattr(event, "outcome", None)``, because *absent*
-    is the load-bearing state and the two are not the same on the wire: a field
-    stamped with ``None`` encodes as ``"outcome":null``, which is a value a
-    client's schema has to accept and no other AG-UI server sends.
-
-    This is not a hypothetical distinction. The first version of this suite read
-    the field with ``getattr`` and defaulted to ``None`` -- and passed with the
-    ``outcome is not None`` guard deleted from the stamping condition, because a
-    stamped ``None`` read back identically to an absent field. The helper agreed
-    with the bug.
-    """
+    """The additive fields on ``event``, as a mapping to test membership against."""
     return dict(event.__pydantic_extra__ or {})
 
 
@@ -94,9 +75,7 @@ async def test_a_failed_tool_result_carries_its_outcome() -> None:
 
 
 async def test_a_denied_tool_result_carries_its_outcome() -> None:
-    """A denial is not a failure, and the client renders it differently. The
-    value is pydantic-ai's own and is forwarded verbatim rather than folded
-    into ``failed``."""
+    """A denial is not a failure, and the client renders it differently."""
     events = await _drain(
         _stream().handle_function_tool_result(
             FunctionToolResultEvent(part=_tool_return(outcome="denied"))
@@ -107,14 +86,7 @@ async def test_a_denied_tool_result_carries_its_outcome() -> None:
 
 
 async def test_a_successful_call_carries_no_outcome_field() -> None:
-    """Absent means success, and that is what makes the field additive.
-
-    Writing ``outcome="success"`` would make this server distinguishable from
-    every other AG-UI server on a call that worked, for no gain. Holds both the
-    ``== "success"`` arm of ``_forwardable_outcome`` and the ``outcome is not
-    None`` half of the stamping condition -- delete either and the field appears,
-    as ``"success"`` for the first and as ``null`` for the second.
-    """
+    """Absent means success, and that is what makes the field additive."""
     events = await _drain(
         _stream().handle_function_tool_result(
             FunctionToolResultEvent(part=_tool_return(outcome="success"))
@@ -122,42 +94,19 @@ async def test_a_successful_call_carries_no_outcome_field() -> None:
     )
     result = next(e for e in events if isinstance(e, ToolCallResultEvent))
     assert OUTCOME_FIELD not in _extras(result)
-    # Asserted on the encoded event as well, because the wire is what a client
-    # parses and the field is absent there or it is not absent at all. The
-    # substring covers the metadata carrier too, and so does the second line:
-    # success writes no ``metadata`` at all, not an empty one.
     assert OUTCOME_FIELD not in EventEncoder().encode(result)
     assert "metadata" not in EventEncoder().encode(result)
 
 
 @pytest.mark.filterwarnings("ignore:.*RetryPromptPart.* is deprecated")
 def test_a_retry_prompt_is_not_a_failure() -> None:
-    """A ``RetryPromptPart`` has no outcome and must not acquire one: the model
-    is about to call the same tool again with corrected arguments, which is a
-    working loop rather than a failed call.
-
-    Asked of ``_forwardable_outcome`` directly rather than through a stream,
-    because only the older half of the supported pydantic-ai range emits one:
-    from 2.60 a retry is the call's own ``ToolReturnPart`` and upstream's AG-UI
-    handler no longer accepts a ``RetryPromptPart`` at all, so driving one
-    through it fails inside upstream before this package is reached. The arm is
-    still the one the declared floor takes, which is why it stays, and it runs
-    before upstream's handler on every version.
-    """
+    """A RetryPromptPart must not acquire an outcome: the model is looping, not failed."""
     part = RetryPromptPart(content="fix it", tool_name="t", tool_call_id="call-1")
     assert _forwardable_outcome(part) is None
 
 
 async def test_a_retried_call_is_not_a_failure() -> None:
-    """From pydantic-ai 2.60 a retry is the call's own ``ToolReturnPart`` with
-    ``outcome="retried"`` -- the same working loop ``RetryPromptPart`` used to
-    describe, so it carries no outcome on the wire either. Forwarded verbatim it
-    would break the documented promise that a retry carries none, and a client
-    branching on whether an outcome is present would misread the call.
-
-    Built here without ``retry=``, the field that arrived with the outcome, so the
-    test runs at the declared floor too.
-    """
+    """From pydantic-ai 2.60 a retry is the call's own part with outcome retried."""
     events = await _drain(
         _stream().handle_function_tool_result(
             FunctionToolResultEvent(part=_tool_return(outcome="retried"))
@@ -169,13 +118,7 @@ async def test_a_retried_call_is_not_a_failure() -> None:
 
 
 async def test_the_events_around_a_failed_result_are_untouched() -> None:
-    """Only the result event is stamped.
-
-    A failed return also emits pydantic-ai's own ``REASONING_ENCRYPTED_VALUE``
-    continuity claim, which is a different event with a different meaning.
-    Holds the ``isinstance`` half of the stamping condition: delete it and this
-    event comes back wearing an ``outcome`` it has no field for.
-    """
+    """Only the result event is stamped."""
     events = await _drain(
         _stream().handle_function_tool_result(
             FunctionToolResultEvent(part=_tool_return(outcome="failed"))
@@ -190,8 +133,7 @@ async def test_the_events_around_a_failed_result_are_untouched() -> None:
 
 
 async def test_an_output_tool_result_carries_its_outcome() -> None:
-    """The structured-output tool emits a ``TOOL_CALL_RESULT`` too, down a
-    separate handler, and a client cannot tell which handler produced one."""
+    """The structured-output tool emits TOOL_CALL_RESULT down a separate handler."""
     events = await _drain(
         _stream().handle_output_tool_result(
             OutputToolResultEvent(part=_tool_return(outcome="failed"))
@@ -202,12 +144,8 @@ async def test_an_output_tool_result_carries_its_outcome() -> None:
 
 
 async def test_a_native_tool_return_carries_its_outcome() -> None:
-    """A provider-executed tool is the third emitter, and the one whose AG-UI
-    ``tool_call_id`` is rewritten -- which is why the outcome is read off the
-    part here rather than correlated by id further downstream."""
+    """A provider-executed tool is a third emitter with its tool_call_id rewritten."""
     stream = _stream()
-    # The return handler looks its rewritten id up in a map the call handler
-    # fills, so the call has to be announced first.
     await _drain(
         stream.handle_builtin_tool_call_start(
             NativeToolCallPart(tool_name="search", args={}, tool_call_id="call-1")
@@ -225,8 +163,7 @@ async def test_a_native_tool_return_carries_its_outcome() -> None:
 
 
 async def test_the_outcome_survives_encoding() -> None:
-    """The claim the whole change rests on: AG-UI's event models allow extras,
-    so the field is not stripped between the model and the wire."""
+    """AG-UI event models allow extras, so the field is not stripped between model and wire."""
     events = await _drain(
         _stream().handle_function_tool_result(
             FunctionToolResultEvent(part=_tool_return(outcome="failed"))
@@ -246,12 +183,7 @@ async def test_the_outcome_survives_encoding() -> None:
 
 
 def _served(event: BaseEvent) -> dict[str, Any]:
-    """The event as a client receives it, read off the encoder's own frame.
-
-    Not the model: ``metadata`` is a declared field and the top-level key is an
-    extra, and the two reach the wire by different routes -- a stamp could land
-    on the instance and still be left off the bytes.
-    """
+    """The event as a client receives it, read off the encoder's own frame."""
     return json.loads(EventEncoder().encode(event).removeprefix("data: "))
 
 
@@ -266,17 +198,13 @@ async def _failed_result(**kwargs: Any) -> list[ToolCallResultEvent]:
 
 
 async def test_a_failed_result_carries_its_outcome_in_metadata() -> None:
-    """The carrier a 1.0 client keeps. Upstream builds the result event with no
-    ``metadata``, so the stamp is the whole of it."""
+    """The carrier a 1.0 client keeps."""
     (result,) = await _failed_result()
     assert result.metadata == {OUTCOME_FIELD: "failed"}
 
 
 async def test_the_encoded_frame_carries_the_outcome_on_both_carriers() -> None:
-    """Both keys, in the bytes: ``metadata`` for a 1.0 client and the top-level
-    key for the 0.x client every web component release up to 0.40 runs.
-    Dropping either loses the marking for one of the two, and neither client
-    reports it -- a missing outcome reads as success."""
+    """Both keys in the bytes: metadata for 1.0 clients, the top-level key for 0.x clients."""
     (result,) = await _failed_result()
     frame = _served(result)
     assert frame["metadata"] == {"outcome": "failed"}
@@ -284,10 +212,7 @@ async def test_the_encoded_frame_carries_the_outcome_on_both_carriers() -> None:
 
 
 async def test_the_outcome_is_merged_into_metadata_the_event_already_carries() -> None:
-    """A tool may return an AG-UI event of its own, which pydantic-ai forwards
-    verbatim and this stream stamps like the result it describes. A key its
-    author put in ``metadata`` survives the stamp rather than being replaced by
-    it."""
+    """A tool may return its own AG-UI event, forwarded verbatim and stamped like the result."""
     own = ToolCallResultEvent(
         message_id="own", tool_call_id="call-1", content="c", metadata={"trace": "t-1"}
     )
@@ -298,8 +223,7 @@ async def test_the_outcome_is_merged_into_metadata_the_event_already_carries() -
 
 
 def test_the_adapter_builds_the_outcome_forwarding_stream() -> None:
-    """The stock adapter is what a session used to build, and the substitution
-    is the whole wiring -- so it is asserted rather than assumed."""
+    """The stock adapter is what a session used to build; the substitution is asserted."""
     adapter = OutcomeAGUIAdapter(Agent(FunctionModel(lambda m, i: ModelResponse(parts=[]))), None)
     assert isinstance(adapter.build_event_stream(), _OutcomeEventStream)
 
@@ -321,14 +245,7 @@ def _run_input() -> Any:
 
 
 def _failing_tool_agent() -> Agent[Any, Any]:
-    """An agent whose one tool reports a terminal failure the way a spec toolset
-    does -- ``ToolFailed``, which pydantic-ai turns into a tool return marked
-    ``failed`` rather than into a dead run.
-
-    ``stream_function``, not ``function``: the session streams, and a
-    ``FunctionModel`` given only the non-streaming callable raises on the first
-    request rather than answering.
-    """
+    """An agent whose tool reports a terminal failure as ToolFailed, turned into a failed return."""
 
     async def stream_fn(messages: list[Any], info: Any) -> Any:
         returned = any(
@@ -364,27 +281,16 @@ def _failing_session(**config: Any) -> AgentSession:
 
 
 async def test_a_failed_call_reaches_the_browser_marked_failed() -> None:
-    """End to end, through the session's whole composed stream.
-
-    Every wrapper the session adds sits downstream of the adapter, so this is
-    also the assertion that none of them drops the field on its way out.
-    """
+    """End to end, through the session's whole composed stream."""
     joined = "".join([chunk async for chunk in _failing_session().stream()])
 
     assert "TOOL_CALL_RESULT" in joined
     assert '"outcome":"failed"' in joined
-    # The run survived the failure -- the model answered after reading it, which
-    # is what separates a failed *call* from a failed run.
     assert "RUN_ERROR" not in joined
 
 
 async def test_a_failed_call_reaches_the_browser_with_the_outcome_on_both_carriers() -> None:
-    """The same, parsed rather than substring-matched.
-
-    ``'"outcome":"failed"' in joined`` above cannot tell the two carriers apart:
-    it matches inside ``"metadata":{"outcome":"failed"}`` as readily as at the
-    top level, so it would pass with either one gone. This reads the frame.
-    """
+    """The same, parsed rather than substring-matched."""
     joined = "".join([chunk async for chunk in _failing_session().stream()])
 
     (result,) = [
@@ -397,16 +303,7 @@ async def test_a_failed_call_reaches_the_browser_with_the_outcome_on_both_carrie
 
 
 async def test_a_refused_mcp_tool_reaches_the_browser_marked_failed() -> None:
-    """The same marking for a tool bridged from ``mcp_server=``.
-
-    The bridge is django-spec-agents'. Its drf-mcp predecessor, in
-    django-pydantic-agent below 0.23, *returned* the server's refusal as
-    ``{"error": ...}``, the tool's value, which pydantic-ai records as a
-    success: the result above reached the browser with no ``outcome`` at all,
-    and a refused call rendered as a completed one. The django-spec-mcp bridge
-    raises a business-rule refusal as a failed call from its first release;
-    this holds it there.
-    """
+    """The same marking for a tool bridged from ``mcp_server=``."""
     from tests.integrations.spec_mcp_server import server as spec_mcp_server
 
     view = DjangoAGUIView(ToolRegistry(), model=TestModel(), mcp_server=spec_mcp_server)
@@ -447,23 +344,7 @@ async def test_a_refused_mcp_tool_reaches_the_browser_marked_failed() -> None:
 
 
 async def test_a_failed_call_emits_a_reasoning_event_on_a_model_that_never_thinks() -> None:
-    """The likeliest reason a REASONING_* event reaches a browser, pinned here.
-
-    ``FORWARD_REASONING`` was documented as though reasoning events could only
-    appear once an operator configured a thinking budget. This run configures
-    nothing -- a ``FunctionModel`` with no settings, which cannot think at all --
-    and still puts a ``REASONING_ENCRYPTED_VALUE`` on the wire, because that is
-    where Pydantic-AI carries a non-success outcome.
-
-    It is a poor fit for its own name three ways over: the payload is not
-    encrypted, it is not reasoning, and since 0.56.0 it is redundant -- the same
-    outcome rode the ``TOOL_CALL_RESULT`` one event earlier. It is forwarded
-    anyway rather than filtered, because it belongs to upstream and the general
-    form of the event does carry provider continuity data that has to survive.
-
-    Kept as an assertion because the docs now make this claim to operators, and
-    a claim about what is on the wire should be read off the wire.
-    """
+    """The likeliest reason a REASONING_* event reaches a browser, pinned here."""
     joined = "".join([chunk async for chunk in _failing_session().stream()])
 
     reasoning = [
@@ -476,21 +357,11 @@ async def test_a_failed_call_emits_a_reasoning_event_on_a_model_that_never_think
         "a run that cannot think stopped emitting the carrier -- the documented "
         "expectation changes with it"
     )
-    # The payload is the whole point: an outcome envelope, wearing the name of
-    # an encrypted chain-of-thought.
     assert json.loads(reasoning[0]["encryptedValue"]) == {"pydantic_ai": {"outcome": "failed"}}
 
 
 async def test_the_outcome_survives_the_reasoning_filter() -> None:
-    """``FORWARD_REASONING = False`` must not cost a client the failure marking.
-
-    It used to. Pydantic-AI's own carrier for a non-success outcome is a
-    ``REASONING_ENCRYPTED_VALUE`` event trailing the result -- and this package
-    drops every ``REASONING_*`` event under that setting, so the one deployment
-    that had opted out of chain-of-thought had also, silently, opted out of
-    knowing which of its tool calls failed. Putting the outcome on the result
-    event itself is what decouples the two.
-    """
+    """``FORWARD_REASONING = False`` must not cost a client the failure marking."""
     joined = "".join([chunk async for chunk in _failing_session(forward_reasoning=False).stream()])
 
     assert "REASONING" not in joined, "the filter under test has to actually be on"
@@ -506,13 +377,7 @@ async def test_the_outcome_survives_the_reasoning_filter() -> None:
 
 
 def _dumped_tools(*parts: Any) -> list[dict[str, Any]]:
-    """The tool messages ``OutcomeAGUIAdapter.dump_messages`` writes for ``parts``.
-
-    Each part is answered by a request following a response that made the call,
-    which is the shape a real run's history has -- and a history that carries
-    messages other than tool results, so the dump's ``isinstance`` arm is
-    exercised on every call rather than only when a test remembers to.
-    """
+    """The tool messages ``OutcomeAGUIAdapter.dump_messages`` writes for ``parts``."""
     history: list[Any] = []
     for part in parts:
         history.append(
@@ -536,9 +401,7 @@ def test_a_dumped_denied_result_carries_its_outcome_on_both_carriers() -> None:
 
 
 def test_upstreams_own_carriers_are_left_in_place() -> None:
-    """``load_messages`` reads a stored outcome back from ``error`` and
-    ``encryptedValue``, so a resumed run seeded from this thread still tells the
-    model the call was refused. The stamp is added beside them, never instead."""
+    """load_messages reads a stored outcome back, so resumed runs keep it."""
     (stored,) = _dumped_tools(_tool_return(outcome="denied"))
     assert "error" in stored
     assert json.loads(stored["encryptedValue"]) == {"pydantic_ai": {"outcome": "denied"}}
@@ -551,9 +414,7 @@ def test_a_dumped_successful_result_carries_no_outcome() -> None:
 
 
 def test_a_dumped_retry_prompt_carries_no_outcome() -> None:
-    """Upstream writes an ``error`` on a retry prompt's tool message as well, which
-    is one reason ``error`` cannot stand in for the outcome: the stream does not
-    mark a retry, and the stored copy must not mark it either."""
+    """Upstream writes error on a retry's tool message too, so error cannot stand in."""
     (stored,) = _dumped_tools(
         RetryPromptPart(tool_name="t", content="again", tool_call_id="call-1")
     )
@@ -569,9 +430,7 @@ def test_a_dumped_retried_call_carries_no_outcome() -> None:
 
 
 def test_each_call_is_stamped_with_its_own_outcome() -> None:
-    """A lookup keyed on the wrong thing -- position, or the last outcome seen --
-    passes every single-call test above. Two calls with different outcomes, and a
-    success between them, is the smallest history that can tell."""
+    """A lookup keyed on position or the last outcome seen passes every single-call test."""
     stored = _dumped_tools(
         ToolReturnPart(tool_name="t", content="c", tool_call_id="a", outcome="failed"),
         ToolReturnPart(tool_name="t", content="c", tool_call_id="b"),
@@ -585,9 +444,7 @@ def test_each_call_is_stamped_with_its_own_outcome() -> None:
 
 
 def test_a_native_tool_return_is_stored_as_upstream_wrote_it() -> None:
-    """The documented gap, pinned so that closing it is a decision: a native
-    return is dumped under a rewritten id, so it is not matched. No model
-    pydantic-ai ships reports one as anything but a success today."""
+    """The documented gap, pinned so closing it is a decision: a native return is not matched."""
     history = [
         ModelResponse(
             parts=[
@@ -603,8 +460,7 @@ def test_a_native_tool_return_is_stored_as_upstream_wrote_it() -> None:
 
 
 def test_upstreams_keyword_arguments_reach_the_dump() -> None:
-    # Passed through rather than restated, so a keyword upstream accepts is one
-    # this accepts: below 0.1.11 there is no ``encryptedValue`` carrier at all.
+    # Passed through rather than restated; below 0.1.11 there is no encryptedValue carrier.
     history = [
         ModelResponse(parts=[ToolCallPart(tool_name="t", args={}, tool_call_id="call-1")]),
         ModelRequest(parts=[_tool_return(outcome="denied")]),

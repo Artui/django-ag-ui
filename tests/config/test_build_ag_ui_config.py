@@ -38,12 +38,11 @@ def test_overrides_win_over_settings() -> None:
 
 
 def test_overrides_layer_over_settings_rather_than_replacing_them() -> None:
-    """The reason to call this instead of constructing AGUIConfig directly: an
-    override for one field must not discard the project's other settings."""
+    """Used instead of AGUIConfig directly: an override for one field keeps the other settings."""
     with override_settings(DJANGO_AG_UI={"RETRIES": 5, "THREAD_LIST_LIMIT": 9}):
         config = build_ag_ui_config(retries=1)
     assert config.retries == 1
-    assert config.thread_list_limit == 9  # still the project's value
+    assert config.thread_list_limit == 9
 
 
 def test_tool_guard_is_parsed_from_the_settings_dict() -> None:
@@ -69,11 +68,7 @@ def test_two_endpoints_can_hold_different_scalars() -> None:
 
 
 def test_tool_failure_defaults_to_on_with_no_settings() -> None:
-    """The one policy whose absent-settings answer is "on".
-
-    An absent ``TOOL_GUARD`` means no gate; an absent ``TOOL_FAILURE`` means a
-    raising tool costs its own call rather than the whole turn.
-    """
+    """The one policy whose absent-settings answer is "on"."""
     with override_settings(DJANGO_AG_UI={}):
         config = build_ag_ui_config()
     assert config.tool_failure.enabled is True
@@ -103,12 +98,7 @@ def test_an_explicit_tool_failure_wins() -> None:
 
 
 def test_run_context_defaults_to_delivering_both_sources() -> None:
-    """The other policy whose absent-settings answer is "on".
-
-    A client that populates ``RunAgentInput.context`` has already decided the
-    model should see it; an endpoint that reads the setting as "off" would keep
-    the defect this feature fixes.
-    """
+    """The other policy whose absent-settings answer is "on"."""
     with override_settings(DJANGO_AG_UI={}):
         config = build_ag_ui_config()
     assert config.run_context == RunContextConfig(
@@ -153,9 +143,7 @@ def test_the_delivery_channel_is_parsed_through() -> None:
 
 
 def test_an_unknown_delivery_channel_raises_rather_than_defaulting() -> None:
-    """The two channels differ in whether client text inherits operator
-    authority, so a typo resolving to the more permissive one is the outcome
-    worth refusing at startup rather than the one worth tolerating."""
+    """The channels differ in whether client text inherits authority: refuse a typo at startup."""
     with (
         override_settings(DJANGO_AG_UI={"RUN_CONTEXT": {"DELIVERY": "instrctions"}}),
         pytest.raises(ImproperlyConfigured, match="instrctions"),
@@ -164,32 +152,23 @@ def test_an_unknown_delivery_channel_raises_rather_than_defaulting() -> None:
 
 
 def test_attachment_inline_defaults_to_the_substrates_own() -> None:
-    # ``None`` rather than a copy of the substrate's defaults: the default is
-    # whatever that package decides, so it cannot drift out of sync here.
+    # None, not a copy of the substrate's defaults, so the default cannot drift out of sync here.
     with override_settings(DJANGO_AG_UI={}):
         assert build_ag_ui_config().attachment_inline is None
 
 
 def test_attachment_inline_is_configurable_alongside_the_upload_cap() -> None:
-    """The two budgets must be settable together.
-
-    Left unreachable, a file above the read-back limit and below the upload cap
-    uploaded, rendered a chip, and came back as a description no matter how often
-    the model asked -- indistinguishable from success on screen, and every raise
-    of the upload cap widened the band.
-    """
+    """The two budgets must be settable together."""
     inline = AttachmentInlineConfig(max_bytes=8 * 1024 * 1024)
     with override_settings(DJANGO_AG_UI={"ATTACHMENT_MAX_BYTES": 8 * 1024 * 1024}):
         config = build_ag_ui_config(attachment_inline=inline)
 
     assert config.attachment_inline is inline
-    # No band left between what may be uploaded and what may be read.
     assert config.attachment_max_bytes <= config.attachment_inline.max_bytes
 
 
 def test_attachment_inlining_can_be_switched_off() -> None:
-    # A consumer preferring its own extraction, or bounding the bytes re-sent on
-    # every request, needs the lever the substrate documents.
+    # A consumer bounding the bytes re-sent per request needs the lever the substrate documents.
     off = AttachmentInlineConfig(media_types=frozenset())
     with override_settings(DJANGO_AG_UI={}):
         config = build_ag_ui_config(attachment_inline=off)
@@ -198,34 +177,19 @@ def test_attachment_inlining_can_be_switched_off() -> None:
 
 
 def test_the_run_list_ceiling_is_configurable() -> None:
-    """A per-endpoint ceiling, like every other limit here.
-
-    Tighter than ``THREAD_LIST_LIMIT`` by default because the rows cost more: a
-    thread row is metadata, a run row is a snapshot load and a whole message
-    list held resident while the response is built.
-    """
+    """A per-endpoint ceiling, like every other limit here."""
     with override_settings(DJANGO_AG_UI={"RUN_LIST_LIMIT": 5}):
         assert build_ag_ui_config().run_list_limit == 5
     assert build_ag_ui_config(run_list_limit=7).run_list_limit == 7
 
 
 def test_the_heartbeat_interval_is_configurable_and_on_by_default() -> None:
-    """On by default, because the failure it prevents is invisible from here.
-
-    A severed stream looks to the consumer like a dead backend, not like a
-    misconfiguration -- so an opt-in would be found only by whoever already
-    understood the problem. 15s is a quarter of the two defaults that matter
-    (AWS ALB ``idle_timeout`` and nginx ``proxy_read_timeout``, both 60s),
-    leaving room for beats a loop-blocking tool delays.
-    """
+    """On by default, because the failure it prevents is invisible from here."""
     with override_settings(DJANGO_AG_UI={}):
         assert build_ag_ui_config().heartbeat_seconds == 15.0
     with override_settings(DJANGO_AG_UI={"HEARTBEAT_SECONDS": 5}):
         assert build_ag_ui_config().heartbeat_seconds == 5.0
     assert build_ag_ui_config(heartbeat_seconds=2.5).heartbeat_seconds == 2.5
-    # Zero disables it; an override of zero is honoured rather than read as
-    # "unset", which is what a falsy-check instead of an ``is None`` check would
-    # have done.
     with override_settings(DJANGO_AG_UI={"HEARTBEAT_SECONDS": 0}):
         assert build_ag_ui_config().heartbeat_seconds == 0
     assert build_ag_ui_config(heartbeat_seconds=0).heartbeat_seconds == 0

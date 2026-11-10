@@ -1,18 +1,3 @@
-"""Every name a module advertises in ``__all__`` must be a name it actually binds.
-
-``__all__`` is a claim, and nothing else checks it. A name listed but never
-imported passes lint, passes types, passes the whole suite — and fails for the
-first person who writes ``from django_ag_ui import <name>``, exactly the
-spelling the docs teach.
-
-**Checked statically, against the source, rather than with ``hasattr`` on the
-imported module**, and the difference is the whole test. Importing ``pkg.thing``
-binds ``thing`` as an attribute of ``pkg``, so once anything has imported the
-submodule, ``hasattr(pkg, "thing")`` is ``True`` while ``from pkg import thing``
-hands back a *module* that raises ``TypeError: 'module' object is not callable``.
-A runtime check reports that as fine.
-"""
-
 from __future__ import annotations
 
 import ast

@@ -1,12 +1,3 @@
-"""``SubAgentObserver`` -- noticing a delegation nobody else reports.
-
-The observer's whole job is to say what upstream stays silent about: a child
-agent's entire run happens inside one ``delegate_task`` tool call, and a tool
-call emits nothing between its arguments and its result. So these pin the
-noticing -- what counts as a delegation, what a child event becomes, and that
-wrapping leaves the wrapped capability's own behaviour alone.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -40,12 +31,7 @@ from django_ag_ui.agent.subagent_observer import SUBAGENT_SINK
 
 
 def _subagents(**kwargs: Any) -> SubAgents:
-    """A real ``SubAgents``, with disk discovery off.
-
-    The genuine capability rather than a stand-in: the observer reads two of its
-    fields and writes one of them, so a double would be describing the contract
-    it is supposed to be checked against.
-    """
+    """A real ``SubAgents``, with disk discovery off."""
     child = Agent(
         FunctionModel(lambda m, i: ModelResponse(parts=[TextPart(content="ok")])),
         name="researcher",
@@ -96,23 +82,20 @@ async def _events(*items: Any) -> Any:
 
 class TestInstallation:
     def test_the_wrapped_capability_stays_reachable(self) -> None:
-        # WrapperCapability delegates the rest of the protocol; losing that would
-        # silently drop ordering and hook-introspection.
+        # WrapperCapability delegates the rest of the protocol; losing that drops ordering silently.
         capability = _subagents()
 
         assert SubAgentObserver(capability).wrapped is capability
 
     def test_it_installs_the_handler_it_needs(self) -> None:
-        # Reporting a child's tool calls needs SubAgents.event_stream_handler,
-        # which only the capability that starts the child run can pass on.
+        # Child tool calls need SubAgents.event_stream_handler, which only the starter can pass.
         capability = _subagents()
         SubAgentObserver(capability)
 
         assert capability.event_stream_handler is not None
 
     def test_a_capability_that_cannot_be_observed_is_refused(self) -> None:
-        # Wrapping cleanly and then reporting only the start and the end is the
-        # failure that looks like it works, so it fails at construction instead.
+        # Reporting only start and end looks like it works, so it fails at construction.
         with pytest.raises(ImproperlyConfigured, match="no event_stream_handler"):
             SubAgentObserver(object())
 
@@ -123,8 +106,7 @@ class TestInstallation:
             SubAgentObserver(_subagents(event_stream_handler=mine))
 
     def test_a_renamed_delegate_tool_is_still_observed(self) -> None:
-        # The name is configurable upstream, and reading it late is the
-        # difference between observing a renamed tool and observing nothing.
+        # The name is configurable upstream; reading it late is what observes a renamed tool.
         observer = SubAgentObserver(_subagents(tool_name="ask_specialist"))
 
         assert observer._delegate_tool_name == "ask_specialist"
@@ -145,8 +127,7 @@ class TestObservingTheDelegation:
         )
 
         assert result == "child answer"
-        # The protocol's own lifecycle, not this package's CUSTOM convention:
-        # the delegation opens and closes on events any AG-UI client knows.
+        # The protocol's own lifecycle, not this package's CUSTOM convention.
         opened, closed = _drain(sink)
         assert isinstance(opened, SubagentStartedEvent)
         assert (opened.name, opened.parent_tool_call_id) == ("researcher", "call-1")
@@ -174,23 +155,14 @@ class TestObservingTheDelegation:
         assert isinstance(opened, SubagentStartedEvent)
         assert isinstance(closed, SubagentErrorEvent)
         assert closed.subagent_run_id == opened.subagent_run_id
-        # The operator's words stay with the operator. Everything the model is
-        # told travels the ordinary tool result, on the card this belongs to.
+        # The operator's words stay with the operator.
         assert closed.message == "auditor failed"
         assert "db-prod-3" not in str([opened, closed])
 
     async def test_a_cancelled_delegation_is_still_closed(
         self, sink: asyncio.Queue[BaseEvent]
     ) -> None:
-        """The reversal, and the reason it matters more than a missing line.
-
-        Cancellation used to announce nothing, defended as "a cancelled run is a
-        client that has gone away". That holds for a cancelled *run*, but a
-        single tool call can be cancelled while the run carries on -- and under
-        the protocol's lifecycle an unclosed delegation makes ``@ag-ui/client``
-        refuse the ``RUN_FINISHED`` that follows. Not announcing would take down
-        the run it was trying not to disturb.
-        """
+        """The reversal, and the reason it matters more than a missing line."""
 
         async def cancelled(_args: dict[str, Any]) -> str:
             raise asyncio.CancelledError
@@ -214,8 +186,7 @@ class TestObservingTheDelegation:
     async def test_another_tool_is_delegated_untouched_and_announces_nothing(
         self, sink: asyncio.Queue[BaseEvent]
     ) -> None:
-        # The hook fires for every tool in the parent run, not only the ones the
-        # wrapped capability contributed.
+        # The hook fires for every tool in the parent run, not only the wrapped capability's.
         observer = SubAgentObserver(_subagents())
 
         result = await observer.wrap_tool_execute(
@@ -230,9 +201,7 @@ class TestObservingTheDelegation:
         assert _drain(sink) == []
 
     async def test_without_a_sink_the_observer_is_inert(self) -> None:
-        # A capability used outside this transport (a management command, a
-        # worker, a test) has no stream to report to; announcing must not blow
-        # up or leak.
+        # Outside this transport there is no stream; announcing must not blow up or leak.
         assert SUBAGENT_SINK.get() is None
         observer = SubAgentObserver(_subagents())
 
@@ -300,8 +269,7 @@ class TestObservingTheChild:
             FunctionToolResultEvent(
                 part=ToolReturnPart(tool_name="search_docs", content="ok", tool_call_id="sub-1")
             ),
-            # A RetryPromptPart is the child's tool telling the child's model to
-            # try again -- the one outcome distinguishable from here.
+            # A RetryPromptPart is the child's tool asking the child's model to try again.
             FunctionToolResultEvent(
                 part=RetryPromptPart(
                     tool_name="search_docs", content="try again", tool_call_id="sub-2"
@@ -317,10 +285,7 @@ class TestObservingTheChild:
     async def test_a_child_tool_call_marked_retried_did_not_land(
         self, sink: asyncio.Queue[BaseEvent]
     ) -> None:
-        # From pydantic-ai 2.60 the child's retry is its call's own
-        # ``ToolReturnPart`` with ``outcome="retried"``, not a ``RetryPromptPart``,
-        # and it is the same "try again" as far as the row is concerned. Built
-        # without ``retry=`` so the test runs at the declared floor as well.
+        # From pydantic-ai 2.60 the retry is the call's own part with outcome retried.
         observer = SubAgentObserver(_subagents())
 
         announced = await self._forward(
@@ -355,8 +320,7 @@ class TestObservingTheChild:
     async def test_a_handler_called_outside_a_delegation_announces_nothing(
         self, sink: asyncio.Queue[BaseEvent]
     ) -> None:
-        # Unreachable on the path that installs it -- only a delegation starts a
-        # child run -- and checked anyway, because a handler is a plain callable.
+        # Unreachable on the path that installs it, but checked: a handler is a plain callable.
         observer = SubAgentObserver(_subagents())
 
         await observer._forward_child_events(

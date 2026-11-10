@@ -50,9 +50,7 @@ async def test_transcribes_via_the_openai_client(monkeypatch: pytest.MonkeyPatch
     text = await OpenAITranscriptionBackend().transcribe(_audio(), request=_request())
 
     assert text == "the transcript"
-    # Default model + no base_url + the bounded default timeout; the audio rides
-    # as a (name, bytes, mime) tuple. ``api_key=None`` is the SDK's own default,
-    # so an unconfigured backend still reads OPENAI_API_KEY from the environment.
+    # Default model and timeout; the audio rides as a (name, bytes, mime) tuple.
     assert _FakeClient.init_kwargs == {"api_key": None, "base_url": None, "timeout": 60.0}
     (call,) = _FakeClient.calls
     assert call["model"] == "whisper-1"
@@ -81,15 +79,7 @@ async def test_subclass_overrides_model_and_base_url(monkeypatch: pytest.MonkeyP
 async def test_a_third_party_endpoint_can_be_given_its_own_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``base_url`` and the key have to be settable together, or the key leaks.
-
-    Without an ``api_key`` seam the SDK sends ``OPENAI_API_KEY`` as the bearer
-    token to whatever host ``base_url`` names — so the documented recipe for
-    pointing at another vendor handed that vendor the OpenAI credential on every
-    clip, and showed a 401 for it. The only escapes were overriding
-    ``transcribe()`` or clobbering the environment variable process-wide, which
-    breaks the agent's own model.
-    """
+    """``base_url`` and the key have to be settable together, or the key leaks."""
     _FakeClient.calls = []
     monkeypatch.setattr("openai.AsyncOpenAI", _FakeClient)
     monkeypatch.setenv("OPENAI_API_KEY", "sk-the-openai-one")
@@ -131,8 +121,7 @@ async def test_timeout_is_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_missing_openai_dependency_raises_a_clear_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Simulate the extra not being installed: a ``None`` entry makes the import
-    # raise ImportError, which the backend rewraps with an install hint.
+    # A None entry makes the import raise ImportError, which the backend rewraps with a hint.
     monkeypatch.setitem(sys.modules, "openai", None)
     with pytest.raises(ImportError, match=r"django-ag-ui\[openai\]"):
         await OpenAITranscriptionBackend().transcribe(_audio(), request=_request())

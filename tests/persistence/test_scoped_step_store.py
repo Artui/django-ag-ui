@@ -1,12 +1,3 @@
-"""Two endpoints, one step store, no crossing.
-
-The ledger partitions by owner and nothing else, so two mounts handed the same
-``step_store`` share one user's runs: ``runs/`` on either mount lists both, and
-``resume/<run_id>/`` addresses a run by id, so the *other* endpoint's run
-continues under this endpoint's model, tools and guard policy. Owner scoping
-cannot catch that -- it is the same user on both mounts.
-"""
-
 from __future__ import annotations
 
 import json
@@ -32,11 +23,7 @@ _STARTED = datetime(2026, 8, 26, 9, 0, tzinfo=UTC)
 
 
 class _MemoryStore:
-    """An in-memory ledger standing in for the model-backed store.
-
-    Keyed by ``run_id`` alone, which is the shape the wrapper exists for: the
-    real store adds an owner column and nothing else.
-    """
+    """An in-memory ledger standing in for the model-backed store."""
 
     def __init__(self) -> None:
         self.runs: list[RunRecord] = []
@@ -149,12 +136,7 @@ class TestTheBoundaryItKeeps:
         assert await _scoped(inner, "public").list_runs() == []
 
     async def test_another_scopes_run_has_no_snapshot_to_resume(self) -> None:
-        """``resume/<run_id>/`` seeds a run from exactly this call.
-
-        Answering ``None`` is what makes the resume find nothing to continue --
-        rather than continuing the internal endpoint's transcript under the
-        public endpoint's model, tools and guard policy.
-        """
+        """``resume/<run_id>/`` seeds a run from exactly this call."""
         inner = _MemoryStore()
         internal = _scoped(inner, "internal")
         await internal.register_run(_record("r1"))
@@ -205,24 +187,14 @@ class TestTheWireIsUnchanged:
         assert inner.runs[0].run_id == "internal:r1"
 
     async def test_a_row_written_before_the_scope_is_handed_back_intact(self) -> None:
-        """Wrapping an existing mount hides its earlier runs; it must not mangle them.
-
-        Those rows are already unreachable through the wrapper, so the only
-        question is what a caller reading them another way sees -- and a
-        truncated id would be worse than an honest one.
-        """
+        """Wrapping an existing mount hides its earlier runs; it must not mangle them."""
         inner = _MemoryStore()
         await inner.register_run(_record("written-before"))
 
         assert _scoped(inner, "internal")._unkey("written-before") == "written-before"
 
     async def test_parent_run_id_is_left_alone(self) -> None:
-        """A fork's parent is an id this wrapper already handed out.
-
-        It is un-prefixed on both sides of every call, so translating it would be
-        a second mapping to keep in step for no gain -- and ``list_runs`` filters
-        on the child's key anyway.
-        """
+        """A fork's parent is an id this wrapper already handed out."""
         inner = _MemoryStore()
         store = _scoped(inner, "internal")
         await store.register_run(_record("child", parent="r1"))
@@ -268,8 +240,7 @@ class TestEveryLedgerRow:
         assert (await store.latest_snapshot(run_id="r1")).run_id == "r1"
 
     async def test_the_interrupted_flag_is_forwarded(self) -> None:
-        # Not a knob to swallow: the resume path asks for interrupted snapshots
-        # when it is continuing an approval.
+        # Not a knob to swallow: resume asks for interrupted snapshots when continuing an approval.
         inner = _MemoryStore()
         store = _scoped(inner, "internal")
         await store.latest_snapshot(run_id="r1", include_interrupted=True)
@@ -382,12 +353,7 @@ class TestThroughTheMount:
         assert [row["run_id"] for row in json.loads(mine.content)["runs"]] == ["r1"]
 
     async def test_the_public_endpoint_cannot_resume_the_internal_run(self) -> None:
-        """``resume/<run_id>/`` reads exactly this, so ``None`` ends the attempt.
-
-        Without the wrapper the same user lists an internal run at the public
-        mount and POSTs it back to ``resume/``, continuing that transcript under
-        the public agent's model, tools and guard policy.
-        """
+        """``resume/<run_id>/`` reads exactly this, so ``None`` ends the attempt."""
         inner = _MemoryStore()
         internal, public = self._mounts(inner)
         request = AuthedRequestFactory().get("/internal/agent/runs/")

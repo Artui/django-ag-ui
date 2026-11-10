@@ -37,8 +37,7 @@ def test_non_get_is_rejected() -> None:
 
 
 def test_anonymous_is_rejected_by_default() -> None:
-    # The plain factory builds no `.user`, so the request is anonymous — and
-    # the catalog refuses it without anything being passed.
+    # The plain factory builds no .user, so the request is anonymous and the catalog refuses it.
     response = ToolsView(_registry())(RequestFactory().get("/agent/tools/"))
     assert response.status_code == 401
 
@@ -63,11 +62,6 @@ def test_get_user_hook_opens_the_catalog() -> None:
 
 
 def test_an_unauthenticated_non_get_is_401_not_405() -> None:
-    """Authorization comes before the method check, as on the agent endpoint.
-
-    A 405 here against a 404 for an unmounted backend told an unauthenticated
-    caller which optional endpoints a deployment had enabled. The agent view was
-    corrected for this; its two read-only siblings kept the old order.
-    """
+    """Authorization comes before the method check, as on the agent endpoint."""
     response = ToolsView(_registry())(RequestFactory().post("/agent/tools/"))
     assert response.status_code == 401

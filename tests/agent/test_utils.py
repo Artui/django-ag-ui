@@ -1,11 +1,3 @@
-"""The shared pump two stream wrappers now race against.
-
-Covered incidentally by both consumers, pinned here on purpose: the lockstep and
-the closing of upstream are contracts they rely on rather than details, and a
-change that broke either would surface as a flaky delegation or a leaked
-provider stream rather than as a failure here.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -38,9 +30,7 @@ async def test_items_arrive_in_order_and_end_with_the_sentinel() -> None:
 
 
 async def test_upstream_waits_for_task_done_before_producing_again() -> None:
-    """The lockstep itself: a consumer that has not acknowledged item N never
-    causes item N+1 to be produced. This is the client's backpressure — a browser
-    that stops reading has to stop the run."""
+    """Lockstep: a consumer that has not acknowledged item N never gets item N+1 produced."""
     produced: list[str] = []
 
     async def _counted() -> AsyncIterator[str]:
@@ -52,7 +42,6 @@ async def test_upstream_waits_for_task_done_before_producing_again() -> None:
     pump = asyncio.ensure_future(pump_in_lockstep(_counted(), out))
 
     assert await out.get() == "a"
-    # Give the pump every chance to run ahead. It cannot: it is parked in join().
     for _ in range(10):
         await asyncio.sleep(0)
     assert produced == ["a"]
@@ -66,8 +55,7 @@ async def test_upstream_waits_for_task_done_before_producing_again() -> None:
 
 
 async def test_an_upstream_exception_is_queued_behind_the_items_it_followed() -> None:
-    """Raised inside the pump it would surface out of band as a task nobody
-    awaited, and out of order with the items the consumer had not taken yet."""
+    """Raised inside the pump it would surface as an unawaited task, out of order."""
 
     async def _raises() -> AsyncIterator[str]:
         yield "a"
@@ -81,13 +69,11 @@ async def test_an_upstream_exception_is_queued_behind_the_items_it_followed() ->
     queued = await out.get()
     assert isinstance(queued, RuntimeError)
     assert str(queued) == "upstream blew up"
-    await pump  # the pump itself ends quietly; the consumer owns the raise
+    await pump
 
 
 async def test_a_cancelled_pump_still_closes_upstream() -> None:
-    """The obligation a pump owes back. A cancellation lands on ``join`` as often
-    as inside ``__anext__``, which would otherwise leave the upstream generator
-    suspended at its own yield with its ``finally`` unrun."""
+    """The obligation a pump owes back."""
     closed = asyncio.Event()
 
     async def _closeable() -> AsyncIterator[str]:

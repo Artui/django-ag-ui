@@ -1,5 +1,3 @@
-"""``suggestions_activity`` -- follow-up chips over the activity envelope."""
-
 from __future__ import annotations
 
 import pytest
@@ -14,11 +12,7 @@ from django_ag_ui.agent.suggestions_activity import (
 
 
 def test_it_is_an_ordinary_activity_snapshot() -> None:
-    """Vanilla AG-UI: a convention inside an open field, not an extension.
-
-    A client that has never heard of this ``activity_type`` ignores the event,
-    which is the whole reason it rides the envelope the protocol already has.
-    """
+    """Vanilla AG-UI: a convention inside an open field, not an extension."""
     event = suggestions_activity(["Update the shipping address too"])
 
     assert event.type is EventType.ACTIVITY_SNAPSHOT
@@ -27,18 +21,12 @@ def test_it_is_an_ordinary_activity_snapshot() -> None:
 
 
 def test_a_repeat_id_replaces_rather_than_stacks() -> None:
-    # Load-bearing only on a repeat id, and harmless otherwise: it is what tells
-    # the client a set supersedes the row under that id rather than being a
-    # second row that happens to share it.
+    # Load-bearing only on a repeat id: it tells the client a set supersedes the row under that id.
     assert suggestions_activity(["Ask again"]).replace is True
 
 
 def test_a_generated_id_is_prefixed_out_of_the_message_namespace() -> None:
-    """``message_id`` is shared with assistant turns, as the chart one is.
-
-    A set sent under an id an assistant message already used would replace *that
-    message* in the transcript.
-    """
+    """``message_id`` is shared with assistant turns, as the chart one is."""
     assert suggestions_activity(["Ask again"]).message_id.startswith("suggestions-")
 
 
@@ -53,13 +41,7 @@ def test_prompts_are_stripped() -> None:
 
 
 class TestWhatItRefuses:
-    """Raised here rather than trimmed, and that is the point.
-
-    The client draws no more than its own limit and has **no channel** to report
-    what it dropped, so a producer working past the cap ships suggestions that
-    silently never appear. That is the hole ``chart_limits`` exists to close,
-    and it was found there the hard way.
-    """
+    """Raised here rather than trimmed, and that is the point."""
 
     def test_no_prompts(self) -> None:
         with pytest.raises(ValueError, match="at least one prompt"):
@@ -78,8 +60,7 @@ class TestWhatItRefuses:
             suggestions_activity(["x" * (MAX_SUGGESTION_CHARS + 1)])
 
     def test_the_cap_itself_is_allowed(self) -> None:
-        # The boundary, not just past it: an off-by-one here would refuse the
-        # exact number the docs tell a project it may send.
+        # The boundary, not just past it: an off-by-one would refuse a number the docs allow.
         event = suggestions_activity(["a", "b", "c", "d"])
 
         assert len(event.content["prompts"]) == MAX_SUGGESTIONS

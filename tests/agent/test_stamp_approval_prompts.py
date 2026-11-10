@@ -1,12 +1,3 @@
-"""The question a gated call asks a person.
-
-Pydantic-AI generates the interrupt's question from the call itself
-(``Approve create_event({"title": "Design sync"})?``), which is accurate and not
-something to show. The transformer under test replaces it with the same
-``x-confirm`` the browser already reads for a confirmation it gates itself, so
-one concept covers both gates.
-"""
-
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -139,8 +130,7 @@ async def test_leaves_a_run_finished_with_no_outcome_untouched() -> None:
 
 
 async def test_forwards_every_event_in_order() -> None:
-    # Something in the middle that is neither a tool-call start nor a terminal
-    # event: the wrapper sits on the whole stream, so it must not touch the rest.
+    # Neither a tool-call start nor a terminal event: the wrapper sits on the whole stream.
     events: list[BaseEvent] = [
         _start("call-1", "create_event"),
         TextMessageContentEvent(message_id="m1", delta="one moment"),

@@ -1,5 +1,3 @@
-"""The run's ``deps`` — what the endpoint hands the agent for each run."""
-
 from __future__ import annotations
 
 import inspect
@@ -65,8 +63,7 @@ def _recording_registry(seen: list[Any]) -> ToolRegistry:
 
 class TestTheSessionPassesDeps:
     async def test_a_tool_reads_the_acting_user_off_ctx_deps(self) -> None:
-        """The whole seam in one assertion: request-scoped values reach a tool
-        through ``ctx.deps`` rather than a closure over the request."""
+        """The seam in one assertion: request-scoped values reach a tool through ctx.deps."""
         seen: list[Any] = []
         agent: Agent[AgentDeps, Any] = Agent(TestModel(), deps_type=AgentDeps)
 
@@ -92,8 +89,7 @@ class TestTheSessionPassesDeps:
         assert seen == [user]
 
     def test_deps_are_required_not_defaulted(self) -> None:
-        """A forgotten ``deps`` would mean spec tools silently acting as nobody,
-        so the transport has to say who is acting."""
+        """A forgotten deps would make spec tools act as nobody: say who is acting."""
         param = inspect.signature(AgentSession.__init__).parameters["deps"]
         assert param.default is inspect.Parameter.empty
 
@@ -101,8 +97,7 @@ class TestTheSessionPassesDeps:
 class TestTheViewBuildsThem:
     async def test_the_acting_user_reaches_a_tool_end_to_end(self) -> None:
         seen: list[Any] = []
-        # Authenticated, because the endpoint refuses anonymous callers before
-        # any of this runs — the identity assertion is unchanged.
+        # Authenticated: anonymous callers are refused first, so identity is unchanged.
         user = authenticated_user()
         view = DjangoAGUIView(_recording_registry(seen), model=TestModel())
 
@@ -111,12 +106,7 @@ class TestTheViewBuildsThem:
         assert seen == [user]
 
     async def test_a_request_with_no_user_is_an_anonymous_run(self) -> None:
-        """An endpoint served without Django's auth middleware has no ``user``
-        attribute at all. The package's own ``materialize_request_user`` treats
-        that as ``None``; the run must not raise ``AttributeError`` instead.
-
-        Such a deployment is exactly the one that has to waive the
-        authentication requirement — there is no middleware to satisfy it."""
+        """An endpoint served without Django's auth middleware has no ``user`` attribute at all."""
         seen: list[Any] = []
         view = DjangoAGUIView(
             _recording_registry(seen), model=TestModel(), require_authenticated=False

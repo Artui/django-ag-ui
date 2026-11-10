@@ -35,15 +35,13 @@ def test_other_metadata_keys_survive_the_stamp() -> None:
 
 
 def test_the_stamp_wins_over_an_outcome_already_in_metadata() -> None:
-    # The part's outcome is pydantic-ai's record of how the call went; a stale
-    # value under the same key would have a client render the wrong one.
+    # The outcome is pydantic-ai's record of the call; a stale value would render the wrong one.
     stamped = stamp_outcome(_result(metadata={OUTCOME_FIELD: "success"}), "failed")
     assert stamped.metadata == {OUTCOME_FIELD: "failed"}
 
 
 def test_the_event_passed_in_is_left_alone() -> None:
-    """``model_copy`` is shallow, so updating the metadata dict in place would
-    stamp the caller's own event through the dict the two share."""
+    """model_copy is shallow: an in-place metadata update would stamp the caller's own event."""
     original = _result(metadata={"trace": "t-1"})
     stamp_outcome(original, "failed")
     assert original.metadata == {"trace": "t-1"}
@@ -69,9 +67,7 @@ def test_a_stored_tool_message_carries_both_carriers() -> None:
 
 
 def test_both_carriers_survive_the_thread_endpoints_re_dump() -> None:
-    # ``stored_messages_to_wire`` validates and re-dumps every row it serves, and
-    # the top-level key is an extra -- the kind of field a strict re-validation
-    # would drop on the way out.
+    # The re-dump drops extras a strict re-validation would lose; the top-level key is one.
     rows = messages_to_jsonable([stamp_outcome(_message(), "denied")])
     (served,) = stored_messages_to_wire(rows)
     assert served["metadata"] == {OUTCOME_FIELD: "denied"}

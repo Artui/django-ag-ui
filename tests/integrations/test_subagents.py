@@ -1,12 +1,3 @@
-"""A harness ``SubAgents`` capability wired through the ``CAPABILITIES`` seam.
-
-The recipe: with ``SubAgents`` in the agent's capabilities, the parent agent
-gains a single ``delegate_task`` tool (name configurable) and the child agents
-are *not* exposed as direct tools — the parent reaches them only by delegating.
-This mirrors the CodeMode recipe: a stateless harness capability adopted with no
-django-ag-ui package code, just the ``[harness]`` extra + this composition.
-"""
-
 from __future__ import annotations
 
 import pytest
@@ -19,16 +10,9 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 
 async def _parent_tool_names_with_subagents(tool_name: str = "delegate_task") -> list[str]:
-    """Compose ``build_agent`` + a ``SubAgents`` capability, run once, and return
-    the tool names the parent model saw."""
-    # The [harness] extra is a dev dependency, so this runs in CI; importorskip
-    # only guards a stripped-down environment. ``subagents`` ships in the base
-    # ``pydantic-ai-harness`` package (not behind the [code-mode] sandbox extra).
+    """Builds build_agent with SubAgents, runs once, and returns the tool names the parent saw."""
     subagents = pytest.importorskip("pydantic_ai_harness.subagents")
 
-    # A child agent that never calls the model in this test — it exists only so
-    # ``SubAgents`` exposes ``delegate_task``. ``agent_folders=None`` keeps the
-    # capability from auto-loading Markdown agents off disk.
     child = Agent(
         FunctionModel(lambda m, i: ModelResponse(parts=[TextPart(content="ok")])), name="researcher"
     )

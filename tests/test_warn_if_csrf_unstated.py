@@ -1,5 +1,3 @@
-"""Every directly-mountable endpoint asks the same authentication question."""
-
 from __future__ import annotations
 
 import warnings
@@ -21,13 +19,7 @@ BUILDERS = {
 
 @pytest.mark.parametrize("build", BUILDERS.values(), ids=BUILDERS)
 def test_an_endpoint_that_never_states_how_it_authenticates_warns(build: Any) -> None:
-    """The warning used to fire on the agent endpoint alone.
-
-    A project mounting these directly -- which the docs describe -- got silence,
-    so the one configuration the warning exists for (cookie-authenticated callers
-    on a CSRF-exempt endpoint, where any third-party page can drive it) was
-    announced on one mount and not on its siblings.
-    """
+    """The warning used to fire on the agent endpoint alone."""
     with pytest.warns(RuntimeWarning, match="CSRF-exempt"):
         build()
 
@@ -43,11 +35,7 @@ def test_an_endpoint_that_never_states_how_it_authenticates_warns(build: Any) ->
     ids=["csrf-enforced", "csrf-exempt-deliberately", "get-user-hook"],
 )
 def test_a_stated_configuration_is_silent(build: Any, kwargs: dict[str, Any]) -> None:
-    """Unstated is the signal, not ``True``.
-
-    Warning on a correct configuration is how a warning gets filtered, and then
-    stops being read at all.
-    """
+    """Unstated is the signal, not ``True``."""
     with warnings.catch_warnings():
         warnings.simplefilter("error", RuntimeWarning)
         build(**kwargs)

@@ -1,10 +1,3 @@
-"""A root URLconf mounting an :class:`AGUIServer` the ``admin.site.urls`` way.
-
-Used by ``test_agui_server`` via ``@override_settings(ROOT_URLCONF=...)`` to
-exercise the real ``path("agent/", server.urls)`` mount + namespaced
-``reverse()`` — the contract the pattern-inspection tests can't see.
-"""
-
 from __future__ import annotations
 
 from django.urls import path

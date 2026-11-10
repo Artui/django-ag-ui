@@ -59,8 +59,7 @@ async def test_aclose_closes_native_runs_on_cancel_and_reraises_generator_exit()
         on_cancel=recorder.on_cancel,
     )
     assert await anext(stream) == "a"
-    # Start the native generator so its try/finally is live, mirroring a real
-    # run where the agent has begun streaming.
+    # Start the native generator so its try/finally is live, as in a real run.
     assert await anext(native) == "native-event"
 
     await stream.aclose()
@@ -156,11 +155,7 @@ async def test_native_stream_without_aclose_is_tolerated() -> None:
 async def test_a_second_cancellation_during_finalisation_is_logged_not_lost(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # ``CancelledError`` has inherited from ``BaseException`` since 3.8, so an
-    # ``except Exception`` around the finalisation never saw it: a store torn
-    # down mid-write lost both the partial conversation and the cancellation
-    # audit record, with nothing logged and the run reading as neither
-    # completed nor cancelled.
+    # CancelledError is a BaseException, so except Exception never saw the lost save.
     async def _recancelled() -> None:
         raise asyncio.CancelledError
 
@@ -182,10 +177,7 @@ async def test_a_slow_store_does_not_park_the_disconnected_request(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # An aborted connection is cheap for the client and used to be open-ended
-    # for the server: the conversation save and the audit write ran inline in
-    # the disconnected request's task with no time bound, so a contended store
-    # turned cheap aborts into workers parked in teardown.
+    # The aborted connection's save and audit ran inline with no time bound, parking workers.
     monkeypatch.setattr(guarded_stream_module, "_FINALIZE_TIMEOUT_SECONDS", 0.01)
     started = asyncio.Event()
     finished: list[str] = []
@@ -207,7 +199,6 @@ async def test_a_slow_store_does_not_park_the_disconnected_request(
         await asyncio.wait_for(stream.aclose(), timeout=0.1)
 
     assert "continues in the background" in caplog.text
-    # Shielded rather than abandoned: the write is still allowed to land.
     assert started.is_set()
     await asyncio.sleep(0.25)
     assert finished == ["saved"]

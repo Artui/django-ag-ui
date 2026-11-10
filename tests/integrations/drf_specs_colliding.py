@@ -1,11 +1,3 @@
-"""A spec mapping whose names collide with the MCP fixture + read_attachment.
-
-Used to prove the cross-toolset collision guard: ``add`` collides with the
-django-spec-mcp ``test`` server's ``add`` tool (the server wins), ``read_attachment``
-collides with the built-in attachment tool (spec wins over it), and
-``unique_spec`` has no collision (it survives).
-"""
-
 from __future__ import annotations
 
 from typing import Any

@@ -1,5 +1,3 @@
-"""A fixture ``name -> spec`` mapping of kernel specs for the SpecToolset tests."""
-
 from __future__ import annotations
 
 from typing import Any

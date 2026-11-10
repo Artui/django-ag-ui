@@ -33,9 +33,7 @@ def test_an_empty_message_list_stays_empty() -> None:
 
 
 def test_a_string_content_message_is_passed_through_untouched() -> None:
-    # The overwhelmingly common case, and the one the whole change must not
-    # disturb: the composer posts string content. Identity, not equality — a
-    # copy here would be pure cost on every message of every turn.
+    # The common case the change must not disturb: the composer posts string content.
     message = _user("what is in the file?")
 
     (kept,) = strip_binary_content([message])
@@ -71,15 +69,12 @@ def test_a_mixed_message_keeps_its_text_and_loses_its_bytes() -> None:
 
 
 def test_a_message_that_is_only_bytes_is_dropped_entirely() -> None:
-    # The shape ``read_attachment``'s ToolReturn serialises into: a synthetic
-    # user message carrying the document and nothing else. Emptied of it there
-    # is no message left, and an empty user turn is a blank chat bubble.
+    # The shape read_attachment's ToolReturn serialises into: a user message with the document only.
     assert strip_binary_content([_user([_document_part()])]) == []
 
 
 def test_a_url_referenced_part_is_a_reference_and_is_kept() -> None:
-    # Dropping it would lose information and save no storage: the bytes are not
-    # in the row, only a pointer to them.
+    # Dropping it would lose information and save no storage; the row holds only a pointer.
     message = _user([_url_image_part()])
 
     (kept,) = strip_binary_content([message])
@@ -88,9 +83,7 @@ def test_a_url_referenced_part_is_a_reference_and_is_kept() -> None:
 
 
 def test_a_part_naming_a_provider_file_is_a_reference_and_is_kept() -> None:
-    # The third kind of source: a handle a model provider issued for bytes it
-    # already holds. Nothing travels in the row, so there is nothing to strip,
-    # and dropping it would lose the only way back to the file.
+    # The third kind of source: a handle a model provider issued for bytes it already holds.
     message = _user(
         [
             {
@@ -106,16 +99,7 @@ def test_a_part_naming_a_provider_file_is_a_reference_and_is_kept() -> None:
 
 
 def test_ids_and_the_attachments_extra_survive_the_strip() -> None:
-    """The guard on the whole change.
-
-    Stripping by re-validating through ``AGUIAdapter.load_messages`` /
-    ``dump_messages`` is the convenient implementation and the wrong one: the
-    round-trip discards ``model_extra``, silently reverting the fix that keeps a
-    client's attachment refs resolvable after a reload. ``model_copy`` is what
-    this asserts. The extra is what holds it on every version: the round-trip
-    keeps the id from pydantic-ai-slim 2.48, so the id assertion tells the two
-    apart only in the floor job.
-    """
+    """The guard on the whole change."""
     attachments = [{"id": "a1", "name": "report.pdf", "mime": "application/pdf", "size": 2300}]
     message = _user([_text_part(), _document_part()], attachments=attachments)
 
@@ -127,12 +111,7 @@ def test_ids_and_the_attachments_extra_survive_the_strip() -> None:
 
 
 def test_attachment_refs_in_metadata_survive_the_strip() -> None:
-    """The same guard for the carrier the web component moved the refs to.
-
-    ``metadata`` is a declared field rather than an extra, so ``model_copy``
-    keeps it for a different reason -- and the re-validating round-trip drops it
-    all the same, which is what this holds against.
-    """
+    """The same guard for the carrier the web component moved the refs to."""
     metadata = {"attachments": [{"id": "a1", "name": "report.pdf"}]}
     message = _user([_text_part(), _document_part()], metadata=metadata)
 

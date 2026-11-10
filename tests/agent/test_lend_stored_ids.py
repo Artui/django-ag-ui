@@ -65,8 +65,7 @@ def test_each_kind_takes_the_id_of_the_same_stored_message() -> None:
 
 
 def test_a_message_matches_within_its_own_kind_only() -> None:
-    # A text answer and a reasoning message holding the same words are two
-    # messages; neither is lent the other's id.
+    # A text answer and a reasoning message with the same words are two messages, lent no ids.
     dumped = [_text("fresh", "same words")]
     stored = [ReasoningMessage(id="reasoning", role="reasoning", content="same words")]
 
@@ -74,8 +73,7 @@ def test_a_message_matches_within_its_own_kind_only() -> None:
 
 
 def test_text_is_compared_without_its_newlines() -> None:
-    # A row stored from a failed run's transcript holds an answer as it
-    # streamed, where the dump joins the answer's parts with a newline.
+    # A failed run's row holds the streamed answer, where the dump joins parts with a newline.
     dumped = [_text("fresh", "first part\nsecond part")]
     stored = [_text("streamed", "first partsecond part")]
 
@@ -90,8 +88,7 @@ def test_repeated_answers_are_matched_in_order() -> None:
 
 
 def test_a_stored_message_the_dump_lacks_is_passed_over() -> None:
-    # The row holds a message the snapshot does not -- one a failed run stored
-    # from its transcript, say -- and the walk moves past it.
+    # A row message the snapshot lacks, from a failed run, is walked past.
     dumped = [_text("fresh-1", "kept"), _text("fresh-2", "ok")]
     stored = [_text("a", "kept"), _text("b", "only in the row"), _text("c", "ok")]
 
@@ -99,9 +96,7 @@ def test_a_stored_message_the_dump_lacks_is_passed_over() -> None:
 
 
 def test_a_match_is_never_taken_from_behind_the_last_one() -> None:
-    # The walk is ordered: once "later" has been matched, the earlier "ok" in
-    # the row is behind it, and the dumped "ok" after "later" does not reach
-    # back for it.
+    # The walk is ordered: once later is matched, an earlier ok behind it is not reached back for.
     dumped = [_text("fresh-1", "later"), _text("fresh-2", "ok")]
     stored = [_text("a", "ok"), _text("b", "later")]
 
@@ -147,8 +142,7 @@ def test_a_message_already_under_its_stored_id_is_left_as_it_is() -> None:
 
 
 def test_a_calling_message_takes_the_id_of_the_one_with_its_calls() -> None:
-    # Matched by its calls, not by its being a message with calls: the first
-    # stored message with calls carries other ones.
+    # Matched by its calls, not by being a message with calls: the first has other ones.
     lent = lend_stored_ids(
         [_calls("fresh", "call-b")], [_calls("first", "call-a"), _calls("second", "call-b")]
     )
@@ -190,8 +184,7 @@ def test_an_activity_matches_within_its_own_type_only() -> None:
 
 
 def test_an_activity_is_not_lent_an_id_from_another_position() -> None:
-    # The row's first compaction is not the dumped one, so the dumped one is
-    # not the row's second: pairing is by position, never by looking ahead.
+    # Pairing is by position, never by looking ahead.
     dumped = [_activity("fresh", "pydantic_ai_compaction", content="x")]
     stored = [
         _activity("other", "pydantic_ai_compaction", content="y"),
@@ -213,8 +206,7 @@ def test_an_activity_is_not_lent_an_id_when_the_row_holds_fewer() -> None:
 
 
 def test_a_type_whose_pairing_fails_keeps_every_dumped_id() -> None:
-    # The first pair agrees and the second does not: the whole type keeps its
-    # ids, and another type is judged on its own.
+    # The first pair agrees and the second does not: the type keeps its ids, others judged alone.
     dumped = [
         _activity("fresh-1", "pydantic_ai_compaction", content="a"),
         _activity("fresh-2", "pydantic_ai_compaction", content="b"),
@@ -230,8 +222,7 @@ def test_a_type_whose_pairing_fails_keeps_every_dumped_id() -> None:
 
 
 def test_an_activity_is_matched_whole_with_its_canonical_system() -> None:
-    # The stored row and the resumed dump both carry the key (the row holds what
-    # the completed run stored), so the contents are compared as they are.
+    # The row holds what the completed run stored, so contents compare as they are.
     both = {"provider_details": {"encrypted_content": "e"}, "canonical_system": "openai"}
     dumped = [_activity("fresh", "pydantic_ai_compaction", **both)]
     stored = [_activity("streamed", "pydantic_ai_compaction", **both)]
@@ -244,8 +235,7 @@ def test_an_activity_is_matched_whole_with_its_canonical_system() -> None:
 
 
 def test_an_edited_resubmit_keeps_the_streamed_id_of_the_compaction_it_kept() -> None:
-    # r1 and r2 each compacted; r3 edits the second user message, so the
-    # snapshot holds r1's compaction only while the row holds both.
+    # r1 and r2 each compacted; r3 edits the second user message, so the row holds both.
     dumped = [
         UserMessage(id="u1", role="user", content="first"),
         _activity("fresh-1", "pydantic_ai_compaction", content="summary 1"),

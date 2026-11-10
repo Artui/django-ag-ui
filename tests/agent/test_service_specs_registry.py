@@ -1,5 +1,3 @@
-"""``AGUIServer(service_specs=…)`` accepts a spec registry, not just a mapping."""
-
 from __future__ import annotations
 
 import pathlib
@@ -118,10 +116,7 @@ class TestNormalisation:
         )
 
     def test_names_are_names_not_records(self) -> None:
-        """Iterating a registry yields ``RegisteredSpec`` records, and the view
-        reserves tool names by iterating this value — records here would silently
-        break collision detection.
-        """
+        """Records here would silently break collision detection."""
         server = _server(service_specs=_registry())
         assert sorted(server._service_specs) == ["create_widget", "list_widgets"]
         assert all(isinstance(name, str) for name in server._service_specs)
@@ -154,13 +149,7 @@ class TestNormalisation:
 
 
 class TestTheSourceSurvivesNormalisation:
-    """The argument as given is kept beside the mapping and handed on as given.
-
-    A spec declares its ``reads`` and ``shapes`` on itself, so a registry and
-    its ``specs()`` serve the same tools today. A ``SpecRegistry`` entry still
-    carries its tags beside its spec, and the toolset is handed the registry
-    rather than its output, so whatever it reads off an entry reaches it.
-    """
+    """The argument as given is kept beside the mapping and handed on as given."""
 
     def test_a_registry_is_kept_as_the_source(self) -> None:
         registry = _registry()
@@ -270,15 +259,7 @@ class TestReachesTheViews:
 
 
 class TestUnguardedSpecs:
-    """A spec with no permissions never gets as far as serving.
-
-    A ``SpecRegistry`` refuses one itself, at ``register``, before this
-    transport sees it. A plain mapping reaches this transport's own check, at
-    construction. ``SpecCapability`` also refuses one, but this transport builds
-    its capability per request, so that check alone would turn a
-    misconfiguration into a 500 on the first agent call instead of a failure to
-    start. The mapping tests below pin this transport's own check.
-    """
+    """A spec with no permissions never gets as far as serving."""
 
     def test_a_registry_spec_with_no_permissions_is_refused_at_register(self) -> None:
         """The kernel answers first for a registry, naming the spec."""
@@ -293,11 +274,7 @@ class TestUnguardedSpecs:
         assert "declares no permissions" in message
 
     def test_a_mapping_spec_with_no_permissions_is_refused_at_construction(self) -> None:
-        """This transport's own check, in its own words.
-
-        The refusal reads the spec's ``permissions``, so it says how a spec
-        any caller may call declares that, in the kernel's vocabulary.
-        """
+        """This transport's own check, in its own words."""
         with pytest.raises(ImproperlyConfigured) as excinfo:
             AGUIServer(
                 ToolRegistry(), model=TestModel(), service_specs={"list_widgets": _bare_service()}
@@ -309,11 +286,7 @@ class TestUnguardedSpecs:
         assert "permissions=[Unrestricted()]" in message
 
     async def test_an_explicitly_unrestricted_spec_is_served(self) -> None:
-        """``permissions=[Unrestricted()]`` is a declaration, not an absence.
-
-        The check reads ``permissions is None``, so a list holding the kernel's
-        own admit-everyone check passes it, and the tool reaches the model.
-        """
+        """``permissions=[Unrestricted()]`` is a declaration, not an absence."""
         server = _server(service_specs={"create_widget": _service()})
         view = server._view
 
@@ -325,11 +298,7 @@ class TestUnguardedSpecs:
     def test_specs_without_the_extra_are_refused_naming_it(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The core install has no kernel; say which extra brings it.
-
-        A ``None`` in ``sys.modules`` makes the import raise as a missing
-        package does, without uninstalling anything.
-        """
+        """The core install has no kernel; say which extra brings it."""
         monkeypatch.setitem(sys.modules, "django_service_specs", None)
 
         with pytest.raises(ImportError) as excinfo:
@@ -339,11 +308,7 @@ class TestUnguardedSpecs:
         assert isinstance(excinfo.value.__cause__, ImportError)
 
     def test_a_value_that_compiles_to_no_spec_is_refused_naming_the_tool(self) -> None:
-        """A value the kernel cannot read is a mistake in one entry; say which.
-
-        The kernel's own ``TypeError`` names the type it was handed and not the
-        tool, which against a large mapping leaves the operator searching.
-        """
+        """A value the kernel cannot read is a mistake in one entry; say which."""
         with pytest.raises(TypeError) as excinfo:
             _server(service_specs={"list_widgets": _selector(), "oops": object()})
 
@@ -352,12 +317,7 @@ class TestUnguardedSpecs:
         assert isinstance(excinfo.value.__cause__, TypeError)
 
     def test_the_refusal_points_at_the_migration_path(self) -> None:
-        """A large registry cannot be guarded in one commit, so say what to do.
-
-        Upstream's message offers ``require_permissions=False``, which is not a
-        keyword this constructor takes, so repeating it verbatim would send an
-        operator looking for something that does not exist.
-        """
+        """A large registry cannot be guarded in one commit, so say what to do."""
         with pytest.raises(ImproperlyConfigured) as excinfo:
             AGUIServer(ToolRegistry(), model=TestModel(), service_specs={"go": _bare_service()})
 
@@ -382,13 +342,7 @@ class TestUnguardedSpecs:
 
 
 class TestPreBuiltToolset:
-    """``service_specs=`` accepts an already-built ``SpecToolset`` / capability.
-
-    It is the only way to reach a ``SpecToolset`` knob (``max_page_size``, an
-    ``exception_map``, a ``call_seeds`` override) without falling back to
-    ``capabilities=``, which the tool catalog never sees — so its tool-call cards
-    would render unlabelled.
-    """
+    """``service_specs=`` accepts an already-built ``SpecToolset`` / capability."""
 
     def _server(self, source: Any) -> AGUIServer:
         return AGUIServer(ToolRegistry(), model=TestModel(), service_specs=source)
@@ -412,12 +366,7 @@ class TestPreBuiltToolset:
         assert set(server._service_specs) == {"list_widgets"}
 
     def test_a_toolset_built_to_skip_the_permission_check_is_not_re_checked(self) -> None:
-        """Re-checking would take back a decision the consumer already made.
-
-        ``require_permissions=False`` is the documented migration path for a
-        registry too large to guard in one commit, and a pre-built toolset is the
-        only way to reach it from here.
-        """
+        """Re-checking would take back a decision the consumer already made."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             toolset = SpecToolset(
@@ -425,17 +374,11 @@ class TestPreBuiltToolset:
                 require_permissions=False,
             )
 
-        server = self._server(toolset)  # must not raise
+        server = self._server(toolset)
         assert server._spec_capability is not None
 
     def test_a_name_the_registry_already_owns_is_refused_at_construction(self) -> None:
-        """A pre-built toolset cannot be filtered, so this has to fail loudly.
-
-        For a mapping the endpoint drops the colliding name and the registry
-        wins. That option does not exist here — the object is the consumer's —
-        and left alone pydantic-ai raises ``UserError`` for the duplicate
-        *mid-run*, long after the catalog looked clean.
-        """
+        """A pre-built toolset cannot be filtered, so this has to fail loudly."""
         registry = ToolRegistry()
 
         @tool(registry)
@@ -452,18 +395,10 @@ class TestPreBuiltToolset:
 
         message = str(excinfo.value)
         assert "'list_widgets'" in message
-        # Says what to do, since neither side can be silently narrowed.
         assert "Rename" in message
 
     def test_a_name_the_bridged_mcp_server_owns_is_refused_too(self) -> None:
-        """The other claiming source, and the one that fails latest of all.
-
-        The mapping path already excludes both the registry and the MCP
-        server, so checking only the registry here made the two shapes of
-        ``service_specs=`` disagree about what counts as a collision — and the
-        MCP half surfaced as a pydantic-ai ``UserError`` mid-run, once the
-        bridge yielded its own ``add``.
-        """
+        """The other claiming source, and the one that fails latest of all."""
         from tests.integrations.spec_mcp_server import server as mcp_server
 
         with pytest.raises(ImproperlyConfigured) as excinfo:
@@ -476,8 +411,6 @@ class TestPreBuiltToolset:
 
         message = str(excinfo.value)
         assert "'add'" in message
-        # Names *which* source claimed it, since the two are renamed in
-        # different places.
         assert "the bridged MCP server" in message
 
     def test_a_name_no_source_owns_still_constructs(self) -> None:
@@ -520,7 +453,6 @@ class TestPreBuiltToolset:
             """Collides with the spec tool."""
             return "hi"
 
-        # No raise: a mapping is filtered, and the registry wins the name.
         AGUIServer(registry, model=TestModel(), service_specs={"list_widgets": _selector()})
 
     async def test_a_knob_only_reachable_on_a_pre_built_toolset_takes_effect(self) -> None:
@@ -533,32 +465,14 @@ class TestPreBuiltToolset:
         assert schema["limit"]["maximum"] == 25
 
     def test_the_declared_protocols_match_the_real_toolset_and_capability(self) -> None:
-        """**A too-narrow annotation trains consumers to suppress correct code.**
-
-        The tests above assert the behaviour; this one and the next assert the
-        *declaration* keeps up with it, so a project doing the documented thing
-        does not end up with a green suite, a red type checker, and an ignore
-        comment on code that was never wrong.
-
-        The cheap half, in-process: the two protocols the union names are matched
-        structurally, so a member misspelled in either would still type-check
-        against itself while describing nothing that exists.
-        """
+        """**A too-narrow annotation trains consumers to suppress correct code.**"""
         assert isinstance(SpecToolset({"list_widgets": _selector()}), SpecToolsetSource)
         assert isinstance(SpecCapability({"list_widgets": _selector()}), SpecCapabilitySource)
 
     def test_a_type_checker_accepts_every_shape_at_the_call_site(
         self, tmp_path: pathlib.Path
     ) -> None:
-        """The durable half — the consumer's own checker, on the consumer's code.
-
-        ``ty`` is the checker this repo gates on, so running it over a snippet
-        passing all four shapes is the only assertion that fails for the same
-        reason a consumer's build does. Structural conformance alone is not
-        enough: ``SpecToolset`` satisfies a ``runtime_checkable`` ``SpecSource``
-        at runtime (``hasattr(x, "specs")`` is true of a property too) while
-        failing assignability.
-        """
+        """The durable half — the consumer's own checker, on the consumer's code."""
         if shutil.which("ty") is None:
             pytest.skip("ty is a dev-group dependency; nothing to check without it")
         snippet = tmp_path / "consumer.py"
@@ -572,19 +486,11 @@ class TestPreBuiltToolset:
         )
 
         output = result.stdout + result.stderr
-        # Proves ty resolved this package rather than reporting a clean run over
-        # a file whose imports it never found — without this the assertion below
-        # passes for the wrong reason.
         assert "unresolved-import" not in output, output
         assert "service_specs" not in output, output
 
     def test_the_view_attaches_it_and_reserves_its_names(self) -> None:
-        """The server holds it; this proves the view actually composes it.
-
-        The names are added to ``seen`` even though nothing filters the
-        capability itself, so the attachment toolset built after it cannot shadow
-        one of its tools.
-        """
+        """The server holds it; this proves the view actually composes it."""
         toolset = SpecToolset({"list_widgets": _selector()})
         server = AGUIServer(ToolRegistry(), model=TestModel(), service_specs=toolset)
         seen: set[str] = set()

@@ -1,11 +1,3 @@
-"""A delegation seen from the wire: the whole composition, end to end.
-
-The three parts are tested apart -- the event's shape, the observer's noticing,
-the injector's timing -- and none of them proves the endpoint is wired. This
-drives the real view with a real ``SubAgents`` capability and reads what a
-browser would read.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -127,8 +119,6 @@ async def _progress() -> list[dict[str, Any]]:
 
 async def test_a_delegation_reports_itself_from_start_to_finish() -> None:
     # The claim the split has to earn: two carriers, one narrative, in order.
-    # A client reading only the protocol's events sees the delegation open and
-    # close; one that also reads the CUSTOM channel sees what happened between.
     narration = [
         event["type"] if _is_lifecycle(event) else event["value"]["phase"]
         for event in await _stream()
@@ -144,19 +134,14 @@ async def test_a_delegation_reports_itself_from_start_to_finish() -> None:
 
 
 async def test_the_delegation_opens_and_closes_on_one_run_id() -> None:
-    # The protocol refuses a close that names no open delegation, and refuses
-    # RUN_FINISHED while one is still open -- so this pair being consistent is
-    # what keeps the run acceptable to the client, not a cosmetic nicety.
+    # The protocol refuses a close naming no open delegation, and an open one at finish.
     opened, closed = [event for event in await _stream() if _is_lifecycle(event)]
 
     assert opened["subagentRunId"] == closed["subagentRunId"]
 
 
 async def test_every_event_is_keyed_to_the_parents_own_tool_call() -> None:
-    # The client already drew a card for ``call-1`` off TOOL_CALL_START. Keying
-    # on that id is what makes this an augmentation of that card rather than a
-    # second row beside it -- and both carriers have to agree on it, since the
-    # client joins them by it.
+    # The client already drew a card for ``call-1`` off TOOL_CALL_START.
     events = await _stream()
     opened = next(event for event in events if event["type"] == "SUBAGENT_STARTED")
 
@@ -174,8 +159,7 @@ async def test_the_childs_tool_call_is_named_with_its_outcome() -> None:
 
 
 async def test_the_progress_arrives_around_the_delegate_tool_call() -> None:
-    # Ordering on the wire, not just presence: the delegation has to open after
-    # the tool call it belongs to, and close before that call's result.
+    # Ordering on the wire: the delegation opens after its tool call and closes before its result.
     types = [event["type"] for event in await _stream()]
 
     assert types.index("TOOL_CALL_END") < types.index("SUBAGENT_STARTED")
@@ -183,10 +167,7 @@ async def test_the_progress_arrives_around_the_delegate_tool_call() -> None:
 
 
 async def test_two_delegations_at_once_do_not_cross_talk() -> None:
-    # The client groups by delegationId, so parallel delegations have to stay
-    # apart on the wire. They can, because pydantic-ai runs concurrent tool
-    # calls in their own tasks and the correlation is a context variable set
-    # inside each -- each write lands in that task's own copy of the context.
+    # The client groups by delegationId, so parallel delegations have to stay apart on the wire.
     def child(name: str, tool_call_id: str, delay: float) -> Agent[Any, Any]:
         async def work(query: str) -> str:
             """Take a while."""
@@ -233,8 +214,6 @@ async def test_two_delegations_at_once_do_not_cross_talk() -> None:
         capabilities=[
             SubAgentObserver(
                 SubAgents(
-                    # beta finishes first, so the two are genuinely interleaved
-                    # rather than merely started together.
                     agents=[
                         SubAgent(child("alpha", "sub-a", 0.05)),
                         SubAgent(child("beta", "sub-b", 0.0)),
@@ -248,10 +227,7 @@ async def test_two_delegations_at_once_do_not_cross_talk() -> None:
     events = await _events(response)
     progress = [event["value"] for event in events if event.get("name") == SUBAGENT_EVENT_NAME]
 
-    # The lifecycle half, which is where the protocol is strictest: it refuses a
-    # reused subagentRunId inside one run, and refuses RUN_FINISHED while any
-    # delegation is still open. Two parallel delegations are the case that would
-    # break both if the correlation leaked between tasks.
+    # The lifecycle half, where the protocol is strictest: no reused id, nothing open at finish.
     lifecycle = [event for event in events if _is_lifecycle(event)]
     assert {
         event["subagentRunId"] for event in lifecycle if event["type"] == "SUBAGENT_STARTED"
@@ -266,15 +242,12 @@ async def test_two_delegations_at_once_do_not_cross_talk() -> None:
         by_delegation[value["delegationId"]].append(value["agent"])
     assert set(by_delegation["call-a"]) == {"alpha"}
     assert set(by_delegation["call-b"]) == {"beta"}
-    # Interleaved on the wire, which is what a client has to cope with.
     assert [value["delegationId"] for value in progress] != sorted(
         value["delegationId"] for value in progress
     )
 
 
 async def test_an_unwrapped_capability_emits_nothing() -> None:
-    # Opt-in by construction: the wrapping is the switch, and there is no
-    # setting that turns this on behind it.
     researcher = Agent(
         FunctionModel(stream_function=_scripted(["nothing to report"])),
         name="researcher",
@@ -298,7 +271,6 @@ async def test_an_unwrapped_capability_emits_nothing() -> None:
     )
     response = await view(_post())
 
-    # Neither carrier, not just the CUSTOM one: the wrapping is the switch, and
-    # adopting the protocol's own events did not add a second way in.
+    # Neither carrier: the wrapping is the switch, and the protocol's events add no second way in.
     events = await _events(response)
     assert not [event for event in events if _is_step(event) or _is_lifecycle(event)]

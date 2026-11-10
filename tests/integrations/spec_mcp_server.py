@@ -1,9 +1,3 @@
-"""A fixture django-spec-mcp ``MCPServer`` over kernel specs, for the ``[mcp]`` bridge.
-
-Kernel specs only, served the way ``AGUIServer(mcp_server=...)`` takes them:
-nothing here imports Django REST Framework.
-"""
-
 from __future__ import annotations
 
 from typing import Any

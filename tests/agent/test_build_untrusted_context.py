@@ -81,8 +81,7 @@ def test_the_ambient_situation_is_rendered_before_the_specific_handles() -> None
 
 
 def test_both_sources_on_with_nothing_to_say_delivers_nothing() -> None:
-    # The common case for a project that never populated either: no block at
-    # all rather than an empty fence on every request of every run.
+    # No block at all, rather than an empty fence on every request of every run.
     assert build_untrusted_context(_run_input(), config=_config()) is None
 
 

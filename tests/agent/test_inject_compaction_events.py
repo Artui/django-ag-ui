@@ -1,5 +1,3 @@
-"""``inject_compaction_events`` — putting recorded compactions on the wire."""
-
 from __future__ import annotations
 
 import contextlib
@@ -72,8 +70,7 @@ async def test_a_stream_with_no_compaction_is_unchanged() -> None:
 
 
 async def test_a_compaction_is_injected_before_the_next_event() -> None:
-    # Ordering is the point: the notice belongs immediately above the turn that
-    # ran with the shortened history, not at the end of the run.
+    # Ordering is the point: the notice sits right above the turn that ran on shorter history.
     async def upstream() -> AsyncIterator[BaseEvent]:
         yield _text("a")
         await _record(Compaction(before=10, after=2))
@@ -100,8 +97,7 @@ async def test_the_injected_event_carries_the_sizes() -> None:
 
 
 async def test_a_compaction_recorded_during_the_last_event_still_ships() -> None:
-    # Without the drain after the loop this one is dropped on the floor — the
-    # last model request of a run is exactly when a history is longest.
+    # Without the drain after the loop, the last model request's event is dropped.
     async def upstream() -> AsyncIterator[BaseEvent]:
         yield _text("a")
         await _record(Compaction(before=6, after=3))
@@ -143,8 +139,7 @@ async def test_the_sink_is_reset_when_the_stream_raises() -> None:
 
     with contextlib.suppress(_Boom):
         await _collect(inject_compaction_events(upstream()))
-    # A run that errors mid-stream must not leave the sink bound; the next run
-    # on this task would otherwise write into a dead list.
+    # A run that errors mid-stream must not leave the sink bound to the next run.
     assert COMPACTION_SINK.get() is None
 
 
@@ -164,8 +159,7 @@ async def test_end_to_end_with_a_real_compaction_capability() -> None:
     out = await _collect(inject_compaction_events(upstream()))
     activities = [event for event in out if event.type == EventType.ACTIVITY_SNAPSHOT]
     assert len(activities) == 1
-    # The payload is what this pins: three keys, and counts that agree with the
-    # trim that actually happened. How deep the window trims is upstream's call.
+    # The payload is what this pins: three keys, with counts matching the real trim.
     after = retained[0]
     assert after < 10
     assert activities[0].content == {"removed": 10 - after, "before": 10, "after": after}
