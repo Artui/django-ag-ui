@@ -1,11 +1,3 @@
-"""A collaborator named rather than passed, refused where it is cheap to notice.
-
-The settings-shaped version of this mistake has been refused since 0.19.0
-(`test_check_removed_settings`). The constructor-shaped version was not, and it
-was the worse of the two: a string reached the endpoint the argument configures
-and failed there, one request later, as an attribute error on a `str`.
-"""
-
 from __future__ import annotations
 
 import pytest
@@ -71,11 +63,7 @@ def test_every_offender_is_named_at_once() -> None:
 
 
 def test_a_string_model_is_left_alone() -> None:
-    """``model`` and ``instructions`` take strings by design.
-
-    The guard is about arguments that can only be objects; refusing every string
-    would refuse the documented way to name a model.
-    """
+    """``model`` and ``instructions`` take strings by design."""
     server = AGUIServer(
         ToolRegistry(), model="anthropic:claude-sonnet-4.6", instructions="Be terse"
     )
@@ -85,12 +73,7 @@ def test_a_string_model_is_left_alone() -> None:
 
 @pytest.mark.parametrize("argument", ["toolsets", "capabilities"])
 def test_a_dotted_path_inside_a_list_is_refused_too(argument: str) -> None:
-    """The same mistake with a longer fuse, so it is worth the element check.
-
-    A string toolset survives construction *and* the mount, then fails when the
-    agent is built — as a missing attribute on something that was never a toolset,
-    at which point nothing points back at the URL conf.
-    """
+    """The same mistake with a longer fuse, so it is worth the element check."""
     with pytest.raises(ImproperlyConfigured, match="never dotted paths"):
         AGUIServer(ToolRegistry(), model=TestModel(), **{argument: ["myapp.tools.Toolset"]})
 

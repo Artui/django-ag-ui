@@ -28,8 +28,7 @@ from django_ag_ui.check_removed_settings import _KNOWN_SETTINGS, check_removed_s
     ],
 )
 def test_removed_collaborator_settings_raise(removed: dict[str, object]) -> None:
-    """Silently ignoring a stale TOOLSETS would mean an agent quietly loses its
-    tools; a stale TOOL_GUARD-adjacent key, that a project runs ungated."""
+    """Ignoring a stale TOOLSETS silently would strip an agent's tools, so it raises."""
     with (
         override_settings(DJANGO_AG_UI=removed),
         pytest.raises(ImproperlyConfigured, match="removed in 0.19.0"),
@@ -63,12 +62,7 @@ def test_a_clean_settings_dict_passes() -> None:
 
 
 def test_allow_anonymous_is_rejected_by_name() -> None:
-    """The key that reads like a switch and is a store constructor argument.
-
-    Nothing in this package ever read it, so a project that set it got the
-    ``False`` default and no indication otherwise — the failure is silent, and
-    until now the only explanation lived in a warning box in the docs.
-    """
+    """The key that reads like a switch and is a store constructor argument."""
     with (
         override_settings(DJANGO_AG_UI={"ALLOW_ANONYMOUS": True}),
         pytest.raises(ImproperlyConfigured, match="allow_anonymous=True"),
@@ -77,12 +71,7 @@ def test_allow_anonymous_is_rejected_by_name() -> None:
 
 
 def test_an_unknown_key_is_rejected_rather_than_ignored() -> None:
-    """A typo is the same silent failure as a removed key, one letter away.
-
-    Naming the removed keys one at a time only ever covered the mistakes already
-    made. Rejecting everything the package does not read is what makes the list
-    exhaustive.
-    """
+    """A typo is the same silent failure as a removed key, one letter away."""
     with (
         override_settings(DJANGO_AG_UI={"TRANSCRIPTION_MAX_BYTE": 10}),
         pytest.raises(ImproperlyConfigured) as excinfo,
@@ -93,29 +82,13 @@ def test_an_unknown_key_is_rejected_rather_than_ignored() -> None:
 
 
 def test_every_known_key_is_accepted() -> None:
-    """The guard must not reject a setting the builder actually reads.
-
-    Exercised on the guard rather than through ``AGUIServer``, because the two
-    answer different questions: this one is about which *names* pass, and a
-    dict of every name at once could not also carry a valid *value* for each.
-    """
+    """The guard must not reject a setting the builder actually reads."""
     with override_settings(DJANGO_AG_UI=dict.fromkeys(_KNOWN_SETTINGS, None)):
-        check_removed_settings()  # must not raise
+        check_removed_settings()
 
 
 def test_the_known_key_list_matches_what_the_builder_reads() -> None:
-    """The drift guard, read off the builder's own source.
-
-    ``_KNOWN_SETTINGS`` is what makes "anything else is rejected" safe, so a key
-    added to ``build_ag_ui_config`` and forgotten here would turn a correct
-    settings dict into a startup failure. Checked statically rather than by
-    calling the builder, because a settings read leaves no trace at runtime.
-
-    Nested keys (``TOOL_GUARD["ENABLED"]`` and friends) are deliberately not
-    picked up: they are read with ``dict.get`` off an already-fetched value, not
-    with the settings primitive, and they are not top-level ``DJANGO_AG_UI``
-    keys.
-    """
+    """The drift guard, read off the builder's own source."""
     source = pathlib.Path(build_ag_ui_config.__code__.co_filename).read_text()
     read: set[str] = set()
     for node in ast.walk(ast.parse(source)):
