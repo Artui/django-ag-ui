@@ -962,17 +962,15 @@ async def test_step_store_records_the_run_end_to_end() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_step_store_records_the_tools_own_exception() -> None:
-    # The step ledger records a failed call from ``StepPersistence``'s error
-    # hook, and django-spec-agents' failure policy converts the same
-    # exception into the redacted ``ToolFailed`` the model is shown. The ledger
-    # is what an operator reads to find out why a run went wrong, so it must
-    # hold what the tool raised rather than the policy's copy with the text
-    # withheld. It did on both sides of django-pydantic-agent 0.27, the
-    # runtime's predecessor, where the policy moved: this view attaches ``StepPersistence`` per run, and a per-run
-    # capability's error hook runs before the agent's own, so the policy's
-    # move to outermost in 0.27 changes nothing here. The test holds that, so
-    # a later reordering on either side cannot quietly hand the ledger the copy.
-    # A capability passed to the view as ``capabilities=`` is the case 0.27
+    # The step ledger records a failed call from ``StepPersistence``'s error hook, and
+    # django-spec-agents' failure policy converts the same exception into the redacted
+    # ``ToolFailed`` the model is shown. The ledger is what an operator reads to find out why a run
+    # went wrong, so it must hold what the tool raised rather than the policy's copy with the text
+    # withheld. It did on both sides of django-pydantic-agent 0.27, the runtime's predecessor, where
+    # the policy moved: this view attaches ``StepPersistence`` per run, and a per-run capability's
+    # error hook runs before the agent's own, so the policy's move to outermost in 0.27 changes
+    # nothing here. The test holds that, so a later reordering on either side cannot quietly hand
+    # the ledger the copy. A capability passed to the view as ``capabilities=`` is the case 0.27
     # does change; the next test covers it.
     from asgiref.sync import sync_to_async
     from django.contrib.auth import get_user_model
@@ -1616,16 +1614,15 @@ class TestHeartbeat:
 
 # --- a selection the presenter refuses while rendering ----------------------
 #
-# A read-shaping argument is read while the result renders, after the tool has
-# run, by the kernel spec's presenter, whether the spec reaches the agent
-# through a django-spec-mcp server or as ``service_specs=``. Both transports answer a value it refuses
-# with a retry naming the argument rather than an exception out of the tool. For this package that
-# moves the refusal from one event to another. It was a failed call under the
-# default ``TOOL_FAILURE`` policy, its text withheld from the model and the
-# browser alike, so the model could not correct the selection; it is now a
-# retry, a ``TOOL_CALL_RESULT`` with no ``outcome``, sent as it is. The text is
-# the refusal's own client-facing message, and only ever about a value the model
-# sent; anything else a render raises is still a failure the policy withholds.
+# A read-shaping argument is read while the result renders, after the tool has run, by the kernel
+# spec's presenter, whether the spec reaches the agent through a django-spec-mcp server or as
+# ``service_specs=``. Both transports answer a value it refuses with a retry naming the argument
+# rather than an exception out of the tool. For this package that moves the refusal from one event
+# to another. It was a failed call under the default ``TOOL_FAILURE`` policy, its text withheld from
+# the model and the browser alike, so the model could not correct the selection; it is now a retry,
+# a ``TOOL_CALL_RESULT`` with no ``outcome``, sent as it is. The text is the refusal's own
+# client-facing message, and only ever about a value the model sent; anything else a render raises
+# is still a failure the policy withholds.
 #
 # Both routes serve the same kernel spec, so each case declares it once.
 
