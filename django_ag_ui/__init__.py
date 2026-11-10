@@ -1,5 +1,3 @@
-"""Django ↔ Pydantic-AI ↔ AG-UI integration."""
-
 from django_spec_agents import (
     X_CATEGORY_KEY,
     X_CONFIRM_KEY,

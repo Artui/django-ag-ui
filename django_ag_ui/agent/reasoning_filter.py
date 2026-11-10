@@ -15,14 +15,7 @@ REASONING_EVENT_TYPES: frozenset[EventType] = frozenset(
 
 
 async def drop_reasoning_events(stream: AsyncIterator[BaseEvent]) -> AsyncIterator[BaseEvent]:
-    """Yield ``stream`` unchanged except for reasoning/thinking events, dropped.
-
-    The privacy opt-out behind ``DJANGO_AG_UI["FORWARD_REASONING"] = False``: a
-    consumer can enable a model's thinking budget (better answers) without
-    streaming the model's chain-of-thought to the browser. Reasoning is a
-    pure adapter pass-through, so suppressing it is a stream filter — no protocol
-    change. Forwarding (the default) skips this filter entirely.
-    """
+    """Yield ``stream`` unchanged except for reasoning/thinking events, dropped."""
     async for event in stream:
         if event.type not in REASONING_EVENT_TYPES:
             yield event

@@ -27,33 +27,7 @@ from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 
 
 class AttachmentsView:
-    """Owner-scoped file-upload + download endpoint (async, multipart/JSON).
-
-    Mounted by [`AGUIServer`][django_ag_ui.AGUIServer] whenever ``attachment_store=``
-    is a live
-    [`AttachmentStore`][django_ag_ui.AttachmentStore]:
-
-    - ``POST   <prefix>attachments/``      → multipart upload under the ``file``
-      field; validates size/type from ``DJANGO_AG_UI`` settings, persists the
-      bytes, and returns ``201`` with the [`AttachmentRef`][django_ag_ui.AttachmentRef] JSON
-      (``{"id", "name", "mime", "size", "url"?}``) — a durable *ref*, not bytes.
-    - ``GET    <prefix>attachments/<id>/`` → stream the bytes back (owner-checked)
-      for preview/download; missing or cross-owner → ``404``.
-    - ``DELETE <prefix>attachments/<id>/`` → drop the attachment (``204``).
-
-    Every operation is scoped to the acting user: the store filters by owner, so
-    one user's id can never resolve another's file. Downloads are served as an
-    ``attachment`` with ``X-Content-Type-Options: nosniff`` so an uploaded
-    ``text/html`` can't execute as a same-origin page. The view carries the same
-    authentication seam as [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView]
-    (``require_authenticated`` / ``get_user``), and the closed default is
-    load-bearing here: every route is owner-scoped, so an anonymous caller has no
-    files to reach.
-
-    With the default [`NullAttachmentStore`][django_ag_ui.NullAttachmentStore]
-    an upload returns ``410`` (off): mount the view with a real store to enable
-    it.
-    """
+    """Owner-scoped file-upload + download endpoint (async, multipart/JSON)."""
 
     def __init__(
         self,
@@ -70,20 +44,15 @@ class AttachmentsView:
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
-        # Load-bearing here, unlike on the read-only catalogs: upload is POST and
-        # delete is DELETE, so CsrfViewMiddleware checks both, and a client that
-        # cannot produce a token (a Bearer-authenticated SPA, or any project on
-        # ``CSRF_USE_SESSIONS``, which mints no readable cookie) gets a hard 403.
+        # Load-bearing here: upload is POST and delete is DELETE, so CSRF checks both.
         warn_if_csrf_unstated(csrf_exempt, get_user)
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
-        # Mark this callable instance async so Django awaits ``__call__``.
         markcoroutinefunction(cast("Any", self))
 
     async def __call__(
         self, request: HttpRequest, attachment_id: str | None = None
     ) -> HttpResponseBase:
-        # First, so ``request.user`` is materialized off the event loop and the
-        # store's owner scoping is loop-safe on the calls below.
+        # First, so ``request.user`` is materialized before the store's loop-safe calls.
         deny = await aauthorize(
             request,
             get_user=self._get_user,
@@ -97,8 +66,6 @@ class AttachmentsView:
                 return await self._upload(request)
             return await self._detail(request, attachment_id)
         except AnonymousOperationError:
-            # A model-backed store refusing an anonymous request (the default
-            # unless ``allow_anonymous``): forbidden, not a server error.
             return auth_error_response(403)
 
     async def _upload(self, request: HttpRequest) -> HttpResponseBase:
@@ -107,12 +74,9 @@ class AttachmentsView:
         if isinstance(self._store, NullAttachmentStore):
             return JsonResponse({"error": "attachments are disabled"}, status=410)
         settings = self._config
-        # Before parsing, so an oversized upload aborts mid-stream rather than
-        # spooling the whole body to a temp file first.
+        # Before parsing, so an oversized upload aborts mid-stream, not after a full spool.
         guard = CappedUploadHandler(settings.attachment_max_bytes)
         request.upload_handlers.insert(0, guard)
-        # Parse the multipart body off the event loop — an in-cap upload may still
-        # spill to a temp file, which is blocking I/O.
         upload = await sync_to_async(_read_upload)(request)
         if guard.exceeded:
             return JsonResponse(
@@ -142,11 +106,7 @@ class AttachmentsView:
 
 
 def _read_upload(request: HttpRequest) -> UploadedFile | None:
-    """The single uploaded file under the ``file`` field, or ``None``.
-
-    Returns ``None`` for zero files (nothing posted) or more than one (the
-    composer uploads one file per request), so the caller answers ``400``.
-    """
+    """The single uploaded file under the ``file`` field, or ``None``."""
     files = request.FILES.getlist("file")
     if len(files) != 1:
         return None
@@ -154,13 +114,7 @@ def _read_upload(request: HttpRequest) -> UploadedFile | None:
 
 
 def _validate_type(upload: UploadedFile, allowed_types: tuple[str, ...]) -> JsonResponse | None:
-    """Enforce the content-type allowlist; ``None`` when accepted.
-
-    An empty ``allowed_types`` accepts any declared content type. The content
-    type is client-declared, so it is a coarse filter — the store decides what to
-    do with the bytes. The size cap lives in ``CappedUploadHandler``, which
-    aborts an oversized upload before it is fully parsed.
-    """
+    """Enforce the content-type allowlist; ``None`` when accepted."""
     if allowed_types and (upload.content_type or "") not in allowed_types:
         return JsonResponse(
             {"error": f"content type {upload.content_type!r} is not allowed"}, status=415
@@ -177,11 +131,7 @@ def _ref_to_json(ref: AttachmentRef) -> dict[str, Any]:
 
 
 def _download_response(opened: OpenedAttachment) -> HttpResponseBase:
-    """Stream the file back as a download — never inline, never content-sniffed.
-
-    ``FileResponse`` streams the open handle in chunks (and closes it), so a
-    large attachment is never buffered whole in memory.
-    """
+    """Stream the file back as a download — never inline, never content-sniffed."""
     ref = opened.ref
     response = FileResponse(
         opened.content,

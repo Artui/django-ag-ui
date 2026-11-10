@@ -1,5 +1,3 @@
-"""Refuse an async throttle hook at construction rather than at request time."""
-
 from __future__ import annotations
 
 from asgiref.sync import iscoroutinefunction
@@ -9,21 +7,7 @@ from django_ag_ui.agent.types.throttle import Throttle
 
 
 def reject_async_throttle(throttle: Throttle | None, *, allows: str) -> None:
-    """Refuse an ``async def consume`` at construction, not at request time.
-
-    The return value feeds an ``is not None`` check, and a coroutine is neither
-    ``None`` nor an integer: accepting one would make every request a 429
-    carrying a coroutine as its ``Retry-After``, so the endpoint would look rate
-    limited rather than misconfigured.
-
-    ``allows`` names what a ``None`` return lets through -- "run", "clip" -- so
-    the advice reads for the endpoint the caller mounted. It is the only thing
-    that differed between the two copies this replaced.
-    """
-    # asgiref picks ``inspect.iscoroutinefunction`` or, below 3.12,
-    # ``asyncio.iscoroutinefunction`` with a runtime ``hasattr``, which a type
-    # checker cannot narrow, so ty sees the asyncio overload typeshed deprecates
-    # from 3.11 on every interpreter. The installed Python decides which runs.
+    """Refuse an ``async def consume`` at construction, not at request time."""
     if throttle is None or not iscoroutinefunction(throttle.consume):  # ty: ignore[deprecated]
         return
     raise ImproperlyConfigured(

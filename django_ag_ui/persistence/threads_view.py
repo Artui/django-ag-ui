@@ -33,31 +33,7 @@ _MAX_TITLE_LEN = 255
 
 
 class ThreadsView:
-    """Owner-scoped thread index endpoint for the chat-history drawer (async, JSON).
-
-    Mounted by [`AGUIServer`][django_ag_ui.AGUIServer] whenever
-    ``conversation_store=`` is a live store, over the same
-    [`ConversationStore`][django_ag_ui.ConversationStore] the agent view uses:
-
-    - ``GET    <prefix>threads/``       → the user's threads, **metadata only**
-      (``{"threads": [...]}``);
-    - ``GET    <prefix>threads/<id>/``  → that thread's messages
-      (``{"thread_id", "messages"}``);
-    - ``PATCH  <prefix>threads/<id>/``  → rename (body ``{"title": "..."}``);
-    - ``DELETE <prefix>threads/<id>/``  → delete the thread (``204``).
-
-    Every operation is scoped to the acting user: the store filters by owner, so
-    a thread owned by another user simply isn't found (``404``) — never another
-    user's history. The view carries the same authentication seam as
-    [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView] (``require_authenticated`` /
-    ``get_user``, sync or async), and the closed default is load-bearing here:
-    every route is owner-scoped, so an anonymous caller has no history to reach.
-
-    A ``thread_activity_source=`` merges pushed activities back into the read
-    thread — see
-    [`ThreadActivitySource`][django_ag_ui.ThreadActivitySource] for why they are
-    not in the stored history to begin with.
-    """
+    """Owner-scoped thread index endpoint for the chat-history drawer (async, JSON)."""
 
     def __init__(
         self,
@@ -76,19 +52,15 @@ class ThreadsView:
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
-        # Load-bearing here, unlike on the read-only catalogs: rename is PATCH
-        # and delete is DELETE, so CsrfViewMiddleware checks both. Listing and
-        # reading a thread are GET and are never affected.
+        # Load-bearing here: rename is PATCH and delete is DELETE, both checked by CSRF.
         warn_if_csrf_unstated(csrf_exempt, get_user)
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
-        # Mark this callable instance async so Django awaits ``__call__``.
         markcoroutinefunction(cast("Any", self))
 
     async def __call__(
         self, request: HttpRequest, thread_id: str | None = None
     ) -> HttpResponseBase:
-        # First, so ``request.user`` is materialized off the event loop and the
-        # store's owner scoping is loop-safe on the calls below.
+        # First, so ``request.user`` is materialized before the store's loop-safe calls.
         deny = await aauthorize(
             request,
             get_user=self._get_user,
@@ -102,8 +74,6 @@ class ThreadsView:
                 return await self._list(request)
             return await self._detail(request, thread_id)
         except AnonymousOperationError:
-            # A model-backed store refusing an anonymous request (the default
-            # unless ``allow_anonymous``): forbidden, not a server error.
             return auth_error_response(403)
 
     async def _list(self, request: HttpRequest) -> HttpResponseBase:
@@ -118,13 +88,7 @@ class ThreadsView:
             conversation = await self._store.load(thread_id, request=request)
             if conversation is None:
                 return JsonResponse({"error": "not found"}, status=404)
-            # Parsed on the way out, not echoed: rows written before the messages
-            # were dumped by alias hold the Python field spelling, in which a
-            # client reading the protocol's camelCase keys finds no tool calls
-            # and no tool results. Validating and re-dumping covers both eras
-            # without a data migration — and it is the same round trip
-            # ``stored_messages_to_wire`` makes, split open here because the
-            # activity source is handed the parsed messages in between.
+            # Parsed on the way out: older rows hold Python field names, not the wire keys.
             messages = messages_from_jsonable(conversation.messages)
             messages = await self._merge_activities(thread_id, messages, request)
             return JsonResponse(
@@ -143,11 +107,7 @@ class ThreadsView:
     async def _merge_activities(
         self, thread_id: str, messages: list[Message], request: HttpRequest
     ) -> list[Message]:
-        """``messages`` with the source's activities put back, or unchanged.
-
-        Unchanged is the default and the common case: with no source configured
-        the read costs nothing beyond the parse it already did.
-        """
+        """``messages`` with the source's activities put back, or unchanged."""
         if self._thread_activity_source is None:
             return messages
         activities = await self._thread_activity_source.activities_for(
@@ -159,8 +119,7 @@ class ThreadsView:
         title = _parse_title(request)
         if title is None:
             return JsonResponse({"error": "a non-empty 'title' is required"}, status=400)
-        # Metadata-only probe, so a missing / cross-owner thread is a 404 rather
-        # than a silent rename of nothing, without deserializing the message body.
+        # Metadata-only probe, so a missing or cross-owner thread is a 404, not a silent no-op.
         if not await self._store.exists(thread_id, request=request):
             return JsonResponse({"error": "not found"}, status=404)
         await self._store.rename(thread_id, title, request=request)
@@ -170,26 +129,7 @@ class ThreadsView:
 def _with_activities(
     messages: list[Message], activities: Sequence[ThreadActivity]
 ) -> list[Message]:
-    """``messages`` with each activity materialised in at its anchor.
-
-    The materialisation is the one ``@ag-ui/client`` performs on a live
-    ``ACTIVITY_SNAPSHOT``: the event becomes an ``ActivityMessage`` carrying its
-    ``message_id`` as the id. That is what makes this work with no client
-    change — a restored activity is the same message the browser had on screen
-    during the run, arriving by a different road.
-
-    **Two entries for one id collapse into one, keeping the first position and
-    the last content.** A source replaying an append-only log hands over a chart
-    and then its revision; a chart that redraws is one chart moving, so showing
-    both would read as two measurements. First-position/last-content is not a
-    coin flip between the alternatives — it is exactly what the client does with
-    the pair anyway (it replaces the block in place, which keeps where it sat),
-    so collapsing here shrinks the payload without changing what is drawn.
-
-    An anchor naming a message this thread does not have falls back to the end
-    rather than dropping the activity: the chart is the part worth keeping, and
-    a silently missing one is the failure this whole seam exists to fix.
-    """
+    """``messages`` with each activity materialised in at its anchor."""
     order: list[str] = []
     anchors: dict[str, str | None] = {}
     events: dict[str, ActivitySnapshotEvent] = {}
@@ -238,14 +178,7 @@ def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
 
 
 def _parse_title(request: HttpRequest) -> str | None:
-    """The stripped, capped, non-empty ``title`` from a JSON PATCH body, else ``None``.
-
-    Every way the decode refuses a client's body is the same bad request. A
-    body nested deeper than the decoder can follow raises ``RecursionError``,
-    which is not a ``ValueError``, so it is named here; without it the overflow
-    escapes the view as a 500, and
-    ``test_detail_patch_body_nested_past_the_decoder_is_400`` fails.
-    """
+    """The stripped, capped, non-empty ``title`` from a JSON PATCH body, else ``None``."""
     try:
         body = json.loads(request.body)
     except (ValueError, TypeError, RecursionError):
@@ -257,12 +190,7 @@ def _parse_title(request: HttpRequest) -> str | None:
 
 
 def _effective_limit(request: HttpRequest, cap: int) -> int:
-    """The thread-list cap for this request: ``?limit`` clamped to the setting.
-
-    A missing / non-positive / non-integer ``?limit`` falls back to ``cap`` (the
-    endpoint's own ceiling); a larger one is clamped down to it, so the response
-    is always bounded.
-    """
+    """The thread-list cap for this request: ``?limit`` clamped to the setting."""
     raw = request.GET.get("limit")
     if raw is None:
         return cap

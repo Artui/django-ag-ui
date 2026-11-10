@@ -1,5 +1,3 @@
-"""``stamp_outcome`` — write a tool call's outcome onto its result, live or stored."""
-
 from __future__ import annotations
 
 from typing import TypeVar
@@ -36,34 +34,7 @@ _Stamped = TypeVar("_Stamped", ToolCallResultEvent, ToolMessage)
 
 
 def stamp_outcome(event: _Stamped, outcome: str) -> _Stamped:
-    """A copy of ``event`` carrying ``outcome`` on both carriers ``OUTCOME_FIELD`` names.
-
-    ``event`` is the live ``TOOL_CALL_RESULT`` or the ``ToolMessage`` a stored
-    thread keeps for the same call. One function for both, because the stored
-    copy has to be written exactly as the stream was: both models declare
-    ``metadata`` and allow extras, so the two carriers land the same way on each.
-
-    The outcome is **merged** into whatever ``metadata`` the event already
-    carries rather than replacing it. Upstream builds its own result events with
-    none, but a tool may return an AG-UI event of its own, which pydantic-ai
-    forwards verbatim and this package stamps like any other result for the same
-    call -- and a key its author put there is not this package's to discard. On
-    ``OUTCOME_FIELD`` itself the stamp wins: the part's ``outcome`` is
-    pydantic-ai's own record of how the call went, and it is the one value a
-    client is told to trust under that key.
-
-    A new ``metadata`` dict is built rather than the existing one updated in
-    place, because ``model_copy`` is shallow: the copy would share the original's
-    dict, and assigning into it would stamp an event the caller still holds.
-
-    ``outcome`` is written as given. Which outcomes are worth stamping -- none on
-    a success, since absent means success -- is the caller's decision, and it is
-    made once, in ``OutcomeAGUIAdapter``, for its stream and its dump alike; a
-    transcript rebuilt from the stream only copies what the stream was stamped
-    with. This is the part a wire-fixture recorder outside this repository
-    imports, so that the fixture a client is tested against carries exactly the
-    bytes this server writes.
-    """
+    """A copy of ``event`` carrying ``outcome`` on both carriers ``OUTCOME_FIELD`` names."""
     metadata = {**(event.metadata or {}), OUTCOME_FIELD: outcome}
     return event.model_copy(update={OUTCOME_FIELD: outcome, "metadata": metadata})
 

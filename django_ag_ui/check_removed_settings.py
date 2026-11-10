@@ -59,29 +59,7 @@ _UNKNOWN_ADVICE = "not a django-ag-ui setting — check the spelling against the
 
 
 def check_removed_settings() -> None:
-    """Reject any ``DJANGO_AG_UI`` key this package does not read.
-
-    Called from ``AGUIServer.__init__``, so a stale settings dict fails when
-    the URL conf is imported rather than on some later request. Left in place, an
-    unread key is **silently dropped**: an agent quietly loses its ``TOOLSETS``,
-    or runs without the ``TOOL_GUARD`` approval policy the project believes it
-    configured. A warning would scroll past in a deploy log.
-
-    Three kinds of key are refused, each with its own answer:
-
-    - the collaborators **removed in 0.19.0**, which named a dotted path and are
-      constructor arguments now;
-    - names this package **never read** but that a reader could reasonably expect
-      it to — ``ALLOW_ANONYMOUS`` is the one that has actually cost somebody an
-      afternoon, since it looks like a switch and is a store argument;
-    - anything else, which is a typo or a setting meant for another package.
-
-    The last case is what makes the first two exhaustive rather than a list
-    somebody has to remember to extend. A key added to
-    [`build_ag_ui_config`][django_ag_ui.build_ag_ui_config] must be added to
-    ``_KNOWN_SETTINGS`` with it, and a test reads the builder's own source to
-    make sure it was.
-    """
+    """Reject any ``DJANGO_AG_UI`` key this package does not read."""
     user_settings: dict[str, object] = getattr(django_settings, "DJANGO_AG_UI", {}) or {}
     rejected: list[tuple[str, str]] = sorted(
         (name, _advice(name)) for name in user_settings if name not in _KNOWN_SETTINGS

@@ -135,6 +135,23 @@ defaults, dispatch tables) are fine — module-level **mutable** state is not.
 - For the async view, use `httpx.AsyncClient` against the ASGI app to drive `RunAgentInput`
   POSTs and parse the SSE event stream.
 
+## Comment budget
+
+`#` comments and docstrings both count, in the package and in the tests:
+
+- A class: at most three lines (its docstring plus comments in its body outside its methods).
+- A function or method: at most one line (docstring plus comments inside it, or directly
+  above it).
+- A module: nothing before the first import (no module docstring, no header comment); a
+  package `__init__.py` with nothing to export is empty.
+- Exempt: directives (`# noqa`, `# ty:`, `# vX.Y.Z` pins), migrations, and a docstring
+  the code or a test reads through `__doc__`, which is data.
+
+A docstring mkdocstrings renders into the API reference is not exempt.
+Condense rather than move: a reason that does not fit is cut, not relocated to prose
+elsewhere. A body left empty by a removed docstring takes `...`. The workbench's
+`bin/comment-budget.py` lists the violations.
+
 ## Lint and types
 
 - `make lint` runs `ruff check .` + `ty check django_ag_ui`. CI fails on either.

@@ -13,22 +13,7 @@ from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 
 
 class ToolsView:
-    """A read-only endpoint returning the agent's server-tool catalog (GET, JSON).
-
-    A callable instance (like [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView])
-    holding the same [`ToolRegistry`][django_ag_ui.ToolRegistry]
-    the view uses. ``GET`` returns the
-    [`build_tool_catalog`][django_spec_agents.agent.build_tool_catalog.build_tool_catalog]
-    list the web
-    component fetches via ``data-tools-url`` to label tool-call cards for
-    server-side tools (whose schema never reaches the browser).
-
-    The catalog names every server tool the agent can wield — an inventory worth
-    gating — so the view carries the same authentication seam as
-    ``DjangoAGUIView`` (``require_authenticated`` / ``get_user``, sync or async)
-    and the same closed default: an anonymous ``GET`` is a ``401`` until you pass
-    ``require_authenticated=False``.
-    """
+    """A read-only endpoint returning the agent's server-tool catalog (GET, JSON)."""
 
     def __init__(
         self,
@@ -45,26 +30,17 @@ class ToolsView:
         spec_capability: Any = None,
     ) -> None:
         self._registry = registry
-        # The same collaborators the agent view holds, so the catalog lists the
-        # tools this endpoint's agent can actually wield — not another's.
+        # The same collaborators the agent view holds, so the catalog matches the agent.
         self._mcp_server = mcp_server
-        # Held so a pre-built toolset's specs still reach the catalog, which is
-        # what keeps the tool-call card labels.
         self._service_specs = service_specs
         self._spec_capability = spec_capability
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
-        # GET is a safe method the middleware never checks, so this changes
-        # nothing today. Carried so the mount's request policy stays uniform and
-        # a write verb added later inherits the answer rather than silently
-        # enforcing against a client that cannot produce a token.
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
 
     def __call__(self, request: HttpRequest) -> HttpResponseBase:
-        # Authorize before the method check, so an unauthenticated caller cannot
-        # tell a mounted endpoint from an absent one: a 405 here against a 404
-        # elsewhere fingerprints which optional backends are enabled.
+        # Authorize before the method check, so a mounted endpoint looks like an absent one.
         deny = authorize(
             request,
             get_user=self._get_user,

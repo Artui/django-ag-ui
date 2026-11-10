@@ -1,5 +1,3 @@
-"""Warn when a mounted endpoint never says how its requests authenticate."""
-
 from __future__ import annotations
 
 import warnings
@@ -7,18 +5,7 @@ from typing import Any
 
 
 def warn_if_csrf_unstated(csrf_exempt: bool | None, get_user: Any) -> None:
-    """Warn when nothing in the configuration says how requests authenticate.
-
-    Unstated is the signal, not ``True`` — ``csrf_exempt=True`` is the right
-    answer for Bearer / API-key clients, so warning on the value would fire on a
-    correct configuration and teach projects to filter the warning. Only ``None``
-    means the question was never asked.
-
-    It is a module of its own rather than a helper on the view because every
-    endpoint that can be mounted directly has to ask the same question at
-    import time: the agent endpoint, and the attachment / thread / transcription
-    endpoints beside it. One implementation, one warning, wherever it is mounted.
-    """
+    """Warn when nothing in the configuration says how requests authenticate."""
     if csrf_exempt is not None or get_user is not None:
         return
     warnings.warn(

@@ -1,5 +1,3 @@
-"""``ContextDelivery`` — which channel carries client-supplied context."""
-
 from __future__ import annotations
 
 from typing import Literal
