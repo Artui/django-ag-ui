@@ -149,7 +149,9 @@ defaults, dispatch tables) are fine — module-level **mutable** state is not.
 
 A docstring mkdocstrings renders into the API reference is not exempt.
 Condense rather than move: a reason that does not fit is cut, not relocated to prose
-elsewhere. A body left empty by a removed docstring takes `...`. The workbench's
+elsewhere. A body left empty by a removed docstring takes `...`. Ruff's E501 is on at 100
+columns and `ruff format` never wraps a comment, so a line that does not fit is
+condensed, not wrapped; an unbreakable string such as a URL takes `# noqa: E501`. The workbench's
 `bin/comment-budget.py` lists the violations.
 
 ## Lint and types
