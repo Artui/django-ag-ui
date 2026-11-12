@@ -20,7 +20,25 @@ def _default_key(request: HttpRequest) -> str:
 
 
 class FixedWindowThrottle:
-    """A fixed-window run limiter backed by ``django.core.cache``."""
+    """A fixed-window run limiter backed by ``django.core.cache``.
+
+    The window is bucketed by absolute time: every integer multiple of
+    ``per_seconds`` since the epoch starts a fresh counter. Simpler than a
+    sliding window and sufficient for the thing this protects against — one
+    client starting runs faster than a human could read them, on an endpoint
+    where each run costs a model call.
+
+    ``namespace`` separates counters so two throttles on one endpoint (a burst
+    limit and a steady-state limit) do not share a bucket. ``key`` chooses the
+    bucket dimension; the default is per-user, falling back to per-IP.
+
+    The cache **must** be a shared backend in a multi-process deployment.
+    Django's ``locmem`` cache is fine in tests but enforces a per-worker limit
+    that reads like a global one.
+
+    Mirrors ``djangorestframework-mcp-server``'s ``FixedWindowRateLimit``, so the
+    two transports behave the same way under the same configuration.
+    """
 
     def __init__(
         self,

@@ -7,7 +7,23 @@ from django_ag_ui.config.types.context_delivery import ContextDelivery
 
 @dataclass(frozen=True)
 class RunContextConfig:
-    """What client-supplied context reaches the model, and how much of it."""
+    """What client-supplied context reaches the model, and how much of it.
+
+    A ``RunAgentInput`` carries a ``context`` list the host page fills in, and
+    pydantic-ai's adapter deliberately does not read it. This record is where a
+    project says whether it wants that text delivered, **by which channel**,
+    whether the attachment refs the web component posts become a manifest the
+    model can act on, and what either is allowed to cost.
+
+    ``client_context`` and ``attachment_manifest`` choose *what* is delivered;
+    ``delivery`` chooses *how*, for whatever survives them.
+
+    Every field is **already resolved**, matching
+    [`AGUIConfig`][django_ag_ui.AGUIConfig]'s contract — there is no unset state
+    here. Build it through
+    [`build_ag_ui_config`][django_ag_ui.build_ag_ui_config], which
+    layers the ``RUN_CONTEXT`` settings dict under any override.
+    """
 
     client_context: bool
     """Whether ``RunAgentInput.context`` entries are delivered to the model.

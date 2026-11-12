@@ -14,7 +14,49 @@ StepStoreFactory = Callable[[HttpRequest], Any]
 
 
 class ScopedStepStore:
-    """Partition a step-store **factory** by a scope name."""
+    """Partition a step-store **factory** by a scope name.
+
+    A step ledger is keyed by ``(owner_id, run_id)``. Two AG-UI endpoints handed
+    the same ``step_store`` therefore share one user's runs: a run recorded at
+    ``/internal/agent`` is listed by ``/public/agent/runs/`` and, because
+    ``resume/<run_id>/`` addresses a run by id, can be continued there — under
+    the *public* agent's model, tools and guard policy. Owner scoping does not
+    catch it: it is the same user on both mounts.
+
+    Wrapping fixes that without a migration:
+
+        internal = AGUIServer(
+            registry,
+            step_store=ScopedStepStore(DefaultStepStore, scope="internal"),
+            config=build_ag_ui_config(tool_guard=ToolGuardConfig(enabled=True)),
+        )
+        public = AGUIServer(
+            registry,
+            step_store=ScopedStepStore(DefaultStepStore, scope="public"),
+        )
+
+    **A factory in, a factory out**, unlike
+    [`ScopedConversationStore`][django_ag_ui.ScopedConversationStore], which
+    wraps a store: the harness protocol's methods carry no request, so
+    ``step_store=`` takes a ``request -> StepStore`` callable and the store is
+    built per call. This is that callable, and calling it wraps whatever the
+    inner factory returned.
+
+    The partition is a **run-id prefix**, so it composes with any implementation,
+    third-party ones included, where a ``scope`` column would mean a migration
+    and a breaking change to a protocol that is upstream's, not ours. A run
+    belonging to another scope is not *refused* on ``resume/`` — it is simply not
+    found, so a probe cannot confirm the id exists either.
+
+    The scope is invisible on the wire. Run ids are handed back to the client
+    unchanged; only the storage key carries the prefix.
+
+    **Opt in explicitly.** A transport does not wrap by itself: doing so from its
+    namespace would orphan every run an existing single-endpoint project had
+    already recorded, the moment it set one. For the same reason, adding a scope
+    to a mount that has been running hides that mount's earlier runs from
+    ``runs/`` rather than migrating them.
+    """
 
     def __init__(self, inner: StepStoreFactory, *, scope: str) -> None:
         self._inner = inner

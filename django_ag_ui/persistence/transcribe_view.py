@@ -24,7 +24,42 @@ from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 
 
 class TranscribeView:
-    """Owner-scoped speech-to-text endpoint (async, multipart in / JSON out)."""
+    """Owner-scoped speech-to-text endpoint (async, multipart in / JSON out).
+
+    Mounted by [`AGUIServer`][django_ag_ui.AGUIServer] whenever
+    ``transcription_backend=`` is a live
+    [`TranscriptionBackend`][django_ag_ui.TranscriptionBackend]:
+
+    - ``POST <prefix>transcribe/`` → multipart audio under the ``audio`` field;
+      validates size/type from ``DJANGO_AG_UI`` settings, runs the backend, and
+      returns ``200`` with ``{"text": "<transcript>"}``.
+
+    The audio is transcribed and discarded — nothing is stored — so unlike
+    [`AttachmentsView`][django_ag_ui.AttachmentsView] there is
+    no download/delete route. The view carries the same authentication seam as
+    [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView] (``require_authenticated`` /
+    ``get_user``), closed by default — which matters here beyond consistency:
+    the backend spends money per request, so an open route is a bill as well as
+    a leak.
+
+    **Authentication is not a spend limit**, which is why ``throttle`` is here
+    too: an authenticated caller looping small valid clips reaches the provider
+    on every request. It takes the same [`Throttle`][django_ag_ui.Throttle] the
+    agent endpoint takes and runs at the same point — after authentication, so a
+    limiter can key on the acting user, and before the body is parsed. Give it
+    its *own* limiter rather than sharing the agent's: one instance is one
+    counter, so a shared one would let voice input consume the run budget.
+
+    **The size cap aborts the upload rather than measuring it afterwards.** A
+    ``CappedUploadHandler`` is inserted before the multipart body is parsed, so a
+    clip over ``TRANSCRIPTION_MAX_BYTES`` is refused mid-stream instead of being
+    spooled to a temp file in full and answered ``413`` once it is already on
+    disk.
+
+    With the default
+    [`NullTranscriptionBackend`][django_ag_ui.NullTranscriptionBackend] a request
+    returns ``410`` (off): mount the view with a real backend to enable it.
+    """
 
     def __init__(
         self,

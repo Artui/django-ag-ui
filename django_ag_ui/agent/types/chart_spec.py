@@ -12,7 +12,31 @@ from django_ag_ui.agent.types.chart_series import ChartSeries
 
 @dataclass(frozen=True)
 class ChartSpec:
-    """A chart, as data rather than as markup."""
+    """A chart, as data rather than as markup.
+
+    Sent as the content of an ``ACTIVITY_SNAPSHOT``, which the client draws
+    itself. Nothing here is HTML and nothing here is interpreted as HTML: the
+    server chooses the numbers and the browser chooses the DOM, which is what
+    keeps a pushed visual off the sanitiser's surface entirely.
+
+    Frozen at the top level: ``labels``, ``series`` and the points inside them
+    are copied to tuples and ``metadata`` to a read-only mapping, so a list
+    handed in cannot be appended to after it has been checked. A **nested**
+    structure inside ``metadata`` is still shared with the caller, and nothing
+    reads it here anyway.
+
+    Frozen, and **not usefully hashable** -- ``__hash__`` exists but raises,
+    because ``metadata`` is part of a spec's value, so
+    excluding it to buy a hash would make two specs carrying different payloads
+    compare equal. That is the ordinary situation for a record with a mapping
+    field; nothing here needs to be a dict key.
+
+    **The client is the authority on shape.** It refuses a spec whose series
+    disagree in length with the labels, because a chart that is subtly
+    misaligned still reads as authoritative --
+    [`validate`][django_ag_ui.ChartSpec.validate] catches that here instead, on
+    the side that can name the offending series.
+    """
 
     labels: tuple[str, ...]
     series: tuple[ChartSeries, ...]
@@ -39,7 +63,15 @@ class ChartSpec:
         self.validate()
 
     def validate(self) -> None:
-        """Raise ``ValueError`` for a spec the client would refuse to draw."""
+        """Raise ``ValueError`` for a spec the client would refuse to draw.
+
+        Checked at construction rather than at send time so a mistake surfaces
+        where the data is assembled. The client refuses the same shapes and
+        **silently draws nothing** -- it has no channel to complain on -- so a
+        spec that gets past here reaches a user as a chart that simply is not
+        there. Failing at construction names which series is wrong, on the side
+        that can fix it.
+        """
         if not self.labels:
             raise ValueError("a chart needs at least one label")
         if not self.series:

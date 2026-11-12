@@ -16,7 +16,47 @@ def chart_points_delta(
     points: tuple[float, ...] | list[float],
     spec: ChartSpec | None = None,
 ) -> ActivityDeltaEvent:
-    """Replace one series' points on the chart already under ``chart_id``."""
+    """Replace one series' points on the chart already under ``chart_id``.
+
+    The cheap half of live updating. A snapshot re-sends the whole spec, which
+    is right when the shape changes; this sends a JSON Patch touching one array,
+    which is right when a long-running computation is only moving the numbers.
+
+    ``chart_id`` must name a chart the client has already drawn. A delta for an
+    id it does not hold is dropped -- there is nothing to patch -- so send the
+    snapshot first and keep the id.
+
+    ``series`` is the index in the spec's series list, and ``points`` must be
+    the **same length** as the series it replaces. Neither can be checked from
+    ``chart_id`` alone -- an id is a name, not a shape -- and both fail the same
+    quiet way: a patch is applied positionally, so it cannot tell that series 2
+    is now something else, and a wrong-length array applies cleanly and leaves a
+    chart the client then refuses to redraw -- stale numbers on screen, and the
+    chart gone entirely on the next reload.
+
+    **``spec=`` is how you get told.** Pass the
+    [`ChartSpec`][django_ag_ui.ChartSpec] the chart on screen was drawn from and
+    both of those become construction-time errors, the way a spec's own shape
+    already is. It stays optional and the default is unchanged: a caller that
+    does not declare a shape gets exactly the behaviour above, because a delta
+    sent from somewhere the spec is no longer in hand is a legitimate call, not
+    a mistake.
+
+    **Why the spec and not an expected point count.** A count was the cheaper
+    argument and is the wrong one twice over. It is derived --
+    ``len(spec.labels)`` -- and deriving it by hand is the same step that goes
+    wrong in the first place, so a caller who miscounts the points miscounts the
+    count too and the guard cheerfully agrees with the mistake. And it can only
+    see half the problem: ``series`` is an *index into* ``spec.series``, so only
+    the spec itself can say that index 2 is past the end. The spec also costs
+    nothing the caller does not already have, since a delta requires a snapshot
+    to have gone first and the spec is what that snapshot was built from --
+    keeping it is the same act as keeping the ``chart_id``.
+
+    It is read, never sent. This helper still emits a patch touching one array;
+    ``spec`` is the caller's declaration of what that array is expected to
+    replace, and nothing about it reaches the wire.
+    """
     if series < 0:
         raise ValueError(
             f"series index must not be negative; got {series}. The patch path would "

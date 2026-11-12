@@ -13,7 +13,26 @@ from django_ag_ui.config.types.run_context_config import RunContextConfig
 
 @dataclass(frozen=True)
 class AGUIConfig:
-    """An endpoint's resolved scalar configuration."""
+    """An endpoint's resolved scalar configuration.
+
+    Every field is **already resolved** — there is no "unset" state and no
+    settings lookup left to do. [`AGUIServer`][django_ag_ui.AGUIServer] builds
+    one in ``__init__``
+    (via [`build_ag_ui_config`][django_ag_ui.build_ag_ui_config],
+    which reads ``DJANGO_AG_UI``) and threads it to the agent view and every
+    sub-view.
+
+    Resolving once is what lets two endpoints in one project differ: read at
+    request time these values could only ever be global, forcing an
+    ``/internal/agent`` and a ``/public/agent`` to share one tool-guard policy,
+    one retry budget, one upload cap. Collaborators are not here at all — they
+    are constructor arguments taking real objects.
+
+    Do **not** construct this directly to override a field: a
+    partially-specified config would silently discard the project's own
+    ``DJANGO_AG_UI`` values. Use ``build_ag_ui_config(retries=3)``, which layers
+    overrides over the settings.
+    """
 
     model: Any
     """The Pydantic-AI model: a ``"provider:name"`` string (e.g.

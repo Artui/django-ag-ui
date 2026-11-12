@@ -37,7 +37,28 @@ from django_ag_ui.persistence.utils import messages_to_jsonable
 
 
 class AgentSession:
-    """Per-run orchestration between the HTTP transport and the agent."""
+    """Per-run orchestration between the HTTP transport and the agent.
+
+    Owns everything one AG-UI run needs after the transport has authenticated
+    the request, parsed the ``RunAgentInput``, and built the agent — and before
+    the response object exists: the ``AGUIAdapter`` (an ``OutcomeAGUIAdapter``,
+    the stock one plus a tool call's outcome), the composed event stream
+    (native → transformed → reasoning-filtered → encoded → disconnect-guarded),
+    and persistence on all three of a run's exits — completed, failed and
+    cancelled — the last two audited as well.
+
+    Splitting it from [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView]
+    makes the streaming pipeline testable without a ``StreamingHttpResponse``
+    (drive [`stream`][django_ag_ui.AgentSession.stream] directly) and keeps the
+    SSE transport swappable — a future WebSocket transport reuses the session
+    unchanged.
+
+    A resumed or forked run passes the source run's snapshot as
+    ``message_history``, which makes the history the server's: the run takes
+    only the client's new turn from ``run_input``. ``source_messages`` is then
+    the source thread's stored conversation, if there is one, and the snapshot's
+    messages are stored under the ids it holds for them rather than fresh ones.
+    """
 
     def __init__(
         self,
@@ -81,7 +102,14 @@ class AgentSession:
         )
 
     def stream(self) -> AsyncIterator[str]:
-        """The encoded AG-UI event stream for this run, disconnect-guarded."""
+        """The encoded AG-UI event stream for this run, disconnect-guarded.
+
+        Composed by hand (rather than ``adapter.run_stream``) so the session
+        keeps a reference to the *native* event stream — the innermost
+        generator, whose context manager owns the provider's streaming
+        request. On client disconnect the guard closes it explicitly, then
+        persists the partial exchange and audits the cancellation.
+        """
         transcript = RunTranscript()
         native = self._adapter.run_stream_native(
             message_history=self._message_history,

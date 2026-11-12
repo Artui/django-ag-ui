@@ -46,7 +46,49 @@ from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 
 
 class DjangoAGUIView:
-    """An async Django view that serves an AG-UI endpoint."""
+    """An async Django view that serves an AG-UI endpoint.
+
+    Bridges a Django ``HttpRequest`` to Pydantic-AI's ``AGUIAdapter`` without
+    Starlette: it parses the posted ``RunAgentInput``, builds a Pydantic-AI
+    ``Agent`` from the server-side tool registry, and returns a
+    ``StreamingHttpResponse`` of AG-UI events (Server-Sent Events). Frontend
+    tools declared in the request are merged by the adapter automatically.
+
+    The view is a callable instance, so configuration lives on ``self`` and a
+    project can mount several with independent registries. ``model``,
+    ``instructions``, and ``audit_logger`` fall back to the ``DJANGO_AG_UI``
+    settings when not passed explicitly.
+
+    The agent is built once and reused by every run; ``model_for_request`` and
+    ``instructions_for_request`` are the only per-request hooks on it, and
+    everything else varies by riding the *run* instead. ``agent_factory`` takes
+    over construction wholesale — see [`AGUIServer`][django_ag_ui.AGUIServer] for what
+    that turns off.
+
+    **Authentication is the host's responsibility, and the view fails closed.**
+    Tools (and the MCP bridge) act as ``request.user``; if your
+    middleware hasn't authenticated the request, that is ``AnonymousUser`` — a
+    data-exposure footgun. ``require_authenticated`` therefore defaults to
+    **True**: an anonymous request gets a 401 before any agent runs. Pass
+    ``require_authenticated=False`` to serve anonymous runs deliberately, and/or
+    a ``get_user(request)`` hook to establish the user (e.g. from a token)
+    before tools run. ``get_user`` may be **sync or async**; a sync hook runs
+    off the event loop, so a plain ORM token lookup is fully supported. A hook
+    that raises propagates as an unhandled error (500) — return
+    ``AnonymousUser`` (or ``None``) for a clean 401 instead.
+
+    **CSRF:** the view is CSRF-exempt unless told otherwise, because AG-UI
+    clients typically authenticate via headers (Bearer / API key), where CSRF
+    does not apply. If your deployment authenticates with **session cookies**,
+    pass ``csrf_exempt=False`` and send the CSRF token from the client — tools
+    act as ``request.user``, so a cookie-auth endpoint without CSRF protection
+    lets any third-party page drive the agent as the logged-in user (mitigated,
+    not eliminated, by Django's default ``SameSite=Lax`` cookie). Leaving
+    ``csrf_exempt`` unset while supplying no ``get_user`` warns at
+    construction: that pairing states nothing about how requests authenticate,
+    and the likeliest reading is the dangerous one. Any of the three answers
+    silences it.
+    """
 
     def __init__(
         self,

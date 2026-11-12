@@ -42,7 +42,184 @@ DEFAULT_NAMESPACE = "ag_ui"
 
 
 class AGUIServer:
-    """One config object that mounts an AG-UI endpoint and its sub-views."""
+    """One config object that mounts an AG-UI endpoint and its sub-views.
+
+    The Django-idiomatic front door for the package — the ``admin.site`` idiom
+    and the mirror of django-spec-mcp's ``MCPServer``. Construct it once with the tool
+    registry (plus optional stores / auth), then mount its **namespaced**
+    [`urls`][django_ag_ui.AGUIServer.urls] with ``path()``:
+
+        from django_ag_ui import AGUIServer
+
+        agent = AGUIServer(registry, csrf_exempt=False)
+
+        urlpatterns = [
+            path("agent/", agent.urls),
+        ]
+        # reverse("ag_ui:endpoint") · "ag_ui:tools" · "ag_ui:threads" · ...
+
+    The registry is passed **once**: the object builds the agent view
+    ([`DjangoAGUIView`][django_ag_ui.DjangoAGUIView]) *and* the read-only
+    tool catalog ([`ToolsView`][django_ag_ui.ToolsView]) from it. The
+    mount point is the consumer's to choose the Django way, so there is no
+    ``prefix=``.
+
+    **What gets mounted.** The agent endpoint (``endpoint``) and its tool catalog
+    (``tools``) always mount. The rest mount only when their backend is *active*:
+
+    - ``skills`` — a [`SkillRegistry`][django_ag_ui.SkillRegistry]
+      was passed (``skills/``, GET JSON for ``data-skills-url``).
+    - ``threads`` / ``thread`` — the conversation store is not a
+      ``NullConversationStore`` (``threads/`` + ``threads/<id>/``, the history
+      drawer's ``data-threads-url``). A ``thread_activity_source=`` puts pushed
+      activities back into what that route serves; without one, a restored
+      thread is the model's message history and nothing else, which is where a
+      pushed chart is missing from. See
+      [`ThreadActivitySource`][django_ag_ui.ThreadActivitySource].
+    - ``attachments`` / ``attachment`` — the attachment store is not a
+      ``NullAttachmentStore`` (``attachments/`` + ``attachments/<id>/``, the
+      composer's ``data-attachments-url``).
+    - ``transcribe`` — the transcription backend is not a
+      ``NullTranscriptionBackend`` (the mic's ``data-transcribe-url``).
+    - ``resume`` / ``fork`` / ``runs`` — a ``step_store`` is configured.
+
+    Collaborators are **passed here or absent**: there is no settings fallback,
+    and the keys that once held a dotted path are refused at startup by
+    ``check_removed_settings`` rather
+    than ignored. Unpassed, each falls back to its ``Null*`` backend, so a bare
+    ``AGUIServer(registry)`` serves the agent endpoint and its tool catalog and
+    nothing else.
+
+    A collaborator handed a **dotted path** is refused here too
+    (``check_no_dotted_paths``): there is no ``import_string`` to resolve it, and
+    a string otherwise constructs, mounts that collaborator's endpoints, and fails
+    on the first request instead.
+
+    **Request policy, closed by default.** ``require_authenticated`` /
+    ``get_user`` / ``authorize`` / ``csrf_exempt`` are forwarded to **every**
+    view this object builds, so one policy governs the whole mount — including
+    the write endpoints (attachment upload / delete, thread rename / delete,
+    transcribe), which ``csrf_exempt=True`` exempts alongside the run endpoint.
+    ``require_authenticated`` defaults to **True**, so a bare
+    ``AGUIServer(registry)`` serves nobody who is not logged in; pass
+    ``require_authenticated=False`` to serve anonymous runs deliberately. The
+    agent view's ``model`` and ``instructions`` fall back to the
+    ``DJANGO_AG_UI`` settings when not passed.
+
+    **Anonymous scoping caveat.** With ``require_authenticated=False`` and a
+    model-backed store, an anonymous request has no owner id. The reference
+    contrib stores refuse anonymous thread / attachment operations unless built
+    with ``allow_anonymous=True`` (which buckets per browser session), so leave
+    the default in place — or pass a ``get_user`` hook — whenever the store
+    persists, rather than relying on owner scoping to isolate anonymous visitors
+    from one another.
+
+    **Spec tools.** ``service_specs`` takes a ``name -> spec`` mapping of
+    django-service-specs specs, a spec registry (the kernel's ``SpecRegistry``,
+    the single declaration site for a project exposing the same specs over
+    several transports), or an already-built ``SpecToolset`` /
+    ``SpecCapability``:
+
+        AGUIServer(registry, service_specs=spec_registry.by_tag("public"))
+        AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
+
+    A spec declares what a caller with no HTTP request has to be told -- its
+    ``reads`` and ``shapes`` -- on itself, so a registry and its ``specs()``
+    serve the same tools. A registry is still handed to the toolset as given,
+    never rebuilt from its flattened mapping.
+
+    A filtered registry view (``by_tag`` / ``subset``) is itself a registry, so
+    two endpoints can be given different projections with no shared state. The
+    pre-built form is the only way to reach a toolset knob (``max_page_size``, an
+    ``exception_map``, ``pool_seeds``, a ``call_seeds`` override,
+    ``require_permissions=False`` while migrating) without abandoning
+    ``service_specs=`` for ``capabilities=``,
+    which the tool catalog never sees; it is attached as itself and its ``specs``
+    are read for the catalog, so the powerful form keeps the tool-call card
+    labels. The parameter's union covers all four shapes, the last two matched
+    structurally because ``django_spec_agents.spec_tools``' own types cannot be
+    named from a package that only optionally installs what they import. Requires
+    the ``django-ag-ui[specs]`` extra.
+
+    **MCP tools.** ``mcp_server`` takes a django-spec-mcp ``MCPServer`` and
+    bridges its tools into the agent in process, through django-spec-agents'
+    ``MCPToolset``: the advertised schemas, argument validation and permissions
+    are the HTTP transport's own, acting as the request's user, with no network
+    hop. Its tools are listed in the tool catalog after the registry's, and a
+    registry tool wins a name both define. Requires the ``django-ag-ui[mcp]``
+    extra.
+
+        AGUIServer(registry, mcp_server=mcp_server)
+
+    **One agent, many runs.** The endpoint builds its agent once and reuses it
+    rather than re-deriving every tool's JSON Schema per request.
+    ``model_for_request(request)`` and ``instructions_for_request(request)`` are
+    the two hooks that vary it — the per-tenant model and the per-tenant system
+    prompt — and they ride the *run*, through pydantic-ai's own per-run
+    ``model`` / ``instructions``:
+
+        AGUIServer(registry, model_for_request=lambda r: r.tenant.model)
+
+    **Rate limiting.** ``throttle`` takes a
+    ``Throttle`` — one ``consume(request)``
+    returning the suggested ``Retry-After`` in seconds, or ``None`` to allow the
+    run — and applies to the **agent endpoint only**, the one that costs a model
+    call per request. It runs after authentication, so a limiter can key on the
+    acting user rather than only an IP:
+
+        AGUIServer(registry, throttle=FixedWindowThrottle(max_runs=20, per_seconds=60))
+
+    ``transcribe_throttle`` is the same seam on ``transcribe/``, the other route
+    that spends provider money per request — authentication bounds *who* may call
+    it, not how often. It is a **separate** argument rather than a second use of
+    ``throttle`` because one limiter instance is one counter: sharing would let
+    voice clips eat the run budget, and the two want different numbers anyway.
+
+        AGUIServer(
+            registry,
+            throttle=FixedWindowThrottle(max_runs=20, per_seconds=60),
+            transcribe_throttle=FixedWindowThrottle(
+                max_runs=60, per_seconds=60, namespace="transcribe"
+            ),
+        )
+
+    **Per-run dependencies.** ``deps_factory`` is a ``request -> AgentDeps``
+    callable replacing the default, which binds the acting user, their IP, and
+    the run's request under ``call_context["request"]``. Use it to carry
+    project-specific per-run context on an ``AgentDeps`` subclass, or to seed
+    ``AgentDeps.state`` with a Pydantic model — the only way to have AG-UI's
+    inbound shared state *validated*, since pydantic-ai validates it against
+    ``type(deps.state)``. Whatever it returns reaches every tool, toolset and
+    capability as ``ctx.deps``. A factory replaces the default whole, so one
+    serving spec tools whose callables or permission checks read ``request``
+    puts the request in ``call_context`` itself.
+
+    **Durable step persistence.** ``step_store`` is a *factory* — a
+    ``request -> StepStore`` callable rather than a shared store, because the
+    ``pydantic-ai-harness`` step-store protocol carries no request. When set,
+    every run attaches a ``StepPersistence`` capability recording an owner-scoped
+    run / event / snapshot / tool-effect ledger, and three owner-scoped endpoints
+    mount: ``resume/<run_id>/`` and ``fork/<run_id>/`` seed a new run with a prior
+    run's last continuable snapshot, and ``runs/`` indexes the user's runs so a
+    client can *discover* what it may resume rather than only continuing a run
+    whose id it still holds. Pass
+    ``DefaultStepStore``
+    (its constructor *is* the factory) for the reference model-backed store, or
+    any such callable. Requires the ``django-ag-ui[harness]`` extra.
+
+    The ledger is scoped by **owner**, not by endpoint, so two mounts handed the
+    same factory share one user's run list: a run recorded at ``/internal/agent``
+    is listed at ``/public/agent/runs/`` and can be resumed there, under the
+    public agent's model, tools and guard policy. Wrap the factory in a
+    [`ScopedStepStore`][django_ag_ui.ScopedStepStore] to keep them apart, exactly
+    as ``ScopedConversationStore`` does for thread history.
+
+    **Namespacing.** [`urls`][django_ag_ui.AGUIServer.urls] returns the
+    ``(patterns, app_name, namespace)``
+    triple ``path()`` mounts directly (like ``admin.site.urls`` — no
+    ``include()``), so endpoint names are namespaced (``namespace``, default
+    ``"ag_ui"``) and multiple mounts don't collide — ``reverse("ag_ui:endpoint")``.
+    """
 
     def __init__(
         self,
@@ -164,7 +341,13 @@ class AGUIServer:
 
     @property
     def urls(self) -> tuple[list[URLPattern], str, str]:
-        """The namespaced ``(patterns, app_name, namespace)`` triple ``path()`` mounts."""
+        """The namespaced ``(patterns, app_name, namespace)`` triple ``path()`` mounts.
+
+        Mounts directly at any prefix — ``path("agent/", server.urls)``, no
+        ``include()`` — exactly like ``admin.site.urls``. Every route name listed
+        under "What gets mounted" reverses within the namespace, as
+        ``reverse("<namespace>:endpoint")`` and so on.
+        """
         return self._build_patterns(), self._namespace, self._namespace
 
     def _build_patterns(self) -> list[URLPattern]:

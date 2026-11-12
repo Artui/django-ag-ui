@@ -8,7 +8,35 @@ from django.http import HttpRequest
 
 
 class OpenAITranscriptionBackend:
-    """A ready-to-use transcription backend over an OpenAI-compatible API."""
+    """A ready-to-use transcription backend over an OpenAI-compatible API.
+
+    The batteries-included voice backend: it forwards the recorded clip to an
+    OpenAI ``/audio/transcriptions`` endpoint and returns the text. Enable it by
+    installing the ``[openai]`` extra and passing an instance to the server,
+    which is what mounts ``transcribe/``:
+
+        AGUIServer(registry, transcription_backend=OpenAITranscriptionBackend())
+
+    Constructible with no arguments: the API key comes from the
+    ``OPENAI_API_KEY`` environment variable (the SDK default). Override the model
+    or point at an OpenAI-compatible server (Azure OpenAI, a local Whisper
+    server, Groq, …) by subclassing and setting the class attributes:
+
+        class GroqTranscription(OpenAITranscriptionBackend):
+            model = "whisper-large-v3"
+            base_url = "https://api.groq.com/openai/v1"
+            api_key = os.environ["GROQ_API_KEY"]
+
+    **``base_url`` and ``api_key`` travel together.** The SDK sends whatever key
+    it holds as the bearer token to whatever host ``base_url`` names, and with
+    ``api_key`` left unset that key is ``OPENAI_API_KEY`` from the environment —
+    so pointing at a third-party endpoint without setting one hands that vendor
+    the OpenAI credential, on every clip, and shows only a ``401`` for it. Set
+    both, or neither.
+
+    The ``openai`` SDK is imported lazily inside ``transcribe`` so the base
+    package keeps it an optional dependency (the ``[openai]`` extra).
+    """
 
     model: str = "whisper-1"
     """The transcription model name passed to the API."""
