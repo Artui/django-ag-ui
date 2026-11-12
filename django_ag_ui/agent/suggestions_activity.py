@@ -62,7 +62,8 @@ def suggestions_activity(
     an id an assistant turn already used replaces *that message*. Prefixing is
     enough, and the generated ids do it (``suggestions-<uuid>``).
 
-    Chips are content, so they persist and a reload puts them back. Rows from
+    Chips are not stored with the thread: a reload redraws them only through
+    ``thread_activity_source=``, or on a client-side store. Rows from
     earlier turns stay above, reading as what was offered then; nothing expires
     them, and a project that wants exactly one row keeps one id.
 

@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 - The API reference's docstrings are restored, after the comment-budget sweep had cut them.
+- The charts guide says pushed follow-up chips are not in the stored thread either, and
+  the configuration guide says where a transcription clip goes and that none is kept.
+  `suggestions_activity()`'s docstring no longer claims chips persist and a reload
+  puts them back.
 
 ## [0.74.0] — 2026-11-03
 

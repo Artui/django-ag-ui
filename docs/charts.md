@@ -160,6 +160,11 @@ A **client-side store** persists activities and needs nothing from you. On a
 server-side store — the recommended setup — a pushed chart comes back only if
 you put it back, which is what the next section is for.
 
+Follow-up chips pushed with
+[`suggestions_activity()`][django_ag_ui.suggestions_activity] are not in the
+stored thread either. On a server-side store a reload redraws them only if
+`thread_activity_source=` returns them, as the next section does for charts.
+
 ## Putting a pushed chart back on reload
 
 `thread_activity_source=` is asked, on every thread read, which pushed
