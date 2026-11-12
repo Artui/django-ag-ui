@@ -68,7 +68,52 @@ _DELEGATION: ContextVar[_Delegation | None] = ContextVar(
 
 
 class SubAgentObserver(WrapperCapability[Any]):
-    """Wraps a ``SubAgents`` capability and reports each delegation as it happens."""
+    """Wraps a ``SubAgents`` capability and reports each delegation as it happens.
+
+    A delegated child runs to completion inside one ``delegate_task`` tool call,
+    and a tool call emits nothing between its arguments and its result. So a
+    parent that hands a long task to a sub-agent shows a tool card that simply
+    sits there -- for a minute, for five -- with no way to tell a working run
+    from a wedged one. Wrapping the capability is the seam for saying so:
+
+        capabilities=[SubAgentObserver(SubAgents(agents=[...], agent_folders=None))]
+
+    Opt-in by construction: passing ``SubAgents`` unwrapped emits nothing, and
+    costs nothing.
+
+    What reaches the client rides **two carriers, on purpose**. The delegation's
+    own lifetime goes on the protocol's ``SUBAGENT_STARTED`` / ``_FINISHED`` /
+    ``_ERROR`` events, built by ``subagent_lifecycle``; each tool call the child
+    makes goes on a ``CUSTOM`` event, whose wire contract is
+    [`SUBAGENT_EVENT_NAME`][django_ag_ui.SUBAGENT_EVENT_NAME]. Both key on the
+    parent's own ``delegate_task`` tool call id -- as ``parentToolCallId`` and as
+    ``delegationId`` respectively -- so a client augments the card it already
+    drew rather than opening a second row beside it.
+
+    The split is not a transitional state. Moving the steps to the protocol's
+    own vocabulary would mean ordinary ``TOOL_CALL_*`` events tagged with
+    ``subagentRunId``, and those are materialised into the persisted message
+    list and replayed on every thread restore -- which would redraw a finished
+    run's progress as though it were live. ``subagent_progress`` carries the
+    full reasoning.
+
+    **The observer installs itself onto the capability you hand it.** Reporting
+    a child's tool calls needs ``SubAgents.event_stream_handler``, which only the
+    capability that starts the child run can pass on, so construction sets that
+    field on the wrapped instance. Two consequences worth stating rather than
+    discovering: wrapping a ``SubAgents`` that *already* carries a handler is
+    refused (silently replacing it would lose whatever it was for), and the
+    instance you passed is the one that changed. The second is harmless in a way
+    worth knowing -- the installed handler announces onto
+    ``SUBAGENT_SINK``, which no run outside this transport's stream ever binds,
+    so the same instance reused at an unwrapped endpoint behaves exactly as it
+    did before.
+
+    Subclassing ``WrapperCapability`` (pydantic-ai's supported wrapper, analogous
+    to ``WrapperToolset``) rather than hand-rolling a proxy keeps the rest of the
+    capability protocol intact -- ordering, the ``has_*`` hook-introspection
+    flags and every other lifecycle method delegate untouched.
+    """
 
     def __init__(self, wrapped: Any) -> None:
         _install_handler(wrapped, self._forward_child_events)
@@ -88,7 +133,25 @@ class SubAgentObserver(WrapperCapability[Any]):
         args: dict[str, Any],
         handler: Any,
     ) -> Any:
-        """Announce the delegation this call is, then run it."""
+        """Announce the delegation this call is, then run it.
+
+        This hook fires for **every** tool in the parent run, not only the ones
+        the wrapped capability contributed -- pydantic-ai composes one root
+        capability and asks it about each call -- so the delegate tool is picked
+        out by name and everything else is delegated untouched.
+
+        **Every exit path closes the delegation it opened, cancellation
+        included** -- which reverses an earlier choice here, and the reason is
+        worth keeping. Not announcing on ``asyncio.CancelledError`` was defended
+        as "a cancelled run is a client that has gone away, and there is nobody
+        left to tell", and that holds only when the whole *run* was cancelled. A
+        single tool call can be cancelled while the run continues, and under the
+        protocol's own lifecycle an unclosed delegation is not merely a missing
+        line: ``@ag-ui/client`` refuses ``RUN_FINISHED`` while any delegation is
+        still open, so the omission would take down the run it was trying not to
+        disturb. Announcing into a sink nobody is draining costs nothing, which
+        makes the safe direction the cheap one.
+        """
         if call.tool_name != self._delegate_tool_name:
             return await super().wrap_tool_execute(
                 ctx, call=call, tool_def=tool_def, args=args, handler=handler

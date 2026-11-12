@@ -37,7 +37,24 @@ def build_ag_ui_config(
     tool_failure: ToolFailureConfig | None = None,
     run_context: RunContextConfig | None = None,
 ) -> AGUIConfig:
-    """Resolve an [`AGUIConfig`][django_ag_ui.AGUIConfig] from settings, applying overrides."""
+    """Resolve an [`AGUIConfig`][django_ag_ui.AGUIConfig] from ``DJANGO_AG_UI``,
+    applying overrides.
+
+    The single place the scalar settings are read.
+    [`AGUIServer`][django_ag_ui.AGUIServer] calls this
+    once in ``__init__``; nothing reads these settings per request, which is what
+    lets two endpoints in one project hold different values.
+
+    Every argument is ``None`` by default, meaning "take it from settings". Pass
+    one to override just that field for this endpoint:
+
+        AGUIServer(registry, config=build_ag_ui_config(retries=3))
+
+    Use this rather than constructing [`AGUIConfig`][django_ag_ui.AGUIConfig]
+    directly — it is what
+    layers your overrides *over* the project's settings instead of discarding
+    them.
+    """
 
     def pick(override: Any, key: str, default: Any) -> Any:
         if override is not None:

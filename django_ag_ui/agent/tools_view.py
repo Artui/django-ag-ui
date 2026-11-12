@@ -13,7 +13,22 @@ from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 
 
 class ToolsView:
-    """A read-only endpoint returning the agent's server-tool catalog (GET, JSON)."""
+    """A read-only endpoint returning the agent's server-tool catalog (GET, JSON).
+
+    A callable instance (like [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView])
+    holding the same [`ToolRegistry`][django_ag_ui.ToolRegistry]
+    the view uses. ``GET`` returns the
+    [`build_tool_catalog`][django_spec_agents.agent.build_tool_catalog.build_tool_catalog]
+    list the web
+    component fetches via ``data-tools-url`` to label tool-call cards for
+    server-side tools (whose schema never reaches the browser).
+
+    The catalog names every server tool the agent can wield — an inventory worth
+    gating — so the view carries the same authentication seam as
+    ``DjangoAGUIView`` (``require_authenticated`` / ``get_user``, sync or async)
+    and the same closed default: an anonymous ``GET`` is a ``401`` until you pass
+    ``require_authenticated=False``.
+    """
 
     def __init__(
         self,

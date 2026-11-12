@@ -27,7 +27,33 @@ from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 
 
 class AttachmentsView:
-    """Owner-scoped file-upload + download endpoint (async, multipart/JSON)."""
+    """Owner-scoped file-upload + download endpoint (async, multipart/JSON).
+
+    Mounted by [`AGUIServer`][django_ag_ui.AGUIServer] whenever ``attachment_store=``
+    is a live
+    [`AttachmentStore`][django_ag_ui.AttachmentStore]:
+
+    - ``POST   <prefix>attachments/``      → multipart upload under the ``file``
+      field; validates size/type from ``DJANGO_AG_UI`` settings, persists the
+      bytes, and returns ``201`` with the [`AttachmentRef`][django_ag_ui.AttachmentRef] JSON
+      (``{"id", "name", "mime", "size", "url"?}``) — a durable *ref*, not bytes.
+    - ``GET    <prefix>attachments/<id>/`` → stream the bytes back (owner-checked)
+      for preview/download; missing or cross-owner → ``404``.
+    - ``DELETE <prefix>attachments/<id>/`` → drop the attachment (``204``).
+
+    Every operation is scoped to the acting user: the store filters by owner, so
+    one user's id can never resolve another's file. Downloads are served as an
+    ``attachment`` with ``X-Content-Type-Options: nosniff`` so an uploaded
+    ``text/html`` can't execute as a same-origin page. The view carries the same
+    authentication seam as [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView]
+    (``require_authenticated`` / ``get_user``), and the closed default is
+    load-bearing here: every route is owner-scoped, so an anonymous caller has no
+    files to reach.
+
+    With the default [`NullAttachmentStore`][django_ag_ui.NullAttachmentStore]
+    an upload returns ``410`` (off): mount the view with a real store to enable
+    it.
+    """
 
     def __init__(
         self,

@@ -30,7 +30,40 @@ the model as though it were something the model had said.
 
 
 def resource_invalidation(*keys: str, reason: str | None = None) -> CustomEvent:
-    """An event naming the resources a write has just moved."""
+    """An event naming the resources a write has just moved.
+
+    Emitted by the project from its own code, where it knows what it wrote.
+    There is no setting that turns this on and nothing derives it for you: the
+    framework has no idea which of your pages read which of your tables.
+
+    ``keys`` are **opaque host-defined strings**. This package never interprets
+    them, compares them to anything, or requires a scheme -- it carries them.
+    That is the load-bearing choice: every alternative (model labels, spec names,
+    URLs, MCP-style URIs) encodes one side's vocabulary into a contract both
+    sides have to read, and the two sides here are a Django app and a frontend
+    that may have no notion of Django models at all.
+
+    **Name every key you want invalidated, including the collection.** Matching
+    on the wire is exact and never by prefix, because a prefix rule guesses at a
+    scheme this package does not own and fails both ways -- ``orders/1`` would
+    match ``orders/11``. So a write to one row that should also refresh the list
+    says both::
+
+        resource_invalidation("orders", "orders/42", reason="place_order")
+
+    The *host* may then match hierarchically in its own vocabulary, where the
+    scheme is known and hierarchy is the point (TanStack query keys are built
+    this way). That is the host's to interpret, not this package's to guess.
+
+    ``reason`` is the tool or action that caused the write, carried for the
+    host's logging and filtering. It is never interpreted here either.
+
+    **The page it reaches is the one that started the run**, during the run.
+    There is one ``StreamingHttpResponse`` per run and no channel to anybody
+    else, so this cannot tell another user's open page that something moved --
+    see the invalidation guide for why that is a different subsystem rather than
+    a missing argument.
+    """
     return CustomEvent(
         name=INVALIDATE_EVENT_NAME,
         value={"keys": list(keys), "reason": reason},

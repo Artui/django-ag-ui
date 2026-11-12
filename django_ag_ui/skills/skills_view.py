@@ -12,7 +12,19 @@ from django_ag_ui.skills.skill_registry import SkillRegistry
 
 
 class SkillsView:
-    """Read-only endpoint serving a [`SkillRegistry`][django_ag_ui.SkillRegistry]'s catalog."""
+    """A read-only endpoint returning a
+    [`SkillRegistry`][django_ag_ui.SkillRegistry]'s client catalog.
+
+    A callable instance (like [`DjangoAGUIView`][django_ag_ui.DjangoAGUIView])
+    so it can hold the registry and a project can mount several. ``GET`` returns
+    the JSON skill list the frontend fetches via ``data-skills-url``.
+
+    Skill prompts can encode internal workflows — worth gating — so the view
+    carries the same authentication seam as ``DjangoAGUIView``
+    (``require_authenticated`` / ``get_user``, sync or async) and the same closed
+    default: an anonymous ``GET`` is a ``401`` until you pass
+    ``require_authenticated=False``.
+    """
 
     def __init__(
         self,
