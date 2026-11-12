@@ -841,6 +841,11 @@ AGUIServer(registry, transcription_backend=OpenAITranscriptionBackend())
         api_key = os.environ["GROQ_API_KEY"]
     ```
 
+Each clip is sent to whatever the backend calls, and the package keeps no copy of
+it after the request: nothing is written to the attachment store, and there is no
+route to fetch or delete a clip. How long the provider keeps the audio is the
+provider's policy.
+
 Guard the endpoint's cost with
 [`transcribe_throttle=`](#transcribe_throttle): the backend is a paid API call
 per clip, and authentication says who may call it, not how often.
