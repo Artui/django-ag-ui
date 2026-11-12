@@ -147,9 +147,11 @@ defaults, dispatch tables) are fine — module-level **mutable** state is not.
 - Exempt: directives (`# noqa`, `# ty:`, `# vX.Y.Z` pins), migrations, and a docstring
   the code or a test reads through `__doc__`, which is data.
 
-A docstring mkdocstrings renders into the API reference is not exempt.
+A docstring a `:::` page renders (the object, and its public members unless `members:`
+narrows them) is exempt too: it is the API reference. Comments around it still count.
 Condense rather than move: a reason that does not fit is cut, not relocated to prose
-elsewhere. A body left empty by a removed docstring takes `...`. Ruff's E501 is on at 100
+elsewhere. The exception is a walkthrough comment inside a `--8<--` snippet section of a
+`docs/` example: its prose moves onto the page beside the include. A body left empty by a removed docstring takes `...`. Ruff's E501 is on at 100
 columns and `ruff format` never wraps a comment, so a line that does not fit is
 condensed, not wrapped; an unbreakable string such as a URL takes `# noqa: E501`. The workbench's
 `bin/comment-budget.py` lists the violations.
