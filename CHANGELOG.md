@@ -27,7 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The response stays `200`, because the store refuses at its first write, after
   the stream has opened; the run ends in `RUN_ERROR` with `code`
   `identifier_too_long` and a message naming the field and its limit, which
-  `TOOL_FAILURE["INCLUDE_DETAIL"]` does not redact. No row is written. A
+  `TOOL_FAILURE["INCLUDE_DETAIL"]` does not redact. No row is written, and the
+  exchange is not saved to the conversation store when the step store refused. A
   `runId` counts the `scope:` prefix `ScopedStepStore` adds. Before, an
   over-long thread id broke the stream with an exception escaping the response
   after the model had run (on PostgreSQL a `DataError`), and an over-long run id

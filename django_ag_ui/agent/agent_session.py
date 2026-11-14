@@ -177,7 +177,7 @@ class AgentSession:
         finalize = self._on_error(transcript)
         async for event in events:
             if isinstance(event, RunErrorEvent):
-                await finalize(event.message)
+                await finalize(event.message, persist=event.code != IDENTIFIER_TOO_LONG_CODE)
                 event = self._client_facing_error(event)
             yield event
 
@@ -258,7 +258,7 @@ class AgentSession:
 
         return _save
 
-    def _run_finalizer(self, transcript: RunTranscript) -> Callable[[str], Awaitable[None]]:
+    def _run_finalizer(self, transcript: RunTranscript) -> Callable[..., Awaitable[None]]:
         """Persist the partial exchange and audit the run, given a reason."""
         save = self._message_saver()
         audit = self._audit_logger
@@ -269,9 +269,9 @@ class AgentSession:
         )
         ip_address = self._request.META.get("REMOTE_ADDR")
 
-        async def _finalize(error: str) -> None:
-            # The run already failed on the refused id; saving again would only raise it again.
-            if save is not None:
+        async def _finalize(error: str, *, persist: bool = True) -> None:
+            # A refused id is never saved; a cancel reaches here unchecked, so suppress the refusal.
+            if save is not None and persist:
                 with contextlib.suppress(IdentifierTooLongError):
                     await save([*self._prior_messages(), *transcript.messages()])
             audit.record(
@@ -296,12 +296,12 @@ class AgentSession:
 
         return _on_cancel
 
-    def _on_error(self, transcript: RunTranscript) -> Callable[[str], Awaitable[None]]:
+    def _on_error(self, transcript: RunTranscript) -> Callable[..., Awaitable[None]]:
         """The ``RUN_ERROR`` counterpart: persist the partial exchange, then audit."""
         finalize = self._run_finalizer(transcript)
 
-        async def _on_error(message: str) -> None:
-            await finalize(f"run failed: {message}")
+        async def _on_error(message: str, *, persist: bool = True) -> None:
+            await finalize(f"run failed: {message}", persist=persist)
 
         return _on_error
 

@@ -4,8 +4,8 @@
 pip install django-ag-ui
 ```
 
-Core dependencies are `django>=4.2`, `django-spec-agents>=0.6.0`,
-`pydantic-ai-slim[ui]>=2.63,<3` and `ag-ui-protocol>=1.0`. The `AGUIAdapter` comes from pydantic-ai-slim and the
+Core dependencies are `django>=4.2`, `django-spec-agents>=0.14.0`,
+`pydantic-ai-slim[ag-ui]>=2.63,<3` and `ag-ui-protocol>=1.0`. The `AGUIAdapter` comes from pydantic-ai-slim and the
 AG-UI wire types from `ag-ui-protocol`; this package does not re-implement
 either. The **slim** package ships the adapter but **no model-provider
 library** — pick one via a provider extra (see below).
@@ -15,13 +15,12 @@ runtime underneath: the tool registry, agent construction, the guard and failure
 policies, audit and the storage contracts. This package re-exports the names you
 use from it, so `from django_ag_ui import ToolRegistry` is the spelling to keep.
 
-The `[ui]` extra rather than `[ag-ui]` is deliberate. From 2.47,
-pydantic-ai-slim's `[ag-ui]` extra caps `ag-ui-protocol` below 1.0, and this
-package needs 1.0, so asking for both would quietly hold pydantic-ai-slim at
-2.46. If your own project depends on `pydantic-ai-slim[ag-ui]` or
-`pydantic-ai[ag-ui]`, it brings the cap back, and the resolver again settles on
-pydantic-ai-slim 2.46 without saying so. Depend on the `[ui]` extra instead, as
-this package does.
+From 2.47 to 2.62, pydantic-ai-slim's `[ag-ui]` extra capped `ag-ui-protocol`
+below 1.0, which this package needs, so asking for both quietly held
+pydantic-ai-slim at 2.46; this package asked for the `[ui]` extra instead until
+0.75.0. 2.63.0 lifted the cap, and 2.63 is this package's floor, so `[ag-ui]` is
+safe at every version it admits. A project of your own that pins
+pydantic-ai-slim below 2.63 with `[ag-ui]` still brings the cap back.
 
 Upgrading from 0.66 or earlier does not move pydantic-ai on its own. 2.46 still
 satisfies this package's floor, so a lockfile or environment that already
@@ -39,7 +38,7 @@ uv lock --upgrade-package pydantic-ai-slim --upgrade-package pydantic-ai-harness
 | --- | --- | --- |
 | Python | 3.11 | 3.11, 3.12, 3.13, 3.14 |
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0 |
-| Pydantic-AI | 2.63 (with the `pydantic-ai-slim[ui]` extra) | latest in the CI matrix |
+| Pydantic-AI | 2.63 (with the `pydantic-ai-slim[ag-ui]` extra) | latest in the CI matrix |
 
 ## Model provider extras
 
