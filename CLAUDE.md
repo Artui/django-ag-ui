@@ -178,7 +178,7 @@ Change a rule here and change the config with it, or they drift apart again.
 
 ## Boundaries
 
-- The package depends on `pydantic-ai-slim[ui]` for the AGUIAdapter and on `ag-ui-protocol`
+- The package depends on `pydantic-ai-slim[ag-ui]` for the AGUIAdapter and on `ag-ui-protocol`
   for the AG-UI wire types; don't re-implement them. Not `[ag-ui]`: from 2.47 that extra caps
   the protocol below 1.0, which this package's floor excludes, so the resolver silently holds
   slim at 2.46. The slim package ships no model-provider library —
@@ -198,7 +198,7 @@ Change a rule here and change the config with it, or they drift apart again.
 | --- | --- | --- |
 | Python | 3.11 | 3.11, 3.12, 3.13, 3.14 |
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0 |
-| Pydantic-AI | 2.63 (with the `pydantic-ai-slim[ui]` extra) | latest in matrix |
+| Pydantic-AI | 2.63 (with the `pydantic-ai-slim[ag-ui]` extra) | latest in matrix |
 
 ## Branching
 
