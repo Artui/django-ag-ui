@@ -1227,6 +1227,16 @@ question, so it gets the same answer: with `INCLUDE_DETAIL` off the client is
 told the run failed and that the failure was recorded, and the exception stays
 in the audit record and the server log.
 
+**One failure is the client's to fix, so it keeps its words.** When the store
+refuses a `threadId` or `runId` longer than the column that holds it
+(django-spec-agents' `IdentifierTooLongError`), the run ends in a `RUN_ERROR`
+whose `code` is `identifier_too_long` and whose `message` names the field and
+its limit, whatever `INCLUDE_DETAIL` says. Nothing is written. The response is
+still `200`, since the store refuses at its first write, after the stream has
+opened. A run id counts any prefix a scoped step store adds: under
+`ScopedStepStore(scope="s")` the stored id is `s:<runId>`, so the message gives
+that longer length.
+
 **A retry is not a failure, so `INCLUDE_DETAIL` does not govern it.** When a
 tool answers that the model's own argument was wrong, the model gets a retry
 carrying the validation message, and the browser receives that as a

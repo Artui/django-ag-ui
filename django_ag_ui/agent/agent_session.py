@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -9,6 +10,7 @@ from ag_ui.core import BaseEvent, Message, RunErrorEvent
 from django.http import HttpRequest
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
@@ -32,6 +34,7 @@ from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
+from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.utils import messages_to_jsonable
 
@@ -180,7 +183,7 @@ class AgentSession:
 
     def _client_facing_error(self, event: RunErrorEvent) -> RunErrorEvent:
         """``event`` with its exception text withheld, unless detail is opted in."""
-        if self._config.tool_failure.include_detail:
+        if self._config.tool_failure.include_detail or event.code == IDENTIFIER_TOO_LONG_CODE:
             return event
         return event.model_copy(
             update={"message": "The run failed. The failure has been recorded."}
@@ -267,8 +270,10 @@ class AgentSession:
         ip_address = self._request.META.get("REMOTE_ADDR")
 
         async def _finalize(error: str) -> None:
+            # The run already failed on the refused id; saving again would only raise it again.
             if save is not None:
-                await save([*self._prior_messages(), *transcript.messages()])
+                with contextlib.suppress(IdentifierTooLongError):
+                    await save([*self._prior_messages(), *transcript.messages()])
             audit.record(
                 AuditEvent(
                     tool_name="agent.run",
