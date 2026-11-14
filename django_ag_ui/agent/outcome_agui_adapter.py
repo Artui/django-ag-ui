@@ -11,7 +11,7 @@ from ag_ui.core import (
     ToolCallResultEvent,
     ToolMessage,
 )
-from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
+from django_spec_agents import IdentifierTooLongError
 from pydantic_ai.messages import (
     FunctionToolResultEvent,
     ModelMessage,

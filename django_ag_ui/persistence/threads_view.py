@@ -13,8 +13,8 @@ from django.http import (
     JsonResponse,
 )
 from django.http.response import HttpResponseBase
+from django_spec_agents import IdentifierTooLongError
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
-from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response

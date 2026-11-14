@@ -8,9 +8,9 @@ from typing import Any, cast
 
 from ag_ui.core import BaseEvent, Message, RunErrorEvent
 from django.http import HttpRequest
+from django_spec_agents import IdentifierTooLongError
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
-from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
