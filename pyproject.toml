@@ -109,20 +109,13 @@ dependencies = [
     # empty message is opened and closed there instead. Load-bearing rather
     # than tidy: the wire fixture the browser lane builds against is generated
     # from this endpoint, and below that version it regenerates differently.
-    # ``[ui]`` rather than ``[ag-ui]``, and the two differ only by a cap. Both
-    # bring starlette for the adapter; ``[ag-ui]`` adds ag-ui-protocol, which
-    # this package declares itself below, and from 2.47 it caps that protocol
-    # below 1.0. With the floor below at 1.0, a resolver asked for both held
-    # pydantic-ai-slim at 2.46 without a word, so every install of this package
-    # and of everything built on it ran a pydantic-ai older than the one its
-    # siblings lock, while the drift job stayed green. ``[ui]`` asks nothing of
-    # the protocol, which leaves the floor below the only statement about it.
-    # Upstream capped it because its own tests assume the pre-1.0 wire; this
-    # endpoint has written the 1.0 wire since that floor was set, and the
-    # adapter forwards the installed protocol version rather than pinning an
-    # older one. Once pydantic-ai#8627 lifts the cap, ``[ag-ui]`` can return
-    # and nothing else moves.
-    "pydantic-ai-slim[ui]>=2.63,<3",
+    # ``[ag-ui]`` brings starlette for the adapter and ag-ui-protocol. From 2.47
+    # to 2.62 it capped that protocol below 1.0, and with the floor below at 1.0
+    # a resolver held pydantic-ai-slim at 2.46 without a word, so this package
+    # asked for ``[ui]`` instead. pydantic-ai#8627, shipped in 2.63.0, lifted
+    # the cap (``[ag-ui]`` declares ag-ui-protocol>=0.1.10), and 2.63 is already
+    # the floor, so every version this range admits takes ``[ag-ui]`` safely.
+    "pydantic-ai-slim[ag-ui]>=2.63,<3",
     # The floor is the protocol's 1.0, and it is load-bearing for the same
     # reason the pydantic-ai floor above is: 1.0 changed what this endpoint
     # writes. It made TEXT_MESSAGE_START's role optional with no default, and an

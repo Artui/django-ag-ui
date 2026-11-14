@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dev group alike: the release whose default stores refuse an id longer than its
   column with `IdentifierTooLongError` before they write. It floors
   django-service-specs at 0.33.0 under `[specs]`.
+- **pydantic-ai-slim is required with `[ag-ui]` again**, not `[ui]`. The
+  `[ag-ui]` extra capped ag-ui-protocol below 1.0 from 2.47 to 2.62, which held
+  pydantic-ai-slim back under this package's protocol floor; 2.63.0, already the
+  floor, lifted the cap. The resolved versions do not change (pydantic-ai-slim
+  2.66.0, ag-ui-protocol 1.0.0), and the `ag-ui-protocol>=1.0` floor stays.
 
 ### Fixed
 
