@@ -559,6 +559,9 @@ component's `data-threads-url`:
 Every operation is scoped to the acting user — a thread owned by someone else
 reads as `404`, never another user's history — and the view carries the same
 `require_authenticated` / `get_user` auth seam as `DjangoAGUIView`.
+A thread id longer than the store's column is not found on the default store, so
+`GET` and `PATCH` answer `404` and `DELETE` its usual `204`; a store that refuses
+it with `IdentifierTooLongError` gets a `400` naming the field and its limit.
 
 ### A ready-made durable store
 

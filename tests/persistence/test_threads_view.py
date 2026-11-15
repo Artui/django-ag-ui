@@ -11,6 +11,8 @@ from django.conf import settings
 from django.contrib.sessions.backends.signed_cookies import SessionStore
 from django.http import HttpRequest
 from django.test import RequestFactory
+from django_spec_agents import IdentifierTooLongError
+from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
@@ -484,3 +486,38 @@ async def test_source_is_handed_the_stored_thread_and_the_request() -> None:
     assert source.seen_message_ids == ["u1", "a1", "u2", "a2"]
     assert source.seen_request is not None
     assert source.seen_request.path == "/agent/threads/t1/"
+
+
+def _detail_request(method: str) -> HttpRequest:
+    if method == "get":
+        return AuthedRequestFactory().get("/agent/threads/x/")
+    return getattr(AuthedRequestFactory(), method)(
+        "/agent/threads/x/", data=json.dumps({"title": "T"}), content_type="application/json"
+    )
+
+
+class _TooLongStore(_FakeStore):
+    async def load(self, thread_id: str, *, request: HttpRequest) -> Conversation | None:
+        raise IdentifierTooLongError("thread_id is 300 characters, over its 255-character limit")
+
+    async def exists(self, thread_id: str, *, request: HttpRequest) -> bool:
+        raise IdentifierTooLongError("thread_id is 300 characters, over its 255-character limit")
+
+    async def delete(self, thread_id: str, *, request: HttpRequest) -> None:
+        raise IdentifierTooLongError("thread_id is 300 characters, over its 255-character limit")
+
+
+@pytest.mark.parametrize("method", ["get", "patch", "delete"])
+async def test_a_store_refusing_an_over_long_id_is_400(method: str) -> None:
+    request = _detail_request(method)
+    response = await ThreadsView(_TooLongStore())(request, thread_id="t" * 300)
+    assert response.status_code == 400
+    assert _body(response) == {"error": "thread_id is 300 characters, over its 255-character limit"}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("method", ["get", "patch"])
+async def test_an_over_long_id_on_the_default_store_is_404(method: str) -> None:
+    request = _detail_request(method)
+    response = await ThreadsView(DefaultConversationStore())(request, thread_id="t" * 300)
+    assert response.status_code == 404

@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.75.0] — 2026-11-14
+
+### Changed
+
+- **django-spec-agents is floored at 0.14.0**, core, `[mcp]`, `[specs]` and the
+  dev group alike: the release whose default stores refuse an id longer than its
+  column with `IdentifierTooLongError` before they write. It floors
+  django-service-specs at 0.33.0 under `[specs]`.
+- **pydantic-ai-slim is required with `[ag-ui]` again**, not `[ui]`. The
+  `[ag-ui]` extra capped ag-ui-protocol below 1.0 from 2.47 to 2.62, which held
+  pydantic-ai-slim back under this package's protocol floor; 2.63.0, already the
+  floor, lifted the cap. The resolved versions do not change (pydantic-ai-slim
+  2.66.0, ag-ui-protocol 1.0.0), and the `ag-ui-protocol>=1.0` floor stays.
+
+### Fixed
+
+- **An over-long `threadId` or `runId` ends the run in a plain `RUN_ERROR`.**
+  The response stays `200`, because the store refuses at its first write, after
+  the stream has opened; the run ends in `RUN_ERROR` with `code`
+  `identifier_too_long` and a message naming the field and its limit, which
+  `TOOL_FAILURE["INCLUDE_DETAIL"]` does not redact. No row is written, and the
+  exchange is not saved to the conversation store when the step store refused. A
+  `runId` counts the `scope:` prefix `ScopedStepStore` adds. Before, an
+  over-long thread id broke the stream with an exception escaping the response
+  after the model had run (on PostgreSQL a `DataError`), and an over-long run id
+  ended in the redacted generic `RUN_ERROR`.
+- **The threads view answers a store's `IdentifierTooLongError` with a `400`**
+  naming the field and its limit, on `GET`, `PATCH` and `DELETE`, instead of a
+  `500`. On the default store an over-long id is not found, so `GET` and `PATCH`
+  stay `404`.
+
 ### Documentation
 
 - The API reference's docstrings are restored, after the comment-budget sweep had cut them.
@@ -4295,7 +4326,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.74.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.75.0...HEAD
+[0.75.0]: https://github.com/Artui/django-ag-ui/compare/v0.74.0...v0.75.0
 [0.74.0]: https://github.com/Artui/django-ag-ui/compare/v0.73.0...v0.74.0
 [0.73.0]: https://github.com/Artui/django-ag-ui/compare/v0.72.0...v0.73.0
 [0.72.0]: https://github.com/Artui/django-ag-ui/compare/v0.71.0...v0.72.0

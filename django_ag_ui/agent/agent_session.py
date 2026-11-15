@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -7,6 +8,7 @@ from typing import Any, cast
 
 from ag_ui.core import BaseEvent, Message, RunErrorEvent
 from django.http import HttpRequest
+from django_spec_agents import IdentifierTooLongError
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
@@ -32,6 +34,7 @@ from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
+from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.utils import messages_to_jsonable
 
@@ -174,13 +177,13 @@ class AgentSession:
         finalize = self._on_error(transcript)
         async for event in events:
             if isinstance(event, RunErrorEvent):
-                await finalize(event.message)
+                await finalize(event.message, persist=event.code != IDENTIFIER_TOO_LONG_CODE)
                 event = self._client_facing_error(event)
             yield event
 
     def _client_facing_error(self, event: RunErrorEvent) -> RunErrorEvent:
         """``event`` with its exception text withheld, unless detail is opted in."""
-        if self._config.tool_failure.include_detail:
+        if self._config.tool_failure.include_detail or event.code == IDENTIFIER_TOO_LONG_CODE:
             return event
         return event.model_copy(
             update={"message": "The run failed. The failure has been recorded."}
@@ -255,7 +258,7 @@ class AgentSession:
 
         return _save
 
-    def _run_finalizer(self, transcript: RunTranscript) -> Callable[[str], Awaitable[None]]:
+    def _run_finalizer(self, transcript: RunTranscript) -> Callable[..., Awaitable[None]]:
         """Persist the partial exchange and audit the run, given a reason."""
         save = self._message_saver()
         audit = self._audit_logger
@@ -266,9 +269,11 @@ class AgentSession:
         )
         ip_address = self._request.META.get("REMOTE_ADDR")
 
-        async def _finalize(error: str) -> None:
-            if save is not None:
-                await save([*self._prior_messages(), *transcript.messages()])
+        async def _finalize(error: str, *, persist: bool = True) -> None:
+            # A refused id is never saved; a cancel reaches here unchecked, so suppress the refusal.
+            if save is not None and persist:
+                with contextlib.suppress(IdentifierTooLongError):
+                    await save([*self._prior_messages(), *transcript.messages()])
             audit.record(
                 AuditEvent(
                     tool_name="agent.run",
@@ -291,12 +296,12 @@ class AgentSession:
 
         return _on_cancel
 
-    def _on_error(self, transcript: RunTranscript) -> Callable[[str], Awaitable[None]]:
+    def _on_error(self, transcript: RunTranscript) -> Callable[..., Awaitable[None]]:
         """The ``RUN_ERROR`` counterpart: persist the partial exchange, then audit."""
         finalize = self._run_finalizer(transcript)
 
-        async def _on_error(message: str) -> None:
-            await finalize(f"run failed: {message}")
+        async def _on_error(message: str, *, persist: bool = True) -> None:
+            await finalize(f"run failed: {message}", persist=persist)
 
         return _on_error
 

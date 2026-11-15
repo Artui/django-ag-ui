@@ -1774,3 +1774,90 @@ async def test_custom_wording_reaches_a_run_only_through_a_built_object(
     assert retry["content"].startswith(sentence)
     other = _MISSING_PK if sentence == _ASKED_AGAIN else _ASKED_AGAIN
     assert other not in retry["content"]
+
+
+def _run_error(body: str) -> dict[str, Any]:
+    events = [json.loads(line[len("data: ") :]) for line in body.splitlines() if line]
+    errors = [event for event in events if event["type"] == "RUN_ERROR"]
+    assert len(errors) == 1
+    assert events[-1]["type"] == "RUN_ERROR"
+    return errors[0]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_an_over_long_thread_id_ends_in_a_plain_run_error_and_writes_nothing() -> None:
+    from django_spec_agents.contrib.store.default_conversation_store import (
+        DefaultConversationStore,
+    )
+    from django_spec_agents.contrib.store.models import StoredConversation
+
+    view = DjangoAGUIView(
+        _registry(), model=TestModel(), conversation_store=DefaultConversationStore()
+    )
+    response = await view(_post(_run_input("double 5", thread_id="t" * 300)))
+    assert response.status_code == 200
+    error = _run_error(await _drain(response))
+    assert error["code"] == "identifier_too_long"
+    assert error["message"] == "thread_id is 300 characters, over its 255-character limit"
+    assert await StoredConversation.objects.acount() == 0
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_id_too_long_only_with_the_scope_prefix_ends_in_a_plain_run_error() -> None:
+    from django_spec_agents.contrib.store.models import StoredRun
+
+    from django_ag_ui.persistence.scoped_step_store import ScopedStepStore
+
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        step_store=ScopedStepStore(DefaultStepStore, scope="s"),
+    )
+    response = await view(_post(_run_input("double 5", run_id="r" * 254)))
+    error = _run_error(await _drain(response))
+    assert error["code"] == "identifier_too_long"
+    assert error["message"].startswith("run_id is 256 characters, over its 255-character")
+    assert await StoredRun.objects.acount() == 0
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_refused_run_id_saves_no_conversation_either() -> None:
+    from django_spec_agents.contrib.store.default_conversation_store import (
+        DefaultConversationStore,
+    )
+    from django_spec_agents.contrib.store.models import StoredConversation
+
+    from django_ag_ui.persistence.scoped_step_store import ScopedStepStore
+
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        conversation_store=DefaultConversationStore(),
+        step_store=ScopedStepStore(DefaultStepStore, scope="s"),
+    )
+    response = await view(_post(_run_input("double 5", run_id="r" * 254)))
+    assert _run_error(await _drain(response))["code"] == "identifier_too_long"
+    assert await StoredConversation.objects.acount() == 0
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_disconnect_on_an_over_long_thread_id_still_audits() -> None:
+    from django_spec_agents.contrib.store.default_conversation_store import (
+        DefaultConversationStore,
+    )
+    from django_spec_agents.contrib.store.models import StoredConversation
+
+    spy = _SpyAuditLogger()
+    view = DjangoAGUIView(
+        _registry(),
+        model=_blocking_model(asyncio.Event()),
+        audit_logger=spy,
+        conversation_store=DefaultConversationStore(),
+    )
+    response = await view(_post(_run_input("hi", thread_id="t" * 300)))
+
+    await _cancel_mid_stream(response, "answer")
+
+    (event,) = spy.events
+    assert event.error.startswith("cancelled:")
+    assert await StoredConversation.objects.acount() == 0

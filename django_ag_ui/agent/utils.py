@@ -4,6 +4,8 @@ import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
+IDENTIFIER_TOO_LONG_CODE = "identifier_too_long"
+
 STREAM_END = object()
 """Queued by the pump to say the upstream stream is exhausted.
 
@@ -36,4 +38,4 @@ async def discard_tasks(*tasks: asyncio.Future[Any] | None) -> None:
     await asyncio.gather(*live, return_exceptions=True)
 
 
-__all__ = ["STREAM_END", "discard_tasks", "pump_in_lockstep"]
+__all__ = ["IDENTIFIER_TOO_LONG_CODE", "STREAM_END", "discard_tasks", "pump_in_lockstep"]

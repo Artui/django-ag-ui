@@ -97,7 +97,7 @@ pip install "django-ag-ui[anthropic]"   # or [openai], or [google]
 uv add "django-ag-ui[anthropic]"
 ```
 
-> The core deps are `django-spec-agents`, `pydantic-ai-slim[ui]` and
+> The core deps are `django-spec-agents`, `pydantic-ai-slim[ag-ui]` and
 > `ag-ui-protocol`. Slim ships no
 > model-provider library — pick one via a provider extra (`anthropic` /
 > `openai` / `google`).

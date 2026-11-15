@@ -13,6 +13,7 @@ from django.http import (
     JsonResponse,
 )
 from django.http.response import HttpResponseBase
+from django_spec_agents import IdentifierTooLongError
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
@@ -99,6 +100,8 @@ class ThreadsView:
             return await self._detail(request, thread_id)
         except AnonymousOperationError:
             return auth_error_response(403)
+        except IdentifierTooLongError as error:
+            return JsonResponse({"error": str(error)}, status=400)
 
     async def _list(self, request: HttpRequest) -> HttpResponseBase:
         if request.method != "GET":
