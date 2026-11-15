@@ -14,7 +14,7 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.http import Http404, StreamingHttpResponse
 from django.test import RequestFactory, override_settings
-from django_spec_agents import AttachmentInlineConfig
+from django_spec_agents import AttachmentInlineConfig, IdentifierTooLongError
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
@@ -1784,40 +1784,78 @@ def _run_error(body: str) -> dict[str, Any]:
     return errors[0]
 
 
+def _counted_model(calls: list[int]):  # noqa: ANN202
+    from pydantic_ai.models.function import FunctionModel
+
+    async def stream_fn(messages, info):  # noqa: ANN001, ANN202
+        calls.append(1)
+        yield "hi"
+
+    return FunctionModel(stream_function=stream_fn)
+
+
+def _refused(response: Any) -> str:
+    assert response.status_code == 400
+    assert not isinstance(response, StreamingHttpResponse)
+    payload = json.loads(response.content)
+    assert payload["code"] == "identifier_too_long"
+    return payload["error"]
+
+
+class _RefusingSaveStore(_ThreadStore):
+    """A custom store with no ``check_identifiers``, refusing the id only when it writes."""
+
+    async def save(self, conversation: Any, *, request: Any) -> None:
+        raise IdentifierTooLongError("thread_id is 300 characters, over its 255-character limit")
+
+
 @pytest.mark.django_db(transaction=True)
-async def test_an_over_long_thread_id_ends_in_a_plain_run_error_and_writes_nothing() -> None:
+async def test_an_over_long_thread_id_is_refused_before_the_stream_opens() -> None:
     from django_spec_agents.contrib.store.default_conversation_store import (
         DefaultConversationStore,
     )
     from django_spec_agents.contrib.store.models import StoredConversation
 
+    calls: list[int] = []
     view = DjangoAGUIView(
-        _registry(), model=TestModel(), conversation_store=DefaultConversationStore()
+        _registry(), model=_counted_model(calls), conversation_store=DefaultConversationStore()
     )
     response = await view(_post(_run_input("double 5", thread_id="t" * 300)))
-    assert response.status_code == 200
-    error = _run_error(await _drain(response))
-    assert error["code"] == "identifier_too_long"
-    assert error["message"] == "thread_id is 300 characters, over its 255-character limit"
+    assert _refused(response) == "thread_id is 300 characters, over its 255-character limit"
     assert await StoredConversation.objects.acount() == 0
+    assert calls == []
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_run_id_too_long_only_with_the_scope_prefix_ends_in_a_plain_run_error() -> None:
+async def test_a_thread_id_too_long_for_the_step_store_alone_is_refused() -> None:
+    from django_spec_agents.contrib.store.models import StoredRun
+
+    calls: list[int] = []
+    view = DjangoAGUIView(_registry(), model=_counted_model(calls), step_store=DefaultStepStore)
+    response = await view(_post(_run_input("double 5", thread_id="t" * 300)))
+    assert _refused(response).startswith("conversation_id is 300 characters")
+    assert await StoredRun.objects.acount() == 0
+    assert calls == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_id_too_long_only_with_the_scope_prefix_is_refused_at_its_sent_length() -> None:
     from django_spec_agents.contrib.store.models import StoredRun
 
     from django_ag_ui.persistence.scoped_step_store import ScopedStepStore
 
+    calls: list[int] = []
     view = DjangoAGUIView(
         _registry(),
-        model=TestModel(),
+        model=_counted_model(calls),
         step_store=ScopedStepStore(DefaultStepStore, scope="s"),
     )
     response = await view(_post(_run_input("double 5", run_id="r" * 254)))
-    error = _run_error(await _drain(response))
-    assert error["code"] == "identifier_too_long"
-    assert error["message"].startswith("run_id is 256 characters, over its 255-character")
+    assert _refused(response) == (
+        "run_id is 254 characters, over its 253-character limit in this scope"
+    )
     assert await StoredRun.objects.acount() == 0
+    assert calls == []
 
 
 @pytest.mark.django_db(transaction=True)
@@ -1836,23 +1874,29 @@ async def test_a_refused_run_id_saves_no_conversation_either() -> None:
         step_store=ScopedStepStore(DefaultStepStore, scope="s"),
     )
     response = await view(_post(_run_input("double 5", run_id="r" * 254)))
-    assert _run_error(await _drain(response))["code"] == "identifier_too_long"
+    _refused(response)
     assert await StoredConversation.objects.acount() == 0
 
 
-@pytest.mark.django_db(transaction=True)
-async def test_a_disconnect_on_an_over_long_thread_id_still_audits() -> None:
-    from django_spec_agents.contrib.store.default_conversation_store import (
-        DefaultConversationStore,
-    )
-    from django_spec_agents.contrib.store.models import StoredConversation
+async def test_a_store_without_the_check_still_ends_in_a_plain_run_error() -> None:
+    store = _RefusingSaveStore()
+    view = DjangoAGUIView(_registry(), model=TestModel(), conversation_store=store)
+    response = await view(_post(_run_input("double 5", thread_id="t" * 300)))
+    assert response.status_code == 200
+    error = _run_error(await _drain(response))
+    assert error["code"] == "identifier_too_long"
+    assert error["message"] == "thread_id is 300 characters, over its 255-character limit"
+    assert store.rows == {}
 
+
+async def test_a_disconnect_on_an_over_long_thread_id_still_audits() -> None:
     spy = _SpyAuditLogger()
+    store = _RefusingSaveStore()
     view = DjangoAGUIView(
         _registry(),
         model=_blocking_model(asyncio.Event()),
         audit_logger=spy,
-        conversation_store=DefaultConversationStore(),
+        conversation_store=store,
     )
     response = await view(_post(_run_input("hi", thread_id="t" * 300)))
 
@@ -1860,4 +1904,68 @@ async def test_a_disconnect_on_an_over_long_thread_id_still_audits() -> None:
 
     (event,) = spy.events
     assert event.error.startswith("cancelled:")
-    assert await StoredConversation.objects.acount() == 0
+    assert store.rows == {}
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_resume_from_too_long_for_the_parent_column_is_refused() -> None:
+    calls: list[int] = []
+    view = DjangoAGUIView(_registry(), model=_counted_model(calls), step_store=DefaultStepStore)
+    response = await view(_post(_run_input("double 5", run_id="r2")), resume_from="p" * 300)
+    assert _refused(response).startswith("parent_run_id is 300 characters")
+    assert calls == []
+
+
+class _LongIdOnReadStore(_ThreadStore):
+    """A custom store with no ``check_identifiers`` whose reads refuse one method's id."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.refuse: str | None = None
+
+    def _maybe_refuse(self, method: str) -> None:
+        if self.refuse == method:
+            raise IdentifierTooLongError("thread_id is too long for this store")
+
+    async def exists(self, thread_id: str, *, request: Any) -> bool:
+        self._maybe_refuse("exists")
+        return await super().exists(thread_id, request=request)
+
+    async def load(self, thread_id: str, *, request: Any) -> Any:
+        self._maybe_refuse("load")
+        return await super().load(thread_id, request=request)
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    ("method", "posted_thread"),
+    # A different thread reaches exists(); the source run's own thread skips it for load().
+    [("exists", "tB"), ("load", "tA")],
+)
+async def test_a_resume_whose_store_refuses_the_id_on_read_is_a_400(
+    method: str, posted_thread: str
+) -> None:
+    from asgiref.sync import sync_to_async
+    from django.contrib.auth import get_user_model
+
+    user = await sync_to_async(get_user_model().objects.create)(username=f"reader-{method}")
+    store = _LongIdOnReadStore()
+    calls: list[int] = []
+    view = DjangoAGUIView(
+        _registry(),
+        model=_counted_model(calls),
+        step_store=DefaultStepStore,
+        conversation_store=store,
+        get_user=lambda _r: user,
+    )
+    await _drain(await view(_post(_run_input("double 5", run_id="r1", thread_id="tA"))))
+    store.refuse = method
+    calls.clear()
+
+    response = await view(
+        _post(_run_input("again", run_id="r2", thread_id=posted_thread, message_id="u2")),
+        resume_from="r1",
+    )
+
+    assert _refused(response) == "thread_id is too long for this store"
+    assert calls == []

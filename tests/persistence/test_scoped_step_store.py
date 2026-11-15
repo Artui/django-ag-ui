@@ -4,8 +4,10 @@ import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
 from django.http import HttpRequest
 from django.test import RequestFactory
+from django_spec_agents import IdentifierTooLongError, preflight_identifiers
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.test import TestModel
 from pydantic_ai_harness.step_persistence import (
@@ -308,6 +310,77 @@ class TestTheFactoryShape:
 
         assert len(await store.list_runs(conversation_id="t1")) == 1
         assert await store.list_runs(conversation_id="other") == []
+
+
+class _CheckingStore(_MemoryStore):
+    """A ledger whose columns hold ``limit`` characters, refusing with ``error`` when set."""
+
+    def __init__(self, *, limit: int = 10, error: IdentifierTooLongError | None = None) -> None:
+        super().__init__()
+        self.limit = limit
+        self.error = error
+        self.checked: list[dict[str, str | None]] = []
+
+    def check_identifiers(self, **ids: str | None) -> None:
+        self.checked.append(ids)
+        if self.error is not None:
+            raise self.error
+        for name, value in ids.items():
+            if value is not None and len(value) > self.limit:
+                raise IdentifierTooLongError(
+                    f"{name} is {len(value)} characters, over its {self.limit}-character limit",
+                    field=name,
+                    length=len(value),
+                    limit=self.limit,
+                )
+
+
+class TestTheIdentifierCheck:
+    def test_a_store_without_the_check_is_not_offered_one(self) -> None:
+        store = _scoped(_MemoryStore(), "internal")
+        assert not hasattr(store, "check_identifiers")
+        preflight_identifiers(store, run_id="r" * 1000)
+
+    def test_the_run_id_is_checked_with_the_prefix_and_the_rest_as_sent(self) -> None:
+        inner = _CheckingStore(limit=100)
+        preflight_identifiers(
+            _scoped(inner, "s"), run_id="r1", conversation_id="t1", parent_run_id="p1"
+        )
+        assert inner.checked == [{"run_id": "s:r1", "conversation_id": "t1", "parent_run_id": "p1"}]
+
+    def test_a_run_id_over_only_with_the_prefix_is_reported_at_its_sent_length(self) -> None:
+        with pytest.raises(IdentifierTooLongError) as caught:
+            preflight_identifiers(_scoped(_CheckingStore(limit=10), "s"), run_id="r" * 9)
+        error = caught.value
+        assert str(error) == "run_id is 9 characters, over its 8-character limit in this scope"
+        assert (error.field, error.length, error.limit) == ("run_id", 9, 8)
+
+    def test_another_field_s_refusal_passes_through_unchanged(self) -> None:
+        with pytest.raises(IdentifierTooLongError) as caught:
+            preflight_identifiers(
+                _scoped(_CheckingStore(limit=10), "s"), run_id="r1", conversation_id="t" * 11
+            )
+        assert caught.value.field == "conversation_id"
+        assert caught.value.length == 11
+
+    def test_a_check_without_a_run_id_passes_through_unchanged(self) -> None:
+        inner = _CheckingStore(limit=10)
+        with pytest.raises(IdentifierTooLongError) as caught:
+            preflight_identifiers(_scoped(inner, "s"), conversation_id="t" * 11)
+        assert inner.checked == [{"conversation_id": "t" * 11}]
+        assert caught.value.field == "conversation_id"
+
+    def test_a_run_id_refusal_without_a_run_id_sent_passes_through_unchanged(self) -> None:
+        stray = IdentifierTooLongError("run_id is too long", field="run_id", length=11, limit=10)
+        with pytest.raises(IdentifierTooLongError) as caught:
+            preflight_identifiers(_scoped(_CheckingStore(error=stray), "s"), conversation_id="t1")
+        assert caught.value is stray
+
+    def test_a_refusal_that_names_no_limit_passes_through_unchanged(self) -> None:
+        bare = IdentifierTooLongError("too long", field="run_id")
+        with pytest.raises(IdentifierTooLongError) as caught:
+            preflight_identifiers(_scoped(_CheckingStore(error=bare), "s"), run_id="r1")
+        assert caught.value is bare
 
 
 class TestThroughTheMount:

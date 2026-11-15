@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **An over-long `threadId` or `runId` is a `400` before the stream opens**, not
+  a `200` that ends in `RUN_ERROR`. The view asks each store through
+  django-spec-agents' `preflight_identifiers`, so the model is not called and
+  nothing is written; the body is `{"error": ..., "code": "identifier_too_long"}`.
+  A custom store without `check_identifiers` is skipped and still refuses inside
+  the stream, as before.
+- **`ScopedStepStore` forwards `check_identifiers`**, with its prefix applied to
+  `run_id`, only when the inner store has it, and reports a refused `run_id` at
+  the length the client sent.
+- **django-spec-agents is floored at 0.15.0**, core, `[mcp]`, `[specs]` and the
+  dev group, for `preflight_identifiers`.
+
+### Fixed
+
+- **A resume against a store that refuses the thread id while reading it is a
+  `400`**, not a `500`: `IdentifierTooLongError` from `exists()` or `load()`
+  before the stream opens is answered like the preflight.
+
 ## [0.76.0] — 2026-11-15
 
 ### Added

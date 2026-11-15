@@ -5,6 +5,7 @@ from collections.abc import Callable
 from typing import Any
 
 from django.http import HttpRequest
+from django_spec_agents import IdentifierTooLongError
 
 # The step-store protocol and its records live in ``pydantic-ai-harness``, which
 # arrives with the ``[harness]`` extra. Typed ``Any`` so this module imports
@@ -51,6 +52,11 @@ class ScopedStepStore:
     The scope is invisible on the wire. Run ids are handed back to the client
     unchanged; only the storage key carries the prefix.
 
+    ``check_identifiers`` is forwarded, with the prefix applied to ``run_id``, only
+    when the inner store has it, so ``preflight_identifiers`` skips a store without
+    one. A ``run_id`` refused there is reported at the length the client sent,
+    against the room the prefix leaves.
+
     **Opt in explicitly.** A transport does not wrap by itself: doing so from its
     namespace would orphan every run an existing single-endpoint project had
     already recorded, the moment it set one. For the same reason, adding a scope
@@ -74,6 +80,30 @@ class _ScopedStore:
         self._inner = inner
         self._scope = scope
         self._prefix = f"{scope}:"
+        # Offered only over a store that has it, so a scoped custom store never looks capable.
+        if callable(getattr(inner, "check_identifiers", None)):
+            self.check_identifiers = self._check_identifiers
+
+    def _check_identifiers(self, **ids: str | None) -> None:
+        run_id = ids.get("run_id")
+        if run_id is not None:
+            ids["run_id"] = self._key(run_id)
+        try:
+            self._inner.check_identifiers(**ids)
+        except IdentifierTooLongError as error:
+            raise self._as_sent(error, run_id) from error
+
+    def _as_sent(self, error: IdentifierTooLongError, run_id: str | None) -> IdentifierTooLongError:
+        """``error`` counted against the id the client sent, when it is about ``run_id``."""
+        if run_id is None or error.field != "run_id" or error.limit is None:
+            return error
+        limit = error.limit - len(self._prefix)
+        return IdentifierTooLongError(
+            f"run_id is {len(run_id)} characters, over its {limit}-character limit in this scope",
+            field="run_id",
+            length=len(run_id),
+            limit=limit,
+        )
 
     def _key(self, run_id: str) -> str:
         return f"{self._prefix}{run_id}"
