@@ -4,7 +4,13 @@ import json
 from typing import Any
 
 import pytest
-from ag_ui.core import BaseEvent, ReasoningEncryptedValueEvent, ToolCallResultEvent
+from ag_ui.core import (
+    BaseEvent,
+    ReasoningEncryptedValueEvent,
+    RunErrorEvent,
+    RunFinishedEvent,
+    ToolCallResultEvent,
+)
 from ag_ui.encoder import EventEncoder
 from django.test import RequestFactory
 from django_spec_agents.agent.types.agent_deps import AgentDeps
@@ -13,6 +19,7 @@ from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai import Agent, ToolFailed
 from pydantic_ai.messages import (
+    EnqueuedMessagesEvent,
     FunctionToolResultEvent,
     ModelRequest,
     ModelResponse,
@@ -20,12 +27,13 @@ from pydantic_ai.messages import (
     NativeToolReturnPart,
     OutputToolResultEvent,
     RetryPromptPart,
+    SystemPromptPart,
     ToolCallPart,
     ToolReturnPart,
 )
 from pydantic_ai.models.function import DeltaToolCall, FunctionModel
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.ui.ag_ui import AGUIAdapter
+from pydantic_ai.ui.ag_ui import AGUIAdapter, AGUIEventStream
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.agui_view import DjangoAGUIView
@@ -469,3 +477,73 @@ def test_upstreams_keyword_arguments_reach_the_dump() -> None:
     (stored,) = [m for m in dumped if m.role == "tool"]
     assert stored.encrypted_value is None
     assert stored.metadata == {OUTCOME_FIELD: "denied"}
+
+
+# --- the stream carries every adapter setting -----------------------------------
+
+
+async def test_a_client_system_prompt_survives_on_enqueued_messages_under_client_management() -> (
+    None
+):
+    """MANAGE_SYSTEM_PROMPT="client" reaches the stream that sends enqueued messages."""
+    run_input = AGUIAdapter.build_run_input(
+        json.dumps(
+            {
+                "threadId": "t",
+                "runId": "r",
+                "messages": [{"id": "m", "role": "user", "content": "hi"}],
+                "tools": [],
+                "context": [],
+                "state": None,
+                "forwardedProps": {},
+            }
+        ).encode()
+    )
+    adapter = OutcomeAGUIAdapter(Agent(TestModel()), run_input, manage_system_prompt="client")
+    event = EnqueuedMessagesEvent(
+        enqueue_id="e1",
+        messages=[ModelRequest(parts=[SystemPromptPart(content="CLIENT-OWNED-PROMPT")])],
+    )
+
+    events = await _drain(adapter.build_event_stream().handle_enqueued_messages(event))
+
+    assert "CLIENT-OWNED-PROMPT" in str(events)
+
+
+async def test_an_error_stream_stamps_a_code_on_a_run_error_only() -> None:
+    """``code`` belongs to RUN_ERROR; any other event the parent yields is left alone."""
+
+    async def parent_yields_other(self: Any, error: Exception) -> Any:
+        yield RunErrorEvent(message="m")
+        yield RunFinishedEvent(thread_id="t", run_id="r")
+
+    stream = _stream()
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(AGUIEventStream, "on_error", parent_yields_other)
+        events = await _drain(stream.on_error(RuntimeError("x")))
+
+    error, finished = events
+    assert error.code == "error"
+    assert "code" not in _extras(finished)
+
+
+def test_building_the_stream_raises_no_warning() -> None:
+    import warnings
+
+    run_input = AGUIAdapter.build_run_input(
+        json.dumps(
+            {
+                "threadId": "t",
+                "runId": "r",
+                "messages": [],
+                "tools": [],
+                "context": [],
+                "state": None,
+                "forwardedProps": {},
+            }
+        ).encode()
+    )
+    adapter = OutcomeAGUIAdapter(Agent(TestModel()), run_input)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        adapter.build_event_stream()

@@ -116,7 +116,9 @@ class AGUIConfig:
 
     include_usage: bool
     """Whether ``RUN_FINISHED`` carries the run's token usage, per provider and
-    model, as Pydantic-AI's ``AGUIAdapter.include_usage``. Off by default.
+    model, as Pydantic-AI's ``AGUIAdapter.include_usage``. Off by default, because
+    each entry names the provider and model the server runs; the entries also carry
+    ``totalTokens`` and the cache and reasoning counts where the provider reports them.
 
     Upstream adds the field only when the installed ``ag-ui-protocol`` is 1.0 or
     newer, which this package's floor guarantees, and only for a run that made

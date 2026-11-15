@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.77.0] — 2026-11-15
+
+### Changed
+
+- **An over-long `threadId` or `runId` is a `400` before the stream opens**, not
+  a `200` that ends in `RUN_ERROR`, and an over-long run id on `resume/` or
+  `fork/` is that `400` rather than a `404`. The view asks each store through
+  django-spec-agents' `preflight_identifiers`, so the model is not called and
+  nothing is written; the body is `{"error": ..., "code": "identifier_too_long"}`.
+  A custom store without `check_identifiers` is skipped and still refuses inside
+  the stream, as before.
+- **`ScopedStepStore` forwards `check_identifiers`**, with its prefix applied to
+  `run_id`, only when the inner store has it, and reports a refused `run_id` at
+  the length the client sent.
+- **django-spec-agents is floored at 0.15.0**, core, `[mcp]`, `[specs]` and the
+  dev group, for `preflight_identifiers`.
+
+### Fixed
+
+- **A resume against a store that refuses the thread id while reading it is a
+  `400`**, not a `500`: `IdentifierTooLongError` from `exists()` or `load()`
+  before the stream opens is answered like the preflight.
+- **`MANAGE_SYSTEM_PROMPT="client"` now reaches the event stream.** The adapter's
+  stream dropped upstream's `manage_system_prompt` and `preserve_file_data`, so
+  enqueued messages lost a client-owned system prompt. It now builds the stream
+  from every init field of upstream's own, so a field upstream adds is not
+  dropped.
+- **A `code` is stamped on a `RUN_ERROR` only**, no longer on any event the
+  error path yields.
+
+### Documentation
+
+- **The `timeout=` paragraph names both outcomes by protocol version**: a
+  cancelled `RUN_FINISHED` for a client declaring AG-UI 1.0, a bare one
+  otherwise. `RunTimedOut` is a cancel on the wire; `timed_out` stays
+  server-side and the web component infers no timeout from it.
+- **`INCLUDE_USAGE` documents the provider and model disclosure** and the usage
+  fields (`totalTokens`, cache and reasoning counts), and that usage covers
+  this run only.
+
 ## [0.76.0] — 2026-11-15
 
 ### Added

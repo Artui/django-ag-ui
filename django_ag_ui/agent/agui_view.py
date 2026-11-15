@@ -15,6 +15,7 @@ from django.http import (
     StreamingHttpResponse,
 )
 from django.http.response import HttpResponseBase
+from django_spec_agents import IdentifierTooLongError, preflight_identifiers
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.attachment_toolset import build_attachment_toolset
 from django_spec_agents.agent.build_model import build_model
@@ -37,6 +38,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.throttle import Throttle
+from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.utils import messages_from_jsonable
@@ -173,27 +175,13 @@ class DjangoAGUIView:
                 {"error": "invalid RunAgentInput", "error_count": error.error_count()},
                 status=400,
             )
-        message_history: list[Any] | None = None
-        source_messages: list[Message] | None = None
-        if resume_from is not None:
-            loaded = await self._load_resume_history(request, resume_from)
-            if loaded is None:
-                return JsonResponse(
-                    {"error": "no resumable run", "run_id": resume_from}, status=404
-                )
-            message_history, source_thread_id = loaded
-            if await self._would_overwrite_another_thread(
-                request, source_thread_id, run_input.thread_id
-            ):
-                return JsonResponse(
-                    {
-                        "error": "resuming that run would overwrite this thread",
-                        "run_id": resume_from,
-                        "thread_id": run_input.thread_id,
-                    },
-                    status=409,
-                )
-            source_messages = await self._source_messages(request, source_thread_id)
+        try:
+            prepared = await self._prepare_run(request, run_input, resume_from)
+        except IdentifierTooLongError as error:
+            return JsonResponse({"error": str(error), "code": IDENTIFIER_TOO_LONG_CODE}, status=400)
+        if isinstance(prepared, HttpResponseBase):
+            return prepared
+        message_history, source_messages = prepared
         session = AgentSession(
             self._agent(),
             run_input,
@@ -213,6 +201,43 @@ class DjangoAGUIView:
         response["Cache-Control"] = "no-cache"
         response["X-Accel-Buffering"] = "no"
         return response
+
+    async def _prepare_run(
+        self, request: HttpRequest, run_input: Any, resume_from: str | None
+    ) -> tuple[list[Any] | None, list[Message] | None] | HttpResponseBase:
+        """Refuse ids the stores cannot hold, then load what a resume seeds the run with."""
+        self._preflight_identifiers(request, run_input, resume_from)
+        if resume_from is None:
+            return None, None
+        loaded = await self._load_resume_history(request, resume_from)
+        if loaded is None:
+            return JsonResponse({"error": "no resumable run", "run_id": resume_from}, status=404)
+        message_history, source_thread_id = loaded
+        if await self._would_overwrite_another_thread(
+            request, source_thread_id, run_input.thread_id
+        ):
+            return JsonResponse(
+                {
+                    "error": "resuming that run would overwrite this thread",
+                    "run_id": resume_from,
+                    "thread_id": run_input.thread_id,
+                },
+                status=409,
+            )
+        return message_history, await self._source_messages(request, source_thread_id)
+
+    def _preflight_identifiers(
+        self, request: HttpRequest, run_input: Any, resume_from: str | None
+    ) -> None:
+        """Raise ``IdentifierTooLongError`` before the stream opens, for a store that checks."""
+        preflight_identifiers(self._conversation_store, thread_id=run_input.thread_id)
+        if self._step_store is not None:
+            preflight_identifiers(
+                self._step_store(request),
+                run_id=run_input.run_id,
+                conversation_id=run_input.thread_id,
+                parent_run_id=resume_from,
+            )
 
     def _build_deps(self, request: HttpRequest) -> AgentDeps:
         """The per-run dependencies handed to the agent as ``ctx.deps``."""
