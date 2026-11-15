@@ -19,6 +19,7 @@ from pydantic_ai.models.function import DeltaThinkingPart, DeltaToolCall, Functi
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.ui.ag_ui import AGUIAdapter
+from pydantic_ai.usage import RequestUsage
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.render_untrusted_context import SENTINEL
@@ -1388,3 +1389,27 @@ async def test_no_tool_is_added_when_there_is_nothing_to_say() -> None:
     await _events(_session(_recording_agent(seen), _run_input()))
 
     assert _tool_names(seen) == []
+
+
+async def test_usage_covers_this_run_only_not_the_history() -> None:
+    prior = ModelResponse(
+        parts=[TextPart("earlier")],
+        usage=RequestUsage(input_tokens=9000, output_tokens=0),
+        model_name="old-model",
+    )
+    history = [ModelRequest(parts=[UserPromptPart("before")]), prior]
+    config = build_ag_ui_config(include_usage=True)
+    finished = _wire_event(
+        await _events(_session(config=config, message_history=history)), "RUN_FINISHED"
+    )
+
+    assert sum(entry["inputTokens"] for entry in finished["usage"]) < 9000
+
+
+@override_settings(DJANGO_AG_UI={"TOOL_FAILURE": {"INCLUDE_DETAIL": True}})
+async def test_a_run_error_run_carries_no_usage() -> None:
+    config = build_ag_ui_config(include_usage=True)
+    joined = await _events(_session(_failing_agent(), config=config))
+
+    assert "RUN_ERROR" in joined
+    assert '"usage"' not in joined

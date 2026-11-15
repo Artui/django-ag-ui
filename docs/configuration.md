@@ -743,8 +743,13 @@ are ephemeral and never persisted).
 Whether `RUN_FINISHED` carries the run's token usage. Off by default; set it to
 `True`, or pass `build_ag_ui_config(include_usage=True)` for one endpoint, and
 the event gains AG-UI 1.0's `usage` field: the input and output tokens of the
-run's own model calls, one entry per provider and model. It is Pydantic-AI's
-`AGUIAdapter.include_usage`, passed through unchanged.
+run's own model calls, one entry per provider and model, with `totalTokens`
+and, where the provider reports them, the cache and reasoning counts. It is
+Pydantic-AI's `AGUIAdapter.include_usage`, passed through unchanged.
+
+**Turning it on tells the client which provider and model the server runs**,
+since each entry names both. That disclosure is why upstream leaves it off by
+default; enable it only for a client you are content to tell.
 
 ```python
 DJANGO_AG_UI = {
@@ -1260,8 +1265,12 @@ whatever `INCLUDE_DETAIL` says:
 | `interrupted` | Reserved for a detached run whose worker went away mid-run. No run this package serves ends that way yet. |
 
 A run that Pydantic-AI stops itself, including one past its `timeout=`
-(`RunTimedOut`), is not a failure: it ends in `RUN_FINISHED` with a cancelled
-outcome rather than in `RUN_ERROR`, so it carries no code.
+(`RunTimedOut`), is not a failure: it ends in `RUN_FINISHED`, with a cancelled
+outcome for a client that declares AG-UI 1.0 and a bare `RUN_FINISHED`
+otherwise, rather than in `RUN_ERROR`, so it carries no code. The web component
+declares no protocol version, so it gets the bare event. A timeout is a cancel
+on the wire: the reason `timed_out` stays server-side, and the web component
+does not infer a timeout from a cancelled `RUN_FINISHED`.
 
 **One failure is the client's to fix, so it keeps its words.** When a store
 refuses an id longer than the column that holds it (django-spec-agents'

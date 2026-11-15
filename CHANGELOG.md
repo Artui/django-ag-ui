@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`MANAGE_SYSTEM_PROMPT="client"` now reaches the event stream.** The adapter's
+  stream dropped upstream's `manage_system_prompt` and `preserve_file_data`, so
+  enqueued messages lost a client-owned system prompt. It now builds the stream
+  from every init field of upstream's own, so a field upstream adds is not
+  dropped.
+- **A `code` is stamped on a `RUN_ERROR` only**, no longer on any event the
+  error path yields.
+
+### Documentation
+
+- **The `timeout=` paragraph names both outcomes by protocol version**: a
+  cancelled `RUN_FINISHED` for a client declaring AG-UI 1.0, a bare one
+  otherwise. `RunTimedOut` is a cancel on the wire; `timed_out` stays
+  server-side and the web component infers no timeout from it.
+- **`INCLUDE_USAGE` documents the provider and model disclosure** and the usage
+  fields (`totalTokens`, cache and reasoning counts), and that usage covers
+  this run only.
+
 ## [0.76.0] — 2026-11-15
 
 ### Added
