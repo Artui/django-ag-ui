@@ -64,7 +64,7 @@ def build_a2ui_toolset(run_input: Any) -> FunctionToolset[Any] | None:
 
 
 def _posted_catalog(run_input: Any) -> dict[str, Any] | None:
-    """The first A2UI schema entry's catalog, when it carries an id and components."""
+    """The first A2UI schema entry's catalog, when it has an id and object-valued components."""
     entry = next(
         (e for e in run_input.context if e.description == A2UI_SCHEMA_CONTEXT_DESCRIPTION), None
     )
@@ -79,7 +79,10 @@ def _posted_catalog(run_input: Any) -> dict[str, Any] | None:
     catalog_id = catalog.get("catalogId")
     if not isinstance(catalog_id, str) or not catalog_id:
         return None
-    return catalog if isinstance(catalog.get("components"), dict) else None
+    components = catalog.get("components")
+    if not isinstance(components, dict):
+        return None
+    return catalog if all(isinstance(entry, dict) for entry in components.values()) else None
 
 
 def _normalize_protocol_version(value: Any) -> str | None:
