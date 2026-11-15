@@ -5,8 +5,9 @@ a card, a list) as data, and the browser draws it from a catalog of components
 it knows. The model never writes markup. It names components from that catalog,
 and the client renders only what the catalog allows.
 
-This package implements the server half of `@ag-ui/a2ui-middleware`. The tool,
-its guide and the surface snapshot match the middleware's, and the action turn
+This package implements the server half of `@ag-ui/a2ui-middleware`. The tool's
+parameters, its guide and the surface snapshot match the middleware's (the
+description differs in one sentence, below), and the action turn
 carries the middleware's id and name. The turn's content is
 `A2UI user action:\n` and the action as JSON, as the middleware writes it, with
 an optional `userMessage` lead that this package adds. It provides two things:
@@ -55,8 +56,8 @@ and its `value` is the catalog as JSON:
 The tool exists for a run only when the endpoint is enabled **and** that entry is
 present with a string `catalogId` and an object of `components`, each of which is
 itself an object. Otherwise the model is not offered it. An entry too deeply
-nested for the JSON parser counts as no entry. The catalog id written into every surface is the one in
-that entry. The server has no default catalog, so a surface always names a
+nested for the JSON parser counts as no entry. The catalog id written into every
+surface is the one in that entry. The server has no default catalog, so a surface always names a
 catalog the client has registered.
 
 The catalog's `protocolVersion` decides the wire version. `"1.0"` (or a semver
@@ -126,8 +127,12 @@ A run that offers `render_a2ui` has one tool of that name:
   left alone.
 - **A tool of that name on the host is kept**, and the server's tool is not
   offered. This covers a `@tool` in the registry, a function toolset passed as
-  `toolsets=` and a spec in `service_specs=`. The host's tool is its own, so the model calls it and nothing is painted by this
-  package.
+  `toolsets=` and a spec in `service_specs=`. The host's tool is its own, so the
+  model calls it and nothing is painted by this package.
+- **Any other source is not checked.** A `render_a2ui` that reaches the agent
+  through a capability, an MCP client toolset or a wrapped toolset is not seen,
+  and the run ends in `RUN_ERROR` on the duplicate name. Do not enable A2UI on
+  such an endpoint, or rename that tool.
 
 ## Actions
 
