@@ -131,8 +131,8 @@ A run that offers `render_a2ui` has one tool of that name:
   model calls it and nothing is painted by this package.
 - **Any other source is not checked.** A `render_a2ui` that reaches the agent
   through a capability, an MCP client toolset or a wrapped toolset is not seen,
-  and the run ends in `RUN_ERROR` on the duplicate name. Do not enable A2UI on
-  such an endpoint, or rename that tool.
+  and the duplicate name can end the run in `RUN_ERROR` (it does for a
+  capability). Rename that tool before enabling A2UI on such an endpoint.
 
 ## Actions
 
