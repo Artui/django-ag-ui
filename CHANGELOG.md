@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.77.0] — 2026-11-15
+
 ### Changed
 
 - **An over-long `threadId` or `runId` is a `400` before the stream opens**, not
