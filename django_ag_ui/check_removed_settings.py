@@ -33,6 +33,7 @@ _NEVER_READ_SETTINGS: dict[str, str] = {
 # two drift.
 _KNOWN_SETTINGS: frozenset[str] = frozenset(
     {
+        "A2UI",
         "ALLOW_UPLOADED_FILES",
         "API_KEY",
         "APPROVAL_PROMPTS",

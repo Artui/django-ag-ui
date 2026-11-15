@@ -107,5 +107,6 @@ nav:
   - Shared state: shared-state.md
   - Invalidating host data: invalidation.md
   - Charts: charts.md
+  - A2UI surfaces: a2ui.md
   - Key concepts: concepts.md
   - API reference: api.md

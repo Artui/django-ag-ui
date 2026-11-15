@@ -175,6 +175,9 @@ harness = ["pydantic-ai-harness>=0.13"]
 # 7.5 MB installed, which a project wiring step persistence should not pay for
 # a capability it never configures. `[harness]` required it until this split.
 code-mode = ["pydantic-ai-harness[code-mode]>=0.13"]
+# The A2UI component validator the render tool checks a surface with; pure Python,
+# no dependencies. Capped below 0.1 because a 0.0.x line may change shape.
+a2ui = ["ag-ui-a2ui-toolkit>=0.0.6,<0.1"]
 
 [project.urls]
 Homepage = "https://github.com/Artui/django-ag-ui"
@@ -205,6 +208,8 @@ dev = [
     "django-spec-agents[specs,mcp]>=0.15.0",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
+    # The [a2ui] extra's backing package, so the render tool's validation runs in dev.
+    "ag-ui-a2ui-toolkit>=0.0.6,<0.1",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
     # in dev/CI (the extras above ship to consumers, not the dev env).
     # Floored with the ``anthropic`` extra above, for the reason given there --

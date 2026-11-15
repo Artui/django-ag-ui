@@ -201,3 +201,24 @@ def test_usage_on_run_finished_is_off_by_default_and_configurable() -> None:
     with override_settings(DJANGO_AG_UI={"INCLUDE_USAGE": True}):
         assert build_ag_ui_config().include_usage is True
     assert build_ag_ui_config(include_usage=True).include_usage is True
+
+
+@pytest.mark.parametrize(
+    ("setting", "enabled"),
+    [
+        ({}, False),
+        ({"A2UI": {}}, False),
+        ({"A2UI": None}, False),
+        ({"A2UI": {"ENABLED": True}}, True),
+    ],
+)
+def test_a2ui_is_off_unless_the_settings_dict_enables_it(
+    setting: dict[str, object], enabled: bool
+) -> None:
+    with override_settings(DJANGO_AG_UI=setting):
+        assert build_ag_ui_config().a2ui_enabled is enabled
+
+
+def test_an_explicit_a2ui_switch_wins() -> None:
+    with override_settings(DJANGO_AG_UI={"A2UI": {"ENABLED": True}}):
+        assert build_ag_ui_config(a2ui_enabled=False).a2ui_enabled is False

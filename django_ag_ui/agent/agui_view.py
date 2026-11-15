@@ -38,7 +38,8 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.throttle import Throttle
-from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE
+from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE, a2ui_validator
+from django_ag_ui.agent.with_a2ui_action import with_a2ui_action
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.utils import messages_from_jsonable
@@ -151,6 +152,8 @@ class DjangoAGUIView:
         self._authorize_predicate = authorize
         self._built_agent: Agent[AgentDeps, Any] | None = None
         self._require_a_model()
+        if self._config.a2ui_enabled:
+            a2ui_validator()
         warn_if_csrf_unstated(csrf_exempt, get_user)
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
         markcoroutinefunction(cast("Any", self))
@@ -175,6 +178,8 @@ class DjangoAGUIView:
                 {"error": "invalid RunAgentInput", "error_count": error.error_count()},
                 status=400,
             )
+        if self._config.a2ui_enabled:
+            run_input = with_a2ui_action(run_input)
         try:
             prepared = await self._prepare_run(request, run_input, resume_from)
         except IdentifierTooLongError as error:

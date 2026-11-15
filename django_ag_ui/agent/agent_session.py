@@ -20,6 +20,7 @@ from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
 
+from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
 from django_ag_ui.agent.build_client_context_toolset import build_client_context_toolset
 from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
 from django_ag_ui.agent.continued_history import continued_history
@@ -161,13 +162,17 @@ class AgentSession:
         return [self._instructions, cast("Any", lambda _ctx: block)]
 
     def _run_toolsets(self) -> list[Any] | None:
-        """The session's toolsets, plus the context tool when it rides there."""
-        if self._config.run_context.delivery != "tool":
-            return self._toolsets
-        block = self._client_context_block()
-        if block is None:
-            return self._toolsets
-        return [*(self._toolsets or []), build_client_context_toolset(block)]
+        """The session's toolsets, plus the context and A2UI tools when this run has them."""
+        added: list[Any] = []
+        if self._config.run_context.delivery == "tool":
+            block = self._client_context_block()
+            if block is not None:
+                added.append(build_client_context_toolset(block))
+        if self._config.a2ui_enabled:
+            a2ui = build_a2ui_toolset(self._run_input)
+            if a2ui is not None:
+                added.append(a2ui)
+        return [*(self._toolsets or []), *added] if added else self._toolsets
 
     async def _persist_on_error(
         self,

@@ -35,6 +35,7 @@ from django_spec_agents import (
     tool,
 )
 
+from django_ag_ui.agent.a2ui_activity import a2ui_activity
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
@@ -70,6 +71,7 @@ from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.config.types.context_delivery import ContextDelivery
 from django_ag_ui.config.types.run_context_config import RunContextConfig
+from django_ag_ui.constants import A2UI_ACTIVITY_TYPE, A2UI_SCHEMA_CONTEXT_DESCRIPTION
 from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.scoped_step_store import ScopedStepStore
@@ -88,6 +90,8 @@ from django_ag_ui.version import __version__
 # so downstream projects never have to chase the move. The public surface below
 # is unchanged from before the extraction.
 __all__ = [
+    "A2UI_ACTIVITY_TYPE",
+    "A2UI_SCHEMA_CONTEXT_DESCRIPTION",
     "CHART_ACTIVITY_TYPE",
     "MAX_SUGGESTIONS",
     "MAX_SUGGESTION_CHARS",
@@ -102,6 +106,7 @@ __all__ = [
     "ChartKind",
     "ChartSeries",
     "ChartSpec",
+    "a2ui_activity",
     "chart_activity",
     "suggestions_activity",
     "publish_invalidation",

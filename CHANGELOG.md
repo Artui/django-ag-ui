@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A2UI surfaces, opt-in.** `DJANGO_AG_UI["A2UI"] = {"ENABLED": True}` (or
+  `build_ag_ui_config(a2ui_enabled=True)`) with the new `[a2ui]` extra
+  (`ag-ui-a2ui-toolkit`) gives a run a `render_a2ui(surfaceId, components, data)`
+  tool when the client posts its catalog under `A2UI_SCHEMA_CONTEXT_DESCRIPTION`.
+  A call is validated against that catalog and its declared protocol; an invalid
+  one is a retry and paints nothing, a valid one emits an `a2ui-surface`
+  `ACTIVITY_SNAPSHOT` identical to `@ag-ui/a2ui-middleware` 0.0.16's. The catalog
+  id comes only from the client's entry, and `"1.0"` is stamped only when the
+  catalog declares it. Enabling it without the extra fails at mount.
+- **A surface action becomes a user turn.** On an enabled endpoint,
+  `forwardedProps.a2uiAction.userAction` is appended to the run as a user message
+  before it starts, so a run needs no other new message. The turn is a contract a
+  client may keep in its own history: `id` is `a2ui-action-user-` + hex SHA-256 of
+  the `runId`, `name` is `a2ui_action_context_` + unpadded base64url of the same
+  digest, `role` is `user`, and `content` is `userMessage` and a blank line (only
+  when it is a non-empty string), then `A2UI user action:\n` and the action as
+  compact JSON, keys in received order, non-ASCII unescaped. The id and name are
+  the identity the server dedupes on, so a client copy whose content differs is
+  the same turn; a malformed action is ignored.
+- **`a2ui_activity(operations, message_id=None)`**, `A2UI_ACTIVITY_TYPE` and
+  `A2UI_SCHEMA_CONTEXT_DESCRIPTION` are exported.
+
 ## [0.77.0] — 2026-11-15
 
 ### Changed
