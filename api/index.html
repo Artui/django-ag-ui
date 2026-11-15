@@ -618,6 +618,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../a2ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A2UI surfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../concepts/" class="md-nav__link">
         
   
@@ -1627,6 +1654,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIConfig.a2ui_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        a2ui_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2500,6 +2538,50 @@
     <span class="md-ellipsis">
       
         CHART_ACTIVITY_TYPE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a2ui-surfaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A2UI surfaces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.a2ui_activity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        a2ui_activity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.A2UI_ACTIVITY_TYPE" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A2UI_ACTIVITY_TYPE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.A2UI_SCHEMA_CONTEXT_DESCRIPTION" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A2UI_SCHEMA_CONTEXT_DESCRIPTION
       
     </span>
   </a>
@@ -3734,6 +3816,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIConfig.a2ui_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        a2ui_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4607,6 +4700,50 @@
     <span class="md-ellipsis">
       
         CHART_ACTIVITY_TYPE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a2ui-surfaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A2UI surfaces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.a2ui_activity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        a2ui_activity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.A2UI_ACTIVITY_TYPE" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A2UI_ACTIVITY_TYPE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.A2UI_SCHEMA_CONTEXT_DESCRIPTION" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A2UI_SCHEMA_CONTEXT_DESCRIPTION
       
     </span>
   </a>
@@ -7642,6 +7779,35 @@ messages, fenced and labelled as data, capped by a character ceiling.</p>
 
 </div>
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.AGUIConfig.a2ui_enabled" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">a2ui_enabled</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.AGUIConfig.a2ui_enabled" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">a2ui_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Whether a run may render A2UI surfaces: the <code>render_a2ui</code> tool, offered
+when the client posts its catalog, and the action stage turning a surface's
+<code>forwardedProps.a2uiAction</code> into a user turn. Off by default; needs the
+<code>[a2ui]</code> extra. Defaulted, like <code>RunContextConfig.delivery</code>, so an existing
+direct construction of this record still builds.</p>
+
+    </div>
+
+</div>
+
 
 
 
@@ -7920,7 +8086,8 @@ matters more than the authority boundary.</p>
 </span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>    <span class="n">tool_guard</span><span class="p">:</span> <span class="n">ToolGuardConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>    <span class="n">tool_failure</span><span class="p">:</span> <span class="n">ToolFailureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    <span class="n">run_context</span><span class="p">:</span> <span class="n">RunContextConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AGUIConfig</span>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>    <span class="n">a2ui_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AGUIConfig</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -10958,6 +11125,91 @@ open string. An <code>ACTIVITY_SNAPSHOT</code> rather than a <code>CUSTOM</code>
 reason <code>inject_compaction_events</code> gives for the same choice -- the wire stays
 vanilla AG-UI and ours is not a privileged client. A client that does not know
 this name ignores the event, which is the graceful outcome.</p>
+
+    </div>
+
+</div><h2 id="a2ui-surfaces">A2UI surfaces<a class="headerlink" href="#a2ui-surfaces" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="django_ag_ui.a2ui_activity" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">a2ui_activity</span>
+
+
+<a href="#django_ag_ui.a2ui_activity" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">a2ui_activity</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">operations</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="o">*</span><span class="p">,</span> <span class="n">message_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ActivitySnapshotEvent</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>An event painting an A2UI surface from <code>operations</code>, whole.</p>
+<p>The shape <code>@ag-ui/a2ui-middleware</code> emits: one <code>ACTIVITY_SNAPSHOT</code> of
+type <code>a2ui-surface</code> whose content is <code>{"a2ui_operations": [...]}</code>, with
+<code>replace=True</code> so <code>createSurface</code>, <code>updateComponents</code> and
+<code>updateDataModel</code> arrive together and the client never renders half a
+surface. The operations are passed through as given; nothing here validates
+them -- the <code>render_a2ui</code> tool does that before it calls this.</p>
+<p><code>message_id</code> is the identity of the painted surface in the client's
+transcript: send the same one again to replace it in place. It defaults to
+<code>a2ui-surface-&lt;uuid&gt;</code>; the tool uses <code>a2ui-surface-&lt;tool call id&gt;</code>, as
+the middleware does.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="django_ag_ui.A2UI_ACTIVITY_TYPE" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">A2UI_ACTIVITY_TYPE</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.A2UI_ACTIVITY_TYPE" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">A2UI_ACTIVITY_TYPE</span> <span class="o">=</span> <span class="s1">'a2ui-surface'</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p><code>activity_type</code> of an A2UI surface, the value <code>@ag-ui/a2ui-middleware</code> emits.</p>
+<p>A client that renders A2UI matches on it; one that does not ignores the event.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="django_ag_ui.A2UI_SCHEMA_CONTEXT_DESCRIPTION" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">A2UI_SCHEMA_CONTEXT_DESCRIPTION</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.A2UI_SCHEMA_CONTEXT_DESCRIPTION" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">A2UI_SCHEMA_CONTEXT_DESCRIPTION</span> <span class="o">=</span> <span class="s2">"A2UI Component Schema — available components for generating UI surfaces. Use these component names and properties when creating A2UI operations."</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The <code>RunAgentInput.context</code> description an A2UI renderer posts its catalog under.</p>
+<p>Verbatim from <code>@ag-ui/a2ui-middleware</code>: the entry is found by this exact
+string, and its <code>value</code> is the catalog as JSON (<code>catalogId</code>, <code>components</code>
+and, for 1.0, <code>protocolVersion</code>).</p>
 
     </div>
 

@@ -1165,6 +1165,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../a2ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A2UI surfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../concepts/" class="md-nav__link">
         
   
@@ -1922,9 +1949,15 @@ agent bridges to <em>which</em> MCP server. See
 <td><code>{}</code></td>
 <td>What client-supplied context reaches the model. <strong>On</strong> by default. See <a href="#run_context"><code>RUN_CONTEXT</code></a>.</td>
 </tr>
+<tr>
+<td><code>A2UI</code></td>
+<td><code>dict</code></td>
+<td><code>{}</code></td>
+<td><code>{"ENABLED": True}</code> offers the <code>render_a2ui</code> tool and turns surface actions into user turns. Off by default; needs the <code>[a2ui]</code> extra. See <a href="../a2ui/">A2UI surfaces</a>.</td>
+</tr>
 </tbody>
 </table>
-<p>Every one of these is also a <code>build_ag_ui_config(...)</code> keyword.</p>
+<p>Every one of these is also a <code>build_ag_ui_config(...)</code> keyword; <code>A2UI</code> is <code>a2ui_enabled=</code>.</p>
 <h3 id="unknown-keys">Unknown keys<a class="headerlink" href="#unknown-keys" title="Permanent link">&para;</a></h3>
 <p><strong>Any <code>DJANGO_AG_UI</code> key not in the table above is refused when the URL conf is
 imported</strong>, with an <code>ImproperlyConfigured</code> naming every offender at once. A key
