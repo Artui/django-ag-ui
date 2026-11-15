@@ -49,7 +49,7 @@ dependencies = [
     # and the default stores raise it before writing an id longer than its column
     # (a ``400`` on the threads view, a coded ``RUN_ERROR`` from a store that does
     # not check first); below it the refusal was a ``DataError`` on PostgreSQL
-    # mid-run. Held by ``test_a_store_without_the_check_still_ends_in_a_plain_run_error``
+    # mid-run. Held by ``test_a_store_without_the_check_still_ends_in_a_coded_run_error``
     # and ``test_a_store_refusing_an_over_long_id_is_400``.
     # 0.6.2 was the floor before that, where a call the MCP server refuses for permission
     # (JSON-RPC -32006) raises ``PermissionDenied`` out of the bridge, so the run

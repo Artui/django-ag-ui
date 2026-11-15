@@ -1269,8 +1269,8 @@ A run that Pydantic-AI stops itself, including one past its `timeout=`
 outcome for a client that declares AG-UI 1.0 and a bare `RUN_FINISHED`
 otherwise, rather than in `RUN_ERROR`, so it carries no code. The web component
 declares AG-UI 1.0 (through `@ag-ui/client`), so it gets the cancelled outcome.
-A timeout is a cancel on the wire: the reason `timed_out` stays server-side, and the web component
-does not infer a timeout from a cancelled `RUN_FINISHED`.
+A timeout is a cancel on the wire: the reason `timed_out` stays server-side, and
+the web component does not infer a timeout from a cancelled `RUN_FINISHED`.
 
 **One failure is the client's to fix, so it keeps its words.** An id longer
 than the column that holds it is refused before the stream opens, when the store

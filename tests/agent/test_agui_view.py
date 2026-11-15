@@ -1878,7 +1878,7 @@ async def test_a_refused_run_id_saves_no_conversation_either() -> None:
     assert await StoredConversation.objects.acount() == 0
 
 
-async def test_a_store_without_the_check_still_ends_in_a_plain_run_error() -> None:
+async def test_a_store_without_the_check_still_ends_in_a_coded_run_error() -> None:
     store = _RefusingSaveStore()
     view = DjangoAGUIView(_registry(), model=TestModel(), conversation_store=store)
     response = await view(_post(_run_input("double 5", thread_id="t" * 300)))
