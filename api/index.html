@@ -2089,6 +2089,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="DefaultConversationStore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore.check_identifiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        check_identifiers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4178,6 +4195,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="DefaultConversationStore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore.check_identifiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        check_identifiers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -7348,7 +7382,9 @@ configured and nothing asked for. Set <code>False</code> to keep it server-side.
     <div class="doc doc-contents ">
 
         <p>Whether <code>RUN_FINISHED</code> carries the run's token usage, per provider and
-model, as Pydantic-AI's <code>AGUIAdapter.include_usage</code>. Off by default.</p>
+model, as Pydantic-AI's <code>AGUIAdapter.include_usage</code>. Off by default, because
+each entry names the provider and model the server runs; the entries also carry
+<code>totalTokens</code> and the cache and reasoning counts where the provider reports them.</p>
 <p>Upstream adds the field only when the installed <code>ag-ui-protocol</code> is 1.0 or
 newer, which this package's floor guarantees, and only for a run that made
 model calls. A run that ends in <code>RUN_ERROR</code> carries none.</p>
@@ -9029,6 +9065,10 @@ protocol every custom store implements.</p>
 <p><strong>Opt in explicitly.</strong> A transport does not wrap by itself: doing so from its
 namespace would silently orphan the whole thread history of an existing
 single-endpoint project the moment it set one.</p>
+<p><code>check_identifiers</code> is forwarded, with the prefix applied to <code>thread_id</code>,
+only when the inner store has it; <code>preflight_identifiers</code> skips one without.
+A <code>thread_id</code> refused there or by <code>save</code> is reported at the length the
+client sent, against the room the prefix leaves.</p>
 <p>The scope is invisible on the wire. Thread ids are echoed back to the client
 unchanged; only the storage key carries the prefix.</p>
 <p><strong><code>:</code> is reserved and a scope containing one is refused.</strong> The prefix is
@@ -9493,6 +9533,28 @@ those instead.</p>
 
 
 
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore.check_identifiers" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check_identifiers</span>
+
+
+<a href="#django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore.check_identifiers" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">check_identifiers</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Raise <code>IdentifierTooLongError</code> for a <code>thread_id</code> its column cannot hold.</p>
+<p>It reads the column width and writes nothing, so a transport can refuse the
+id before it starts a run; <code>preflight_identifiers</code> calls it.</p>
+
+
+    </div>
+
+</div>
+
 
 
   </div>
@@ -9603,6 +9665,10 @@ belonging to another scope is not <em>refused</em> on <code>resume/</code> — i
 found, so a probe cannot confirm the id exists either.</p>
 <p>The scope is invisible on the wire. Run ids are handed back to the client
 unchanged; only the storage key carries the prefix.</p>
+<p><code>check_identifiers</code> is forwarded, with the prefix applied to <code>run_id</code>, only
+when the inner store has it, so <code>preflight_identifiers</code> skips a store without
+one. A <code>run_id</code> refused there is reported at the length the client sent,
+against the room the prefix leaves.</p>
 <p><strong>Opt in explicitly.</strong> A transport does not wrap by itself: doing so from its
 namespace would orphan every run an existing single-endpoint project had
 already recorded, the moment it set one. For the same reason, adding a scope

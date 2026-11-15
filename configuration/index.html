@@ -2557,8 +2557,12 @@ later.</p>
 <p>Whether <code>RUN_FINISHED</code> carries the run's token usage. Off by default; set it to
 <code>True</code>, or pass <code>build_ag_ui_config(include_usage=True)</code> for one endpoint, and
 the event gains AG-UI 1.0's <code>usage</code> field: the input and output tokens of the
-run's own model calls, one entry per provider and model. It is Pydantic-AI's
-<code>AGUIAdapter.include_usage</code>, passed through unchanged.</p>
+run's own model calls, one entry per provider and model, with <code>totalTokens</code>
+and, where the provider reports them, the cache and reasoning counts. It is
+Pydantic-AI's <code>AGUIAdapter.include_usage</code>, passed through unchanged.</p>
+<p><strong>Turning it on tells the client which provider and model the server runs</strong>,
+since each entry names both. That disclosure is why upstream leaves it off by
+default; enable it only for a client you are content to tell.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    <span class="s2">"INCLUDE_USAGE"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>  <span class="c1"># RUN_FINISHED reports what the run cost</span>
 </span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="p">}</span>
@@ -2989,7 +2993,7 @@ whatever <code>INCLUDE_DETAIL</code> says:</p>
 </tr>
 <tr>
 <td><code>identifier_too_long</code></td>
-<td>A store refused an over-long <code>threadId</code> or <code>runId</code> (below).</td>
+<td>A store with no <code>check_identifiers</code> refused an over-long <code>threadId</code> or <code>runId</code> at its first write; the default stores refuse one with a <code>400</code> before the stream opens (below).</td>
 </tr>
 <tr>
 <td><code>interrupted</code></td>
@@ -2998,22 +3002,36 @@ whatever <code>INCLUDE_DETAIL</code> says:</p>
 </tbody>
 </table>
 <p>A run that Pydantic-AI stops itself, including one past its <code>timeout=</code>
-(<code>RunTimedOut</code>), is not a failure: it ends in <code>RUN_FINISHED</code> with a cancelled
-outcome rather than in <code>RUN_ERROR</code>, so it carries no code.</p>
-<p><strong>One failure is the client's to fix, so it keeps its words.</strong> When a store
-refuses an id longer than the column that holds it (django-spec-agents'
-<code>IdentifierTooLongError</code>), as the default stores do for an over-long <code>threadId</code>
-or <code>runId</code>, the run ends in a <code>RUN_ERROR</code> whose <code>code</code> is <code>identifier_too_long</code>
-and whose <code>message</code> names the store's column and its limit, whatever
-<code>INCLUDE_DETAIL</code> says. The column is the store's name, not the wire's: a
-<code>threadId</code> reaches the step store as <code>conversation_id</code> and the conversation store
-as <code>thread_id</code>, and whichever refuses first is named. Any <code>IdentifierTooLongError</code>
-that ends a run is treated this way. The exchange is not saved and no row is
-written. The response is still <code>200</code>, since the store refuses at its first write,
-after the stream has opened; a refusal by the conversation store comes once the
-model and its tools have run. A run id counts any prefix a scoped step store
-adds: under <code>ScopedStepStore(scope="s")</code> the stored id is <code>s:&lt;runId&gt;</code>, so the
-message gives that longer length.</p>
+(<code>RunTimedOut</code>), is not a failure: it ends in <code>RUN_FINISHED</code>, with a cancelled
+outcome for a client that declares AG-UI 1.0 and a bare <code>RUN_FINISHED</code>
+otherwise, rather than in <code>RUN_ERROR</code>, so it carries no code. The web component
+declares AG-UI 1.0 (through <code>@ag-ui/client</code>), so it gets the cancelled outcome.
+A timeout is a cancel on the wire: the reason <code>timed_out</code> stays server-side, and
+the web component does not infer a timeout from a cancelled <code>RUN_FINISHED</code>.</p>
+<p><strong>One failure is the client's to fix, so it keeps its words.</strong> An id longer
+than the column that holds it is refused before the stream opens, when the store
+can say so: the view calls django-spec-agents' <code>preflight_identifiers</code> on the
+conversation store and the step store, and a store with a <code>check_identifiers</code>
+method (the default stores, and a scoped store over one) answers. The response
+is a <code>400</code> with <code>{"error": ..., "code": "identifier_too_long"}</code>, whose <code>error</code>
+names the store's column and its limit. The model is not called and no row is
+written. The column is the store's name, not the wire's: a <code>threadId</code> reaches
+the step store as <code>conversation_id</code> and the conversation store as <code>thread_id</code>,
+and the conversation store is asked first. A scoped store counts its prefix but
+reports the length the client sent: under <code>ScopedStepStore(scope="s")</code> a
+<code>runId</code> has the column's width less <code>s:</code>. The id a resume or fork names
+(<code>resume/&lt;run_id&gt;/</code>) is checked too, as the new run's <code>parent_run_id</code>.</p>
+<p>A custom store's <code>check_identifiers</code> is called with keywords: the conversation
+store's with <code>thread_id</code>, the step store's with <code>run_id</code>, <code>conversation_id</code> (the
+<code>threadId</code>) and <code>parent_run_id</code> (the resumed run's id, or <code>None</code>). A method that
+does not accept them raises <code>TypeError</code> before the stream opens.</p>
+<p>A custom store with no <code>check_identifiers</code> is not asked, and refuses at its
+first write instead (django-spec-agents' <code>IdentifierTooLongError</code>), after the
+stream has opened. The response is then <code>200</code>, and the run ends in a
+<code>RUN_ERROR</code> whose <code>code</code> is <code>identifier_too_long</code> and whose <code>message</code> is the
+store's, whatever <code>INCLUDE_DETAIL</code> says; any <code>IdentifierTooLongError</code> that ends a
+run is treated this way, and the exchange is not saved. A refusal by the
+conversation store comes once the model and its tools have run.</p>
 <p><strong>A retry is not a failure, so <code>INCLUDE_DETAIL</code> does not govern it.</strong> When a
 tool answers that the model's own argument was wrong, the model gets a retry
 carrying the validation message, and the browser receives that as a

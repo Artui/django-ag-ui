@@ -1451,6 +1451,17 @@ agent endpoint and the catalogs it advertises.
 2. Parses the request body into a <code>RunAgentInput</code> via
    <code>AGUIAdapter.build_run_input</code> (returning HTTP 400 with an error count, not
    the raw payload, on a <code>ValidationError</code>).
+   Then it refuses an id a store cannot hold, before the stream opens: a
+   <code>threadId</code>, <code>runId</code> or resumed run id longer than its column gets a <code>400</code>
+   with <code>{"error": ..., "code": "identifier_too_long"}</code>, the model is not called
+   and nothing is written. The check is django-spec-agents'
+   <code>preflight_identifiers</code>, which asks each store that has a
+   <code>check_identifiers</code> method (the default stores, and a scoped store over one,
+   counting its prefix) and skips one that has none. A custom store without it
+   still refuses at its first write, inside the stream, as a <code>RUN_ERROR</code> whose
+   <code>code</code> is <code>identifier_too_long</code>. A resume that a store refuses with
+   <code>IdentifierTooLongError</code> while it reads the source run's thread is the same
+   <code>400</code>.
 3. Takes <strong>this endpoint's</strong> <code>Agent</code> — built once, on the first request, and
    reused by every run thereafter (via the factory or <code>build_agent</code>). See
    <a href="#one-agent-many-runs">One agent, many runs</a>.
