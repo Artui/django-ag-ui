@@ -189,5 +189,12 @@ class AGUIConfig:
     ``RunAgentInput.context`` entries and the attachment refs riding the posted
     messages, fenced and labelled as data, capped by a character ceiling."""
 
+    a2ui_enabled: bool = False
+    """Whether a run may render A2UI surfaces: the ``render_a2ui`` tool, offered
+    when the client posts its catalog, and the action stage turning a surface's
+    ``forwardedProps.a2uiAction`` into a user turn. Off by default; needs the
+    ``[a2ui]`` extra. Defaulted, like ``RunContextConfig.delivery``, so an existing
+    direct construction of this record still builds."""
+
 
 __all__ = ["AGUIConfig"]

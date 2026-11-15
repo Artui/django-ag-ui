@@ -87,6 +87,12 @@ browser half is
   [`django-spec-agents`](https://github.com/Artui/django-spec-agents)'
   `SpecCapability` (the `[specs]` extra) — permission-checked, acting as the
   logged-in user, with the spec conventions taught to the model.
+- **A2UI surfaces** — opt in with `DJANGO_AG_UI["A2UI"] = {"ENABLED": True}` and
+  the `[a2ui]` extra: the model gets a validated `render_a2ui` tool, with the
+  middleware's usage guide, for the catalog the client posts, and a click on a
+  surface comes back as a user turn under the middleware's id and name (its
+  content adds an optional `userMessage` lead to the middleware's
+  `A2UI user action:` block).
 - **100% test coverage**, type-checked, Python 3.11–3.14, Django 4.2–6.0.
 
 **Full documentation:** <https://artui.github.io/django-ag-ui/>

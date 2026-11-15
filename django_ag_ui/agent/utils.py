@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from django_spec_agents import IdentifierTooLongError
@@ -56,6 +56,17 @@ async def discard_tasks(*tasks: asyncio.Future[Any] | None) -> None:
     await asyncio.gather(*live, return_exceptions=True)
 
 
+def a2ui_validator() -> Callable[..., dict[str, Any]]:
+    """The toolkit's component validator, or an error naming the ``[a2ui]`` extra."""
+    try:
+        from ag_ui_a2ui_toolkit.validate import validate_a2ui_components
+    except ImportError as error:
+        raise ImportError(
+            "DJANGO_AG_UI['A2UI'] requires ag-ui-a2ui-toolkit: install django-ag-ui[a2ui]"
+        ) from error
+    return validate_a2ui_components
+
+
 __all__ = [
     "ERROR_CODE",
     "IDENTIFIER_TOO_LONG_CODE",
@@ -63,6 +74,7 @@ __all__ = [
     "RUN_ERROR_CODES",
     "STREAM_END",
     "TIMED_OUT_CODE",
+    "a2ui_validator",
     "discard_tasks",
     "pump_in_lockstep",
     "run_error_code",

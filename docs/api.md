@@ -192,6 +192,14 @@ subclass it to change the model or point at another OpenAI-compatible server.
 
 ::: django_ag_ui.CHART_ACTIVITY_TYPE
 
+## A2UI surfaces
+
+::: django_ag_ui.a2ui_activity
+
+::: django_ag_ui.A2UI_ACTIVITY_TYPE
+
+::: django_ag_ui.A2UI_SCHEMA_CONTEXT_DESCRIPTION
+
 ## Follow-up suggestions
 
 ::: django_ag_ui.suggestions_activity

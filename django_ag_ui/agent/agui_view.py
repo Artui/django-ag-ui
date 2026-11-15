@@ -33,14 +33,18 @@ from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.utils import AuthorizePredicate, aauthorize, auth_error_response
 from pydantic import ValidationError
 from pydantic_ai import Agent
+from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
+from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.types.throttle import Throttle
-from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE
+from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE, a2ui_validator
+from django_ag_ui.agent.with_a2ui_action import with_a2ui_action
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.constants import A2UI_RENDER_TOOL_NAME
 from django_ag_ui.persistence.utils import messages_from_jsonable
 from django_ag_ui.reject_async_throttle import reject_async_throttle
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
@@ -151,6 +155,8 @@ class DjangoAGUIView:
         self._authorize_predicate = authorize
         self._built_agent: Agent[AgentDeps, Any] | None = None
         self._require_a_model()
+        if self._config.a2ui_enabled:
+            a2ui_validator()
         warn_if_csrf_unstated(csrf_exempt, get_user)
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
         markcoroutinefunction(cast("Any", self))
@@ -175,6 +181,9 @@ class DjangoAGUIView:
                 {"error": "invalid RunAgentInput", "error_count": error.error_count()},
                 status=400,
             )
+        if self._config.a2ui_enabled:
+            run_input = with_a2ui_action(run_input)
+        run_input, a2ui = self._a2ui_run(run_input)
         try:
             prepared = await self._prepare_run(request, run_input, resume_from)
         except IdentifierTooLongError as error:
@@ -188,7 +197,7 @@ class DjangoAGUIView:
             request,
             model=self._run_model(request),
             instructions=self._run_instructions(request),
-            toolsets=self._run_toolsets(request),
+            toolsets=[*self._run_toolsets(request), *a2ui],
             capabilities=self._run_capabilities(request, run_input, resume_from),
             deps=self._build_deps(request),
             audit_logger=self._resolve_audit_logger(),
@@ -287,6 +296,24 @@ class DjangoAGUIView:
         if self._mcp_server is not None:
             seen.update(binding.name for binding in self._mcp_server.tools.all())
         return seen
+
+    def _host_tool_names(self) -> set[str]:
+        """Every tool name the host already offers: registry, MCP, specs and function toolsets."""
+        names = self._claimed_names() | set(self._service_specs or {})
+        for toolset in self._agent().toolsets:
+            if isinstance(toolset, FunctionToolset):
+                names.update(toolset.tools)
+        return names
+
+    def _a2ui_run(self, run_input: Any) -> tuple[Any, list[Any]]:
+        """The run's ``render_a2ui`` toolset, and the input without a client tool it replaces."""
+        if not self._config.a2ui_enabled or A2UI_RENDER_TOOL_NAME in self._host_tool_names():
+            return run_input, []
+        toolset = build_a2ui_toolset(run_input)
+        if toolset is None:
+            return run_input, []
+        kept = [tool for tool in run_input.tools if tool.name != A2UI_RENDER_TOOL_NAME]
+        return run_input.model_copy(update={"tools": kept}), [toolset]
 
     def _run_toolsets(self, request: HttpRequest) -> list[Any]:
         """The request-bound toolsets this run adds to the agent's own."""

@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.78.0] — 2026-11-15
+
+### Added
+
+- **A2UI surfaces, opt-in.** `DJANGO_AG_UI["A2UI"] = {"ENABLED": True}` (or
+  `build_ag_ui_config(a2ui_enabled=True)`) with the new `[a2ui]` extra
+  (`ag-ui-a2ui-toolkit`) gives a run a `render_a2ui(surfaceId, components, data)`
+  tool when the client posts its catalog under `A2UI_SCHEMA_CONTEXT_DESCRIPTION`.
+  A call is validated against that catalog and its declared protocol; an invalid
+  one is a retry and paints nothing, a valid one emits an `a2ui-surface`
+  `ACTIVITY_SNAPSHOT` identical to `@ag-ui/a2ui-middleware` 0.0.16's. The catalog
+  id comes only from the client's entry, and `"1.0"` is stamped only when the
+  catalog declares it. Enabling it without the extra fails at mount.
+- **A surface action becomes a user turn.** On an enabled endpoint,
+  `forwardedProps.a2uiAction.userAction` is appended to the run as a user message
+  before it starts, so a run needs no other new message. The turn is a contract a
+  client may keep in its own history: `id` is `a2ui-action-user-` + hex SHA-256 of
+  the `runId`, `name` is `a2ui_action_context_` + unpadded base64url of the same
+  digest, `role` is `user`, and `content` is `userMessage` and a blank line (only
+  when it is a non-empty string), then `A2UI user action:\n` and the action as
+  compact JSON, keys in received order, non-ASCII unescaped. The id and name are
+  the identity the server dedupes on, so a client copy whose content differs is
+  the same turn; a malformed action is ignored.
+- **`a2ui_activity(operations, *, message_id=None)`**, `A2UI_ACTIVITY_TYPE` and
+  `A2UI_SCHEMA_CONTEXT_DESCRIPTION` are exported.
+- **`render_a2ui` ships the middleware's usage guide.** The guide text for the
+  catalog's protocol (`@ag-ui/a2ui-middleware` 0.0.16, compared with the
+  middleware's own in a test) is the tool's instructions, so the tool's
+  description refers to nothing a client must post, and the guide does not count
+  against `RUN_CONTEXT` `MAX_CHARS`.
+- **A `render_a2ui` name conflict no longer ends the run.** A client tool of that
+  name is replaced by the server's, as the middleware does; a tool of that name on
+  the host (registry, toolset or spec) is kept, and the server's is not
+  offered. A catalog whose components are not all objects, or that is nested past
+  the JSON parser, offers no tool.
+
 ## [0.77.0] — 2026-11-15
 
 ### Changed
@@ -4382,7 +4418,9 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.76.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.78.0...HEAD
+[0.78.0]: https://github.com/Artui/django-ag-ui/compare/v0.77.0...v0.78.0
+[0.77.0]: https://github.com/Artui/django-ag-ui/compare/v0.76.0...v0.77.0
 [0.76.0]: https://github.com/Artui/django-ag-ui/compare/v0.75.0...v0.76.0
 [0.75.0]: https://github.com/Artui/django-ag-ui/compare/v0.74.0...v0.75.0
 [0.74.0]: https://github.com/Artui/django-ag-ui/compare/v0.73.0...v0.74.0

@@ -161,13 +161,13 @@ class AgentSession:
         return [self._instructions, cast("Any", lambda _ctx: block)]
 
     def _run_toolsets(self) -> list[Any] | None:
-        """The session's toolsets, plus the context tool when it rides there."""
-        if self._config.run_context.delivery != "tool":
-            return self._toolsets
-        block = self._client_context_block()
-        if block is None:
-            return self._toolsets
-        return [*(self._toolsets or []), build_client_context_toolset(block)]
+        """The session's toolsets, plus the client-context tool when this run has one."""
+        added: list[Any] = []
+        if self._config.run_context.delivery == "tool":
+            block = self._client_context_block()
+            if block is not None:
+                added.append(build_client_context_toolset(block))
+        return [*(self._toolsets or []), *added] if added else self._toolsets
 
     async def _persist_on_error(
         self,

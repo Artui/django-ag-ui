@@ -1,0 +1,149 @@
+{
+  "generator": {
+    "@ag-ui/a2ui-middleware": "0.0.16",
+    "@ag-ui/client": "1.0.4",
+    "scenario": "final-result-snapshots.test.ts: still paints a result when the activity for that call never painted, without the lifecycle activity"
+  },
+  "context_description": "A2UI Component Schema — available components for generating UI surfaces. Use these component names and properties when creating A2UI operations.",
+  "tool_call_id": "call-plain",
+  "operations": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "validation-surface",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      }
+    },
+    {
+      "version": "1.0",
+      "updateComponents": {
+        "surfaceId": "validation-surface",
+        "components": [
+          {
+            "id": "heading",
+            "component": "Text",
+            "text": {
+              "@path": "/title"
+            }
+          },
+          {
+            "id": "row",
+            "component": "Text",
+            "text": {
+              "@path": "name"
+            }
+          },
+          {
+            "id": "items",
+            "component": "List",
+            "children": {
+              "componentId": "row",
+              "path": "/items"
+            }
+          },
+          {
+            "id": "root",
+            "component": "Column",
+            "children": [
+              "heading",
+              "items"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.0",
+      "updateDataModel": {
+        "surfaceId": "validation-surface",
+        "path": "/",
+        "value": {
+          "title": "Fixture",
+          "items": [
+            {
+              "name": "Gamma"
+            },
+            {
+              "name": "Delta"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "snapshots": [
+    {
+      "type": "ACTIVITY_SNAPSHOT",
+      "messageId": "a2ui-surface-call-plain",
+      "activityType": "a2ui-surface",
+      "content": {
+        "a2ui_operations": [
+          {
+            "version": "1.0",
+            "createSurface": {
+              "surfaceId": "validation-surface",
+              "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            }
+          },
+          {
+            "version": "1.0",
+            "updateComponents": {
+              "surfaceId": "validation-surface",
+              "components": [
+                {
+                  "id": "heading",
+                  "component": "Text",
+                  "text": {
+                    "@path": "/title"
+                  }
+                },
+                {
+                  "id": "row",
+                  "component": "Text",
+                  "text": {
+                    "@path": "name"
+                  }
+                },
+                {
+                  "id": "items",
+                  "component": "List",
+                  "children": {
+                    "componentId": "row",
+                    "path": "/items"
+                  }
+                },
+                {
+                  "id": "root",
+                  "component": "Column",
+                  "children": [
+                    "heading",
+                    "items"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "version": "1.0",
+            "updateDataModel": {
+              "surfaceId": "validation-surface",
+              "path": "/",
+              "value": {
+                "title": "Fixture",
+                "items": [
+                  {
+                    "name": "Gamma"
+                  },
+                  {
+                    "name": "Delta"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "replace": true
+    }
+  ]
+}

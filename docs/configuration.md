@@ -66,8 +66,9 @@ AGUIServer(registry, config=build_ag_ui_config(retries=5))
 | `APPROVAL_PROMPTS` | `dict[str, str]` | `{}` | What the approval card asks, per gated tool. See [`APPROVAL_PROMPTS`](#approval_prompts). |
 | `TOOL_FAILURE` | `dict` | `{}` | What an unhandled tool exception costs. **On** by default. See [`TOOL_FAILURE`](#tool_failure). |
 | `RUN_CONTEXT` | `dict` | `{}` | What client-supplied context reaches the model. **On** by default. See [`RUN_CONTEXT`](#run_context). |
+| `A2UI` | `dict` | `{}` | `{"ENABLED": True}` offers the `render_a2ui` tool and turns surface actions into user turns. Off by default; needs the `[a2ui]` extra. See [A2UI surfaces](a2ui.md). |
 
-Every one of these is also a `build_ag_ui_config(...)` keyword.
+Every one of these is also a `build_ag_ui_config(...)` keyword; `A2UI` is `a2ui_enabled=`.
 
 ### Unknown keys
 

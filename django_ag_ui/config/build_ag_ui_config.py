@@ -37,6 +37,7 @@ def build_ag_ui_config(
     tool_guard: ToolGuardConfig | None = None,
     tool_failure: ToolFailureConfig | None = None,
     run_context: RunContextConfig | None = None,
+    a2ui_enabled: bool | None = None,
 ) -> AGUIConfig:
     """Resolve an [`AGUIConfig`][django_ag_ui.AGUIConfig] from ``DJANGO_AG_UI``,
     applying overrides.
@@ -98,6 +99,9 @@ def build_ag_ui_config(
         run_context=run_context
         if run_context is not None
         else _parse_run_context(get_setting("RUN_CONTEXT")),
+        a2ui_enabled=a2ui_enabled
+        if a2ui_enabled is not None
+        else bool((get_setting("A2UI") or {}).get("ENABLED", False)),
     )
 
 

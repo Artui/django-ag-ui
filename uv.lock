@@ -9,6 +9,15 @@ resolution-markers = [
 ]
 
 [[package]]
+name = "ag-ui-a2ui-toolkit"
+version = "0.0.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/fd/31d73e2b31dd82c3c8104a3699023b9be06af580cffcc8ce7ae28bb56362/ag_ui_a2ui_toolkit-0.0.6.tar.gz", hash = "sha256:063576165d92149957e1b9cf17626b6feff0b9d758d4cf9fdebc81fa3f5be746", size = 19329, upload-time = "2026-11-02T19:58:59.686Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6e/22/5ee5d58ae73bd25963c28e59e577186ae0be5dc540451d1280ecce6016ab/ag_ui_a2ui_toolkit-0.0.6-py3-none-any.whl", hash = "sha256:c4730b485f322b50cae40861cb2cf2ed617258917ffcb1c0d2a1d5f434c8d371", size = 21670, upload-time = "2026-11-02T19:58:58.829Z" },
+]
+
+[[package]]
 name = "ag-ui-protocol"
 version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -649,6 +658,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+a2ui = [
+    { name = "ag-ui-a2ui-toolkit" },
+]
 anthropic = [
     { name = "pydantic-ai-slim", extra = ["anthropic"] },
 ]
@@ -673,6 +685,7 @@ specs = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "ag-ui-a2ui-toolkit" },
     { name = "django-spec-agents", extra = ["mcp", "specs"] },
     { name = "django-stubs" },
     { name = "flake8-tidy-imports" },
@@ -696,6 +709,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
+    { name = "ag-ui-a2ui-toolkit", marker = "extra == 'a2ui'", specifier = ">=0.0.6,<0.1" },
     { name = "ag-ui-protocol", specifier = ">=1.0" },
     { name = "django", specifier = ">=4.2" },
     { name = "django-spec-agents", specifier = ">=0.15.0" },
@@ -708,10 +722,11 @@ requires-dist = [
     { name = "pydantic-ai-slim", extras = ["google"], marker = "extra == 'google'", specifier = ">=2,<3" },
     { name = "pydantic-ai-slim", extras = ["openai"], marker = "extra == 'openai'", specifier = ">=2,<3" },
 ]
-provides-extras = ["anthropic", "code-mode", "google", "harness", "mcp", "openai", "specs"]
+provides-extras = ["a2ui", "anthropic", "code-mode", "google", "harness", "mcp", "openai", "specs"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "ag-ui-a2ui-toolkit", specifier = ">=0.0.6,<0.1" },
     { name = "django-spec-agents", extras = ["specs", "mcp"], specifier = ">=0.15.0" },
     { name = "django-stubs", specifier = ">=5.0" },
     { name = "flake8-tidy-imports", specifier = ">=4.12.0" },
