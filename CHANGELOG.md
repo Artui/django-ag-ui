@@ -30,8 +30,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compact JSON, keys in received order, non-ASCII unescaped. The id and name are
   the identity the server dedupes on, so a client copy whose content differs is
   the same turn; a malformed action is ignored.
-- **`a2ui_activity(operations, message_id=None)`**, `A2UI_ACTIVITY_TYPE` and
+- **`a2ui_activity(operations, *, message_id=None)`**, `A2UI_ACTIVITY_TYPE` and
   `A2UI_SCHEMA_CONTEXT_DESCRIPTION` are exported.
+- **`render_a2ui` ships the middleware's usage guide.** The guide text for the
+  catalog's protocol (`@ag-ui/a2ui-middleware` 0.0.16, compared with the
+  middleware's own in a test) is the tool's instructions, so the tool's
+  description refers to nothing a client must post, and the guide does not count
+  against `RUN_CONTEXT` `MAX_CHARS`.
+- **A `render_a2ui` name conflict no longer ends the run.** A client tool of that
+  name is replaced by the server's, as the middleware does; a tool of that name on
+  the host (registry, toolset or spec) is kept, and the server's is not
+  offered. A catalog whose components are not all objects, or that is nested past
+  the JSON parser, offers no tool.
 
 ## [0.77.0] — 2026-11-15
 

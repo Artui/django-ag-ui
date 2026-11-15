@@ -6,19 +6,25 @@ import sys
 from types import SimpleNamespace
 from typing import Any
 
+import django_service_specs as kernel
 import pytest
 from django.test import override_settings
+from django_spec_agents.registry.decorator import tool
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.messages import ModelMessage, ModelRequest, RetryPromptPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
+from pydantic_ai.toolsets.function import FunctionToolset
 
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from django_ag_ui.constants import A2UI_RENDER_GUIDE_1_0, A2UI_RENDER_GUIDE_V0_9
 from tests.agent.test_agui_view import _drain, _post, _registry
 
 FIXTURES = pathlib.Path(__file__).parent.parent / "fixtures" / "a2ui_middleware"
 GENERATED: dict[str, Any] = json.loads((FIXTURES / "final_result_snapshot.json").read_text())
+GUIDE: dict[str, Any] = json.loads((FIXTURES / "render_tool_guide.json").read_text())
 CATALOG: dict[str, Any] = json.loads((FIXTURES / "basic_catalog_1_0.json").read_text())
 DESCRIPTION: str = GENERATED["context_description"]
 ENABLED = override_settings(DJANGO_AG_UI={"A2UI": {"ENABLED": True}})
@@ -37,14 +43,16 @@ def _entry(catalog: dict[str, Any]) -> dict[str, str]:
     return {"description": DESCRIPTION, "value": json.dumps(catalog, separators=(",", ":"))}
 
 
-def _body(context: list[dict[str, str]], *, run_id: str = "r1") -> bytes:
+def _body(
+    context: list[dict[str, str]], *, run_id: str = "r1", tools: list[dict[str, Any]] | None = None
+) -> bytes:
     return json.dumps(
         {
             "threadId": "t1",
             "runId": run_id,
             "state": {},
             "messages": [{"id": "u1", "role": "user", "content": "show it"}],
-            "tools": [],
+            "tools": tools or [],
             "context": context,
             "forwardedProps": {},
         }
@@ -94,12 +102,21 @@ def _calling(
 
 
 async def _run(
-    calls: list[tuple[str, dict[str, Any]]], context: list[dict[str, str]]
+    calls: list[tuple[str, dict[str, Any]]],
+    context: list[dict[str, str]],
+    *,
+    tools: list[dict[str, Any]] | None = None,
+    registry: ToolRegistry | None = None,
+    toolsets: list[Any] | None = None,
+    service_specs: dict[str, Any] | None = None,
 ) -> tuple[str, list[list[ModelMessage]], list[list[str]]]:
     seen: list[list[ModelMessage]] = []
     offered: list[list[str]] = []
-    view = DjangoAGUIView(_registry(), model=_calling(calls, seen, offered))
-    body = await _drain(await view(_post(_body(context))))
+    model = _calling(calls, seen, offered)
+    view = DjangoAGUIView(
+        registry or _registry(), model=model, toolsets=toolsets, service_specs=service_specs
+    )
+    body = await _drain(await view(_post(_body(context, tools=tools))))
     return body, seen, offered
 
 
@@ -279,6 +296,84 @@ async def test_no_tool_on_a_mount_that_has_not_opted_in() -> None:
     assert "render_a2ui" not in offered[0]
 
 
+CLIENT_RENDER_TOOL = {
+    "name": "render_a2ui",
+    "description": "the client's own",
+    "parameters": {"type": "object", "properties": {}},
+}
+GOOD_SURFACE = {"surfaceId": "s", "components": PLAIN_ROOT}
+
+
+def _registry_rendering() -> ToolRegistry:
+    registry = _registry()
+
+    @tool(registry)
+    def render_a2ui() -> str:
+        """The host's own renderer."""
+        return "host drew it"
+
+    return registry
+
+
+def _host_toolset() -> FunctionToolset[Any]:
+    toolset: FunctionToolset[Any] = FunctionToolset()
+
+    @toolset.tool_plain
+    def render_a2ui() -> str:
+        """The host's own renderer."""
+        return "host drew it"
+
+    return toolset
+
+
+@ENABLED
+async def test_the_servers_render_tool_replaces_a_client_tool_of_the_same_name() -> None:
+    body, _seen, offered = await _run(
+        [("call-won", GOOD_SURFACE)], [_entry(CATALOG)], tools=[CLIENT_RENDER_TOOL]
+    )
+
+    assert "RUN_ERROR" not in body
+    assert "RUN_FINISHED" in body
+    assert offered[0].count("render_a2ui") == 1
+    assert [frame["messageId"] for frame in _surfaces(body)] == ["a2ui-surface-call-won"]
+
+
+@ENABLED
+async def test_a_client_tool_of_that_name_stays_when_the_server_offers_none() -> None:
+    body, _seen, offered = await _run([], [], tools=[CLIENT_RENDER_TOOL])
+
+    assert "RUN_ERROR" not in body
+    assert offered[0].count("render_a2ui") == 1
+
+
+def _host_spec_rows() -> dict[str, Any]:
+    def render_a2ui() -> str:
+        """The host's own renderer."""
+        return "host drew it"
+
+    spec = kernel.ServiceSpec(
+        service=render_a2ui, atomic=False, permissions=[kernel.Unrestricted()]
+    )
+    return {"render_a2ui": spec}
+
+
+@ENABLED
+@pytest.mark.parametrize("host", ["registry", "toolset", "specs"])
+async def test_a_host_tool_of_that_name_keeps_it_and_the_server_offers_none(host: str) -> None:
+    kwargs: dict[str, Any] = {
+        "registry": {"registry": _registry_rendering()},
+        "toolset": {"toolsets": [_host_toolset()]},
+        "specs": {"service_specs": _host_spec_rows()},
+    }[host]
+    body, _seen, offered = await _run([("call-host", {})], [_entry(CATALOG)], **kwargs)
+
+    assert "RUN_ERROR" not in body
+    assert "RUN_FINISHED" in body
+    assert "host drew it" in body
+    assert offered[0].count("render_a2ui") == 1
+    assert _surfaces(body) == []
+
+
 def _without_the_toolkit(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "ag_ui_a2ui_toolkit", None)
     monkeypatch.setitem(sys.modules, "ag_ui_a2ui_toolkit.validate", None)
@@ -345,11 +440,11 @@ async def test_the_tool_is_worded_as_the_middlewares_render_tool(
     captured, model = _capturing()
     await _drain(await DjangoAGUIView(_registry(), model=model)(_post(_body([_entry(catalog)]))))
 
-    # Literals from tools.ts ``renderA2UITool`` in @ag-ui/a2ui-middleware 0.0.16.
+    # Literals from renderA2UITool in middleware 0.0.16, bar where the guide sits.
     (tool,) = captured
     assert tool.description == (
         f"Render a dynamic A2UI {label} surface with structured parameters. "
-        "Follow the A2UI render tool usage guide provided in context."
+        "Follow the A2UI render tool usage guide in your instructions."
     )
     assert tool.parameters_json_schema == {
         "type": "object",
@@ -370,6 +465,33 @@ async def test_the_tool_is_worded_as_the_middlewares_render_tool(
         },
         "required": ["surfaceId", "components"],
     }
+
+
+@ENABLED
+@pytest.mark.parametrize(("catalog", "label"), [(CATALOG, "1.0"), (_V09_CATALOG, "v0.9")])
+async def test_the_usage_guide_reaches_the_model_without_a_guide_in_the_context(
+    catalog: dict[str, Any], label: str
+) -> None:
+    instructions: list[str | None] = []
+
+    async def stream(messages: list[ModelMessage], info: AgentInfo) -> Any:
+        instructions.append(info.instructions)
+        yield "done"
+
+    view = DjangoAGUIView(_registry(), model=FunctionModel(stream_function=stream))
+    await _drain(await view(_post(_body([_entry(catalog)]))))
+
+    (seen,) = instructions
+    assert seen is not None
+    assert GUIDE["guidelines"][label] in seen
+    other = "v0.9" if label == "1.0" else "1.0"
+    assert GUIDE["guidelines"][other] not in seen
+
+
+@pytest.mark.parametrize("label", ["1.0", "v0.9"])
+def test_the_packaged_guide_is_the_middlewares_own_text(label: str) -> None:
+    packaged = {"1.0": A2UI_RENDER_GUIDE_1_0, "v0.9": A2UI_RENDER_GUIDE_V0_9}
+    assert packaged[label] == GUIDE["guidelines"][label]
 
 
 @ENABLED

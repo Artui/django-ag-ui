@@ -1,0 +1,69 @@
+{
+  "generator": {
+    "@ag-ui/a2ui-middleware": "0.0.16",
+    "source": "src/tools.ts RENDER_A2UI_TOOL_GUIDELINES, renderA2UITool; src/index.ts injectToolAndFlag guidelinesDescription"
+  },
+  "context_description": "A2UI render tool usage guide — how to call render_a2ui with valid arguments.",
+  "guidelines": {
+    "1.0": "## How to call render_a2ui\n\nYou MUST provide ALL required arguments when calling render_a2ui:\n\n- **surfaceId** (string, required): Unique ID for the surface (e.g. \"sales-dashboard\").\n- **components** (array, REQUIRED): A2UI 1.0 flat component array. NEVER omit this.\n- **data** (object, optional): Initial data model for path-bound component values.\n\nNote: the catalog id is set by the host, not by you. Do not include a catalogId argument.\n\n### Component format (1.0 flat)\n\nComponents are a flat array — children are referenced by ID, not nested:\n- Every component has `id` (unique) and `component` (type name from the available catalog).\n- The root component MUST have `id: \"root\"`.\n- Properties go directly on the component object.\n- Use `children: [\"id1\", \"id2\"]` for multiple children, `child: \"id\"` for a single child.\n\n### Minimal example\n\n```json\n{\n  \"surfaceId\": \"my-dashboard\",\n  \"components\": [\n    { \"id\": \"root\", \"component\": \"Column\", \"children\": [\"title\", \"row1\"] },\n    { \"id\": \"title\", \"component\": \"Title\", \"text\": \"Overview\" },\n    { \"id\": \"row1\", \"component\": \"Row\", \"children\": [\"m1\", \"m2\"], \"gap\": 16 },\n    { \"id\": \"m1\", \"component\": \"Metric\", \"label\": \"Users\", \"value\": \"1,200\" },\n    { \"id\": \"m2\", \"component\": \"Metric\", \"label\": \"Revenue\", \"value\": \"$50K\" }\n  ]\n}\n```\n\n### Key rules\n\n1. NEVER call render_a2ui without the `components` array — the UI will be empty.\n2. Root must be a layout component (Column, Row, Card) — not Text or Button.\n3. Component IDs must be unique. A component must NOT reference itself as child.\n4. Only use component names from the Available Components schema in context.\n5. For data binding use `{ \"@path\": \"/key\" }` (absolute) or `{ \"@path\": \"key\" }` (relative inside templates).\n   A literal object with a \"path\" key is NOT a binding in 1.0. Call catalog functions with `{ \"@call\": \"functionName\", \"args\": { ... } }`.\n6. For repeating content: `children: { componentId: \"card-id\", path: \"/items\" }` repeats per array item.\n7. Button actions: `\"action\": { \"event\": { \"name\": \"action_name\", \"context\": { ... } } }` — event must be an object.\n8. No placeholder images — only use real URLs or Icon components.",
+    "v0.9": "## How to call render_a2ui\n\nYou MUST provide ALL required arguments when calling render_a2ui:\n\n- **surfaceId** (string, required): Unique ID for the surface (e.g. \"sales-dashboard\").\n- **components** (array, REQUIRED): A2UI v0.9 flat component array. NEVER omit this.\n- **data** (object, optional): Initial data model for path-bound component values.\n\nNote: the catalog id is set by the host, not by you. Do not include a catalogId argument.\n\n### Component format (v0.9 flat)\n\nComponents are a flat array — children are referenced by ID, not nested:\n- Every component has `id` (unique) and `component` (type name from the available catalog).\n- The root component MUST have `id: \"root\"`.\n- Properties go directly on the component object.\n- Use `children: [\"id1\", \"id2\"]` for multiple children, `child: \"id\"` for a single child.\n\n### Minimal example\n\n```json\n{\n  \"surfaceId\": \"my-dashboard\",\n  \"components\": [\n    { \"id\": \"root\", \"component\": \"Column\", \"children\": [\"title\", \"row1\"] },\n    { \"id\": \"title\", \"component\": \"Title\", \"text\": \"Overview\" },\n    { \"id\": \"row1\", \"component\": \"Row\", \"children\": [\"m1\", \"m2\"], \"gap\": 16 },\n    { \"id\": \"m1\", \"component\": \"Metric\", \"label\": \"Users\", \"value\": \"1,200\" },\n    { \"id\": \"m2\", \"component\": \"Metric\", \"label\": \"Revenue\", \"value\": \"$50K\" }\n  ]\n}\n```\n\n### Key rules\n\n1. NEVER call render_a2ui without the `components` array — the UI will be empty.\n2. Root must be a layout component (Column, Row, Card) — not Text or Button.\n3. Component IDs must be unique. A component must NOT reference itself as child.\n4. Only use component names from the Available Components schema in context.\n5. For data binding use `{ \"path\": \"/key\" }` (absolute) or `{ \"path\": \"key\" }` (relative inside templates).\n6. For repeating content: `children: { componentId: \"card-id\", path: \"/items\" }` repeats per array item.\n7. Button actions: `\"action\": { \"event\": { \"name\": \"action_name\", \"context\": { ... } } }` — event must be an object.\n8. No placeholder images — only use real URLs or Icon components."
+  },
+  "tool": {
+    "1.0": {
+      "name": "render_a2ui",
+      "description": "Render a dynamic A2UI 1.0 surface with structured parameters. Follow the A2UI render tool usage guide provided in context.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "surfaceId": {
+            "type": "string",
+            "description": "Unique surface identifier."
+          },
+          "components": {
+            "type": "array",
+            "description": "A2UI 1.0 component array (flat format). The root component must have id \"root\".",
+            "items": {
+              "type": "object"
+            }
+          },
+          "data": {
+            "type": "object",
+            "description": "Initial data model for the surface. Written to the root path. Use for pre-filling form values (e.g. {\"form\": {\"name\": \"Alice\"}}) or providing data for components bound to data model paths."
+          }
+        },
+        "required": [
+          "surfaceId",
+          "components"
+        ]
+      }
+    },
+    "v0.9": {
+      "name": "render_a2ui",
+      "description": "Render a dynamic A2UI v0.9 surface with structured parameters. Follow the A2UI render tool usage guide provided in context.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "surfaceId": {
+            "type": "string",
+            "description": "Unique surface identifier."
+          },
+          "components": {
+            "type": "array",
+            "description": "A2UI v0.9 component array (flat format). The root component must have id \"root\".",
+            "items": {
+              "type": "object"
+            }
+          },
+          "data": {
+            "type": "object",
+            "description": "Initial data model for the surface. Written to the root path. Use for pre-filling form values (e.g. {\"form\": {\"name\": \"Alice\"}}) or providing data for components bound to data model paths."
+          }
+        },
+        "required": [
+          "surfaceId",
+          "components"
+        ]
+      }
+    }
+  }
+}

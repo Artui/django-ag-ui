@@ -5,9 +5,11 @@ a card, a list) as data, and the browser draws it from a catalog of components
 it knows. The model never writes markup. It names components from that catalog,
 and the client renders only what the catalog allows.
 
-This package implements the server half the way `@ag-ui/a2ui-middleware` does,
-so a renderer built for that middleware works against it unchanged. It provides
-two things:
+This package implements the server half of `@ag-ui/a2ui-middleware`. The tool,
+its guide and the surface snapshot match the middleware's, and the action turn
+carries the middleware's id and name. The turn's content is
+`A2UI user action:\n` and the action as JSON, as the middleware writes it, with
+an optional `userMessage` lead that this package adds. It provides two things:
 
 - a **`render_a2ui` tool**, offered to the model only when the client has posted
   its catalog, which validates a surface and paints it as an `a2ui-surface`
@@ -51,8 +53,9 @@ and its `value` is the catalog as JSON:
 ```
 
 The tool exists for a run only when the endpoint is enabled **and** that entry is
-present with a string `catalogId` and an object of `components`. Otherwise the
-model is not offered it. The catalog id written into every surface is the one in
+present with a string `catalogId` and an object of `components`, each of which is
+itself an object. Otherwise the model is not offered it. An entry too deeply
+nested for the JSON parser counts as no entry. The catalog id written into every surface is the one in
 that entry. The server has no default catalog, so a surface always names a
 catalog the client has registered.
 
@@ -71,11 +74,22 @@ default, the component definitions arrive whole, but the end of the catalog
 (the tail of `functions`, and `$defs`) is cut, and the block says so. Raise
 `MAX_CHARS` if the model needs the whole catalog.
 
+### The usage guide ships with the tool
+
+The middleware asks the renderer to post a second context entry, a guide to
+calling `render_a2ui`. This package does not wait for it. It carries the
+middleware's guide text (`@ag-ui/a2ui-middleware` 0.0.16, for the protocol the
+catalog declares) and gives it to the model as the tool's instructions, so the
+tool's description points at nothing the client has to post. The guide does not
+go through the run-context block, so it does not count against `MAX_CHARS`. A
+test compares the packaged text with the middleware's own.
+
 ## The tool
 
 `render_a2ui(surfaceId, components, data=None)` matches the middleware's
-`renderA2UITool`, in parameter names and description. A call is checked in this
-order:
+`renderA2UITool` in its parameters and description, except that the description
+sends the model to the guide in its instructions rather than to one in context.
+A call is checked in this order:
 
 1. `surfaceId` must be a non-empty string, and `data`, when given, an object.
 2. The toolkit validates the components against the catalog: known component
@@ -100,6 +114,20 @@ emits, and a test compares the two on the wire.
     The toolkit resolves absolute bindings only under `path` keys, which is the
     v0.9 spelling, so a 1.0 `{"@path": "/missing"}` passes even when `data` has
     no such path. The middleware has the same gap, and the surface is painted.
+
+### Name conflicts
+
+A run that offers `render_a2ui` has one tool of that name:
+
+- **A client tool named `render_a2ui` is dropped** from the run's tools, and the
+  server's tool is the one the model sees and calls, as the middleware's
+  `injectToolAndFlag` replaces it. This applies only on an enabled endpoint, and
+  only when the client posted a usable catalog. Otherwise the client's tool is
+  left alone.
+- **A tool of that name on the host is kept**, and the server's tool is not
+  offered. This covers a `@tool` in the registry, a function toolset passed as
+  `toolsets=` and a spec in `service_specs=`. The host's tool is its own, so the model calls it and nothing is painted by this
+  package.
 
 ## Actions
 
@@ -129,12 +157,16 @@ fields:
 | `id` | `a2ui-action-user-` + the hex SHA-256 of the run's `runId` |
 | `name` | `a2ui_action_context_` + the unpadded base64url SHA-256 of the run's `runId` |
 | `role` | `user` |
-| `content` | `<userMessage>` + a blank line, only when `userAction.userMessage` is a non-empty string; then `A2UI user action:\n` + `userAction` as compact JSON |
+| `content` | `<userMessage>` + a blank line, only when `userAction.userMessage` is a non-empty string (the lead is this package's addition); then `A2UI user action:\n` + `userAction` as compact JSON, which is all the middleware writes |
 
 The JSON is compact (`,` and `:` with no spaces), keeps the keys in the order
 they were received, and leaves non-ASCII characters unescaped. A `userMessage`
 is taken as given, so one of only spaces still leads the turn. The id and name
 match the middleware's, byte for byte.
+
+`forwardedProps.a2uiAction` belongs only on the action's own request. A
+follow-up round or a later run that repeats it under a new `runId` adds a
+second turn.
 
 **The id and name are the turn's identity.** The server adds no turn when a user
 message with that id or that name is already in the run's messages. A client's

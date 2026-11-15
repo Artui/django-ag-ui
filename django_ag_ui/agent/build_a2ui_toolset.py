@@ -9,7 +9,12 @@ from pydantic_ai.toolsets.function import FunctionToolset
 
 from django_ag_ui.agent.a2ui_activity import a2ui_activity
 from django_ag_ui.agent.utils import a2ui_validator
-from django_ag_ui.constants import A2UI_SCHEMA_CONTEXT_DESCRIPTION
+from django_ag_ui.constants import (
+    A2UI_RENDER_GUIDE_1_0,
+    A2UI_RENDER_GUIDE_V0_9,
+    A2UI_RENDER_TOOL_NAME,
+    A2UI_SCHEMA_CONTEXT_DESCRIPTION,
+)
 
 _V0_9 = "v0.9"
 _V1_0 = "1.0"
@@ -33,6 +38,7 @@ def build_a2ui_toolset(run_input: Any) -> FunctionToolset[Any] | None:
     validate = a2ui_validator()
     protocol = _normalize_protocol_version(catalog.get("protocolVersion")) or _V0_9
     label = "1.0" if protocol == _V1_0 else "v0.9"
+    guide = A2UI_RENDER_GUIDE_1_0 if protocol == _V1_0 else A2UI_RENDER_GUIDE_V0_9
 
     async def render_a2ui(
         ctx: RunContext[Any], surfaceId: Any = None, components: Any = None, data: Any = None
@@ -54,13 +60,13 @@ def build_a2ui_toolset(run_input: Any) -> FunctionToolset[Any] | None:
 
     tool = Tool.from_schema(
         render_a2ui,
-        name="render_a2ui",
+        name=A2UI_RENDER_TOOL_NAME,
         description=f"Render a dynamic A2UI {label} surface with structured parameters. "
-        "Follow the A2UI render tool usage guide provided in context.",
+        "Follow the A2UI render tool usage guide in your instructions.",
         json_schema=_parameters(label),
         takes_ctx=True,
     )
-    return FunctionToolset([tool], id="django-ag-ui-a2ui")
+    return FunctionToolset([tool], id="django-ag-ui-a2ui", instructions=guide)
 
 
 def _posted_catalog(run_input: Any) -> dict[str, Any] | None:
