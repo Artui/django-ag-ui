@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Mapping, Sequence
+from dataclasses import fields
 from typing import Any
 
 from ag_ui.core import (
     BaseEvent,
     Message,
     RunAgentInput,
+    RunErrorEvent,
     ToolCallResultEvent,
     ToolMessage,
 )
@@ -28,17 +30,22 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter, AGUIEventStream
 from django_ag_ui.agent.stamp_outcome import stamp_outcome
 from django_ag_ui.agent.utils import run_error_code
 
+# The run input carries these; passing them beside it makes upstream warn.
+_RUN_IDENTITY = frozenset({"thread_id", "run_id"})
+
 
 class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
     """An ``AGUIAdapter`` whose ``TOOL_CALL_RESULT`` events say how the call went."""
 
     def build_event_stream(self) -> UIEventStream[RunAgentInput, BaseEvent, Any, Any]:
         """Build the outcome-forwarding event stream."""
+        upstream = super().build_event_stream()
         return _OutcomeEventStream(
-            self.run_input,
-            accept=self.accept,
-            ag_ui_version=self.ag_ui_version,
-            include_usage=self.include_usage,
+            **{
+                field.name: getattr(upstream, field.name)
+                for field in fields(upstream)
+                if field.init and field.name not in _RUN_IDENTITY
+            }
         )
 
     @classmethod
@@ -70,7 +77,11 @@ class _OutcomeEventStream(AGUIEventStream[Any, Any]):
     async def on_error(self, error: Exception) -> AsyncIterator[BaseEvent]:
         code = run_error_code(error)
         async for event in super().on_error(error):
-            yield event.model_copy(update={"code": code})
+            yield (
+                event.model_copy(update={"code": code})
+                if isinstance(event, RunErrorEvent)
+                else event
+            )
 
 
 def _forwardable_outcome(
