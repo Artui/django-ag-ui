@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -1056,7 +1056,7 @@ reads the <code>x-destructive</code> stamp <strong>server-side</strong>: a memor
 <code>refund_order</code> first" still hits the approval interrupt. With the guard off,
 every server-side tool runs the moment the model calls it.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;TOOL_GUARD&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;ENABLED&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">"TOOL_GUARD"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"ENABLED"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>A mount with memory on and the guard off is a durable, user-writable path to
@@ -1091,8 +1091,8 @@ attaches as a constructor argument like every other capability.</p>
 <h3 id="namespace-is-the-user-agent_name-is-the-mount"><code>namespace</code> is the user; <code>agent_name</code> is the mount<a class="headerlink" href="#namespace-is-the-user-agent_name-is-the-mount" title="Permanent link">&para;</a></h3>
 <p>The harness composes its scope key as <code>f"{namespace}/{agent_name}"</code>, so two
 mounts sharing one store are partitioned by construction:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">Memory</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">agent_name</span><span class="o">=</span><span class="s2">&quot;internal&quot;</span><span class="p">)</span>  <span class="c1"># one mount</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">Memory</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">agent_name</span><span class="o">=</span><span class="s2">&quot;public&quot;</span><span class="p">)</span>  <span class="c1"># another</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">Memory</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">agent_name</span><span class="o">=</span><span class="s2">"internal"</span><span class="p">)</span>  <span class="c1"># one mount</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">Memory</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">agent_name</span><span class="o">=</span><span class="s2">"public"</span><span class="p">)</span>  <span class="c1"># another</span>
 </span></code></pre></div>
 <p>No scoping wrapper is needed, unlike <code>ScopedConversationStore</code> for threads — the
 capability solved it upstream.</p>
@@ -1203,12 +1203,12 @@ things people usually ask for already have a reader:</p>
 </span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
 </span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">instructions_for</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
 </span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="n">prefs</span> <span class="o">=</span> <span class="n">_prefs</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
-</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">base</span> <span class="o">=</span> <span class="s2">&quot;You are a helpful assistant.&quot;</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">base</span> <span class="o">=</span> <span class="s2">"You are a helpful assistant."</span>
 </span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="k">if</span> <span class="n">prefs</span> <span class="ow">and</span> <span class="n">prefs</span><span class="o">.</span><span class="n">language</span><span class="p">:</span>
 </span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>        <span class="c1"># The project chose this sentence; the stored value only selects it.</span>
-</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>        <span class="n">base</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; Reply in </span><span class="si">{</span><span class="n">prefs</span><span class="o">.</span><span class="n">get_language_display</span><span class="p">()</span><span class="si">}</span><span class="s2">.&quot;</span>
-</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>    <span class="k">if</span> <span class="n">prefs</span> <span class="ow">and</span> <span class="n">prefs</span><span class="o">.</span><span class="n">tone</span> <span class="o">==</span> <span class="s2">&quot;terse&quot;</span><span class="p">:</span>
-</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>        <span class="n">base</span> <span class="o">+=</span> <span class="s2">&quot; Keep answers short and factual.&quot;</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>        <span class="n">base</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">" Reply in </span><span class="si">{</span><span class="n">prefs</span><span class="o">.</span><span class="n">get_language_display</span><span class="p">()</span><span class="si">}</span><span class="s2">."</span>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>    <span class="k">if</span> <span class="n">prefs</span> <span class="ow">and</span> <span class="n">prefs</span><span class="o">.</span><span class="n">tone</span> <span class="o">==</span> <span class="s2">"terse"</span><span class="p">:</span>
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>        <span class="n">base</span> <span class="o">+=</span> <span class="s2">" Keep answers short and factual."</span>
 </span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>    <span class="k">return</span> <span class="n">base</span>
 </span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>
 </span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>
@@ -1290,10 +1290,10 @@ reasoning disclosure is <em>presentation</em>.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>

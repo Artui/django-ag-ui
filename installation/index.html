@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -944,8 +944,8 @@
 <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-ag-ui
 </span></code></pre></div>
-<p>Core dependencies are <code>django&gt;=4.2</code>, <code>django-spec-agents&gt;=0.6.0</code>,
-<code>pydantic-ai-slim[ui]&gt;=2.63,&lt;3</code> and <code>ag-ui-protocol&gt;=1.0</code>. The <code>AGUIAdapter</code> comes from pydantic-ai-slim and the
+<p>Core dependencies are <code>django&gt;=4.2</code>, <code>django-spec-agents&gt;=0.14.0</code>,
+<code>pydantic-ai-slim[ag-ui]&gt;=2.63,&lt;3</code> and <code>ag-ui-protocol&gt;=1.0</code>. The <code>AGUIAdapter</code> comes from pydantic-ai-slim and the
 AG-UI wire types from <code>ag-ui-protocol</code>; this package does not re-implement
 either. The <strong>slim</strong> package ships the adapter but <strong>no model-provider
 library</strong> — pick one via a provider extra (see below).</p>
@@ -953,13 +953,12 @@ library</strong> — pick one via a provider extra (see below).</p>
 runtime underneath: the tool registry, agent construction, the guard and failure
 policies, audit and the storage contracts. This package re-exports the names you
 use from it, so <code>from django_ag_ui import ToolRegistry</code> is the spelling to keep.</p>
-<p>The <code>[ui]</code> extra rather than <code>[ag-ui]</code> is deliberate. From 2.47,
-pydantic-ai-slim's <code>[ag-ui]</code> extra caps <code>ag-ui-protocol</code> below 1.0, and this
-package needs 1.0, so asking for both would quietly hold pydantic-ai-slim at
-2.46. If your own project depends on <code>pydantic-ai-slim[ag-ui]</code> or
-<code>pydantic-ai[ag-ui]</code>, it brings the cap back, and the resolver again settles on
-pydantic-ai-slim 2.46 without saying so. Depend on the <code>[ui]</code> extra instead, as
-this package does.</p>
+<p>From 2.47 to 2.62, pydantic-ai-slim's <code>[ag-ui]</code> extra capped <code>ag-ui-protocol</code>
+below 1.0, which this package needs, so asking for both quietly held
+pydantic-ai-slim at 2.46; this package asked for the <code>[ui]</code> extra instead until
+0.75.0. 2.63.0 lifted the cap, and 2.63 is this package's floor, so <code>[ag-ui]</code> is
+safe at every version it admits. A project of your own that pins
+pydantic-ai-slim below 2.63 with <code>[ag-ui]</code> still brings the cap back.</p>
 <p>Upgrading from 0.66 or earlier does not move pydantic-ai on its own. 2.46 still
 satisfies this package's floor, so a lockfile or environment that already
 resolved it keeps it until you upgrade it by name, together with
@@ -989,7 +988,7 @@ cap held it at 0.36, since every later release pins a newer pydantic-ai-slim):</
 </tr>
 <tr>
 <td>Pydantic-AI</td>
-<td>2.63 (with the <code>pydantic-ai-slim[ui]</code> extra)</td>
+<td>2.63 (with the <code>pydantic-ai-slim[ag-ui]</code> extra)</td>
 <td>latest in the CI matrix</td>
 </tr>
 </tbody>
@@ -997,7 +996,7 @@ cap held it at 0.36, since every later release pins a newer pydantic-ai-slim):</
 <h2 id="model-provider-extras">Model provider extras<a class="headerlink" href="#model-provider-extras" title="Permanent link">&para;</a></h2>
 <p>Because <code>pydantic-ai-slim</code> ships no provider library, install the one matching
 your model via a <code>django-ag-ui</code> provider extra:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[anthropic]&quot;</span><span class="w">   </span><span class="c1"># or [openai], or [google]</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"django-ag-ui[anthropic]"</span><span class="w">   </span><span class="c1"># or [openai], or [google]</span>
 </span></code></pre></div>
 <p>Each maps to the corresponding <code>pydantic-ai-slim</code> provider extra:</p>
 <table>
@@ -1070,7 +1069,7 @@ wrong fix.</p>
 <h2 id="the-mcp-extra">The <code>[mcp]</code> extra<a class="headerlink" href="#the-mcp-extra" title="Permanent link">&para;</a></h2>
 <p>To expose a <a href="https://github.com/Artui/django-spec-mcp">django-spec-mcp</a> server's
 tools to the agent in-process (no network MCP hop), install the extra:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[mcp]&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"django-ag-ui[mcp]"</span>
 </span></code></pre></div>
 <p>This pulls in <code>django-spec-agents[mcp]</code>, whose
 <code>django_spec_agents.integrations.mcp</code> holds the bridge
@@ -1082,7 +1081,7 @@ the kernel beneath it and no DRF. The bridge is imported lazily, only when an
 <p>To expose <a href="https://artui.github.io/django-service-specs/">django-service-specs</a>
 specs to the agent as tools with no MCP server in the path (<code>service_specs=</code>),
 install the extra:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-ag-ui[specs]&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"django-ag-ui[specs]"</span>
 </span></code></pre></div>
 <p>This pulls in <code>django-spec-agents[specs]</code>, whose <code>django_spec_agents.spec_tools</code>
 holds the <code>SpecToolset</code> and <code>SpecCapability</code> the endpoint builds, with the
@@ -1197,10 +1196,10 @@ both, and a project that used either directly moves with it:</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>

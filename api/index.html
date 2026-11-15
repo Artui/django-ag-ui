@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -29,10 +29,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -881,6 +881,17 @@
     <span class="md-ellipsis">
       
         summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.ToolSpec.schema_strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        schema_strategy
       
     </span>
   </a>
@@ -2955,6 +2966,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.ToolSpec.schema_strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        schema_strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4855,7 +4877,8 @@ is importable directly, e.g. <code>from django_ag_ui import ToolRegistry</code>.
         <p>An ordered, named collection of server-side tools.</p>
 <p>State lives on the instance — a transport holds one, tests build a fresh one
 per scenario. Each tool's JSON Schema is derived once at registration, with
-<code>schema_strategy</code> (see
+the tool's own <code>ToolSpec.schema_strategy</code> when it sets one and the
+registry's <code>schema_strategy</code> otherwise (see
 <a class="autorefs autorefs-internal" title="build_input_schema" href="#django_ag_ui.build_input_schema"><code>build_input_schema</code></a>), and either
 sync or async callables can be dispatched.</p>
 <p>The strategy shapes <code>ToolBinding.input_schema</code> only. The schema the agent
@@ -4913,7 +4936,8 @@ offers the model for a registry tool is pydantic-ai's own, whichever is set.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>when <code>spec.name</code> is already registered.</p>
+                <p>when <code>spec.name</code> is already registered, or its
+<code>schema_strategy</code> is not a <code>SchemaStrategy</code>.</p>
               </div>
             </td>
           </tr>
@@ -5047,7 +5071,8 @@ parameter and no <code>ctx</code> was given.</p>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">category</span><span class="p">:</span> <span class="n">ToolCategory</span> <span class="o">=</span> <span class="n">ToolCategory</span><span class="o">.</span><span class="n">OTHER</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">confirm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">summary</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">F</span><span class="p">],</span> <span class="n">F</span><span class="p">]</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">schema_strategy</span><span class="p">:</span> <span class="n">SchemaStrategy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">F</span><span class="p">],</span> <span class="n">F</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -5056,7 +5081,8 @@ parameter and no <code>ctx</code> was given.</p>
 <p><code>name</code> defaults to the function's name and <code>description</code> to the first
 paragraph of its docstring. <code>confirm</code> is the confirmation prompt for a
 destructive tool and <code>summary</code> a short display label; both reach the client
-as the matching <code>x-*</code> schema key.</p>
+as the matching <code>x-*</code> schema key. <code>schema_strategy</code> overrides the
+registry's for this tool's schema; <code>None</code> keeps the registry's.</p>
 
 
     </div>
@@ -5297,7 +5323,7 @@ registry derives a JSON Schema from the signature.</p>
   </span>
 
 <a href="#django_ag_ui.ToolSpec.category" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">category</span><span class="p">:</span> <span class="n">ToolCategory</span> <span class="o">=</span> <span class="n">OTHER</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">category</span><span class="p">:</span> <span class="n">ToolCategory</span> <span class="o">=</span> <span class="n">ToolCategory</span><span class="o">.</span><span class="n">OTHER</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -5355,6 +5381,34 @@ shown instead of a generic "Run <tool>?".</p>
 
         <p>A short label, stamped as <code>x-summary</code>, shown on the tool-call card
 instead of the raw tool name.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.ToolSpec.schema_strategy" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">schema_strategy</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.ToolSpec.schema_strategy" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">schema_strategy</span><span class="p">:</span> <span class="n">SchemaStrategy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>How this tool's <code>ToolBinding.input_schema</code> is derived. <code>None</code> takes
+the registering <a class="autorefs autorefs-internal" title="ToolRegistry" href="#django_ag_ui.ToolRegistry"><code>ToolRegistry</code></a>'s
+strategy; a value overrides it for this tool alone, so one registry can
+hold tools of both strategies.</p>
 
     </div>
 
@@ -5487,7 +5541,7 @@ about capability classes, and a project apply category-wide policy. It does
   </span>
 
 <a href="#django_ag_ui.X_DESTRUCTIVE_KEY" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">X_DESTRUCTIVE_KEY</span> <span class="o">=</span> <span class="s1">&#39;x-destructive&#39;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">X_DESTRUCTIVE_KEY</span> <span class="o">=</span> <span class="s1">'x-destructive'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -5509,7 +5563,7 @@ about capability classes, and a project apply category-wide policy. It does
   </span>
 
 <a href="#django_ag_ui.X_CATEGORY_KEY" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">X_CATEGORY_KEY</span> <span class="o">=</span> <span class="s1">&#39;x-category&#39;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">X_CATEGORY_KEY</span> <span class="o">=</span> <span class="s1">'x-category'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -5531,7 +5585,7 @@ about capability classes, and a project apply category-wide policy. It does
   </span>
 
 <a href="#django_ag_ui.X_CONFIRM_KEY" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">X_CONFIRM_KEY</span> <span class="o">=</span> <span class="s1">&#39;x-confirm&#39;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">X_CONFIRM_KEY</span> <span class="o">=</span> <span class="s1">'x-confirm'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -5553,7 +5607,7 @@ about capability classes, and a project apply category-wide policy. It does
   </span>
 
 <a href="#django_ag_ui.X_SUMMARY_KEY" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">X_SUMMARY_KEY</span> <span class="o">=</span> <span class="s1">&#39;x-summary&#39;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">X_SUMMARY_KEY</span> <span class="o">=</span> <span class="s1">'x-summary'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -5989,9 +6043,9 @@ registry (plus optional stores / auth), then mount its <strong>namespaced</stron
 agent = AGUIServer(registry, csrf_exempt=False)
 
 urlpatterns = [
-    path(&quot;agent/&quot;, agent.urls),
+    path("agent/", agent.urls),
 ]
-# reverse(&quot;ag_ui:endpoint&quot;) · &quot;ag_ui:tools&quot; · &quot;ag_ui:threads&quot; · ...
+# reverse("ag_ui:endpoint") · "ag_ui:tools" · "ag_ui:threads" · ...
 </code></pre></div>
 <p>The registry is passed <strong>once</strong>: the object builds the agent view
 (<a class="autorefs autorefs-internal" title="DjangoAGUIView" href="#django_ag_ui.DjangoAGUIView"><code>DjangoAGUIView</code></a>) <em>and</em> the read-only
@@ -6049,7 +6103,7 @@ django-service-specs specs, a spec registry (the kernel's <code>SpecRegistry</co
 the single declaration site for a project exposing the same specs over
 several transports), or an already-built <code>SpecToolset</code> /
 <code>SpecCapability</code>:</p>
-<div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, service_specs=spec_registry.by_tag(&quot;public&quot;))
+<div class="language-text highlight"><pre><span></span><code>AGUIServer(registry, service_specs=spec_registry.by_tag("public"))
 AGUIServer(registry, service_specs=SpecToolset(SPECS, max_page_size=50))
 </code></pre></div>
 <p>A spec declares what a caller with no HTTP request has to be told -- its
@@ -6102,7 +6156,7 @@ voice clips eat the run budget, and the two want different numbers anyway.</p>
     registry,
     throttle=FixedWindowThrottle(max_runs=20, per_seconds=60),
     transcribe_throttle=FixedWindowThrottle(
-        max_runs=60, per_seconds=60, namespace=&quot;transcribe&quot;
+        max_runs=60, per_seconds=60, namespace="transcribe"
     ),
 )
 </code></pre></div>
@@ -6876,7 +6930,7 @@ user.</p>
   </span>
 
 <a href="#django_ag_ui.DEFAULT_SYSTEM_PROMPT" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DEFAULT_SYSTEM_PROMPT</span> <span class="o">=</span> <span class="s2">&quot;You are an assistant embedded in a web application. You can call tools to read data and to drive the user interface on the user&#39;s behalf. Prefer the most specific tool available. The application, not you, decides which actions need an explicit confirmation from the user: where one is needed it interrupts the call and comes back to you with the answer, so treat a tool call as a request the application may still refuse rather than as something you have already done. Do not re-ask in text for an action the user has clearly asked for. When a destructive or irreversible action is NOT clearly covered by what the user asked for, say what you are about to do and wait for them to agree before calling the tool. Briefly state what you are doing. When the user refers to something by name, use a listing or search tool&#39;s arguments to find it and then act on the result — don&#39;t stop after the lookup. Treat &#39;open&#39;, &#39;go to&#39;, or &#39;show me&#39; as a request to navigate. Always finish your turn with a short reply or a completed action — never an empty turn. Keep replies concise.&quot;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DEFAULT_SYSTEM_PROMPT</span> <span class="o">=</span> <span class="s2">"You are an assistant embedded in a web application. You can call tools to read data and to drive the user interface on the user's behalf. Prefer the most specific tool available. The application, not you, decides which actions need an explicit confirmation from the user: where one is needed it interrupts the call and comes back to you with the answer, so treat a tool call as a request the application may still refuse rather than as something you have already done. Do not re-ask in text for an action the user has clearly asked for. When a destructive or irreversible action is NOT clearly covered by what the user asked for, say what you are about to do and wait for them to agree before calling the tool. Briefly state what you are doing. When the user refers to something by name, use a listing or search tool's arguments to find it and then act on the result — don't stop after the lookup. Treat 'open', 'go to', or 'show me' as a request to navigate. Always finish your turn with a short reply or a completed action — never an empty turn. Keep replies concise."</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -7661,7 +7715,7 @@ not dropped in silence.</p>
   </span>
 
 <a href="#django_ag_ui.RunContextConfig.delivery" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">delivery</span><span class="p">:</span> <span class="n">ContextDelivery</span> <span class="o">=</span> <span class="s1">&#39;instructions&#39;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">delivery</span><span class="p">:</span> <span class="n">ContextDelivery</span> <span class="o">=</span> <span class="s1">'instructions'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -7709,7 +7763,7 @@ package has always done.</p>
   </span>
 
 <a href="#django_ag_ui.ContextDelivery" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">ContextDelivery</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;instructions&#39;</span><span class="p">,</span> <span class="s1">&#39;tool&#39;</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">ContextDelivery</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'instructions'</span><span class="p">,</span> <span class="s1">'tool'</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -7886,7 +7940,7 @@ its transport's <code>audit_logger=</code>.</p>
         <p>Records every tool execution to an
 <a class="autorefs autorefs-internal" title="AuditLogger" href="#django_ag_ui.AuditLogger"><code>AuditLogger</code></a> sink.</p>
 <p>A Pydantic-AI capability on the tool-execution hooks, so it records
-<strong>every</strong> tool the agent runs: registry tools, the drf-mcp and spec
+<strong>every</strong> tool the agent runs: registry tools, the MCP and spec
 bridges, attachment and skill tools alike.</p>
 <p><strong>One record per execution, describing the tool's own execution</strong>, whatever
 other capabilities sort ahead of it and on every supported pydantic-ai.
@@ -8909,11 +8963,11 @@ resumed there — under the <em>public</em> agent's model, tools and guard polic
 <p>Wrapping fixes that without a migration:</p>
 <div class="language-text highlight"><pre><span></span><code>internal = AGUIServer(
     registry,
-    conversation_store=ScopedConversationStore(store, scope=&quot;internal&quot;),
+    conversation_store=ScopedConversationStore(store, scope="internal"),
 )
 public = AGUIServer(
     registry,
-    conversation_store=ScopedConversationStore(store, scope=&quot;public&quot;),
+    conversation_store=ScopedConversationStore(store, scope="public"),
 )
 </code></pre></div>
 <p>The partition is a thread-id prefix, so this composes with any
@@ -9061,9 +9115,15 @@ session. For cross-device or audited persistence, use a model-backed store.</p>
 
         <p>Abstract base for a model-backed (or any sync) <code>ConversationStore</code>.</p>
 <p>Provides the async wrapping and per-request owner scoping; a subclass
-implements the three <em>synchronous</em> row operations against its own Django
-model. Model-agnostic on purpose — the package ships no concrete model, so it
-forces no migration and consumers define the fields and the owner relation.</p>
+implements the three abstract <em>synchronous</em> row operations (<code>_fetch</code> /
+<code>_store</code> / <code>_remove</code>) against its own Django model, and may override
+<code>_list</code> / <code>_exists</code> / <code>_rename</code>. Model-agnostic on purpose — the package
+ships no concrete model, so it forces no migration and consumers define the
+fields and the owner relation.</p>
+<p>Each hook receives the resolved <code>owner_id</code> (the user's id, or
+<code>anon:&lt;session key&gt;</code> for an anonymous visitor when <code>allow_anonymous</code> is
+on; otherwise the request is refused before the hook runs) and <strong>must</strong>
+filter by it, so threads never cross users.</p>
 <p><code>allow_anonymous</code> governs whether anonymous requests are served. <code>False</code>
 refuses them rather than collapsing every anonymous visitor into one shared
 owner bucket where they could read and delete each other's data. It is a
@@ -9408,12 +9468,6 @@ those instead.</p>
 
 
         <p>The reference durable conversation row, one per <code>(owner_id, thread_id)</code>.</p>
-<p><code>owner_id</code> is the resolved owner (the user's pk, or an
-<code>anon:&lt;session_key&gt;</code> bucket) and every query filters by it: it is the
-security boundary. <code>title</code> / <code>preview</code> are denormalised so the thread
-drawer's list query never loads message bodies. <code>attachments</code> is derived
-from <code>messages</code> on every save and is what attachment lifecycle runs on.</p>
-<p>Used by <code>DefaultConversationStore</code>.</p>
 
 
 
@@ -9477,12 +9531,12 @@ catch it: it is the same user on both mounts.</p>
 <p>Wrapping fixes that without a migration:</p>
 <div class="language-text highlight"><pre><span></span><code>internal = AGUIServer(
     registry,
-    step_store=ScopedStepStore(DefaultStepStore, scope=&quot;internal&quot;),
+    step_store=ScopedStepStore(DefaultStepStore, scope="internal"),
     config=build_ag_ui_config(tool_guard=ToolGuardConfig(enabled=True)),
 )
 public = AGUIServer(
     registry,
-    step_store=ScopedStepStore(DefaultStepStore, scope=&quot;public&quot;),
+    step_store=ScopedStepStore(DefaultStepStore, scope="public"),
 )
 </code></pre></div>
 <p><strong>A factory in, a factory out</strong>, unlike
@@ -9801,12 +9855,13 @@ configured.</p>
 <code>Storage</code> for the bytes, a model row for the metadata. The opt-in
 <code>django_spec_agents.contrib.store</code> app supplies a concrete pair.</p>
 <p>Each <code>_save</code> / <code>_open</code> / <code>_remove</code> receives the resolved <code>owner_id</code>
-(<code>None</code> for anonymous) and <strong>must</strong> filter by it, so files never cross
-users.</p>
+(the user's id, or <code>anon:&lt;session key&gt;</code> for an anonymous visitor when
+<code>allow_anonymous</code> is on; otherwise the request is refused before the hook
+runs) and <strong>must</strong> filter by it, so files never cross users.</p>
 <p>Example:</p>
 <div class="language-text highlight"><pre><span></span><code>class MyStore(ModelAttachmentStore):
     def _save(self, upload, owner_id):
-        row = MyAttachment.objects.create(owner_id=owner_id or &quot;&quot;, ...)
+        row = MyAttachment.objects.create(owner_id=owner_id or "", ...)
         row.file.save(row.attachment_id, upload, save=True)
         return AttachmentRef(id=row.attachment_id, name=..., mime=..., size=...)
     def _open(self, attachment_id, owner_id): ...
@@ -10003,17 +10058,6 @@ composer showed. The blob goes when the last row pointing at it does.</p>
 
 
         <p>The reference durable attachment row for a model-backed store.</p>
-<p><code>attachment_id</code> is the opaque handle the wire ref carries; <code>file</code> holds
-the bytes via Django <code>Storage</code>; <code>name</code> / <code>mime</code> / <code>size</code> are
-denormalised so metadata is returned without reading the file back.
-<code>owner_id</code> is the resolved owner and every query filters by it: it is the
-security boundary. <code>sha256</code> is the chunked digest that lets a re-upload of
-the same bytes reuse the blob already in storage, blank on rows predating the
-column until <code>agent_store_backfill_hashes</code> fills them in.</p>
-<p><code>thread_id</code> is a loose label a project may set; the reference store leaves
-it blank. Lifecycle runs on the <code>ConversationAttachment</code> relation, not
-on this column, which is kept only because projects read it.</p>
-<p>Used by <code>DefaultAttachmentStore</code>.</p>
 
 
 
@@ -10265,9 +10309,9 @@ which is what mounts <code>transcribe/</code>:</p>
 or point at an OpenAI-compatible server (Azure OpenAI, a local Whisper
 server, Groq, …) by subclassing and setting the class attributes:</p>
 <div class="language-text highlight"><pre><span></span><code>class GroqTranscription(OpenAITranscriptionBackend):
-    model = &quot;whisper-large-v3&quot;
-    base_url = &quot;https://api.groq.com/openai/v1&quot;
-    api_key = os.environ[&quot;GROQ_API_KEY&quot;]
+    model = "whisper-large-v3"
+    base_url = "https://api.groq.com/openai/v1"
+    api_key = os.environ["GROQ_API_KEY"]
 </code></pre></div>
 <p><strong><code>base_url</code> and <code>api_key</code> travel together.</strong> The SDK sends whatever key
 it holds as the bearer token to whatever host <code>base_url</code> names, and with
@@ -10310,7 +10354,7 @@ package keeps it an optional dependency (the <code>[openai]</code> extra).</p>
   </span>
 
 <a href="#django_ag_ui.contrib.transcription.openai_transcription_backend.OpenAITranscriptionBackend.model" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;whisper-1&#39;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'whisper-1'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -10655,7 +10699,7 @@ how many labels there are.</p>
   </span>
 
 <a href="#django_ag_ui.ChartKind" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">ChartKind</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;bar&#39;</span><span class="p">,</span> <span class="s1">&#39;line&#39;</span><span class="p">,</span> <span class="s1">&#39;pie&#39;</span><span class="p">,</span> <span class="s1">&#39;scatter&#39;</span><span class="p">,</span> <span class="s1">&#39;stacked&#39;</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">ChartKind</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'bar'</span><span class="p">,</span> <span class="s1">'line'</span><span class="p">,</span> <span class="s1">'pie'</span><span class="p">,</span> <span class="s1">'scatter'</span><span class="p">,</span> <span class="s1">'stacked'</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -10785,7 +10829,7 @@ replace, and nothing about it reaches the wire.</p>
   </span>
 
 <a href="#django_ag_ui.CHART_ACTIVITY_TYPE" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">CHART_ACTIVITY_TYPE</span> <span class="o">=</span> <span class="s1">&#39;chart&#39;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">CHART_ACTIVITY_TYPE</span> <span class="o">=</span> <span class="s1">'chart'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -10835,7 +10879,8 @@ it was drawn.</p>
 <p>It is an AG-UI <code>message_id</code> and shares that namespace, so a set sent under
 an id an assistant turn already used replaces <em>that message</em>. Prefixing is
 enough, and the generated ids do it (<code>suggestions-&lt;uuid&gt;</code>).</p>
-<p>Chips are content, so they persist and a reload puts them back. Rows from
+<p>Chips are not stored with the thread: a reload redraws them only through
+<code>thread_activity_source=</code>, or on a client-side store. Rows from
 earlier turns stay above, reading as what was offered then; nothing expires
 them, and a project that wants exactly one row keeps one id.</p>
 
@@ -10884,7 +10929,7 @@ suggestion that silently never appears.</p>
   </span>
 
 <a href="#django_ag_ui.SUGGESTIONS_ACTIVITY_TYPE" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">SUGGESTIONS_ACTIVITY_TYPE</span> <span class="o">=</span> <span class="s1">&#39;suggestions&#39;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">SUGGESTIONS_ACTIVITY_TYPE</span> <span class="o">=</span> <span class="s1">'suggestions'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -11104,7 +11149,7 @@ makes the safe direction the cheap one.</p>
   </span>
 
 <a href="#django_ag_ui.SUBAGENT_EVENT_NAME" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">SUBAGENT_EVENT_NAME</span> <span class="o">=</span> <span class="s1">&#39;ag_ui.subagent&#39;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">SUBAGENT_EVENT_NAME</span> <span class="o">=</span> <span class="s1">'ag_ui.subagent'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -11124,11 +11169,11 @@ between: one event per tool call it makes and one per result it gets back.</p>
 <h4 id="django_ag_ui.SUBAGENT_EVENT_NAME--the-value">The value<a class="headerlink" href="#django_ag_ui.SUBAGENT_EVENT_NAME--the-value" title="Permanent link">&para;</a></h4>
 <p>Every event carries the same five keys::</p>
 <div class="language-text highlight"><pre><span></span><code>{
-  &quot;delegationId&quot;: &quot;call_abc123&quot;,
-  &quot;agent&quot;: &quot;researcher&quot;,
-  &quot;phase&quot;: &quot;tool_call&quot;,
-  &quot;status&quot;: &quot;researcher: calling search_docs&quot;,
-  &quot;tool&quot;: {&quot;toolCallId&quot;: &quot;call_def456&quot;, &quot;name&quot;: &quot;search_docs&quot;, &quot;ok&quot;: null}
+  "delegationId": "call_abc123",
+  "agent": "researcher",
+  "phase": "tool_call",
+  "status": "researcher: calling search_docs",
+  "tool": {"toolCallId": "call_def456", "name": "search_docs", "ok": null}
 }
 </code></pre></div>
 <ul>
@@ -11214,10 +11259,10 @@ def place_order(sku: str) -&gt; str:
         # Fires when the transaction commits -- not before, and not at
         # all if it rolls back.
         transaction.on_commit(
-            lambda: publish_invalidation(&quot;orders&quot;, f&quot;orders/{order.pk}&quot;,
-                                         reason=&quot;place_order&quot;)
+            lambda: publish_invalidation("orders", f"orders/{order.pk}",
+                                         reason="place_order")
         )
-    return f&quot;Ordered {sku}.&quot;
+    return f"Ordered {sku}."
 </code></pre></div>
 <p><strong>Announcing before the commit is wrong by default, not in an edge case.</strong>
 A <code>ServiceSpec</code> is <code>atomic=True</code> unless told otherwise, so the naive
@@ -11267,7 +11312,7 @@ on the wire is exact and never by prefix, because a prefix rule guesses at a
 scheme this package does not own and fails both ways -- <code>orders/1</code> would
 match <code>orders/11</code>. So a write to one row that should also refresh the list
 says both::</p>
-<div class="language-text highlight"><pre><span></span><code>resource_invalidation(&quot;orders&quot;, &quot;orders/42&quot;, reason=&quot;place_order&quot;)
+<div class="language-text highlight"><pre><span></span><code>resource_invalidation("orders", "orders/42", reason="place_order")
 </code></pre></div>
 <p>The <em>host</em> may then match hierarchically in its own vocabulary, where the
 scheme is known and hierarchy is the point (TanStack query keys are built
@@ -11298,7 +11343,7 @@ a missing argument.</p>
   </span>
 
 <a href="#django_ag_ui.INVALIDATE_EVENT_NAME" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">INVALIDATE_EVENT_NAME</span> <span class="o">=</span> <span class="s1">&#39;ag_ui.invalidate&#39;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">INVALIDATE_EVENT_NAME</span> <span class="o">=</span> <span class="s1">'ag_ui.invalidate'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -11342,38 +11387,6 @@ guides.</p>
     <div class="doc doc-contents first">
 
         <p>Build a Pydantic-AI model from a <code>"provider:name"</code> string and explicit key.</p>
-<p>Prefix resolution is delegated to Pydantic-AI's <code>infer_model</code>, with a
-<code>provider_factory</code> that injects credentials rather than letting it read the
-environment. A <code>provider</code> instance takes precedence and is used as-is, so
-it may carry a custom <code>base_url</code> or client; otherwise <code>api_key</code> goes to
-the prefix's default <code>Provider</code> class. Every provider Pydantic-AI knows
-therefore works with no table to maintain here, and a bare model name it can
-map to a provider is accepted too.</p>
-
-
-<p><span class="doc-section-title">Raises:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                  <code><span title="django.core.exceptions.ImproperlyConfigured">ImproperlyConfigured</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The provider could not be resolved — an unknown or
-uninferable prefix, or its extra is not installed. Pass a
-<code>Provider</code> instance for anything Pydantic-AI cannot infer.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
 
 
     </div>
@@ -11392,9 +11405,8 @@ uninferable prefix, or its extra is not installed. Pass a
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">ToolRegistry</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">mcp_server</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">drf_mcp_server</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">service_specs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">service_specs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -11452,27 +11464,8 @@ Route spec tools through a transport's <code>service_specs=</code> to keep label
             </td>
             <td>
               <div class="doc-md-description">
-                <p>An MCP server whose registered tools are appended: a
-django-spec-mcp <code>MCPServer</code>, or a drf-mcp one, whose bindings
-carry the same four label fields.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>drf_mcp_server</code>
-            </td>
-            <td>
-                  <code><span title="typing.Any">Any</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Deprecated, removed in the next minor: the name
-<code>mcp_server</code> had while the only server was drf-mcp's. It takes
-the same server; passing both raises <code>TypeError</code>.</p>
+                <p>A django-spec-mcp <code>MCPServer</code> whose registered tools are
+appended.</p>
               </div>
             </td>
             <td>
@@ -11516,29 +11509,6 @@ described by its service or selector callable's docstring.</p>
             <td>
               <div class="doc-md-description">
                 <p>One entry per tool, in that source order.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-<p><span class="doc-section-title">Raises:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                  <code><span title="TypeError">TypeError</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Both <code>mcp_server</code> and <code>drf_mcp_server</code> were passed.</p>
               </div>
             </td>
           </tr>
@@ -11810,15 +11780,6 @@ enforcement is authoritative either way.</p>
     <div class="doc doc-contents first">
 
         <p>Build a per-request toolset exposing <code>read_attachment</code> over <code>store</code>.</p>
-<p>The request is captured in a closure so <code>store.open</code> stays owner-scoped to
-the acting user: the model can only read files that user uploaded, never
-another's by id. Attachments therefore travel the wire as lightweight refs
-and the bytes are reached here, server-side, only when the model asks.</p>
-<p><code>inline</code> decides which binary types come back as file content and how large
-a file may be before it is described rather than attached; <code>None</code> takes the
-<a class="autorefs autorefs-external" href="https://artui.github.io/django-spec-agents/reference/agent/#django_spec_agents.AttachmentInlineConfig"><code>AttachmentInlineConfig</code></a>
-defaults. Read its docstring before widening either — inlined bytes go to the
-provider on every model request left in the run.</p>
 
 
     </div>
@@ -11879,10 +11840,10 @@ provider on every model request left in the run.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>

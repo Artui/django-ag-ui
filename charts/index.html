@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -997,13 +997,13 @@ events attached to a tool return, verbatim, ahead of the tool result:</p>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">show_signups</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">ToolReturn</span><span class="p">:</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">rows</span> <span class="o">=</span> <span class="n">Signup</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">weekly</span><span class="p">()</span>  <span class="c1"># your data, server-side</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ChartSpec</span><span class="p">(</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        <span class="n">kind</span><span class="o">=</span><span class="s2">&quot;bar&quot;</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>        <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Signups this week&quot;</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        <span class="n">kind</span><span class="o">=</span><span class="s2">"bar"</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>        <span class="n">title</span><span class="o">=</span><span class="s2">"Signups this week"</span><span class="p">,</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>        <span class="n">labels</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">day</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">),</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>        <span class="n">series</span><span class="o">=</span><span class="p">(</span><span class="n">ChartSeries</span><span class="p">(</span><span class="s2">&quot;new&quot;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">count</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">)),),</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>        <span class="n">series</span><span class="o">=</span><span class="p">(</span><span class="n">ChartSeries</span><span class="p">(</span><span class="s2">"new"</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">count</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">)),),</span>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="p">)</span>
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="k">return</span> <span class="n">ToolReturn</span><span class="p">(</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        <span class="n">return_value</span><span class="o">=</span><span class="s2">&quot;Signups chart shown.&quot;</span><span class="p">,</span>  <span class="c1"># what the model reads</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        <span class="n">return_value</span><span class="o">=</span><span class="s2">"Signups chart shown."</span><span class="p">,</span>  <span class="c1"># what the model reads</span>
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>        <span class="n">metadata</span><span class="o">=</span><span class="n">chart_activity</span><span class="p">(</span><span class="n">spec</span><span class="p">),</span>  <span class="c1"># what the browser draws</span>
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="p">)</span>
 </span></code></pre></div>
@@ -1011,8 +1011,8 @@ events attached to a tool return, verbatim, ahead of the tool result:</p>
 a large or sensitive result set is charted without being sent to a provider.</p>
 <p>Attach a list of events to <code>metadata</code> to send several at once.</p>
 <p>The browser has to opt in as well — nothing renders a chart unless a host asks:</p>
-<div class="language-js highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">&quot;ag-ui-chat&quot;</span><span class="p">).</span><span class="nx">enableCharts</span><span class="p">([</span><span class="s2">&quot;activity&quot;</span><span class="p">]);</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1">// or [&quot;tool&quot;, &quot;activity&quot;] to allow both routes</span>
+<div class="language-js highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"ag-ui-chat"</span><span class="p">).</span><span class="nx">enableCharts</span><span class="p">([</span><span class="s2">"activity"</span><span class="p">]);</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1">// or ["tool", "activity"] to allow both routes</span>
 </span></code></pre></div>
 <p><strong>There is no server setting that turns this on.</strong> Pushing a chart is an act
 rather than a mode, and a flag would suggest the framework emits one on your
@@ -1026,10 +1026,10 @@ than stacking a second copy — one chart moving, not two measurements.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nd">@agent</span><span class="o">.</span><span class="n">tool_plain</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">watch_throughput</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">ToolReturn</span><span class="p">:</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="k">return</span> <span class="n">ToolReturn</span><span class="p">(</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="n">return_value</span><span class="o">=</span><span class="s2">&quot;Throughput chart shown.&quot;</span><span class="p">,</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="n">return_value</span><span class="o">=</span><span class="s2">"Throughput chart shown."</span><span class="p">,</span>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        <span class="n">metadata</span><span class="o">=</span><span class="p">[</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>            <span class="n">chart_activity</span><span class="p">(</span><span class="n">first</span><span class="p">,</span> <span class="n">chart_id</span><span class="o">=</span><span class="s2">&quot;throughput&quot;</span><span class="p">),</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>            <span class="n">chart_activity</span><span class="p">(</span><span class="n">revised</span><span class="p">,</span> <span class="n">chart_id</span><span class="o">=</span><span class="s2">&quot;throughput&quot;</span><span class="p">),</span>  <span class="c1"># redraws in place</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>            <span class="n">chart_activity</span><span class="p">(</span><span class="n">first</span><span class="p">,</span> <span class="n">chart_id</span><span class="o">=</span><span class="s2">"throughput"</span><span class="p">),</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>            <span class="n">chart_activity</span><span class="p">(</span><span class="n">revised</span><span class="p">,</span> <span class="n">chart_id</span><span class="o">=</span><span class="s2">"throughput"</span><span class="p">),</span>  <span class="c1"># redraws in place</span>
 </span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        <span class="p">],</span>
 </span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="p">)</span>
 </span></code></pre></div>
@@ -1038,8 +1038,8 @@ the numbers move, a patch is cheaper than re-sending the whole spec:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">chart_points_delta</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">return</span> <span class="n">ToolReturn</span><span class="p">(</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">return_value</span><span class="o">=</span><span class="s2">&quot;Throughput updated.&quot;</span><span class="p">,</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">metadata</span><span class="o">=</span><span class="n">chart_points_delta</span><span class="p">(</span><span class="s2">&quot;throughput&quot;</span><span class="p">,</span> <span class="n">points</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">21</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">26</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span> <span class="n">spec</span><span class="o">=</span><span class="n">revised</span><span class="p">),</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">return_value</span><span class="o">=</span><span class="s2">"Throughput updated."</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">metadata</span><span class="o">=</span><span class="n">chart_points_delta</span><span class="p">(</span><span class="s2">"throughput"</span><span class="p">,</span> <span class="n">points</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">21</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">26</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span> <span class="n">spec</span><span class="o">=</span><span class="n">revised</span><span class="p">),</span>
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>A delta is applied <strong>positionally</strong>, and <code>chart_id</code> is a name rather than a
@@ -1062,7 +1062,7 @@ send the snapshot first and keep its id.</p>
 <p>Use this when the agent should be able to talk about what it drew. The numbers
 are in its context, so it can summarise them in the same turn.</p>
 <p>The tool is client-side and opt-in — the browser registers it:</p>
-<div class="language-js highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">&quot;ag-ui-chat&quot;</span><span class="p">).</span><span class="nx">enableCharts</span><span class="p">([</span><span class="s2">&quot;tool&quot;</span><span class="p">]);</span>
+<div class="language-js highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s2">"ag-ui-chat"</span><span class="p">).</span><span class="nx">enableCharts</span><span class="p">([</span><span class="s2">"tool"</span><span class="p">]);</span>
 </span></code></pre></div>
 <p>The agent then calls <code>render_chart</code> with the same shape as <code>ChartSpec</code>, and the
 page draws it. It costs one model round, and the data passes through the
@@ -1116,6 +1116,10 @@ browser redraws it from those arguments without re-running anything.</p>
 <p>A <strong>client-side store</strong> persists activities and needs nothing from you. On a
 server-side store — the recommended setup — a pushed chart comes back only if
 you put it back, which is what the next section is for.</p>
+<p>Follow-up chips pushed with
+<a class="autorefs autorefs-internal" title="suggestions_activity" href="../api/#django_ag_ui.suggestions_activity"><code>suggestions_activity()</code></a> are not in the
+stored thread either. On a server-side store a reload redraws them only if
+<code>thread_activity_source=</code> returns them, as the next section does for charts.</p>
 <h2 id="putting-a-pushed-chart-back-on-reload">Putting a pushed chart back on reload<a class="headerlink" href="#putting-a-pushed-chart-back-on-reload" title="Permanent link">&para;</a></h2>
 <p><code>thread_activity_source=</code> is asked, on every thread read, which pushed
 activities belong to that thread. It hands back
@@ -1262,10 +1266,10 @@ stays vanilla AG-UI and ours is not a privileged client.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>
