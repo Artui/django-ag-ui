@@ -1268,8 +1268,8 @@ A run that Pydantic-AI stops itself, including one past its `timeout=`
 (`RunTimedOut`), is not a failure: it ends in `RUN_FINISHED`, with a cancelled
 outcome for a client that declares AG-UI 1.0 and a bare `RUN_FINISHED`
 otherwise, rather than in `RUN_ERROR`, so it carries no code. The web component
-declares no protocol version, so it gets the bare event. A timeout is a cancel
-on the wire: the reason `timed_out` stays server-side, and the web component
+declares AG-UI 1.0 (through `@ag-ui/client`), so it gets the cancelled outcome.
+A timeout is a cancel on the wire: the reason `timed_out` stays server-side, and the web component
 does not infer a timeout from a cancelled `RUN_FINISHED`.
 
 **One failure is the client's to fix, so it keeps its words.** An id longer
@@ -1283,7 +1283,13 @@ written. The column is the store's name, not the wire's: a `threadId` reaches
 the step store as `conversation_id` and the conversation store as `thread_id`,
 and the conversation store is asked first. A scoped store counts its prefix but
 reports the length the client sent: under `ScopedStepStore(scope="s")` a
-`runId` has the column's width less `s:`.
+`runId` has the column's width less `s:`. The id a resume or fork names
+(`resume/<run_id>/`) is checked too, as the new run's `parent_run_id`.
+
+A custom store's `check_identifiers` is called with keywords: the conversation
+store's with `thread_id`, the step store's with `run_id`, `conversation_id` (the
+`threadId`) and `parent_run_id` (the resumed run's id, or `None`). A method that
+does not accept them raises `TypeError` before the stream opens.
 
 A custom store with no `check_identifiers` is not asked, and refuses at its
 first write instead (django-spec-agents' `IdentifierTooLongError`), after the

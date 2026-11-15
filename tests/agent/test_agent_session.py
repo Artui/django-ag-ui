@@ -1413,3 +1413,41 @@ async def test_a_run_error_run_carries_no_usage() -> None:
 
     assert "RUN_ERROR" in joined
     assert '"usage"' not in joined
+
+
+def _past_its_timeout(monkeypatch: pytest.MonkeyPatch) -> Agent[Any, Any]:
+    from django_ag_ui.agent.outcome_agui_adapter import OutcomeAGUIAdapter
+
+    async def stream_fn(messages, info):  # noqa: ANN001, ANN202
+        await asyncio.sleep(5)
+        yield "late"
+
+    native = OutcomeAGUIAdapter.run_stream_native
+
+    def with_timeout(self: Any, *args: Any, **kwargs: Any) -> Any:
+        return native(self, *args, **{**kwargs, "timeout": 0.05})
+
+    monkeypatch.setattr(OutcomeAGUIAdapter, "run_stream_native", with_timeout)
+    return Agent(FunctionModel(stream_function=stream_fn))
+
+
+@pytest.mark.parametrize(("protocol_version", "outcome"), [(None, None), ("1.0", "cancelled")])
+async def test_a_run_past_its_timeout_finishes_by_the_client_s_protocol_version(
+    monkeypatch: pytest.MonkeyPatch, protocol_version: str | None, outcome: str | None
+) -> None:
+    run_input = _run_input()
+    if protocol_version is not None:
+        run_input = run_input.model_copy(update={"protocol_version": protocol_version})
+    joined = await _events(_session(_past_its_timeout(monkeypatch), run_input))
+
+    assert "RUN_ERROR" not in joined
+    finished = _wire_event(joined, "RUN_FINISHED")
+    assert finished.get("outcome", {}).get("type") == outcome
+
+
+async def test_a_usage_entry_carries_its_total() -> None:
+    config = build_ag_ui_config(include_usage=True)
+    finished = _wire_event(await _events(_session(config=config)), "RUN_FINISHED")
+
+    (entry,) = finished["usage"]
+    assert entry["totalTokens"] == entry["inputTokens"] + entry["outputTokens"]

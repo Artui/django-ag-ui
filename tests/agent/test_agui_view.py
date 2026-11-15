@@ -1908,6 +1908,22 @@ async def test_a_disconnect_on_an_over_long_thread_id_still_audits() -> None:
 
 
 @pytest.mark.django_db(transaction=True)
+async def test_the_conversation_store_is_asked_first() -> None:
+    from django_spec_agents.contrib.store.default_conversation_store import (
+        DefaultConversationStore,
+    )
+
+    view = DjangoAGUIView(
+        _registry(),
+        model=TestModel(),
+        conversation_store=DefaultConversationStore(),
+        step_store=DefaultStepStore,
+    )
+    response = await view(_post(_run_input("double 5", thread_id="t" * 300)))
+    assert _refused(response).startswith("thread_id is 300 characters")
+
+
+@pytest.mark.django_db(transaction=True)
 async def test_a_resume_from_too_long_for_the_parent_column_is_refused() -> None:
     calls: list[int] = []
     view = DjangoAGUIView(_registry(), model=_counted_model(calls), step_store=DefaultStepStore)

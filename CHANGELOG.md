@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **An over-long `threadId` or `runId` is a `400` before the stream opens**, not
-  a `200` that ends in `RUN_ERROR`. The view asks each store through
+  a `200` that ends in `RUN_ERROR`, and an over-long run id on `resume/` or
+  `fork/` is that `400` rather than a `404`. The view asks each store through
   django-spec-agents' `preflight_identifiers`, so the model is not called and
   nothing is written; the body is `{"error": ..., "code": "identifier_too_long"}`.
   A custom store without `check_identifiers` is skipped and still refuses inside

@@ -525,3 +525,25 @@ async def test_an_error_stream_stamps_a_code_on_a_run_error_only() -> None:
     error, finished = events
     assert error.code == "error"
     assert "code" not in _extras(finished)
+
+
+def test_building_the_stream_raises_no_warning() -> None:
+    import warnings
+
+    run_input = AGUIAdapter.build_run_input(
+        json.dumps(
+            {
+                "threadId": "t",
+                "runId": "r",
+                "messages": [],
+                "tools": [],
+                "context": [],
+                "state": None,
+                "forwardedProps": {},
+            }
+        ).encode()
+    )
+    adapter = OutcomeAGUIAdapter(Agent(TestModel()), run_input)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        adapter.build_event_stream()
