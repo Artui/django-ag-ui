@@ -1153,6 +1153,61 @@ async def test_the_operators_copy_of_a_run_error_keeps_the_detail() -> None:
     assert "kaboom" in (run_event.error or "")
 
 
+def _raising_agent(error: Exception) -> Agent[Any, Any]:
+    async def stream_fn(messages: list, info: Any) -> Any:
+        raise error
+        yield "unreachable"
+
+    return Agent(FunctionModel(stream_function=stream_fn))
+
+
+def _wire_event(joined: str, event_type: str) -> dict[str, Any]:
+    (event,) = [
+        json.loads(line.removeprefix("data: "))
+        for line in joined.splitlines()
+        if line.startswith("data: ") and f'"type":"{event_type}"' in line
+    ]
+    return event
+
+
+async def test_a_redacted_run_error_says_what_failed_in_its_code() -> None:
+    error = _wire_event(await _events(_session(_failing_agent())), "RUN_ERROR")
+
+    assert error["code"] == "error"
+    assert error["message"] == "The run failed. The failure has been recorded."
+
+
+async def test_a_timeout_ends_the_run_coded_timed_out_with_its_words_withheld() -> None:
+    joined = await _events(_session(_raising_agent(TimeoutError("upstream read timed out"))))
+
+    assert _wire_event(joined, "RUN_ERROR")["code"] == "timed_out"
+    assert "upstream read timed out" not in joined
+
+
+@override_settings(DJANGO_AG_UI={"TOOL_FAILURE": {"INCLUDE_DETAIL": True}})
+async def test_include_detail_keeps_the_code_beside_the_words() -> None:
+    error = _wire_event(await _events(_session(_failing_agent())), "RUN_ERROR")
+
+    assert error["code"] == "error"
+    assert "kaboom" in error["message"]
+
+
+# --- token usage on RUN_FINISHED ---------------------------------------------------
+
+
+async def test_include_usage_puts_the_runs_usage_on_run_finished() -> None:
+    config = build_ag_ui_config(include_usage=True)
+    finished = _wire_event(await _events(_session(config=config)), "RUN_FINISHED")
+
+    assert finished["usage"]
+
+
+async def test_run_finished_carries_no_usage_by_default() -> None:
+    finished = _wire_event(await _events(_session()), "RUN_FINISHED")
+
+    assert "usage" not in finished
+
+
 # --- who a stored conversation belongs to ----------------------------------------
 
 
