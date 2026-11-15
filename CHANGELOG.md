@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.78.0] — 2026-11-15
+
 ### Added
 
 - **A2UI surfaces, opt-in.** `DJANGO_AG_UI["A2UI"] = {"ENABLED": True}` (or
@@ -4406,7 +4408,9 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.76.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.78.0...HEAD
+[0.78.0]: https://github.com/Artui/django-ag-ui/compare/v0.77.0...v0.78.0
+[0.77.0]: https://github.com/Artui/django-ag-ui/compare/v0.76.0...v0.77.0
 [0.76.0]: https://github.com/Artui/django-ag-ui/compare/v0.75.0...v0.76.0
 [0.75.0]: https://github.com/Artui/django-ag-ui/compare/v0.74.0...v0.75.0
 [0.74.0]: https://github.com/Artui/django-ag-ui/compare/v0.73.0...v0.74.0
