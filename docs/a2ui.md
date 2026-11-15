@@ -99,8 +99,7 @@ emits, and a test compares the two on the wire.
 
     The toolkit resolves absolute bindings only under `path` keys, which is the
     v0.9 spelling, so a 1.0 `{"@path": "/missing"}` passes even when `data` has
-    no such path. The middleware has the same gap. The surface is painted and
-    the binding renders empty.
+    no such path. The middleware has the same gap, and the surface is painted.
 
 ## Actions
 

@@ -39,9 +39,8 @@ def build_a2ui_toolset(run_input: Any) -> FunctionToolset[Any] | None:
     ) -> ToolReturn:
         problems = _argument_problems(surfaceId, data)
         if not problems:
-            result = validate(
-                components=components, data=data, catalog={"components": catalog["components"]}
-            )
+            known = {"components": catalog["components"]} if catalog["components"] else None
+            result = validate(components=components, data=data, catalog=known)
             problems = [f"{error['path']}: {error['message']}" for error in result["errors"]]
         if not problems:
             problems = _protocol_mismatch(protocol, components)

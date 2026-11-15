@@ -6,12 +6,15 @@ from typing import Any
 import pytest
 from django.test import override_settings
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
+from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 from django_spec_agents.contrib.store.models import StoredConversation
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.persistence.threads_view import ThreadsView
 from tests.agent.test_agui_view import _drain, _post, _registry
+from tests.authed_request_factory import AuthedRequestFactory, authenticated_user
 
 ENABLED = override_settings(DJANGO_AG_UI={"A2UI": {"ENABLED": True}})
 
@@ -119,6 +122,10 @@ async def test_the_action_turn_is_pinned_and_reaches_the_model_and_the_store() -
     stored = await _stored()
     assert _without_nulls(stored[0]) == _turn()
     assert [message["role"] for message in stored] == ["user", "assistant"]
+    replay = await ThreadsView(DefaultConversationStore())(
+        AuthedRequestFactory().get("/agent/threads/t1/"), thread_id="t1"
+    )
+    assert _without_nulls(json.loads(replay.content)["messages"][0]) == _turn()
 
 
 @ENABLED
@@ -217,7 +224,8 @@ async def test_a_later_run_carrying_the_turn_stores_it_once() -> None:
     await _drain(await view(_post(_body(later, run_id="run-next"))))
 
     stored = await _stored()
-    assert [message["id"] for message in stored].count(PIN_ID) == 1
+    assert [message["id"] for message in stored][:3] == [PIN_ID, held[1]["id"], "u2"]
+    assert [message["role"] for message in stored] == ["user", "assistant", "user", "assistant"]
     assert _prompts(seen[-1]) == [PIN_CONTENT, "and lunch"]
 
 
@@ -341,8 +349,10 @@ async def test_a_follow_up_round_without_the_turn_drops_it() -> None:
     view = _view(_recording(seen))
     await _drain(await view(_post(_body(follow_up, run_id="run-follow", tools=[SEAT_TOOL]))))
 
-    assert PIN_ID not in [message["id"] for message in await _stored()]
-    assert PIN_CONTENT not in _prompts(seen[-1])
+    stored = await _stored()
+    assert [message["id"] for message in stored][:4] == ["u0", "a0", held[3]["id"], "r-seat"]
+    assert [message["role"] for message in stored[4:]] == ["assistant"]
+    assert _prompts(seen[-1]) == ["show me the booking form"]
 
 
 # --- Server-held history: a resumed run takes the action as its new turn --------
@@ -350,11 +360,8 @@ async def test_a_follow_up_round_without_the_turn_drops_it() -> None:
 
 @ENABLED
 @pytest.mark.django_db(transaction=True)
-async def test_a_resumed_run_takes_the_action_as_its_new_turn() -> None:
-    from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
-
-    from tests.authed_request_factory import authenticated_user
-
+@pytest.mark.parametrize("replays", [True, False], ids=["client-replays-the-row", "server-only"])
+async def test_a_resumed_run_takes_the_action_as_its_new_turn(replays: bool) -> None:
     seen: list[list[ModelMessage]] = []
     view = DjangoAGUIView(
         _registry(),
@@ -365,15 +372,17 @@ async def test_a_resumed_run_takes_the_action_as_its_new_turn() -> None:
     )
     hello = {"id": "u1", "role": "user", "content": "hello"}
     await _drain(await view(_post(_body([hello], run_id="run-first"))))
+    first = await _stored()
 
+    posted = first if replays else []
     await _drain(
         await view(
-            _post(_body([], run_id=PIN_RUN_ID, forwarded=_action(PIN_ACTION))),
+            _post(_body(posted, run_id=PIN_RUN_ID, forwarded=_action(PIN_ACTION))),
             resume_from="run-first",
         )
     )
 
     assert _prompts(seen[-1]) == ["hello", PIN_CONTENT]
     stored = await _stored()
-    assert [message["id"] for message in stored].count(PIN_ID) == 1
+    assert [message["id"] for message in stored][:3] == ["u1", first[1]["id"], PIN_ID]
     assert [message["role"] for message in stored] == ["user", "assistant", "user", "assistant"]

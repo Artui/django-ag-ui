@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import pathlib
 import sys
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -10,7 +11,10 @@ from django.test import override_settings
 from pydantic_ai.messages import ModelMessage, ModelRequest, RetryPromptPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
+from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.agent.test_agui_view import _drain, _post, _registry
 
 FIXTURES = pathlib.Path(__file__).parent.parent / "fixtures" / "a2ui_middleware"
@@ -163,6 +167,8 @@ _BOUND_TEXT_V1 = [
             "but the catalog declares protocol v0.9",
         ),
         (CATALOG, {"surfaceId": "  ", "components": PLAIN_ROOT}, "surfaceId"),
+        (CATALOG, {"surfaceId": 7, "components": PLAIN_ROOT}, "surfaceId"),
+        (CATALOG, {"components": PLAIN_ROOT}, "surfaceId"),
         (CATALOG, {"surfaceId": "s", "components": PLAIN_ROOT, "data": [1]}, "data"),
     ],
     ids=[
@@ -172,6 +178,8 @@ _BOUND_TEXT_V1 = [
         "v09-under-1.0",
         "1.0-under-v09",
         "blank-surface",
+        "surface-not-text",
+        "no-surface",
         "data-not-an-object",
     ],
 )
@@ -239,9 +247,19 @@ async def test_the_tool_is_offered_when_the_catalog_entry_is_posted() -> None:
         [{"description": DESCRIPTION, "value": json.dumps(["a list"])}],
         [{"description": DESCRIPTION, "value": json.dumps({"components": {}})}],
         [{"description": DESCRIPTION, "value": json.dumps({"catalogId": 7, "components": {}})}],
+        [{"description": DESCRIPTION, "value": json.dumps({"catalogId": "", "components": {}})}],
         [{"description": DESCRIPTION, "value": json.dumps({"catalogId": "c", "components": []})}],
     ],
-    ids=["none", "other", "unparsable", "not-an-object", "no-id", "id-not-text", "no-components"],
+    ids=[
+        "none",
+        "other",
+        "unparsable",
+        "not-an-object",
+        "no-id",
+        "id-not-text",
+        "empty-id",
+        "no-components",
+    ],
 )
 async def test_no_tool_without_a_usable_catalog_entry(context: list[dict[str, str]]) -> None:
     _body_text, _seen, offered = await _run([], context)
@@ -272,3 +290,96 @@ def test_a_mount_that_has_not_opted_in_never_needs_the_extra(
 ) -> None:
     _without_the_toolkit(monkeypatch)
     DjangoAGUIView(_registry(), model=FunctionModel(lambda _m, _i: None))
+
+
+@ENABLED
+async def test_a_1_0_binding_is_not_resolved_against_the_data() -> None:
+    # The documented limitation: the toolkit resolves only ``path`` keys, as the middleware does.
+    unbound = [
+        {"id": "root", "component": "Column", "children": ["t"]},
+        {"id": "t", "component": "Text", "text": {"@path": "/missing"}},
+    ]
+    good = {"surfaceId": "s", "components": unbound, "data": {}}
+    body, seen, _offered = await _run([("call-unbound", good)], [_entry(CATALOG)])
+
+    assert [frame["messageId"] for frame in _surfaces(body)] == ["a2ui-surface-call-unbound"]
+    assert _retry_texts(seen[-1]) == []
+
+
+@ENABLED
+async def test_a_catalog_with_no_components_is_checked_for_structure_only() -> None:
+    catalog = {"catalogId": "https://example.test/c.json", "components": {}}
+    calls = [
+        ("call-rootless", {"surfaceId": "s", "components": [{"id": "x", "component": "Any"}]}),
+        ("call-any", {"surfaceId": "s", "components": [{"id": "root", "component": "Any"}]}),
+    ]
+    body, seen, _offered = await _run(calls, [_entry(catalog)])
+
+    assert [frame["messageId"] for frame in _surfaces(body)] == ["a2ui-surface-call-any"]
+    assert _retry_texts(seen[-1]) == ["components: No component has id 'root'"]
+
+
+def _capturing() -> tuple[list[Any], FunctionModel]:
+    captured: list[Any] = []
+
+    async def stream(messages: list[ModelMessage], info: AgentInfo) -> Any:
+        captured.extend(tool for tool in info.function_tools if tool.name == "render_a2ui")
+        yield "done"
+
+    return captured, FunctionModel(stream_function=stream)
+
+
+@ENABLED
+@pytest.mark.parametrize(("catalog", "label"), [(CATALOG, "1.0"), (_V09_CATALOG, "v0.9")])
+async def test_the_tool_is_worded_as_the_middlewares_render_tool(
+    catalog: dict[str, Any], label: str
+) -> None:
+    captured, model = _capturing()
+    await _drain(await DjangoAGUIView(_registry(), model=model)(_post(_body([_entry(catalog)]))))
+
+    # Literals from tools.ts ``renderA2UITool`` in @ag-ui/a2ui-middleware 0.0.16.
+    (tool,) = captured
+    assert tool.description == (
+        f"Render a dynamic A2UI {label} surface with structured parameters. "
+        "Follow the A2UI render tool usage guide provided in context."
+    )
+    assert tool.parameters_json_schema == {
+        "type": "object",
+        "properties": {
+            "surfaceId": {"type": "string", "description": "Unique surface identifier."},
+            "components": {
+                "type": "array",
+                "description": f"A2UI {label} component array (flat format). "
+                'The root component must have id "root".',
+                "items": {"type": "object"},
+            },
+            "data": {
+                "type": "object",
+                "description": "Initial data model for the surface. Written to the root path. "
+                'Use for pre-filling form values (e.g. {"form": {"name": "Alice"}}) '
+                "or providing data for components bound to data model paths.",
+            },
+        },
+        "required": ["surfaceId", "components"],
+    }
+
+
+@ENABLED
+def test_an_opted_in_server_without_the_extra_fails_at_mount(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _without_the_toolkit(monkeypatch)
+    with pytest.raises(ImportError, match=r"install django-ag-ui\[a2ui\]"):
+        AGUIServer(_registry(), model=FunctionModel(lambda _m, _i: None))
+
+
+def test_the_default_run_context_cuts_the_basic_catalog_after_its_components() -> None:
+    entry = _entry(CATALOG)
+    run_input = SimpleNamespace(context=[SimpleNamespace(**entry)], messages=[])
+    block = build_untrusted_context(run_input, config=build_ag_ui_config().run_context)
+
+    assert block is not None
+    assert len(entry["value"]) > 20000
+    assert "[truncated: client context is capped at 20000 characters]" in block
+    assert json.dumps({"components": CATALOG["components"]}, separators=(",", ":"))[1:-1] in block
+    assert '"$defs"' not in block
