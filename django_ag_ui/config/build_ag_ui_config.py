@@ -27,6 +27,7 @@ def build_ag_ui_config(
     manage_system_prompt: str | None = None,
     allow_uploaded_files: bool | None = None,
     forward_reasoning: bool | None = None,
+    include_usage: bool | None = None,
     transcription_max_bytes: int | None = None,
     transcription_allowed_types: tuple[str, ...] | list[str] | None = None,
     thread_list_limit: int | None = None,
@@ -77,6 +78,7 @@ def build_ag_ui_config(
         manage_system_prompt=str(pick(manage_system_prompt, "MANAGE_SYSTEM_PROMPT", "server")),
         allow_uploaded_files=bool(pick(allow_uploaded_files, "ALLOW_UPLOADED_FILES", False)),
         forward_reasoning=bool(pick(forward_reasoning, "FORWARD_REASONING", True)),
+        include_usage=bool(pick(include_usage, "INCLUDE_USAGE", False)),
         transcription_max_bytes=int(
             pick(transcription_max_bytes, "TRANSCRIPTION_MAX_BYTES", 25 * 1024 * 1024)
         ),

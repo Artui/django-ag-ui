@@ -4,8 +4,15 @@ import asyncio
 from collections.abc import AsyncIterator
 
 import pytest
+from django_spec_agents import IdentifierTooLongError
 
-from django_ag_ui.agent.utils import STREAM_END, discard_tasks, pump_in_lockstep
+from django_ag_ui.agent.utils import (
+    RUN_ERROR_CODES,
+    STREAM_END,
+    discard_tasks,
+    pump_in_lockstep,
+    run_error_code,
+)
 
 
 async def _chunks(*values: str) -> AsyncIterator[str]:
@@ -106,3 +113,13 @@ async def test_discard_tasks_ignores_none_and_waits_for_what_it_cancels() -> Non
     assert task.done()
     with pytest.raises(asyncio.CancelledError):
         task.result()
+
+
+def test_the_run_error_codes_are_the_detached_failure_reasons_and_the_id_refusal() -> None:
+    assert {"error", "timed_out", "interrupted", "identifier_too_long"} == RUN_ERROR_CODES
+
+
+def test_a_run_error_code_is_read_off_the_exception_class() -> None:
+    assert run_error_code(RuntimeError("x")) == "error"
+    assert run_error_code(TimeoutError("x")) == "timed_out"
+    assert run_error_code(IdentifierTooLongError("x")) == "identifier_too_long"

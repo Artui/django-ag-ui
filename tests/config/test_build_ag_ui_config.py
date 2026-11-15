@@ -193,3 +193,11 @@ def test_the_heartbeat_interval_is_configurable_and_on_by_default() -> None:
     with override_settings(DJANGO_AG_UI={"HEARTBEAT_SECONDS": 0}):
         assert build_ag_ui_config().heartbeat_seconds == 0
     assert build_ag_ui_config(heartbeat_seconds=0).heartbeat_seconds == 0
+
+
+def test_usage_on_run_finished_is_off_by_default_and_configurable() -> None:
+    with override_settings(DJANGO_AG_UI={}):
+        assert build_ag_ui_config().include_usage is False
+    with override_settings(DJANGO_AG_UI={"INCLUDE_USAGE": True}):
+        assert build_ag_ui_config().include_usage is True
+    assert build_ag_ui_config(include_usage=True).include_usage is True

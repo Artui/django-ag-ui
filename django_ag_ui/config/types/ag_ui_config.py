@@ -114,6 +114,14 @@ class AGUIConfig:
     here — ``True`` — streams a chain-of-thought to every browser with nothing
     configured and nothing asked for. Set ``False`` to keep it server-side."""
 
+    include_usage: bool
+    """Whether ``RUN_FINISHED`` carries the run's token usage, per provider and
+    model, as Pydantic-AI's ``AGUIAdapter.include_usage``. Off by default.
+
+    Upstream adds the field only when the installed ``ag-ui-protocol`` is 1.0 or
+    newer, which this package's floor guarantees, and only for a run that made
+    model calls. A run that ends in ``RUN_ERROR`` carries none."""
+
     transcription_max_bytes: int
     """Maximum accepted audio-clip size in bytes (server-authoritative). ``0``
     disables the cap."""

@@ -59,6 +59,7 @@ AGUIServer(registry, config=build_ag_ui_config(retries=5))
 | `MANAGE_SYSTEM_PROMPT` | `str` | `"server"` | Who owns the system prompt on the wire. |
 | `ALLOW_UPLOADED_FILES` | `bool` | `False` | Honour `UploadedFile` refs in client messages. |
 | `FORWARD_REASONING` | `bool` | `True` | Forward a reasoning model's thoughts to the client (`False` strips them). |
+| `INCLUDE_USAGE` | `bool` | `False` | Put the run's token usage on `RUN_FINISHED`. See [`INCLUDE_USAGE`](#include_usage). |
 | `TRANSCRIPTION_MAX_BYTES` | `int` | `26214400` | Max accepted audio-clip size in bytes (`0` disables the cap). |
 | `TRANSCRIPTION_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed audio content types (empty = any). |
 | `TOOL_GUARD` | `dict` | `{}` | Server-side destructive-tool approval gate (off by default). See [`TOOL_GUARD`](#tool_guard). |
@@ -737,6 +738,25 @@ are ephemeral and never persisted).
     later.
 
 
+## `INCLUDE_USAGE`
+
+Whether `RUN_FINISHED` carries the run's token usage. Off by default; set it to
+`True`, or pass `build_ag_ui_config(include_usage=True)` for one endpoint, and
+the event gains AG-UI 1.0's `usage` field: the input and output tokens of the
+run's own model calls, one entry per provider and model. It is Pydantic-AI's
+`AGUIAdapter.include_usage`, passed through unchanged.
+
+```python
+DJANGO_AG_UI = {
+    "INCLUDE_USAGE": True,  # RUN_FINISHED reports what the run cost
+}
+```
+
+A run that made no model call has no usage, and the field is left off. A run
+that ends in `RUN_ERROR` carries none either: AG-UI's `RUN_ERROR` has no usage
+field, so a failed run's cost is the audit record's to keep. Usage covers this
+run only, not the conversation before it.
+
 ## `HEARTBEAT_SECONDS`
 
 How long the SSE response may be silent before the endpoint writes a comment
@@ -1226,6 +1246,22 @@ used to deliver its own words to the browser. It is the same disclosure
 question, so it gets the same answer: with `INCLUDE_DETAIL` off the client is
 told the run failed and that the failure was recorded, and the exception stays
 in the audit record and the server log.
+
+**A redacted `RUN_ERROR` still says what kind of failure it was, in its
+`code`.** The message is withheld, but the code is not, so a client can choose
+its own words. Every `RUN_ERROR` this package sends carries one of these,
+whatever `INCLUDE_DETAIL` says:
+
+| `code` | When |
+| --- | --- |
+| `error` | The run raised, and nothing narrower applies. |
+| `timed_out` | The run raised Python's `TimeoutError`, the one `asyncio.timeout` raises. A provider SDK's own timeout class, such as `openai.APITimeoutError`, is not one, and reads as `error`. |
+| `identifier_too_long` | A store refused an over-long `threadId` or `runId` (below). |
+| `interrupted` | Reserved for a detached run whose worker went away mid-run. No run this package serves ends that way yet. |
+
+A run that Pydantic-AI stops itself, including one past its `timeout=`
+(`RunTimedOut`), is not a failure: it ends in `RUN_FINISHED` with a cancelled
+outcome rather than in `RUN_ERROR`, so it carries no code.
 
 **One failure is the client's to fix, so it keeps its words.** When a store
 refuses an id longer than the column that holds it (django-spec-agents'

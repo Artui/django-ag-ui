@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A `RUN_ERROR` says what kind of failure it was in its `code`**, AG-UI 1.0's
+  optional field, even when `TOOL_FAILURE["INCLUDE_DETAIL"]` redacts the
+  message. The codes are `error`, `timed_out` (the run raised a `TimeoutError`)
+  and `identifier_too_long`; `interrupted` is reserved for a detached run whose
+  worker went away, which no run here produces yet. The message stays redacted,
+  and with `INCLUDE_DETAIL` on the code rides beside the exception's words.
+- **`INCLUDE_USAGE` puts the run's token usage on `RUN_FINISHED`**, AG-UI 1.0's
+  `usage` field, as Pydantic-AI's `AGUIAdapter.include_usage`. Off by default,
+  so nothing changes until a mount opts in; also
+  `build_ag_ui_config(include_usage=...)`. A run that ends in `RUN_ERROR`
+  carries no usage, as upstream sends none there.
+
 ## [0.75.0] — 2026-11-14
 
 ### Changed

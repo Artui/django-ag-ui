@@ -7,11 +7,9 @@ from ag_ui.core import (
     BaseEvent,
     Message,
     RunAgentInput,
-    RunErrorEvent,
     ToolCallResultEvent,
     ToolMessage,
 )
-from django_spec_agents import IdentifierTooLongError
 from pydantic_ai.messages import (
     FunctionToolResultEvent,
     ModelMessage,
@@ -28,7 +26,7 @@ from pydantic_ai.ui import UIEventStream
 from pydantic_ai.ui.ag_ui import AGUIAdapter, AGUIEventStream
 
 from django_ag_ui.agent.stamp_outcome import stamp_outcome
-from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE
+from django_ag_ui.agent.utils import run_error_code
 
 
 class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
@@ -37,7 +35,10 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
     def build_event_stream(self) -> UIEventStream[RunAgentInput, BaseEvent, Any, Any]:
         """Build the outcome-forwarding event stream."""
         return _OutcomeEventStream(
-            self.run_input, accept=self.accept, ag_ui_version=self.ag_ui_version
+            self.run_input,
+            accept=self.accept,
+            ag_ui_version=self.ag_ui_version,
+            include_usage=self.include_usage,
         )
 
     @classmethod
@@ -67,15 +68,9 @@ class _OutcomeEventStream(AGUIEventStream[Any, Any]):
         return _with_outcome(super().handle_builtin_tool_return(part), _forwardable_outcome(part))
 
     async def on_error(self, error: Exception) -> AsyncIterator[BaseEvent]:
-        # A store refusing a client's id is the client's to fix, so it is coded and kept unredacted.
-        if not isinstance(error, IdentifierTooLongError):
-            async for event in super().on_error(error):
-                yield event
-            return
-        self._error = True
-        yield RunErrorEvent(
-            message=str(error), code=IDENTIFIER_TOO_LONG_CODE, timestamp=self._get_timestamp()
-        )
+        code = run_error_code(error)
+        async for event in super().on_error(error):
+            yield event.model_copy(update={"code": code})
 
 
 def _forwardable_outcome(

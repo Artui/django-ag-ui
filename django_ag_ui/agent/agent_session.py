@@ -102,6 +102,7 @@ class AgentSession:
             manage_system_prompt=cast("Any", config.manage_system_prompt),
             manage_message_history="client" if message_history is None else "server",
             allow_uploaded_files=config.allow_uploaded_files,
+            include_usage=config.include_usage,
         )
 
     def stream(self) -> AsyncIterator[str]:
