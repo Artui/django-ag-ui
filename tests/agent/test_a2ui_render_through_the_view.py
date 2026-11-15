@@ -266,6 +266,14 @@ async def test_no_tool_without_a_usable_catalog_entry(context: list[dict[str, st
     assert "render_a2ui" not in offered[0]
 
 
+@ENABLED
+async def test_a_catalog_nested_past_the_parser_ends_the_run_cleanly_without_the_tool() -> None:
+    deep = "[" * 200000 + "]" * 200000
+    body, _seen, offered = await _run([], [{"description": DESCRIPTION, "value": deep}])
+    assert "RUN_FINISHED" in body
+    assert "render_a2ui" not in offered[0]
+
+
 async def test_no_tool_on_a_mount_that_has_not_opted_in() -> None:
     _body_text, _seen, offered = await _run([], [_entry(CATALOG)])
     assert "render_a2ui" not in offered[0]

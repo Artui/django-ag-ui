@@ -72,7 +72,7 @@ def _posted_catalog(run_input: Any) -> dict[str, Any] | None:
         return None
     try:
         catalog = json.loads(entry.value)
-    except ValueError:
+    except (ValueError, RecursionError):
         return None
     if not isinstance(catalog, dict):
         return None
