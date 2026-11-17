@@ -340,6 +340,9 @@ class DjangoAGUIView:
     ) -> None:
         """Raise ``IdentifierTooLongError`` before the stream opens, for a store that checks."""
         preflight_identifiers(self._conversation_store, thread_id=run_input.thread_id)
+        preflight_identifiers(
+            self._owning_store(request), thread_id=run_input.thread_id, run_id=run_input.run_id
+        )
         if self._step_store is not None:
             preflight_identifiers(
                 self._step_store(request),
