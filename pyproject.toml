@@ -41,7 +41,12 @@ dependencies = [
     # policies, audit, user resolution, and the storage contracts. It is the
     # merge of django-pydantic-agent, the host, and djangorestframework-pydantic-ai,
     # which it carries as ``django_spec_agents.spec_tools`` behind ``[specs]``.
-    # Floored at 0.15.0, where ``preflight_identifiers`` and the default stores'
+    # Floored at 0.17.0, where the run store (``RunStore``, ``DefaultRunStore``)
+    # and the headless runner (``HeadlessRunner``, ``HeadlessStart``, ``RunStop``)
+    # exist, which a detached run starts, records and stops a run through; below
+    # it the import fails. 0.17.0 floors pydantic-ai-slim at 2.66, as this
+    # package does, so the two floors raise no conflict.
+    # 0.15.0 was the floor before that, where ``preflight_identifiers`` and the default stores'
     # ``check_identifiers`` exist, so the agent view refuses an over-long id with a
     # ``400`` before the stream opens; below it the import fails. Held by
     # ``test_an_over_long_thread_id_is_refused_before_the_stream_opens``.
@@ -86,7 +91,7 @@ dependencies = [
     # ``DefaultMemoryStore`` from it, and ``check_docs_snippets.py`` resolves those
     # imports against the installed package, so a page a valid install cannot
     # follow fails there rather than quietly.
-    "django-spec-agents>=0.15.0",
+    "django-spec-agents>=0.17.0",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
@@ -168,13 +173,13 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a django-spec-mcp server's tools as a
 # Pydantic-AI toolset (``mcp_server=``). Floored with the core dependency
-# above, at 0.15.0, for the reasons given there; its own ``[mcp]`` extra floors
+# above, at 0.17.0, for the reasons given there; its own ``[mcp]`` extra floors
 # django-spec-mcp.
-mcp = ["django-spec-agents[mcp]>=0.15.0"]
+mcp = ["django-spec-agents[mcp]>=0.17.0"]
 # Expose django-service-specs specs directly as agent tools via django-spec-agents'
 # ``spec_tools.SpecCapability`` -- no MCP server in the path (service_specs=).
-# Floored with the core dependency above, at 0.15.0, for the reasons given there.
-specs = ["django-spec-agents[specs]>=0.15.0"]
+# Floored with the core dependency above, at 0.17.0, for the reasons given there.
+specs = ["django-spec-agents[specs]>=0.17.0"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via capabilities=.
@@ -214,7 +219,7 @@ dev = [
     "django-stubs>=5.0",
     # The [specs] and [mcp] extras' backing package, so the spec capability, the
     # spec-mcp bridge and their tests run in dev.
-    "django-spec-agents[specs,mcp]>=0.15.0",
+    "django-spec-agents[specs,mcp]>=0.17.0",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
     # The [a2ui] extra's backing package, so the render tool's validation runs in dev.
