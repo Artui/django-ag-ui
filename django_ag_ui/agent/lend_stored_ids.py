@@ -3,7 +3,14 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Collection, Sequence
 
-from ag_ui.core import ActivityMessage, AssistantMessage, Message, ReasoningMessage, ToolMessage
+from ag_ui.core import (
+    ActivityMessage,
+    AssistantMessage,
+    Message,
+    ReasoningMessage,
+    ToolMessage,
+    UserMessage,
+)
 
 
 def lend_stored_ids(
@@ -18,14 +25,18 @@ def lend_stored_ids(
     cursors: Counter[str] = Counter()
     activities = _paired_activities(messages, stored)
     taken = set(reserved)
-    carried = {message.id for message in messages}
+    carried = {message.id for message in messages} - _freed(messages, activities, taken)
+    held = {message.id for message in stored}
     out: list[Message] = []
     for position, message in enumerate(messages):
         if isinstance(message, ActivityMessage):
             lent = activities.get(position)
+        elif isinstance(message, UserMessage):
+            lent = _user_match(rows, cursors, message, held)
+        elif (keyed := _kind_and_key(message)) is None:
+            lent = None
         else:
-            keyed = _kind_and_key(message)
-            lent = None if keyed is None else _next_match(rows, cursors, *keyed)
+            lent = _next_match(rows, cursors, *keyed)
         if lent is None or lent in taken or lent in carried:
             out.append(message)
             continue
@@ -34,8 +45,20 @@ def lend_stored_ids(
     return out
 
 
+def _freed(messages: Sequence[Message], activities: dict[int, str], taken: set[str]) -> set[str]:
+    """The ids activities give up for stored ones, which a merged request had put on them."""
+    ids = Counter(message.id for message in messages)
+    return {
+        messages[position].id
+        for position, lent in activities.items()
+        if lent not in ids and lent not in taken
+    }
+
+
 def _kind_and_key(message: Message) -> tuple[str, object] | None:
     """The kind a message is matched within, and the key it is matched by."""
+    if isinstance(message, UserMessage):
+        return "user", _prompt_key(message)
     if isinstance(message, ToolMessage):
         return "tool", message.tool_call_id
     if isinstance(message, AssistantMessage):
@@ -68,13 +91,34 @@ def _paired_activities(messages: Sequence[Message], stored: Sequence[Message]) -
     return paired
 
 
-def _next_match(
-    rows: dict[str, list[tuple[object, str]]], cursors: Counter[str], kind: str, key: object
+def _user_match(
+    rows: dict[str, list[tuple[object, str]]],
+    cursors: Counter[str],
+    message: UserMessage,
+    held: set[str],
 ) -> str | None:
-    """The id of the next row message of ``kind`` with ``key``, consuming the row up to it."""
+    """A fresh-id prompt matched by content; one under a stored id keeps it and its place."""
+    if message.id in held:
+        return _next_match(rows, cursors, "user", message.id, by_id=True)
+    return _next_match(rows, cursors, "user", _prompt_key(message))
+
+
+def _prompt_key(message: UserMessage) -> str:
+    return message.model_dump_json(include={"content"})
+
+
+def _next_match(
+    rows: dict[str, list[tuple[object, str]]],
+    cursors: Counter[str],
+    kind: str,
+    key: object,
+    *,
+    by_id: bool = False,
+) -> str | None:
+    """The id of the next row message of ``kind`` with ``key`` (or that id), consuming up to it."""
     row = rows.get(kind, [])
     for index in range(cursors[kind], len(row)):
-        if row[index][0] == key:
+        if row[index][1 if by_id else 0] == key:
             cursors[kind] = index + 1
             return row[index][1]
     return None

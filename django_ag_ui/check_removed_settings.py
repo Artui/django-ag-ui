@@ -48,6 +48,7 @@ _KNOWN_SETTINGS: frozenset[str] = frozenset(
         "RETRIES",
         "RUN_CONTEXT",
         "RUN_LIST_LIMIT",
+        "RUN_TIMEOUT_SECONDS",
         "SYSTEM_PROMPT",
         "THREAD_LIST_LIMIT",
         "TOOL_FAILURE",

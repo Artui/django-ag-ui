@@ -41,6 +41,10 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.AgentSession
 
+::: django_ag_ui.agent.headless_runner.AGUIHeadlessRunner
+
+::: django_ag_ui.agent.thread_busy_error.ThreadBusyError
+
 ::: django_ag_ui.ToolsView
 
 ::: django_ag_ui.build_agent

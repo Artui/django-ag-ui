@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import warnings
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, cast
 
 from ag_ui.core import Message
@@ -25,8 +26,11 @@ from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
+from django_spec_agents.persistence.run_id_reused_error import RunIdReusedError
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.persistence.types.run_store import RunStore
+from django_spec_agents.persistence.utils import owner_id_for
 from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from django_spec_agents.registry.tool_registry import ToolRegistry
@@ -38,13 +42,15 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
+from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
+from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE, a2ui_validator
 from django_ag_ui.agent.with_a2ui_action import with_a2ui_action
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
-from django_ag_ui.constants import A2UI_RENDER_TOOL_NAME
+from django_ag_ui.constants import A2UI_RENDER_TOOL_NAME, DETACH_PROP
 from django_ag_ui.persistence.utils import messages_from_jsonable
 from django_ag_ui.reject_async_throttle import reject_async_throttle
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
@@ -125,6 +131,7 @@ class DjangoAGUIView:
         deps_factory: Callable[[HttpRequest], AgentDeps] | None = None,
         throttle: Throttle | None = None,
         config: AGUIConfig | None = None,
+        run_store: RunStore | None = None,
     ) -> None:
         self._registry = registry
         self._model = model
@@ -146,6 +153,8 @@ class DjangoAGUIView:
             conversation_store if conversation_store is not None else NullConversationStore()
         )
         self._step_store = step_store
+        self._run_store = run_store
+        self._owners: set[asyncio.Task[Any]] = set()
         self._deps_factory = deps_factory
         reject_async_throttle(throttle, allows="run")
         self._throttle = throttle
@@ -191,25 +200,117 @@ class DjangoAGUIView:
         if isinstance(prepared, HttpResponseBase):
             return prepared
         message_history, source_messages = prepared
-        session = AgentSession(
+        session = self._session(
+            request,
+            run_input,
+            resume_from=resume_from,
+            a2ui=a2ui,
+            message_history=message_history,
+            source_messages=source_messages,
+        )
+        owner = session.own(self._owning_store(request))
+        refused = await self._claim(owner, request, run_input)
+        if refused is not None:
+            return refused
+        response = StreamingHttpResponse(
+            session.stream(owner, detached=self._detaches(request, run_input)),
+            content_type="text/event-stream",
+        )
+        response["Cache-Control"] = "no-cache"
+        response["X-Accel-Buffering"] = "no"
+        return response
+
+    async def start_headless(
+        self,
+        request: HttpRequest,
+        run_input: Any,
+        *,
+        timeout: float,
+        capabilities: Sequence[Any] = (),
+    ) -> RunOwner:
+        """Start a run with no response, past the auth gates; raises ``ThreadBusyError``."""
+        self._preflight_identifiers(request, run_input, None)
+        session = self._session(request, run_input, timeout=timeout, capabilities=capabilities)
+        owner = session.own(self._run_store)
+        claim = await owner.claim()
+        if not claim.claimed:
+            raise ThreadBusyError(run_input.thread_id, claim.active_run_id)
+        self._keep(owner.start())
+        return owner
+
+    def _session(
+        self,
+        request: HttpRequest,
+        run_input: Any,
+        *,
+        resume_from: str | None = None,
+        a2ui: Sequence[Any] = (),
+        message_history: list[Any] | None = None,
+        source_messages: list[Message] | None = None,
+        timeout: float | None = None,
+        capabilities: Sequence[Any] = (),
+    ) -> AgentSession:
+        return AgentSession(
             self._agent(),
             run_input,
             request,
             model=self._run_model(request),
             instructions=self._run_instructions(request),
             toolsets=[*self._run_toolsets(request), *a2ui],
-            capabilities=self._run_capabilities(request, run_input, resume_from),
+            capabilities=[
+                *self._run_capabilities(request, run_input, resume_from),
+                *capabilities,
+            ],
             deps=self._build_deps(request),
             audit_logger=self._resolve_audit_logger(),
             config=self._config,
             conversation_store=self._conversation_store,
             message_history=message_history,
             source_messages=source_messages,
+            timeout=timeout,
         )
-        response = StreamingHttpResponse(session.stream(), content_type="text/event-stream")
-        response["Cache-Control"] = "no-cache"
-        response["X-Accel-Buffering"] = "no"
-        return response
+
+    def _owning_store(self, request: HttpRequest) -> RunStore | None:
+        """The run store this request's run is owned through; none for an anonymous run."""
+        if self._run_store is None or owner_id_for(request) is None:
+            return None
+        return self._run_store
+
+    async def _claim(
+        self, owner: RunOwner, request: HttpRequest, run_input: Any
+    ) -> HttpResponseBase | None:
+        """Claim the thread for a store-backed run, or the 409 that says who holds it."""
+        if self._owning_store(request) is None:
+            return None
+        try:
+            claim = await owner.claim()
+        except RunIdReusedError:
+            return JsonResponse(
+                {"error": "that run id was used before", "run_id": run_input.run_id}, status=409
+            )
+        if not claim.claimed:
+            return JsonResponse(
+                {
+                    "error": "the thread has a run in progress",
+                    "thread_id": run_input.thread_id,
+                    "run_id": claim.active_run_id,
+                },
+                status=409,
+            )
+        self._keep(owner.start())
+        return None
+
+    def _detaches(self, request: HttpRequest, run_input: Any) -> bool:
+        """Whether the client asked this run to outlive its connection, and it can."""
+        forwarded = run_input.forwarded_props
+        asked = isinstance(forwarded, dict) and forwarded.get(DETACH_PROP) is True
+        can = self._owning_store(request) is not None and bool(self._config.run_timeout_seconds)
+        return asked and can
+
+    def _keep(self, task: asyncio.Task[Any]) -> None:
+        """Hold the owner's task until it ends; the loop keeps only a weak reference."""
+        self._owners.add(task)
+        task.add_done_callback(self._owners.discard)
 
     async def _prepare_run(
         self, request: HttpRequest, run_input: Any, resume_from: str | None
@@ -240,6 +341,9 @@ class DjangoAGUIView:
     ) -> None:
         """Raise ``IdentifierTooLongError`` before the stream opens, for a store that checks."""
         preflight_identifiers(self._conversation_store, thread_id=run_input.thread_id)
+        preflight_identifiers(
+            self._owning_store(request), thread_id=run_input.thread_id, run_id=run_input.run_id
+        )
         if self._step_store is not None:
             preflight_identifiers(
                 self._step_store(request),

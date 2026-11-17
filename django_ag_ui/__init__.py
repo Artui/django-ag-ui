@@ -44,6 +44,7 @@ from django_ag_ui.agent.chart_limits import MAX_LABELS, MAX_MAGNITUDE, MAX_POINT
 from django_ag_ui.agent.chart_points_delta import chart_points_delta
 from django_ag_ui.agent.compaction_observer import CompactionObserver
 from django_ag_ui.agent.fixed_window_throttle import FixedWindowThrottle
+from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
 from django_ag_ui.agent.inject_compaction_events import COMPACTION_ACTIVITY_TYPE
 from django_ag_ui.agent.publish_invalidation import (
     INVALIDATION_SINK,
@@ -62,6 +63,7 @@ from django_ag_ui.agent.suggestions_activity import (
     suggestions_activity,
 )
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
+from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.chart_kind import ChartKind
 from django_ag_ui.agent.types.chart_series import ChartSeries
@@ -117,6 +119,7 @@ __all__ = [
     "AGUIConfig",
     "DEFAULT_SYSTEM_PROMPT",
     "AGUIServer",
+    "AGUIHeadlessRunner",
     "AgentConfig",
     "AgentFactoryFn",
     "AgentSession",
@@ -145,6 +148,7 @@ __all__ = [
     "SkillRegistry",
     "SkillSpec",
     "ThreadActivity",
+    "ThreadBusyError",
     "ThreadActivitySource",
     "ThreadsView",
     "Throttle",

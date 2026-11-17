@@ -831,6 +831,26 @@ it was before this setting existed.
 Under WSGI the response is buffered whole rather than streamed, so no heartbeat
 reaches a proxy there. The endpoint already warns when it is served that way.
 
+## `RUN_TIMEOUT_SECONDS`
+
+The longest one run may take, in seconds. Unset (or `0`) means no bound.
+
+```python title="settings.py"
+DJANGO_AG_UI = {
+    "RUN_TIMEOUT_SECONDS": 120,
+}
+```
+
+The value is passed as `timeout=` to pydantic-ai on every run of the endpoint. A run
+that passes it is cancelled rather than failed: the stream ends with `RUN_FINISHED`,
+carrying a `cancelled` outcome for a client that declared AG-UI 1.0 on
+`RunAgentInput.protocolVersion` and a bare `RUN_FINISHED` for any other, never a
+`RUN_ERROR`. Calls in flight come back as interrupted, the partial transcript is
+stored, and the run is audited as `cancelled: run timed out`.
+
+Override it per endpoint with `build_ag_ui_config(run_timeout_seconds=...)`. A negative
+value raises `ImproperlyConfigured`.
+
 ## `transcription_backend=`
 
 A [`TranscriptionBackend`][django_ag_ui.TranscriptionBackend] instance. Omitted

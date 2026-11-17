@@ -43,24 +43,17 @@ async def test_normal_completion_does_not_invoke_on_cancel() -> None:
     recorder = _Recorder()
     stream = guarded_stream(
         _chunks("a", "b"),
-        native_events=recorder.native(),
         on_cancel=recorder.on_cancel,
     )
     assert [chunk async for chunk in stream] == ["a", "b"]
     assert recorder.cancel_calls == 0
 
 
-async def test_aclose_closes_native_runs_on_cancel_and_reraises_generator_exit() -> None:
+async def test_aclose_closes_the_stream_runs_on_cancel_and_reraises_generator_exit() -> None:
     recorder = _Recorder()
-    native = recorder.native()
-    stream = guarded_stream(
-        _blocking_after("a"),
-        native_events=native,
-        on_cancel=recorder.on_cancel,
-    )
-    assert await anext(stream) == "a"
-    # Start the native generator so its try/finally is live, as in a real run.
-    assert await anext(native) == "native-event"
+    inner = recorder.native()
+    stream = guarded_stream(inner, on_cancel=recorder.on_cancel)
+    assert await anext(stream) == "native-event"
 
     await stream.aclose()
 
@@ -72,7 +65,6 @@ async def test_task_cancellation_reraises_and_runs_on_cancel() -> None:
     recorder = _Recorder()
     stream = guarded_stream(
         _blocking_after("a"),
-        native_events=recorder.native(),
         on_cancel=recorder.on_cancel,
     )
 
@@ -99,7 +91,6 @@ async def test_inner_error_propagates_without_on_cancel() -> None:
 
     stream = guarded_stream(
         _broken(),
-        native_events=recorder.native(),
         on_cancel=recorder.on_cancel,
     )
     with pytest.raises(ValueError, match="boom"):
@@ -113,10 +104,8 @@ async def test_on_cancel_failure_is_logged_and_cancellation_still_raised(
     async def _failing_cancel() -> None:
         raise RuntimeError("store down")
 
-    recorder = _Recorder()
     stream = guarded_stream(
         _blocking_after("a"),
-        native_events=recorder.native(),
         on_cancel=_failing_cancel,
     )
     assert await anext(stream) == "a"
@@ -129,24 +118,20 @@ async def test_on_cancel_failure_is_logged_and_cancellation_still_raised(
     # swallowed GeneratorExit would make aclose raise RuntimeError).
 
 
-async def test_native_stream_without_aclose_is_tolerated() -> None:
+async def test_a_stream_without_aclose_is_tolerated() -> None:
     class _PlainAsyncIterator:
         def __aiter__(self) -> _PlainAsyncIterator:
             return self
 
         async def __anext__(self) -> str:
-            raise StopAsyncIteration
+            return "a"
 
     calls: list[str] = []
 
     async def _on_cancel() -> None:
         calls.append("cancelled")
 
-    stream = guarded_stream(
-        _blocking_after("a"),
-        native_events=_PlainAsyncIterator(),
-        on_cancel=_on_cancel,
-    )
+    stream = guarded_stream(_PlainAsyncIterator(), on_cancel=_on_cancel)
     assert await anext(stream) == "a"
     await stream.aclose()
     assert calls == ["cancelled"]
@@ -159,10 +144,8 @@ async def test_a_second_cancellation_during_finalisation_is_logged_not_lost(
     async def _recancelled() -> None:
         raise asyncio.CancelledError
 
-    recorder = _Recorder()
     stream = guarded_stream(
         _blocking_after("a"),
-        native_events=recorder.native(),
         on_cancel=_recancelled,
     )
     assert await anext(stream) == "a"
@@ -187,10 +170,8 @@ async def test_a_slow_store_does_not_park_the_disconnected_request(
         await asyncio.sleep(0.2)
         finished.append("saved")
 
-    recorder = _Recorder()
     stream = guarded_stream(
         _blocking_after("a"),
-        native_events=recorder.native(),
         on_cancel=_slow_cancel,
     )
     assert await anext(stream) == "a"
@@ -207,33 +188,27 @@ async def test_a_slow_store_does_not_park_the_disconnected_request(
 async def test_a_failing_teardown_does_not_cost_the_finalisation(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # Closing the provider's stream and recording what the run did are two
-    # separate obligations; sharing one handler meant a teardown that blew up
-    # took the conversation save and the audit record with it.
-    class _BrokenNative:
-        def __aiter__(self) -> _BrokenNative:
+    # A teardown that blew up once took the conversation save and the audit record with it.
+    class _BrokenStream:
+        def __aiter__(self) -> _BrokenStream:
             return self
 
         async def __anext__(self) -> str:
-            raise StopAsyncIteration
+            return "a"
 
         async def aclose(self) -> None:
-            raise RuntimeError("provider teardown failed")
+            raise RuntimeError("stream teardown failed")
 
     calls: list[str] = []
 
     async def _on_cancel() -> None:
         calls.append("cancelled")
 
-    stream = guarded_stream(
-        _blocking_after("a"),
-        native_events=_BrokenNative(),
-        on_cancel=_on_cancel,
-    )
+    stream = guarded_stream(_BrokenStream(), on_cancel=_on_cancel)
     assert await anext(stream) == "a"
 
     with caplog.at_level(logging.ERROR, logger="django_ag_ui.agent"):
         await stream.aclose()
 
-    assert "provider teardown failed" in caplog.text
+    assert "stream teardown failed" in caplog.text
     assert calls == ["cancelled"]

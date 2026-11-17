@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.79.0] — 2026-11-17
+
+A minor release with no migration. Three floors move: pydantic-ai-slim to 2.66 (three
+security advisories), django-spec-agents to 0.16.0 and pydantic-ai-harness to 0.66. It
+adds a run timeout, detached runs and two more compaction strategies.
+
+### Added
+
+- **`RUN_TIMEOUT_SECONDS` bounds a run.** `DJANGO_AG_UI["RUN_TIMEOUT_SECONDS"]` (or
+  `build_ag_ui_config(run_timeout_seconds=...)`) is passed as pydantic-ai's `timeout=` on
+  every run. A run that passes it is a cancel on the wire: `RUN_FINISHED` with a `cancelled`
+  outcome for a client declaring AG-UI 1.0, a bare `RUN_FINISHED` otherwise, never a
+  `RUN_ERROR`. The partial transcript is stored and the run is audited. Off by default.
+- **Detached and headless runs.** `AGUIServer(run_store=...)` takes a django-spec-agents
+  `RunStore`. With one, an authenticated run claims its thread, so a second start on a
+  running thread gets a `409` naming the run. Each run's AG-UI events are written to the
+  run's log, with consecutive text deltas merged. A client may ask a run to outlive its
+  connection with `forwardedProps.detach`, on a mount with `RUN_TIMEOUT_SECONDS` (nothing
+  else can stop it); a run that did not ask is still cancelled when its client
+  disconnects. `AGUIHeadlessRunner` implements `HeadlessRunner` over mounts
+  keyed by the new `AGUIServer(id=...)`. It refuses at startup a mount it cannot own a
+  run through, refuses an anonymous principal, and requires `timeout=`. A mount with no
+  run store behaves as before.
+- **`RelevanceCompaction` and `CompactOnRequest` are documented mount options.**
+  pydantic-ai-harness's judge-ranked strategy and its model-requested strategy (the
+  `compact_context` tool) go in `capabilities=` beside `SlidingWindowCompaction`, wrapped
+  in `CompactionObserver` for the live `compaction` activity. Tests through the endpoint
+  check that each one compacts a long thread on the wire and that the stored transcript
+  reloads under the same ids.
+
+### Changed
+
+- **django-spec-agents' floor is 0.16.0**, for the base requirement and the `[mcp]`
+  and `[specs]` extras: the run store and headless runner a detached run is built on
+  first exist there, and the package imports them. 0.16.0 floors pydantic-ai-slim at
+  2.66, as this release does.
+- **The `[harness]` and `[code-mode]` extras floor pydantic-ai-harness at 0.66.**
+  Each harness release from 0.52 pins pydantic-ai-slim to its own minor, so 0.66 is the
+  lowest that installs beside the 2.66 core floor, and the compaction capabilities
+  this release wires (`RelevanceCompaction`, `CompactOnRequest`) first ship by then.
+
+### Fixed
+
+- **A kept prompt keeps its stored id after a summarizing compaction.** A summarizing
+  strategy keeps the first prompt and writes its summary after it. On the next run,
+  pydantic-ai merges the two into one request, and its dump then gave the prompt's id to
+  the summary, or dropped it when a kept prompt followed. A resumed thread then stored that
+  prompt under a fresh id. The ids lent back from the stored conversation now cover user
+  messages, matched by content, while a prompt already under a stored id keeps it.
+
+### Security
+
+- **pydantic-ai-slim's floor is 2.66.** pydantic-ai 2.66.0 fixes three advisories on
+  the AG-UI adapter path this endpoint runs every request through:
+  GHSA-r879-rxgj-3g75 (a submitted message loaded in quadratic time),
+  GHSA-4cj4-hgwf-4hc4 (a reloaded tool result shaped like a file part rebuilt as a
+  file) and GHSA-7494-925c-rrxv (a client's frontend tool schemas expanded
+  exponentially when inlined). Installers can no longer resolve an affected release.
+  No code path in the package reads a 2.66 symbol, and the provider extras need no
+  floor of their own: the base requirement is installed with each of them.
+
 ## [0.78.0] — 2026-11-15
 
 ### Added
@@ -4418,7 +4479,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.78.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.79.0...HEAD
+[0.79.0]: https://github.com/Artui/django-ag-ui/compare/v0.78.0...v0.79.0
 [0.78.0]: https://github.com/Artui/django-ag-ui/compare/v0.77.0...v0.78.0
 [0.77.0]: https://github.com/Artui/django-ag-ui/compare/v0.76.0...v0.77.0
 [0.76.0]: https://github.com/Artui/django-ag-ui/compare/v0.75.0...v0.76.0
