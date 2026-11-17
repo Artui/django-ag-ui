@@ -6,6 +6,7 @@ from ag_ui.core import (
     FunctionCall,
     Message,
     ReasoningMessage,
+    SystemMessage,
     ToolCall,
     ToolMessage,
     UserMessage,
@@ -251,3 +252,53 @@ def test_an_edited_resubmit_keeps_the_streamed_id_of_the_compaction_it_kept() ->
     ]
 
     assert _ids(lend_stored_ids(dumped, stored)) == ["u1", "streamed-1", "streamed-a"]
+
+
+def _user(message_id: str, content: str) -> UserMessage:
+    return UserMessage(id=message_id, role="user", content=content)
+
+
+def _summary(message_id: str) -> ActivityMessage:
+    return _activity(message_id, "pydantic_ai_compaction", content="summary")
+
+
+def test_a_kept_prompt_merged_with_a_summary_takes_its_id_back_from_the_summary() -> None:
+    dumped = [_user("fresh", "first"), _summary("u0")]
+    stored = [_user("u0", "first"), _summary("streamed")]
+
+    assert _ids(lend_stored_ids(dumped, stored)) == ["u0", "streamed"]
+
+
+def test_a_kept_prompt_whose_id_a_three_way_merge_dropped_takes_it_back() -> None:
+    dumped = [_user("fresh-1", "first"), _summary("fresh-2"), _user("u5", "fifth")]
+    stored = [_user("u0", "first"), _summary("streamed"), _user("u5", "fifth")]
+
+    assert _ids(lend_stored_ids(dumped, stored)) == ["u0", "streamed", "u5"]
+
+
+def test_a_prompt_already_under_a_stored_id_keeps_it_and_its_place() -> None:
+    dumped = [_user("u2", "yes"), _user("fresh", "yes")]
+    stored = [_user("u1", "yes"), _user("u2", "yes")]
+
+    assert _ids(lend_stored_ids(dumped, stored)) == ["u2", "fresh"]
+
+
+def test_a_summary_that_cannot_take_its_stored_id_keeps_the_one_it_has() -> None:
+    dumped = [_user("fresh", "first"), _summary("u0"), _text("streamed", "ok")]
+    stored = [_user("u0", "first"), _summary("streamed")]
+
+    assert _ids(lend_stored_ids(dumped, stored)) == ["fresh", "u0", "streamed"]
+
+
+def test_a_summary_whose_stored_id_is_reserved_keeps_the_one_it_has() -> None:
+    dumped = [_user("fresh", "first"), _summary("u0")]
+    stored = [_user("u0", "first"), _summary("streamed")]
+
+    assert _ids(lend_stored_ids(dumped, stored, reserved={"streamed"})) == ["fresh", "u0"]
+
+
+def test_a_system_message_is_never_lent_an_id() -> None:
+    dumped = [SystemMessage(id="fresh", role="system", content="rules")]
+    stored = [SystemMessage(id="stored", role="system", content="rules")]
+
+    assert _ids(lend_stored_ids(dumped, stored)) == ["fresh"]
