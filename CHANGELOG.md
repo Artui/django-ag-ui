@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`RUN_TIMEOUT_SECONDS` bounds a run.** `DJANGO_AG_UI["RUN_TIMEOUT_SECONDS"]` (or
+  `build_ag_ui_config(run_timeout_seconds=...)`) is passed as pydantic-ai's `timeout=` on
+  every run. A run that passes it is a cancel on the wire: `RUN_FINISHED` with a `cancelled`
+  outcome for a client declaring AG-UI 1.0, a bare `RUN_FINISHED` otherwise, never a
+  `RUN_ERROR`. The partial transcript is stored and the run is audited. Off by default.
+
 ### Security
 
 - **pydantic-ai-slim's floor is 2.66.** pydantic-ai 2.66.0 fixes three advisories on

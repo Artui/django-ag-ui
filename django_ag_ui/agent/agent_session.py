@@ -18,6 +18,7 @@ from django_spec_agents.persistence.utils import owner_id_for, resolve_owner_id
 from django_spec_agents.policy.audit.types.audit_event import AuditEvent
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from pydantic_ai import Agent
+from pydantic_ai.exceptions import RunCancelled, RunTimedOut
 from pydantic_ai.messages import ModelMessage
 
 from django_ag_ui.agent.build_client_context_toolset import build_client_context_toolset
@@ -122,8 +123,13 @@ class AgentSession:
             instructions=self._run_instructions(),
             toolsets=self._run_toolsets(),
             capabilities=self._capabilities,
+            timeout=self._config.run_timeout_seconds,
         )
-        events = self._adapter.transform_stream(native, on_complete=self._on_complete(transcript))
+        events = self._adapter.transform_stream(
+            native,
+            on_complete=self._on_complete(transcript),
+            on_cancel=self._on_timeout(transcript),
+        )
         if not self._forward_reasoning:
             events = drop_reasoning_events(events)
         events = inject_compaction_events(events)
@@ -296,6 +302,16 @@ class AgentSession:
             await finalize("cancelled: client disconnected mid-run")
 
         return _on_cancel
+
+    def _on_timeout(self, transcript: RunTranscript) -> Callable[[RunCancelled], Awaitable[None]]:
+        """The adapter's ``on_cancel``: persist the partial exchange, then audit."""
+        finalize = self._run_finalizer(transcript)
+
+        async def _on_timeout(cancelled: RunCancelled) -> None:
+            timed_out = isinstance(cancelled, RunTimedOut)
+            await finalize("cancelled: run timed out" if timed_out else "cancelled: run stopped")
+
+        return _on_timeout
 
     def _on_error(self, transcript: RunTranscript) -> Callable[..., Awaitable[None]]:
         """The ``RUN_ERROR`` counterpart: persist the partial exchange, then audit."""

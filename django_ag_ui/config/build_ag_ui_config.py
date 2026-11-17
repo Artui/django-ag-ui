@@ -33,6 +33,7 @@ def build_ag_ui_config(
     thread_list_limit: int | None = None,
     run_list_limit: int | None = None,
     heartbeat_seconds: float | None = None,
+    run_timeout_seconds: float | None = None,
     approval_prompts: Mapping[str, str] | None = None,
     tool_guard: ToolGuardConfig | None = None,
     tool_failure: ToolFailureConfig | None = None,
@@ -89,6 +90,9 @@ def build_ag_ui_config(
         thread_list_limit=int(pick(thread_list_limit, "THREAD_LIST_LIMIT", 200)),
         run_list_limit=int(pick(run_list_limit, "RUN_LIST_LIMIT", 50)),
         heartbeat_seconds=float(pick(heartbeat_seconds, "HEARTBEAT_SECONDS", 15.0)),
+        run_timeout_seconds=_parse_run_timeout(
+            pick(run_timeout_seconds, "RUN_TIMEOUT_SECONDS", None)
+        ),
         approval_prompts=dict(pick(approval_prompts, "APPROVAL_PROMPTS", {}) or {}),
         tool_guard=tool_guard
         if tool_guard is not None
@@ -103,6 +107,18 @@ def build_ag_ui_config(
         if a2ui_enabled is not None
         else bool((get_setting("A2UI") or {}).get("ENABLED", False)),
     )
+
+
+def _parse_run_timeout(raw: Any) -> float | None:
+    """The run timeout in seconds, ``None`` when unset or ``0``."""
+    if raw is None or float(raw) == 0:
+        return None
+    if float(raw) < 0:
+        raise ImproperlyConfigured(
+            f"DJANGO_AG_UI['RUN_TIMEOUT_SECONDS'] is {raw!r}; expected a positive number "
+            "of seconds, or 0 / unset for no bound."
+        )
+    return float(raw)
 
 
 def _parse_tool_guard(raw: Any) -> ToolGuardConfig:

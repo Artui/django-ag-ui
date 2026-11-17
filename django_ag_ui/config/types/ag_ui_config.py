@@ -184,6 +184,14 @@ class AGUIConfig:
     ``0`` disables it, which also skips the wrapper entirely -- an endpoint that
     is not behind a proxy pays nothing for this."""
 
+    run_timeout_seconds: float | None
+    """The longest a run may take, in seconds, or ``None`` for no bound.
+
+    Passed as ``timeout=`` to every run. A run that passes it is cancelled, ends with
+    ``RUN_FINISHED`` (carrying a ``cancelled`` outcome for a client that declared AG-UI
+    1.0, bare for any other), and keeps the partial transcript. ``None`` and ``0`` mean
+    no bound."""
+
     run_context: RunContextConfig
     """What client-supplied context reaches the model: the host page's own
     ``RunAgentInput.context`` entries and the attachment refs riding the posted
