@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **django-spec-agents' floor is 0.17.0**, for the base requirement and the `[mcp]`
   and `[specs]` extras: the run store and headless runner a detached run is built on
   first exist there. 0.17.0 floors pydantic-ai-slim at 2.66, as this release does.
+- **The `[harness]` and `[code-mode]` extras floor pydantic-ai-harness at 0.66.**
+  Each harness release from 0.52 pins pydantic-ai-slim to its own minor, so 0.66 is the
+  lowest that installs beside the 2.66 core floor, and the compaction capabilities
+  this release wires (`RelevanceCompaction`, `CompactOnRequest`) first ship by then.
 
 ### Security
 

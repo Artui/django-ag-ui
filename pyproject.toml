@@ -184,13 +184,16 @@ mcp = ["django-spec-agents[mcp]>=0.17.0"]
 specs = ["django-spec-agents[specs]>=0.17.0"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
-# via capabilities=.
-harness = ["pydantic-ai-harness>=0.13"]
+# via capabilities=. Floored at 0.66: ``RelevanceCompaction`` first ships in
+# 0.60 and ``CompactOnRequest`` in 0.62, and from 0.52 each harness release
+# pins pydantic-ai-slim to its own minor, so with the core floor at 2.66 the
+# lowest harness that resolves is 0.66. ``[code-mode]`` and the dev pin follow.
+harness = ["pydantic-ai-harness>=0.66"]
 # CodeMode as well — wrapping many tools (e.g. the MCP bridge) into one
 # sandboxed `run_code`. Separate because the sandbox (`pydantic-monty`) is
 # 7.5 MB installed, which a project wiring step persistence should not pay for
 # a capability it never configures. `[harness]` required it until this split.
-code-mode = ["pydantic-ai-harness[code-mode]>=0.13"]
+code-mode = ["pydantic-ai-harness[code-mode]>=0.66"]
 # The A2UI component validator the render tool checks a surface with; pure Python,
 # no dependencies. Capped below 0.1 because a 0.0.x line may change shape.
 a2ui = ["ag-ui-a2ui-toolkit>=0.0.6,<0.1"]
@@ -223,7 +226,7 @@ dev = [
     # spec-mcp bridge and their tests run in dev.
     "django-spec-agents[specs,mcp]>=0.17.0",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
-    "pydantic-ai-harness[code-mode]>=0.13",
+    "pydantic-ai-harness[code-mode]>=0.66",
     # The [a2ui] extra's backing package, so the render tool's validation runs in dev.
     "ag-ui-a2ui-toolkit>=0.0.6,<0.1",
     # Provider libs so the API_KEY / PROVIDER model-building path is exercised
