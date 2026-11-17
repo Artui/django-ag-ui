@@ -717,7 +717,7 @@ requires-dist = [
     { name = "django-spec-agents", extras = ["specs"], marker = "extra == 'specs'", specifier = ">=0.15.0" },
     { name = "pydantic-ai-harness", marker = "extra == 'harness'", specifier = ">=0.13" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'code-mode'", specifier = ">=0.13" },
-    { name = "pydantic-ai-slim", extras = ["ag-ui"], specifier = ">=2.63,<3" },
+    { name = "pydantic-ai-slim", extras = ["ag-ui"], specifier = ">=2.66,<3" },
     { name = "pydantic-ai-slim", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=2.33,<3" },
     { name = "pydantic-ai-slim", extras = ["google"], marker = "extra == 'google'", specifier = ">=2,<3" },
     { name = "pydantic-ai-slim", extras = ["openai"], marker = "extra == 'openai'", specifier = ">=2,<3" },

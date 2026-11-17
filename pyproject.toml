@@ -90,7 +90,16 @@ dependencies = [
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
-    # The floor is the server-held history mode. A resumed or forked run hands
+    # The floor is 2.66, a security release for the adapter path: it fixes
+    # GHSA-r879-rxgj-3g75 (a submitted message loaded in quadratic time),
+    # GHSA-4cj4-hgwf-4hc4 (a reloaded tool result shaped like a file part
+    # rebuilt as a file) and GHSA-7494-925c-rrxv (a client's frontend tool
+    # schemas expanded exponentially when inlined). Every client this endpoint
+    # serves reaches all three, and no code here reads a 2.66 symbol, so the
+    # floor exists to keep an installer off the affected releases. The extras'
+    # and the dev group's lower pydantic-ai-slim floors never bind: this
+    # requirement is installed with each of them.
+    # Below that, 2.63 is the server-held history mode. A resumed or forked run hands
     # the adapter its stored snapshot as ``message_history``, and 2.63 is the
     # first release whose adapter can take that snapshot as the conversation
     # (``manage_message_history="server"``): it runs on the snapshot plus only
@@ -123,9 +132,9 @@ dependencies = [
     # to 2.62 it capped that protocol below 1.0, and with the floor below at 1.0
     # a resolver held pydantic-ai-slim at 2.46 without a word, so this package
     # asked for ``[ui]`` instead. pydantic-ai#8627, shipped in 2.63.0, lifted
-    # the cap (``[ag-ui]`` declares ag-ui-protocol>=0.1.10), and 2.63 is already
-    # the floor, so every version this range admits takes ``[ag-ui]`` safely.
-    "pydantic-ai-slim[ag-ui]>=2.63,<3",
+    # the cap (``[ag-ui]`` declares ag-ui-protocol>=0.1.10), and the floor is
+    # above 2.63, so every version this range admits takes ``[ag-ui]`` safely.
+    "pydantic-ai-slim[ag-ui]>=2.66,<3",
     # The floor is the protocol's 1.0, and it is load-bearing for the same
     # reason the pydantic-ai floor above is: 1.0 changed what this endpoint
     # writes. It made TEXT_MESSAGE_START's role optional with no default, and an

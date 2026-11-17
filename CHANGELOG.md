@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **pydantic-ai-slim's floor is 2.66.** pydantic-ai 2.66.0 fixes three advisories on
+  the AG-UI adapter path this endpoint runs every request through:
+  GHSA-r879-rxgj-3g75 (a submitted message loaded in quadratic time),
+  GHSA-4cj4-hgwf-4hc4 (a reloaded tool result shaped like a file part rebuilt as a
+  file) and GHSA-7494-925c-rrxv (a client's frontend tool schemas expanded
+  exponentially when inlined). Installers can no longer resolve an affected release.
+  No code path in the package reads a 2.66 symbol, and the provider extras need no
+  floor of their own: the base requirement is installed with each of them.
+
 ## [0.78.0] — 2026-11-15
 
 ### Added
