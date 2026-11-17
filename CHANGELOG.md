@@ -30,15 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   check that each one compacts a long thread on the wire and that the stored transcript
   reloads under the same ids.
 
-### Fixed
-
-- **A kept prompt keeps its stored id after a summarizing compaction.** A summarizing
-  strategy keeps the first prompt and writes its summary after it. On the next run,
-  pydantic-ai merges the two into one request, and its dump then gave the prompt's id to
-  the summary, or dropped it when a kept prompt followed. A resumed thread then stored that
-  prompt under a fresh id. The ids lent back from the stored conversation now cover user
-  messages, matched by content, while a prompt already under a stored id keeps it.
-
 ### Changed
 
 - **django-spec-agents' floor is 0.17.0**, for the base requirement and the `[mcp]`
@@ -48,6 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Each harness release from 0.52 pins pydantic-ai-slim to its own minor, so 0.66 is the
   lowest that installs beside the 2.66 core floor, and the compaction capabilities
   this release wires (`RelevanceCompaction`, `CompactOnRequest`) first ship by then.
+
+### Fixed
+
+- **A kept prompt keeps its stored id after a summarizing compaction.** A summarizing
+  strategy keeps the first prompt and writes its summary after it. On the next run,
+  pydantic-ai merges the two into one request, and its dump then gave the prompt's id to
+  the summary, or dropped it when a kept prompt followed. A resumed thread then stored that
+  prompt under a fresh id. The ids lent back from the stored conversation now cover user
+  messages, matched by content, while a prompt already under a stored id keeps it.
 
 ### Security
 
