@@ -44,8 +44,10 @@ dependencies = [
     # Floored at 0.17.0, where the run store (``RunStore``, ``DefaultRunStore``)
     # and the headless runner (``HeadlessRunner``, ``HeadlessStart``, ``RunStop``)
     # exist, which a detached run starts, records and stops a run through; below
-    # it the import fails. 0.17.0 floors pydantic-ai-slim at 2.66, as this
-    # package does, so the two floors raise no conflict.
+    # it the import fails. Held by
+    # ``test_a_second_start_on_a_running_thread_gets_a_409_naming_the_run`` and
+    # ``tests/agent/test_headless_runner.py``. 0.17.0 floors pydantic-ai-slim at
+    # 2.66, as this package does, so the two floors raise no conflict.
     # 0.15.0 was the floor before that, where ``preflight_identifiers`` and the default stores'
     # ``check_identifiers`` exist, so the agent view refuses an over-long id with a
     # ``400`` before the stream opens; below it the import fails. Held by
