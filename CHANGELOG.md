@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.79.0] — 2026-11-17
+
+A minor release with no migration. Three floors move: pydantic-ai-slim to 2.66 (three
+security advisories), django-spec-agents to 0.17.0 and pydantic-ai-harness to 0.66. It
+adds a run timeout, detached runs and two more compaction strategies.
+
 ### Added
 
 - **`RUN_TIMEOUT_SECONDS` bounds a run.** `DJANGO_AG_UI["RUN_TIMEOUT_SECONDS"]` (or
@@ -4471,7 +4477,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.78.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.79.0...HEAD
+[0.79.0]: https://github.com/Artui/django-ag-ui/compare/v0.78.0...v0.79.0
 [0.78.0]: https://github.com/Artui/django-ag-ui/compare/v0.77.0...v0.78.0
 [0.77.0]: https://github.com/Artui/django-ag-ui/compare/v0.76.0...v0.77.0
 [0.76.0]: https://github.com/Artui/django-ag-ui/compare/v0.75.0...v0.76.0
