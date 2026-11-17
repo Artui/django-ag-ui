@@ -28,6 +28,68 @@ server = AGUIServer(capabilities=[SlidingWindowCompaction(max_messages=80, keep_
     warns on import and is slated for removal, so the examples here use the new
     one — which is why the `[harness]` extra floors at `>=0.13`.
 
+## Choosing a strategy
+
+Every strategy is a capability, so each goes in the same `capabilities=` list. Three
+cover most mounts:
+
+| Strategy | When it compacts | What it writes |
+| --- | --- | --- |
+| `SlidingWindowCompaction` | the history passes a message or token count | drops the oldest turns |
+| `RelevanceCompaction` | the history passes a token budget | a judge model scores each step: it keeps what is needed verbatim and summarizes or truncates the rest |
+| `CompactOnRequest` | the model calls its `compact_context` tool at a break in its task | runs the strategy it wraps, before the next model request |
+
+`RelevanceCompaction` and `CompactOnRequest` need pydantic-ai-harness 0.62 or later.
+`RelevanceCompaction` calls its judge model once per step, so give it a small, fast
+model:
+
+```python
+from django_ag_ui import CompactionObserver
+from pydantic_ai_harness.compaction import RelevanceCompaction, SummarizingCompaction
+
+server = AGUIServer(
+    capabilities=[
+        CompactionObserver(
+            RelevanceCompaction(
+                "anthropic:claude-haiku-5-5",
+                summarizer=SummarizingCompaction(
+                    model="anthropic:claude-haiku-5-5", max_messages=1
+                ),
+                max_fraction=0.8,
+            )
+        )
+    ],
+)
+```
+
+`CompactOnRequest` puts the timing in the model's hands. The strategy it wraps runs only
+when asked, so its own trigger is bypassed. `min_tokens` refuses a request that would
+save little, and `max_per_run` caps the requests in one run:
+
+```python
+from pydantic_ai_harness.compaction import CompactOnRequest, SummarizingCompaction
+
+server = AGUIServer(
+    capabilities=[
+        CompactionObserver(
+            CompactOnRequest(
+                SummarizingCompaction(
+                    model="anthropic:claude-haiku-5-5", max_messages=1, keep_messages=6
+                ),
+                min_tokens=30_000,
+                max_per_run=2,
+            )
+        )
+    ],
+)
+```
+
+A strategy that summarizes (`SummarizingCompaction`, or `RelevanceCompaction` with a
+`summarizer`) stores its summary in the history as a `CompactionPart`. On a resumed
+thread, the stored conversation shows it as a `pydantic_ai_compaction` activity, and the
+messages around it keep the ids they were first stored under. That holds even though
+pydantic-ai merges the summary with the prompt kept before it.
+
 That is the whole adoption. The rest of this page is about the one thing that
 composition alone cannot give you: **telling the user it happened.**
 
