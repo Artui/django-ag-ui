@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outcome for a client declaring AG-UI 1.0, a bare `RUN_FINISHED` otherwise, never a
   `RUN_ERROR`. The partial transcript is stored and the run is audited. Off by default.
 
+### Changed
+
+- **django-spec-agents' floor is 0.17.0**, for the base requirement and the `[mcp]`
+  and `[specs]` extras: the run store and headless runner a detached run is built on
+  first exist there. 0.17.0 floors pydantic-ai-slim at 2.66, as this release does.
+
 ### Security
 
 - **pydantic-ai-slim's floor is 2.66.** pydantic-ai 2.66.0 fixes three advisories on
