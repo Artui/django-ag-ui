@@ -304,7 +304,8 @@ class DjangoAGUIView:
         """Whether the client asked this run to outlive its connection, and it can."""
         forwarded = run_input.forwarded_props
         asked = isinstance(forwarded, dict) and forwarded.get(DETACH_PROP) is True
-        return asked and self._owning_store(request) is not None
+        can = self._owning_store(request) is not None and bool(self._config.run_timeout_seconds)
+        return asked and can
 
     def _keep(self, task: asyncio.Task[Any]) -> None:
         """Hold the owner's task until it ends; the loop keeps only a weak reference."""

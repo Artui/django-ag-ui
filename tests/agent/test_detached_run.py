@@ -60,7 +60,9 @@ def _body(run_id: str, *, detach: Any = None, thread_id: str = "t1") -> bytes:
     ).encode()
 
 
-def _view(gate: _Gate, run_store: Any, audit: _Audit) -> DjangoAGUIView:
+def _view(
+    gate: _Gate, run_store: Any, audit: _Audit, timeout: float | None = 300
+) -> DjangoAGUIView:
     return DjangoAGUIView(
         ToolRegistry(),
         model=gate.model(),
@@ -68,7 +70,7 @@ def _view(gate: _Gate, run_store: Any, audit: _Audit) -> DjangoAGUIView:
         audit_logger=audit,
         conversation_store=DefaultConversationStore(),
         run_store=run_store,
-        config=build_ag_ui_config(heartbeat_seconds=0),
+        config=build_ag_ui_config(heartbeat_seconds=0, run_timeout_seconds=timeout),
     )
 
 
@@ -207,7 +209,7 @@ async def test_an_anonymous_run_is_not_owned_through_the_run_store() -> None:
         require_authenticated=False,
         audit_logger=audit,
         run_store=_RefusingStore(),
-        config=build_ag_ui_config(heartbeat_seconds=0),
+        config=build_ag_ui_config(heartbeat_seconds=0, run_timeout_seconds=300),
     )
     request = AsyncRequestFactory().post(
         "/agent/", data=_body("r1", detach=True), content_type="application/json"
@@ -241,7 +243,7 @@ async def test_an_over_long_id_on_a_run_store_mount_is_a_400_not_a_500(
         csrf_exempt=True,
         audit_logger=audit,
         run_store=DefaultRunStore(),
-        config=build_ag_ui_config(heartbeat_seconds=0),
+        config=build_ag_ui_config(heartbeat_seconds=0, run_timeout_seconds=300),
     )
 
     response = await view(_post(_body(run_id, thread_id=thread_id)))
@@ -262,7 +264,7 @@ async def test_an_anonymous_run_with_an_over_long_id_never_asks_the_run_store() 
         csrf_exempt=True,
         require_authenticated=False,
         run_store=_RefusingStore(),
-        config=build_ag_ui_config(heartbeat_seconds=0),
+        config=build_ag_ui_config(heartbeat_seconds=0, run_timeout_seconds=300),
     )
     request = AsyncRequestFactory().post(
         "/agent/", data=_body("r" * 300), content_type="application/json"
@@ -288,7 +290,7 @@ async def test_an_anonymous_run_cannot_detach_and_cancels_on_disconnect() -> Non
         require_authenticated=False,
         audit_logger=audit,
         run_store=DefaultRunStore(),
-        config=build_ag_ui_config(heartbeat_seconds=0),
+        config=build_ag_ui_config(heartbeat_seconds=0, run_timeout_seconds=300),
     )
     request = AsyncRequestFactory().post(
         "/agent/", data=_body("r1", detach=True), content_type="application/json"
@@ -315,6 +317,21 @@ async def test_only_a_json_true_detaches_so_a_truthy_value_still_cancels(asked: 
     gate, audit, run_store = _Gate(), _Audit(), DefaultRunStore()
     view = _view(gate, run_store, audit)
     request = _post(_body("r1", detach=asked))
+
+    await _disconnects_still_cancel(view, request, gate)
+    await _settled(run_store, request)
+
+    assert _cancels(audit) == ["cancelled: client disconnected mid-run"]
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("timeout", [None, 0])
+async def test_a_mount_without_a_run_timeout_cannot_detach_and_cancels_on_disconnect(
+    timeout: float | None,
+) -> None:
+    gate, audit, run_store = _Gate(), _Audit(), DefaultRunStore()
+    view = _view(gate, run_store, audit, timeout)
+    request = _post(_body("r1", detach=True))
 
     await _disconnects_still_cancel(view, request, gate)
     await _settled(run_store, request)

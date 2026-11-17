@@ -63,6 +63,11 @@ subscription closes: the run finishes, its transcript is stored, and no cancel i
 audited. A run that did not ask to detach is still cancelled when its client
 disconnects.
 
+A browser run detaches only on a mount with `RUN_TIMEOUT_SECONDS` set, because nothing
+else can stop a detached run: there is no cancel endpoint yet. On a mount without it, a
+run that asks to detach is cancelled on disconnect as before. The headless runner
+requires `timeout=` for the same reason.
+
 The owner task runs on the event loop that served the request. To outlive the request
 it needs a loop that outlives it, which means ASGI. A restart loses any run in flight:
 its lease lapses, and the store then reports the thread as `failed` with the reason
