@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   every run. A run that passes it is a cancel on the wire: `RUN_FINISHED` with a `cancelled`
   outcome for a client declaring AG-UI 1.0, a bare `RUN_FINISHED` otherwise, never a
   `RUN_ERROR`. The partial transcript is stored and the run is audited. Off by default.
+- **Detached and headless runs.** `AGUIServer(run_store=...)` takes a django-spec-agents
+  `RunStore`. With one, an authenticated run claims its thread, so a second start on a
+  running thread gets a `409` naming the run. Each run's AG-UI events are written to the
+  run's log, with consecutive text deltas merged. A client may ask a run to outlive its
+  connection with `forwardedProps.detach`; a run that did not ask is still cancelled when
+  its client disconnects. `AGUIHeadlessRunner` implements `HeadlessRunner` over mounts
+  keyed by the new `AGUIServer(id=...)`. It refuses at startup a mount it cannot own a
+  run through, refuses an anonymous principal, and requires `timeout=`. A mount with no
+  run store behaves as before.
 
 ### Changed
 

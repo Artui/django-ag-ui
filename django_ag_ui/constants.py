@@ -7,6 +7,9 @@ A client that renders A2UI matches on it; one that does not ignores the event.
 """
 
 A2UI_RENDER_TOOL_NAME = "render_a2ui"
+
+# The ``RunAgentInput.forwardedProps`` key by which a client asks its run to outlive it.
+DETACH_PROP = "detach"
 """The name the server's A2UI tool is offered under, the middleware's own."""
 
 A2UI_SCHEMA_CONTEXT_DESCRIPTION = (
@@ -127,5 +130,6 @@ __all__ = [
     "A2UI_RENDER_GUIDE_1_0",
     "A2UI_RENDER_GUIDE_V0_9",
     "A2UI_RENDER_TOOL_NAME",
+    "DETACH_PROP",
     "A2UI_SCHEMA_CONTEXT_DESCRIPTION",
 ]

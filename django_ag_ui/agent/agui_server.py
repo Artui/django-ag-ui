@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
+from ag_ui.core import Message
 from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpRequest
 from django.urls import URLPattern, path
@@ -11,15 +12,20 @@ from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
 from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
 from django_spec_agents.integrations.types.spec_source import SpecSource
+from django_spec_agents.persistence.django_session_conversation_store import (
+    DjangoSessionConversationStore,
+)
 from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.utils import AuthorizePredicate, GetUser
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.runs_view import RunsView
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.spec_capability_source import SpecCapabilitySource
@@ -35,6 +41,7 @@ from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.persistence.transcribe_view import TranscribeView
 from django_ag_ui.persistence.types.thread_activity_source import ThreadActivitySource
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
+from django_ag_ui.persistence.utils import messages_from_jsonable
 from django_ag_ui.skills.skill_registry import SkillRegistry
 from django_ag_ui.skills.skills_view import SkillsView
 
@@ -214,6 +221,14 @@ class AGUIServer:
     [`ScopedStepStore`][django_ag_ui.ScopedStepStore] to keep them apart, exactly
     as ``ScopedConversationStore`` does for thread history.
 
+    **Detached and headless runs.** ``run_store`` takes a django-spec-agents
+    ``RunStore``. With one, an authenticated run claims its thread (a second start gets a
+    409 naming the run), logs its events, and may ask to outlive its client with
+    ``forwardedProps.detach``. ``id`` keys the mount for an
+    [`AGUIHeadlessRunner`][django_ag_ui.agent.headless_runner.AGUIHeadlessRunner], which
+    starts runs as ``headless_request(principal)``. Without a run store nothing changes.
+    See [Detached and headless runs](detached-runs.md).
+
     **Namespacing.** [`urls`][django_ag_ui.AGUIServer.urls] returns the
     ``(patterns, app_name, namespace)``
     triple ``path()`` mounts directly (like ``admin.site.urls`` — no
@@ -255,6 +270,8 @@ class AGUIServer:
         provider: Any = None,
         config: AGUIConfig | None = None,
         namespace: str = DEFAULT_NAMESPACE,
+        run_store: RunStore | None = None,
+        id: str | None = None,
     ) -> None:
         check_removed_settings()
         # The same mistake in its constructor-shaped form: a name where an object belongs.
@@ -271,6 +288,7 @@ class AGUIServer:
             instructions_for_request=instructions_for_request,
             model_for_request=model_for_request,
             provider=provider,
+            run_store=run_store,
             service_specs=service_specs,
             skills=skills,
             step_store=step_store,
@@ -281,6 +299,8 @@ class AGUIServer:
             transcription_backend=transcription_backend,
         )
         self._registry = registry
+        self.id = id
+        self._run_store = run_store
         self._skills = skills
         self._namespace = namespace
         self._config: AGUIConfig = _with_registry_prompts(
@@ -336,8 +356,68 @@ class AGUIServer:
             deps_factory=self._deps_factory,
             throttle=throttle,
             config=self._config,
+            run_store=run_store,
             **self._policy,
         )
+
+    def headless_request(self, principal: Any) -> HttpRequest:
+        """The request a headless run's seams see: ``user=principal``, and no session.
+
+        Every per-run seam (the stores, ``deps_factory``, the MCP bridge, ``step_store``)
+        takes a request, so a run started on the server gets this one. Override it when
+        a hook reads state your middleware sets.
+        """
+        request = HttpRequest()
+        request.method = "POST"
+        request.path = "/"
+        request.user = principal
+        request.META["REMOTE_ADDR"] = None
+        return request
+
+    def check_headless(self) -> None:
+        """Refuse, at startup, a mount a headless run cannot be owned through."""
+        store = self._conversation_store
+        problems = [
+            reason
+            for reason, refused in (
+                ("it has no id=", self.id is None),
+                ("it has no run_store=", self._run_store is None),
+                ("it has no step_store=", self._step_store is None),
+                ("its conversation store keeps nothing", isinstance(store, NullConversationStore)),
+                (
+                    "its conversation store needs a browser session",
+                    isinstance(store, DjangoSessionConversationStore),
+                ),
+            )
+            if refused
+        ]
+        if problems:
+            raise ImproperlyConfigured(
+                f"AGUIServer(id={self.id!r}) cannot run headless: {'; '.join(problems)}."
+            )
+
+    async def start_headless(
+        self,
+        request: HttpRequest,
+        run_input: Any,
+        *,
+        timeout: float,
+        capabilities: Sequence[Any] = (),
+    ) -> RunOwner:
+        """Start ``run_input`` with no response; see ``DjangoAGUIView.start_headless``."""
+        return await self._view.start_headless(
+            request, run_input, timeout=timeout, capabilities=capabilities
+        )
+
+    async def load_history(self, thread_id: str, *, request: HttpRequest) -> list[Message]:
+        """The thread's stored messages, the history a headless run continues."""
+        conversation = await self._conversation_store.load(thread_id, request=request)
+        return [] if conversation is None else messages_from_jsonable(conversation.messages)
+
+    async def request_cancel(self, thread_id: str, *, request: HttpRequest) -> bool:
+        """Record a cancel for the thread's live run, for its owner to act on."""
+        assert self._run_store is not None
+        return await self._run_store.request_cancel(thread_id, request=request)
 
     @property
     def urls(self) -> tuple[list[URLPattern], str, str]:

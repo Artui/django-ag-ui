@@ -14,10 +14,12 @@ from django_spec_agents.persistence.anonymous_operation_error import AnonymousOp
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.persistence.types.run_outcome import RunOutcome
+from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.utils import owner_id_for, resolve_owner_id
 from django_spec_agents.policy.audit.types.audit_event import AuditEvent
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
-from pydantic_ai import Agent
+from pydantic_ai import Agent, CancellationToken
 from pydantic_ai.exceptions import RunCancelled, RunTimedOut
 from pydantic_ai.messages import ModelMessage
 
@@ -32,6 +34,7 @@ from django_ag_ui.agent.inject_subagent_events import inject_subagent_events
 from django_ag_ui.agent.lend_stored_ids import lend_stored_ids
 from django_ag_ui.agent.outcome_agui_adapter import OutcomeAGUIAdapter
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
+from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
@@ -80,6 +83,7 @@ class AgentSession:
         instructions: str | None = None,
         toolsets: list[Any] | None = None,
         capabilities: list[Any] | None = None,
+        timeout: float | None = None,
     ) -> None:
         self._agent = agent
         self._run_input = run_input
@@ -96,6 +100,9 @@ class AgentSession:
         self._message_history = message_history
         self._source_messages = source_messages
         self._prior: list[Message] | None = None
+        self._timeout = timeout if timeout is not None else config.run_timeout_seconds
+        self._token = CancellationToken()
+        self._ended: RunOutcome | None = None
         self._forward_reasoning = config.forward_reasoning
         self._adapter = OutcomeAGUIAdapter(
             agent,
@@ -106,14 +113,27 @@ class AgentSession:
             include_usage=config.include_usage,
         )
 
-    def stream(self) -> AsyncIterator[str]:
-        """The encoded AG-UI event stream for this run, disconnect-guarded.
+    def stream(
+        self, owner: RunOwner | None = None, *, detached: bool = False
+    ) -> AsyncIterator[str]:
+        """The encoded AG-UI event stream for this run, as its owner's subscriber.
 
-        Composed by hand (rather than ``adapter.run_stream``) so the session
-        keeps a reference to the *native* event stream — the innermost
-        generator, whose context manager owns the provider's streaming
-        request. On client disconnect the guard closes it explicitly, then
-        persists the partial exchange and audits the cancellation.
+        Encoding, the heartbeat and the disconnect guard are the subscriber's. On a
+        disconnect the guard tells the owner: a ``detached`` run carries on, any other
+        is cancelled, which closes the provider's stream and persists the partial.
+        """
+        owner = owner if owner is not None else self.own()
+        encoded = self._adapter.encode_stream(owner.subscribe())
+        if self._config.heartbeat_seconds > 0:
+            encoded = heartbeat_stream(encoded, interval=self._config.heartbeat_seconds)
+        return guarded_stream(encoded, on_cancel=owner.detach if detached else owner.cancel)
+
+    def own(self, run_store: RunStore | None = None) -> RunOwner:
+        """The run's owner: the pipeline from the provider's stream to persist-on-error.
+
+        Composed by hand (rather than ``adapter.run_stream``) so the owner keeps a
+        reference to the *native* event stream, whose context manager owns the
+        provider's streaming request, and to the sub-agent stage racing it.
         """
         transcript = RunTranscript()
         native = self._adapter.run_stream_native(
@@ -123,7 +143,8 @@ class AgentSession:
             instructions=self._run_instructions(),
             toolsets=self._run_toolsets(),
             capabilities=self._capabilities,
-            timeout=self._config.run_timeout_seconds,
+            cancellation_token=self._token,
+            timeout=self._timeout,
         )
         events = self._adapter.transform_stream(
             native,
@@ -140,15 +161,17 @@ class AgentSession:
             events = stamp_approval_prompts(events, prompts=self._config.approval_prompts)
         if self._persists():
             events = transcript.observe(events)
-        observed = self._persist_on_error(events, transcript)
-        encoded = self._adapter.encode_stream(observed)
-        if self._config.heartbeat_seconds > 0:
-            encoded = heartbeat_stream(encoded, interval=self._config.heartbeat_seconds)
-        return guarded_stream(
-            encoded,
+        return RunOwner(
+            self._persist_on_error(events, transcript),
             native_events=native,
-            on_cancel=self._on_cancel(transcript),
             racing_stages=(subagents,),
+            on_cancel=self._on_cancel(transcript),
+            ended=lambda: self._ended,
+            token=self._token,
+            run_store=run_store,
+            request=self._request,
+            thread_id=self._run_input.thread_id,
+            run_id=self._run_input.run_id,
         )
 
     def _client_context_block(self) -> str | None:
@@ -309,6 +332,7 @@ class AgentSession:
 
         async def _on_timeout(cancelled: RunCancelled) -> None:
             timed_out = isinstance(cancelled, RunTimedOut)
+            self._ended = RunOutcome.TIMED_OUT if timed_out else RunOutcome.CANCELLED
             await finalize("cancelled: run timed out" if timed_out else "cancelled: run stopped")
 
         return _on_timeout

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
-from typing import Any
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 _logger = logging.getLogger("django_ag_ui.agent")
 
@@ -19,18 +18,14 @@ _FINALIZE_TIMEOUT_SECONDS = 5.0
 async def guarded_stream(
     stream: AsyncIterator[str],
     *,
-    native_events: AsyncIterator[Any],
     on_cancel: Callable[[], Awaitable[None]],
-    racing_stages: Sequence[AsyncIterator[Any]] = (),
 ) -> AsyncIterator[str]:
-    """Yield ``stream`` through; on client-disconnect cancellation, tear down and observe."""
+    """Yield ``stream`` through; on client disconnect, close it and tell the run's owner."""
     try:
         async for chunk in stream:
             yield chunk
     except (asyncio.CancelledError, GeneratorExit) as cancellation:
-        for stage in (stream, *racing_stages):
-            await _close_quietly(stage, "stream stage")
-        await _close_quietly(native_events, "provider stream")
+        await _close_quietly(stream)
         finalize = asyncio.ensure_future(_finalize_quietly(on_cancel))
         try:
             await asyncio.wait_for(asyncio.shield(finalize), _FINALIZE_TIMEOUT_SECONDS)
@@ -43,14 +38,14 @@ async def guarded_stream(
         raise cancellation
 
 
-async def _close_quietly(iterator: AsyncIterator[Any], what: str) -> None:
-    """Close ``iterator`` if it can be closed, reporting a failure rather than raising it."""
+async def _close_quietly(stream: AsyncIterator[str]) -> None:
+    """Close ``stream`` if it can be closed, reporting a failure rather than raising it."""
     try:
-        aclose = getattr(iterator, "aclose", None)
+        aclose = getattr(stream, "aclose", None)
         if aclose is not None:
             await aclose()
     except (Exception, asyncio.CancelledError):
-        _logger.exception("django-ag-ui: error while closing a cancelled run's %s", what)
+        _logger.exception("django-ag-ui: error while closing a disconnected run's stream")
 
 
 async def _finalize_quietly(on_cancel: Callable[[], Awaitable[None]]) -> None:
