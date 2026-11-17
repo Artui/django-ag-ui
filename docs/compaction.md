@@ -39,7 +39,7 @@ cover most mounts:
 | `RelevanceCompaction` | the history passes a token budget | a judge model scores each step: it keeps what is needed verbatim and summarizes or truncates the rest |
 | `CompactOnRequest` | the model calls its `compact_context` tool at a break in its task | runs the strategy it wraps, before the next model request |
 
-`RelevanceCompaction` and `CompactOnRequest` need pydantic-ai-harness 0.62 or later.
+Both ship in pydantic-ai-harness from 0.62, and the `[harness]` extra floors it at 0.66.
 `RelevanceCompaction` calls its judge model once per step, so give it a small, fast
 model:
 
