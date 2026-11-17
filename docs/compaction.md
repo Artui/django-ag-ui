@@ -26,7 +26,7 @@ server = AGUIServer(capabilities=[SlidingWindowCompaction(max_messages=80, keep_
     This strategy was called `SlidingWindow` before harness 0.13 renamed it to
     `SlidingWindowCompaction`. The old name survives as a deprecated alias that
     warns on import and is slated for removal, so the examples here use the new
-    one — which is why the `[harness]` extra floors at `>=0.13`.
+    one. The `[harness]` extra floors at `>=0.66`, well past the rename.
 
 ## Choosing a strategy
 

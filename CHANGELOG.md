@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.79.0] — 2026-11-17
 
 A minor release with no migration. Three floors move: pydantic-ai-slim to 2.66 (three
-security advisories), django-spec-agents to 0.17.0 and pydantic-ai-harness to 0.66. It
+security advisories), django-spec-agents to 0.16.0 and pydantic-ai-harness to 0.66. It
 adds a run timeout, detached runs and two more compaction strategies.
 
 ### Added
@@ -38,9 +38,10 @@ adds a run timeout, detached runs and two more compaction strategies.
 
 ### Changed
 
-- **django-spec-agents' floor is 0.17.0**, for the base requirement and the `[mcp]`
+- **django-spec-agents' floor is 0.16.0**, for the base requirement and the `[mcp]`
   and `[specs]` extras: the run store and headless runner a detached run is built on
-  first exist there. 0.17.0 floors pydantic-ai-slim at 2.66, as this release does.
+  first exist there, and the package imports them. 0.16.0 floors pydantic-ai-slim at
+  2.66, as this release does.
 - **The `[harness]` and `[code-mode]` extras floor pydantic-ai-harness at 0.66.**
   Each harness release from 0.52 pins pydantic-ai-slim to its own minor, so 0.66 is the
   lowest that installs beside the 2.66 core floor, and the compaction capabilities

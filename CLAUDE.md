@@ -198,7 +198,7 @@ Change a rule here and change the config with it, or they drift apart again.
 | --- | --- | --- |
 | Python | 3.11 | 3.11, 3.12, 3.13, 3.14 |
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0 |
-| Pydantic-AI | 2.63 (with the `pydantic-ai-slim[ag-ui]` extra) | latest in matrix |
+| Pydantic-AI | 2.66 (with the `pydantic-ai-slim[ag-ui]` extra) | latest in matrix |
 
 ## Branching
 
