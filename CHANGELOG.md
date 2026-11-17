@@ -23,6 +23,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keyed by the new `AGUIServer(id=...)`. It refuses at startup a mount it cannot own a
   run through, refuses an anonymous principal, and requires `timeout=`. A mount with no
   run store behaves as before.
+- **`RelevanceCompaction` and `CompactOnRequest` are documented mount options.**
+  pydantic-ai-harness's judge-ranked strategy and its model-requested strategy (the
+  `compact_context` tool) go in `capabilities=` beside `SlidingWindowCompaction`, wrapped
+  in `CompactionObserver` for the live `compaction` activity. Tests through the endpoint
+  check that each one compacts a long thread on the wire and that the stored transcript
+  reloads under the same ids.
+
+### Fixed
+
+- **A kept prompt keeps its stored id after a summarizing compaction.** A summarizing
+  strategy keeps the first prompt and writes its summary after it. On the next run,
+  pydantic-ai merges the two into one request, and its dump then gave the prompt's id to
+  the summary, or dropped it when a kept prompt followed. A resumed thread then stored that
+  prompt under a fresh id. The ids lent back from the stored conversation now cover user
+  messages, matched by content, while a prompt already under a stored id keeps it.
 
 ### Changed
 
