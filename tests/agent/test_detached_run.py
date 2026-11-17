@@ -45,7 +45,7 @@ class _Gate:
         return FunctionModel(stream_function=stream_fn)
 
 
-def _body(run_id: str, *, detach: bool | None = None, thread_id: str = "t1") -> bytes:
+def _body(run_id: str, *, detach: Any = None, thread_id: str = "t1") -> bytes:
     forwarded: dict[str, Any] = {} if detach is None else {"detach": detach}
     return json.dumps(
         {
@@ -92,6 +92,14 @@ async def _settled(run_store: DefaultRunStore, request: Any) -> Any:
             return state
         await asyncio.sleep(0.01)
     raise AssertionError("the run never settled")
+
+
+async def _closed(gate: _Gate) -> None:
+    for _ in range(200):
+        if gate.closed:
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError("the run was never cancelled")
 
 
 def _cancels(audit: _Audit) -> list[str]:
@@ -216,3 +224,99 @@ async def test_an_anonymous_run_is_not_owned_through_the_run_store() -> None:
 class _RefusingStore:
     def __getattr__(self, name: str) -> Any:
         raise AssertionError(f"an anonymous run reached the run store: {name}")
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    ("run_id", "thread_id", "named"),
+    [("r" * 300, "t1", "active_run_id"), ("r1", "t" * 300, "thread_id")],
+)
+async def test_an_over_long_id_on_a_run_store_mount_is_a_400_not_a_500(
+    run_id: str, thread_id: str, named: str
+) -> None:
+    gate, audit = _Gate(), _Audit()
+    view = DjangoAGUIView(
+        ToolRegistry(),
+        model=gate.model(),
+        csrf_exempt=True,
+        audit_logger=audit,
+        run_store=DefaultRunStore(),
+        config=build_ag_ui_config(heartbeat_seconds=0),
+    )
+
+    response = await view(_post(_body(run_id, thread_id=thread_id)))
+
+    assert response.status_code == 400
+    payload = json.loads(response.content)
+    assert payload["code"] == "identifier_too_long"
+    assert named in payload["error"]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_an_anonymous_run_with_an_over_long_id_never_asks_the_run_store() -> None:
+    gate = _Gate()
+    gate.release.set()
+    view = DjangoAGUIView(
+        ToolRegistry(),
+        model=gate.model(),
+        csrf_exempt=True,
+        require_authenticated=False,
+        run_store=_RefusingStore(),
+        config=build_ag_ui_config(heartbeat_seconds=0),
+    )
+    request = AsyncRequestFactory().post(
+        "/agent/", data=_body("r" * 300), content_type="application/json"
+    )
+
+    assert (await view(request)).status_code == 200
+
+
+async def _disconnects_still_cancel(view: DjangoAGUIView, request: Any, gate: _Gate) -> None:
+    stream = await _first_chunk(await view(request))
+
+    await stream.aclose()
+    await _closed(gate)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_an_anonymous_run_cannot_detach_and_cancels_on_disconnect() -> None:
+    gate, audit = _Gate(), _Audit()
+    view = DjangoAGUIView(
+        ToolRegistry(),
+        model=gate.model(),
+        csrf_exempt=True,
+        require_authenticated=False,
+        audit_logger=audit,
+        run_store=DefaultRunStore(),
+        config=build_ag_ui_config(heartbeat_seconds=0),
+    )
+    request = AsyncRequestFactory().post(
+        "/agent/", data=_body("r1", detach=True), content_type="application/json"
+    )
+
+    await _disconnects_still_cancel(view, request, gate)
+
+    assert _cancels(audit) == ["cancelled: client disconnected mid-run"]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_with_no_run_store_cannot_detach_and_cancels_on_disconnect() -> None:
+    gate, audit = _Gate(), _Audit()
+    view = _view(gate, None, audit)
+
+    await _disconnects_still_cancel(view, _post(_body("r1", detach=True)), gate)
+
+    assert _cancels(audit) == ["cancelled: client disconnected mid-run"]
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("asked", ["true", 1])
+async def test_only_a_json_true_detaches_so_a_truthy_value_still_cancels(asked: Any) -> None:
+    gate, audit, run_store = _Gate(), _Audit(), DefaultRunStore()
+    view = _view(gate, run_store, audit)
+    request = _post(_body("r1", detach=asked))
+
+    await _disconnects_still_cancel(view, request, gate)
+    await _settled(run_store, request)
+
+    assert _cancels(audit) == ["cancelled: client disconnected mid-run"]
