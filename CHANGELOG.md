@@ -29,6 +29,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A run-store mount served under WSGI answers with the whole run.** The view started
+  the run on the loop that served the request, which ends when the view returns, so the
+  run was cancelled and the response was an empty 200. Under WSGI the run now starts on
+  the loop that drains the buffered response.
+- **A run's stream ends after its end is recorded.** Under ASGI and WSGI alike, the last
+  item a subscriber reads now follows the run store's record of how the run ended (and,
+  for a run cut short, its finalizing), so a client that sees the end can start the
+  thread's next run at once.
+- **A held text delta reaches the run log when a run is cancelled or fails.** Consecutive
+  deltas of one message are merged before they are logged, and the last one was dropped
+  on a cancel or an error. A run that fails before its end (a run-store append that
+  raises included) now also closes its stream stages and is finalized: its partial
+  exchange is stored and audited. A run whose end had already streamed is not finalized
+  twice.
+- **A headless run keeps no events in memory.** Nothing subscribes to a run the server
+  started itself, yet every event was queued for a subscriber until the run ended. The
+  owner now starts detached.
 - **A provider compaction keeps the id it streamed under on pydantic-ai 2.68 and later.**
   From 2.68 the streamed `ACTIVITY_SNAPSHOT` carries the `canonical_system` stamp the
   stored copy carries, and the transcript matched a streamed activity to its stored copy

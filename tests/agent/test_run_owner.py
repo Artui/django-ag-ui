@@ -32,6 +32,7 @@ class _Store:
         self.cancel_requested = cancel_requested
         self.refuse_append = False
         self.finish_raises = False
+        self.append_raises = False
 
     async def claim(self, thread_id: str, run_id: str, *, request: Any, lease: Any) -> RunClaim:
         return RunClaim(claimed=True, active_run_id=run_id)
@@ -39,6 +40,8 @@ class _Store:
     async def append(self, run_id: str, events: list[Any], *, request: Any) -> int | None:
         if self.refuse_append:
             return None
+        if self.append_raises:
+            raise RuntimeError("store down")
         self.logged.extend(events)
         return len(self.logged)
 
@@ -299,3 +302,80 @@ async def test_a_stage_that_cannot_be_closed_is_passed_over() -> None:
     await owner.cancel()
 
     assert closed == ["provider stream", "finalized"]
+
+
+async def test_a_cancel_mid_message_logs_the_held_delta() -> None:
+    store = _Store()
+    owner = _owner(_events(_text("a"), park=True), store=store)
+    owner.start()
+    await asyncio.sleep(0.01)
+
+    await owner.cancel()
+
+    assert [e.get("delta") for e in store.logged] == ["a"]
+    assert store.finished == [RunOutcome.CANCELLED]
+
+
+async def test_a_pipeline_that_raises_mid_message_logs_the_held_delta() -> None:
+    async def broken() -> AsyncIterator[BaseEvent]:
+        yield _text("a")
+        raise ValueError("boom")
+
+    store = _Store()
+
+    assert await _owner(broken(), store=store).wait() is RunOutcome.ERROR
+    assert [e.get("delta") for e in store.logged] == ["a"]
+
+
+async def test_an_append_that_raises_closes_the_stages_and_finalizes(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    closed: list[str] = []
+    store = _Store()
+    store.append_raises = True
+    owner = _owner(
+        _events(RunStartedEvent(thread_id="t1", run_id="r1")), store=store, closed=closed
+    )
+    await anext(owner._native)
+
+    with caplog.at_level(logging.ERROR, logger="django_ag_ui.agent"):
+        assert await owner.wait() is RunOutcome.ERROR
+
+    assert closed == ["provider stream", "finalized"]
+    assert store.finished == [RunOutcome.ERROR]
+
+
+async def test_a_held_delta_that_cannot_be_logged_is_passed_over(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    store = _Store()
+    owner = _owner(_events(_text("a"), park=True), store=store)
+    owner.start()
+    await asyncio.sleep(0.01)
+    store.append_raises = True
+
+    with caplog.at_level(logging.ERROR, logger="django_ag_ui.agent"):
+        await owner.cancel()
+
+    assert "logging a run's held text" in caplog.text
+    assert store.finished == [RunOutcome.CANCELLED]
+
+
+@pytest.mark.parametrize(
+    "terminal",
+    [RunFinishedEvent(thread_id="t1", run_id="r1"), RunErrorEvent(message="boom")],
+    ids=["finished", "errored"],
+)
+async def test_an_append_that_raises_after_the_end_does_not_finalize_again(
+    terminal: BaseEvent, caplog: pytest.LogCaptureFixture
+) -> None:
+    closed: list[str] = []
+    store = _Store()
+    store.append_raises = True
+    owner = _owner(_events(terminal), store=store, closed=closed)
+    await anext(owner._native)
+
+    with caplog.at_level(logging.ERROR, logger="django_ag_ui.agent"):
+        assert await owner.wait() is RunOutcome.ERROR
+
+    assert closed == ["provider stream"]

@@ -4,10 +4,9 @@ import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
-from datetime import timedelta
 from typing import Any
 
-from ag_ui.core import BaseEvent, RunErrorEvent, TextMessageContentEvent
+from ag_ui.core import BaseEvent, RunErrorEvent, RunFinishedEvent, TextMessageContentEvent
 from django.http import HttpRequest
 from django_spec_agents.persistence.types.run_claim import RunClaim
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
@@ -15,12 +14,12 @@ from django_spec_agents.persistence.types.run_store import RunStore
 from pydantic_ai import CancellationToken
 
 from django_ag_ui.agent.utils import STREAM_END, discard_tasks
+from django_ag_ui.constants import RUN_LEASE
 
 _logger = logging.getLogger("django_ag_ui.agent")
 
-_LEASE = timedelta(seconds=30)
 # A lease is renewed three times over, so one slow write never lapses it.
-_WATCH_SECONDS = _LEASE.total_seconds() / 3
+_WATCH_SECONDS = RUN_LEASE.total_seconds() / 3
 _DELTA_FLUSH_SECONDS = 0.5
 
 
@@ -61,7 +60,7 @@ class RunOwner:
         """Take the thread for this run; a loss names the run that holds it."""
         assert self._store is not None and self._request is not None
         return await self._store.claim(
-            self._thread_id, self._run_id, request=self._request, lease=_LEASE
+            self._thread_id, self._run_id, request=self._request, lease=RUN_LEASE
         )
 
     def start(self) -> asyncio.Task[RunOutcome]:
@@ -103,31 +102,40 @@ class RunOwner:
     async def _own(self) -> RunOutcome:
         self._running = True
         outcome = RunOutcome.COMPLETED
+        ended, end = False, STREAM_END
         watcher = None if self._store is None else asyncio.ensure_future(self._watch())
         try:
             async for event in self._events:
                 if isinstance(event, RunErrorEvent):
                     outcome = RunOutcome.ERROR
+                ended = ended or isinstance(event, (RunErrorEvent, RunFinishedEvent))
                 self._deliver(event)
                 await self._log(event)
+            ended = True
             await self._log(None)
-            if outcome is RunOutcome.COMPLETED:
-                outcome = self._ended() or outcome
+            outcome = self._ended() or outcome
         except asyncio.CancelledError:
             outcome = RunOutcome.CANCELLED
-            for stage in (self._events, *self._racing):
-                await _close_quietly(stage, "stream stage")
-            await _close_quietly(self._native, "provider stream")
-            await _quietly(self._on_cancel(), "finalizing a cancelled run")
             raise
         except Exception as error:
-            outcome = RunOutcome.ERROR
-            self._deliver(error)
+            outcome, end = RunOutcome.ERROR, error
         finally:
-            self._deliver(STREAM_END)
+            await self._wind_down(ended)
             await discard_tasks(watcher)
             await self._finish(outcome)
+            # Last, so a subscriber's loop ending (as under WSGI) never cuts the bookkeeping.
+            self._deliver(end)
         return outcome
+
+    async def _wind_down(self, ended: bool) -> None:
+        """Log the held delta and close the stages; a run cut short before its end is finalized."""
+        if self._pending is not None:
+            await _quietly(self._log(None), "logging a run's held text")
+        for stage in (self._events, *self._racing):
+            await _close_quietly(stage, "stream stage")
+        await _close_quietly(self._native, "provider stream")
+        if not ended:
+            await _quietly(self._on_cancel(), "finalizing a cancelled run")
 
     def _deliver(self, item: Any) -> None:
         if self._live is not None:
@@ -169,7 +177,7 @@ class RunOwner:
         while True:
             await asyncio.sleep(_WATCH_SECONDS)
             kept = await self._store.renew(
-                self._thread_id, self._run_id, request=self._request, lease=_LEASE
+                self._thread_id, self._run_id, request=self._request, lease=RUN_LEASE
             )
             state = await self._store.get(self._thread_id, request=self._request)
             if not kept or (state is not None and state.cancel_requested):
@@ -177,8 +185,9 @@ class RunOwner:
                 return
 
     async def _finish(self, outcome: RunOutcome) -> None:
-        if self._store is None or self._request is None:
+        if self._store is None:
             return
+        assert self._request is not None
         finish = self._store.finish(self._thread_id, self._run_id, outcome, request=self._request)
         await _quietly(finish, "recording how a run ended")
 

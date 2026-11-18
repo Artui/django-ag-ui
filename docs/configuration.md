@@ -829,7 +829,9 @@ connections. That skips the wrapper entirely — the stream is byte-for-byte wha
 it was before this setting existed.
 
 Under WSGI the response is buffered whole rather than streamed, so no heartbeat
-reaches a proxy there. The endpoint already warns when it is served that way.
+reaches a proxy there. That holds on a mount with a run store too: the run starts on the
+loop that drains the response, and the body ends once the run's end is recorded. The
+endpoint already warns when it is served that way.
 
 ## `RUN_TIMEOUT_SECONDS`
 
