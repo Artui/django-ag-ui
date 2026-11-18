@@ -130,19 +130,25 @@ class AGUIHeadlessRunner:
         thread, run = run_input.thread_id, run_input.run_id
         if run_id is not None and not await server.take_up_queued(request, thread, run):
             return RunStop(thread_id=thread, run_id=run, outcome=RunOutcome.CANCELLED)
-        owner = await server.start_headless(
-            request,
-            run_input,
-            timeout=timeout,
-            capabilities=capabilities,
-            parent=parent,
-            lineage=lineage,
-            adopt=run_id is not None,
-            answers=answers,
-            after_finish=await self._waker(
-                server, request, thread, timeout, _RunsToFirstStop(self)
-            ),
-        )
+        waker = await self._waker(server, request, thread, timeout, _RunsToFirstStop(self))
+        stored = None if run_id is None else await server.queued_input(request, run)
+        if stored is not None:
+            owner = await server.start_queued(request, stored, timeout=timeout, after_finish=waker)
+        elif not prompt and not answers:
+            await server.abandon_queued(request, thread, run)
+            raise LookupError(f"run {run!r} has no prompt, no answers and no kept browser input")
+        else:
+            owner = await server.start_headless(
+                request,
+                run_input,
+                timeout=timeout,
+                capabilities=capabilities,
+                parent=parent,
+                lineage=lineage,
+                adopt=run_id is not None,
+                answers=answers,
+                after_finish=waker,
+            )
         outcome = await owner.wait()
         return RunStop(thread_id=thread, run_id=run, outcome=outcome, waiting=owner.waiting)
 

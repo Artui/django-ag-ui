@@ -23,6 +23,9 @@ RUN_HEADLESS_SPEC = "run_headless"
 QUEUED_RUN_LEASE = timedelta(minutes=10)
 """How long a queued run's claim waits for a worker to take it up, unless the runner says."""
 
+QUEUED_INPUT_EVENT = "ag_ui.queued_input"
+"""The CUSTOM event name a queued browser start logs its input under, ahead of the run."""
+
 A2UI_SCHEMA_CONTEXT_DESCRIPTION = (
     "A2UI Component Schema — available components for generating UI surfaces. "
     "Use these component names and properties when creating A2UI operations."
@@ -142,6 +145,7 @@ __all__ = [
     "A2UI_RENDER_GUIDE_V0_9",
     "A2UI_RENDER_TOOL_NAME",
     "DETACH_PROP",
+    "QUEUED_INPUT_EVENT",
     "QUEUED_RUN_LEASE",
     "RUN_HEADLESS_SPEC",
     "RUN_LEASE",

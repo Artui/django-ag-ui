@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import warnings
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, cast
 
 from ag_ui.core import Message
@@ -50,9 +52,11 @@ from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
 from django_ag_ui.agent.build_mcp_bridge import build_mcp_bridge
 from django_ag_ui.agent.lend_answered_by import lend_answered_by
 from django_ag_ui.agent.park_run import ParkRun
+from django_ag_ui.agent.queued_browser_start import QueuedBrowserStart
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
+from django_ag_ui.agent.types.stored_browser_input import StoredBrowserInput
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.agent.utils import (
     IDENTIFIER_TOO_LONG_CODE,
@@ -147,6 +151,7 @@ class DjangoAGUIView:
         agent_id: str | None = None,
         inbound_queue: InboundQueue | None = None,
         child_spend: ChildSessionSpend | None = None,
+        queued: QueuedBrowserStart | None = None,
     ) -> None:
         self._registry = registry
         self._model = model
@@ -172,6 +177,7 @@ class DjangoAGUIView:
         self._agent_id = agent_id
         self._inbound_queue = inbound_queue
         self._child_spend = child_spend
+        self._queued = queued
         self._owners: set[asyncio.Task[Any]] = set()
         self._deps_factory = deps_factory
         reject_async_throttle(throttle, allows="run")
@@ -208,31 +214,17 @@ class DjangoAGUIView:
                 {"error": "invalid RunAgentInput", "error_count": error.error_count()},
                 status=400,
             )
-        if self._config.a2ui_enabled:
-            run_input = with_a2ui_action(run_input)
-        run_input, a2ui = self._a2ui_run(run_input)
         try:
-            prepared = await self._prepare_run(request, run_input, resume_from)
+            ready = await self._ready(request, run_input, resume_from)
         except IdentifierTooLongError as error:
             return JsonResponse({"error": str(error), "code": IDENTIFIER_TOO_LONG_CODE}, status=400)
-        if isinstance(prepared, HttpResponseBase):
-            return prepared
-        message_history, source_messages = prepared
-        stored = await self._stored_conversation(request, run_input.thread_id)
-        lineage = self.child_capabilities(stored, user_joined=True)
-        if message_history is None:
-            run_input = _marked_by_server(run_input, stored)
-        detached = self._detaches(request, run_input)
-        session = self._session(
-            request,
-            run_input,
-            resume_from=resume_from,
-            a2ui=a2ui,
-            message_history=message_history,
-            source_messages=source_messages,
-            capabilities=lineage,
-            detached=detached,
-        )
+        if isinstance(ready, HttpResponseBase):
+            return ready
+        detached = self._detaches(request, ready.run_input)
+        if detached and self._queued is not None:
+            stored = StoredBrowserInput(body=json.loads(request.body), resume_from=resume_from)
+            return await self._enqueue(request, run_input, stored)
+        session = self._session(request, ready.run_input, detached=detached, **ready.options)
         owner = session.own(self._owning_store(request))
         refused = await self._claim(owner, request, run_input)
         if refused is not None:
@@ -244,6 +236,74 @@ class DjangoAGUIView:
         response["Cache-Control"] = "no-cache"
         response["X-Accel-Buffering"] = "no"
         return response
+
+    async def start_queued(
+        self,
+        request: HttpRequest,
+        stored: StoredBrowserInput,
+        *,
+        timeout: float,
+        after_finish: Callable[[RunOutcome], Awaitable[None]] | None = None,
+    ) -> RunOwner:
+        """Start a queued browser start's kept input on its claim, as its POST would have."""
+        store = self._run_store
+        assert store is not None
+        run_input = AGUIAdapter.build_run_input(json.dumps(stored.body).encode())
+        try:
+            ready = await self._ready(request, run_input, stored.resume_from)
+            if isinstance(ready, HttpResponseBase):
+                raise LookupError(f"run {run_input.run_id!r} resumes {stored.resume_from!r}")
+            session = self._session(
+                request, ready.run_input, timeout=timeout, detached=True, **ready.options
+            )
+            owner = session.own(store)
+            if after_finish is not None:
+                owner.after_finish(after_finish)
+            await owner.detach()
+        except BaseException:
+            await store.finish(
+                run_input.thread_id, run_input.run_id, RunOutcome.ERROR, request=request
+            )
+            raise
+        self._keep(owner.start())
+        return owner
+
+    async def _ready(
+        self, request: HttpRequest, run_input: Any, resume_from: str | None
+    ) -> _Ready | HttpResponseBase:
+        """Everything a run's session is built from, or the response that refuses it."""
+        if self._config.a2ui_enabled:
+            run_input = with_a2ui_action(run_input)
+        run_input, a2ui = self._a2ui_run(run_input)
+        prepared = await self._prepare_run(request, run_input, resume_from)
+        if isinstance(prepared, HttpResponseBase):
+            return prepared
+        message_history, source_messages = prepared
+        stored = await self._stored_conversation(request, run_input.thread_id)
+        lineage = self.child_capabilities(stored, user_joined=True)
+        if message_history is None:
+            run_input = _marked_by_server(run_input, stored)
+        options = {
+            "resume_from": resume_from,
+            "a2ui": a2ui,
+            "message_history": message_history,
+            "source_messages": source_messages,
+            "capabilities": lineage,
+        }
+        return _Ready(run_input, options)
+
+    async def _enqueue(
+        self, request: HttpRequest, run_input: Any, stored: StoredBrowserInput
+    ) -> HttpResponseBase:
+        assert self._queued is not None
+        thread_id, run_id = run_input.thread_id, run_input.run_id
+        try:
+            await self._queued.enqueue(request, thread_id, run_id, stored)
+        except RunIdReusedError:
+            return _reused(run_id)
+        except ThreadBusyError as error:
+            return _busy(thread_id, error.run_id)
+        return JsonResponse({"thread_id": thread_id, "run_id": run_id})
 
     async def start_headless(
         self,
@@ -376,18 +436,9 @@ class DjangoAGUIView:
         try:
             claim = await owner.claim()
         except RunIdReusedError:
-            return JsonResponse(
-                {"error": "that run id was used before", "run_id": run_input.run_id}, status=409
-            )
+            return _reused(run_input.run_id)
         if not claim.claimed:
-            return JsonResponse(
-                {
-                    "error": "the thread has a run in progress",
-                    "thread_id": run_input.thread_id,
-                    "run_id": claim.active_run_id,
-                },
-                status=409,
-            )
+            return _busy(run_input.thread_id, claim.active_run_id)
         if isinstance(request, ASGIRequest):
             self._keep(owner.start())
         return None
@@ -698,6 +749,21 @@ class DjangoAGUIView:
 
     def _resolve_audit_logger(self) -> AuditLogger:
         return self._audit_logger if self._audit_logger is not None else NullAuditLogger()
+
+
+@dataclass(frozen=True)
+class _Ready:
+    run_input: Any
+    options: dict[str, Any]
+
+
+def _reused(run_id: str) -> HttpResponseBase:
+    return JsonResponse({"error": "that run id was used before", "run_id": run_id}, status=409)
+
+
+def _busy(thread_id: str, run_id: str | None) -> HttpResponseBase:
+    body = {"error": "the thread has a run in progress", "thread_id": thread_id, "run_id": run_id}
+    return JsonResponse(body, status=409)
 
 
 def _marked_by_server(run_input: Any, stored: Conversation | None) -> Any:

@@ -14,6 +14,7 @@ from django_spec_agents.child_sessions.types.child_session_spend import ChildSes
 from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
 from django_spec_agents.child_sessions.wake_thread import wake_thread
 from django_spec_agents.child_sessions.waking_inbound_queue import WakingInboundQueue
+from django_spec_agents.headless.types.firing_queue import FiringQueue
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
 from django_spec_agents.integrations.types.spec_source import SpecSource
@@ -39,12 +40,14 @@ from django_ag_ui.agent.cancel_view import CancelView
 from django_ag_ui.agent.claim_lapsed_error import ClaimLapsedError
 from django_ag_ui.agent.events_view import EventsView
 from django_ag_ui.agent.mcp_apps_view import MCPAppsView
+from django_ag_ui.agent.queued_browser_start import QueuedBrowserStart
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.runs_view import RunsView
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.spec_capability_source import SpecCapabilitySource
 from django_ag_ui.agent.types.spec_toolset_source import SpecToolsetSource
+from django_ag_ui.agent.types.stored_browser_input import StoredBrowserInput
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.check_no_dotted_paths import check_no_dotted_paths
 from django_ag_ui.check_removed_settings import check_removed_settings
@@ -312,6 +315,7 @@ class AGUIServer:
         id: str | None = None,
         inbound_queue: InboundQueue | None = None,
         child_spend: ChildSessionSpend | None = None,
+        firing_queue: FiringQueue | None = None,
     ) -> None:
         check_removed_settings()
         # The same mistake in its constructor-shaped form: a name where an object belongs.
@@ -331,6 +335,7 @@ class AGUIServer:
             run_store=run_store,
             inbound_queue=inbound_queue,
             child_spend=child_spend,
+            firing_queue=firing_queue,
             service_specs=service_specs,
             skills=skills,
             skill_policy=skill_policy,
@@ -395,6 +400,7 @@ class AGUIServer:
             _reject_spec_name_collisions(self._service_specs or {}, registry, self._mcp_server)
         self._step_store = step_store
         self._deps_factory = deps_factory
+        self._queued = self._queued_start(firing_queue)
         self._view = DjangoAGUIView(
             registry,
             model=model,
@@ -420,6 +426,7 @@ class AGUIServer:
             agent_id=id,
             inbound_queue=inbound_queue,
             child_spend=child_spend,
+            queued=self._queued,
             **self._policy,
         )
 
@@ -435,6 +442,18 @@ class AGUIServer:
             self._skill_editor = SkillEditorView(self._skill_policy, **self._policy)
         stored = StoredSkillsForRun(self._skill_policy, authoring=authoring)
         return [stored, *(capabilities or [])]
+
+    def _queued_start(self, queue: FiringQueue | None) -> QueuedBrowserStart | None:
+        if queue is None:
+            return None
+        timeout = self._config.run_timeout_seconds
+        if not timeout:
+            raise ImproperlyConfigured(
+                f"AGUIServer(id={self.id!r}, firing_queue=) needs run_timeout_seconds"
+            )
+        self.check_headless()
+        assert self.id is not None and self._run_store is not None
+        return QueuedBrowserStart(queue, self._run_store, agent_id=self.id, timeout=timeout)
 
     def headless_request(self, principal: Any) -> HttpRequest:
         """The request a headless run's seams see: ``user=principal``, and no session.
@@ -542,6 +561,24 @@ class AGUIServer:
             await store.finish(thread_id, run_id, RunOutcome.CANCELLED, request=request)
             return False
         return True
+
+    async def queued_input(self, request: HttpRequest, run_id: str) -> StoredBrowserInput | None:
+        """The input a queued browser start kept for ``run_id``; ``None`` for any other run."""
+        assert self._run_store is not None
+        return await QueuedBrowserStart.stored(self._run_store, run_id, request)
+
+    async def start_queued(
+        self,
+        request: HttpRequest,
+        stored: StoredBrowserInput,
+        *,
+        timeout: float,
+        after_finish: Callable[[RunOutcome], Awaitable[None]] | None = None,
+    ) -> RunOwner:
+        """Start a queued browser start's kept input on the claim the worker took up."""
+        return await self._view.start_queued(
+            request, stored, timeout=timeout, after_finish=after_finish
+        )
 
     async def abandon_queued(self, request: HttpRequest, thread_id: str, run_id: str) -> None:
         """Give back a queued run's claim that no worker will take up, recorded as an error."""

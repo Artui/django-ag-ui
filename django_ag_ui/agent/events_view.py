@@ -23,6 +23,7 @@ from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize, au
 
 from django_ag_ui.agent.heartbeat_stream import heartbeat_stream
 from django_ag_ui.agent.replay_head import replay_head
+from django_ag_ui.agent.utils import is_queued_input
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
@@ -92,10 +93,11 @@ class EventsView:
         if limit is None or limit > _MAX_PAGE_LIMIT:
             message = f"limit must be a whole number from 1 to {_MAX_PAGE_LIMIT}"
             return JsonResponse({"error": message}, status=400)
-        entries = await self._runs.read(run_id, request=request, after=after, limit=limit)
-        last = entries[-1].seq if entries else after
+        read = await self._runs.read(run_id, request=request, after=after, limit=limit)
+        last = read[-1].seq if read else after
+        entries = _kept(read)
         live = state.active_run_id == run_id
-        done = not live and len(entries) < limit
+        done = not live and len(read) < limit
         etag = f'"{run_id}:{last}:{state.status}"'
         if request.headers.get("If-None-Match") == etag:
             response: HttpResponseBase = HttpResponse(status=304)
@@ -119,7 +121,7 @@ class EventsView:
     ) -> HttpResponseBase:
         # The transcript first: a run that ends between the reads is then still in its log.
         stored = await self._conversations.load(thread_id, request=request)
-        log = await self._runs.read(run_id, request=request)
+        log = _kept(await self._runs.read(run_id, request=request))
         messages = [] if stored is None else stored.messages
         frames = self._frames(request, thread_id, run_id, log, messages, after)
         encoded: AsyncIterator[str] = frames
@@ -141,7 +143,7 @@ class EventsView:
     ) -> AsyncIterator[str]:
         while not log:
             state = await self._runs.get(thread_id, request=request)
-            log = await self._runs.read(run_id, request=request)
+            log = _kept(await self._runs.read(run_id, request=request))
             if not log and not _live(state, run_id):
                 yield _frame(_run_error(state))
                 return
@@ -170,6 +172,10 @@ class EventsView:
                 return
             if not entries:
                 await asyncio.sleep(_POLL_SECONDS)
+
+
+def _kept(entries: list[RunLogEntry]) -> list[RunLogEntry]:
+    return [entry for entry in entries if not is_queued_input(entry.event)]
 
 
 def _live(state: ThreadRunState | None, run_id: str) -> bool:

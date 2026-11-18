@@ -27,7 +27,7 @@ def replay_head(
         return [], 0
     terminal = next((e.seq for e in log if e.event.get("type") in _TERMINAL), None)
     cut = after if terminal is None else min(after, terminal - 1)
-    cut = max(min(cut, log[-1].seq), 1)
+    cut = max(min(cut, log[-1].seq), log[0].seq)
     whole, prefix = _Fold(), _Fold()
     for entry in log[1:]:
         whole.add(entry.event)

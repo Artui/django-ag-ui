@@ -170,7 +170,8 @@ async def test_an_answer_resumes_the_parked_call_with_no_new_prompt() -> None:
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_an_answer_crosses_the_queue_and_resumes_on_the_worker() -> None:
+@pytest.mark.parametrize("prompt", ["unsent", ""])
+async def test_an_answer_crosses_the_queue_and_resumes_on_the_worker(prompt: str) -> None:
     model = _Model()
     server = _server(model, DefaultInboundQueue())
     worker = WorkerQueue(AGUIHeadlessRunner(server))
@@ -178,7 +179,7 @@ async def test_an_answer_crosses_the_queue_and_resumes_on_the_worker() -> None:
     await _seed_asked(server, user)
 
     await AGUIHeadlessRunner(server, queue=worker).start(
-        "helper", "unsent", user, timeout=5, thread_id="t-asked", answers={"c1": "blue"}
+        "helper", prompt, user, timeout=5, thread_id="t-asked", answers={"c1": "blue"}
     )
     [(_, params, _)] = worker.enqueued
     await worker.work()

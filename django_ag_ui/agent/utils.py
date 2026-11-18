@@ -8,6 +8,7 @@ from ag_ui.core import Message, ToolMessage
 from django_spec_agents import IdentifierTooLongError
 
 from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD
+from django_ag_ui.constants import QUEUED_INPUT_EVENT
 
 ERROR_CODE = "error"
 TIMED_OUT_CODE = "timed_out"
@@ -80,7 +81,17 @@ def without_answered_by(message: Message) -> Message:
     return message.model_copy(update={"metadata": metadata or None})
 
 
+def is_queued_input(event: Any) -> bool:
+    """Whether a run log event is a queued browser start's kept input, never sent to a client."""
+    return (
+        isinstance(event, dict)
+        and event.get("type") == "CUSTOM"
+        and event.get("name") == QUEUED_INPUT_EVENT
+    )
+
+
 __all__ = [
+    "is_queued_input",
     "ERROR_CODE",
     "IDENTIFIER_TOO_LONG_CODE",
     "INTERRUPTED_CODE",
