@@ -36,17 +36,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `SkillsView` takes the same `policy=`. Every run gets the caller's stored skills
   through `StoredSkills`, read from `deps.call_context["request"]`, and
   `skill_authoring=True` adds the runtime's authoring tools. `skill_editor=True` mounts
-  `SkillEditorView` at `skills/editor/` and `skills/editor/<id>/`: `GET` lists the
-  skills the caller may write with their bodies, `POST` creates, `PUT` replaces and
-  `PATCH {"enabled": ...}` turns a skill off or on. A skill the caller cannot see or
+  `SkillEditorView` (exported from `django_ag_ui`) at `skills/editor/` and
+  `skills/editor/<id>/`: `GET` lists the skills the caller may write with their bodies,
+  `POST` creates, `PUT` replaces and `PATCH {"enabled": ...}` turns a skill off or on. A skill the caller cannot see or
   write is a `404`; a broken rule is a `400`, a refused write a `403` and the skill cap
   a `409`, and none carries a body. The mount reserves the registry's skill names, so
   no stored skill can take one. A run that saves a stored skill sends the CUSTOM event
   `ag_ui.skills_changed` (`SKILLS_CHANGED_EVENT_NAME`), `{"name": ...}`, once the save
   commits. The editor is CSRF-exempt by default, like the threads endpoints, and refuses
-  a write that is not `application/json` with `415`. A skill that is user-invocable but
-  not model-invocable is listed, but a run does not read its body yet. See the User
-  skills page.
+  a write that is not `application/json` with `415`. A pick of a skill that is
+  user-invocable but not model-invocable adds its body to that run's instructions: the
+  latest user message must open with its `/name`. See the User skills page.
 
 ### Changed
 

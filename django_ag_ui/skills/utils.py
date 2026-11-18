@@ -3,13 +3,21 @@ from __future__ import annotations
 from collections.abc import Collection, Iterable
 from typing import Any
 
+from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 from django.db.models.signals import post_save
 from django.http import HttpRequest
-from django_spec_agents.skills import AbstractSkill, ReservedSkillNames, SkillPolicy, StoredSkills
+from django_spec_agents.skills import (
+    AbstractSkill,
+    ReservedSkillNames,
+    SkillPolicy,
+    StoredSkills,
+    list_visible_skills,
+)
 from pydantic_ai import RunContext
-from pydantic_ai.capabilities import AbstractCapability
+from pydantic_ai.capabilities import AbstractCapability, Capability, CombinedCapability
+from pydantic_ai.messages import UserPromptPart
 
 from django_ag_ui.agent.publish_invalidation import INVALIDATION_SINK
 from django_ag_ui.skills.skills_changed import skills_changed
@@ -55,7 +63,41 @@ class StoredSkillsForRun(AbstractCapability[Any]):
                 "deps.call_context['request']; a deps_factory must put it there"
             )
         stored = StoredSkills(self.policy, request, authoring=self.authoring)
-        return await stored.for_run(ctx)
+        offered = await stored.for_run(ctx)
+        name = _picked_name(ctx)
+        if name is None:
+            return offered
+        body = await sync_to_async(_user_only_body, thread_sensitive=True)(
+            self.policy, request, name
+        )
+        if body is None:
+            return offered
+        picked = Capability(instructions=f"# Skill: {name}\n\n{body}")
+        return CombinedCapability([offered, picked])
+
+
+def _picked_name(ctx: RunContext[Any]) -> str | None:
+    """The skill name the run's latest user text opens with as ``/name``, if any."""
+    texts = [
+        part.content if isinstance(part.content, str) else _first_text(part.content)
+        for message in ctx.messages
+        for part in message.parts
+        if isinstance(part, UserPromptPart)
+    ]
+    words = texts[-1].split() if texts else []
+    return words[0][1:] if words and words[0].startswith("/") else None
+
+
+def _first_text(content: Iterable[Any]) -> str:
+    return next((item for item in content if isinstance(item, str)), "")
+
+
+def _user_only_body(policy: SkillPolicy[Any], request: HttpRequest, name: str) -> str | None:
+    """A visible skill's body when a user may pick it and the model cannot load it itself."""
+    for skill in list_visible_skills(policy, request):
+        if skill.name == name and skill.user_invocable and not skill.model_invocable:
+            return skill.body
+    return None
 
 
 def announce_skill_saved(sender: Any, instance: Any, **kwargs: Any) -> None:

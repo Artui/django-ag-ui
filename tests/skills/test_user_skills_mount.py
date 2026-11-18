@@ -17,6 +17,7 @@ from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
 from django_ag_ui import SKILLS_CHANGED_EVENT_NAME, AGUIServer, SkillRegistry
+from django_ag_ui.skills import utils
 from tests.skillapp.models import Tenant, TenantSkill, TenantSkillPolicy
 from tests.skillapp.people import member, request_as, skill
 
@@ -34,12 +35,16 @@ def _routes(server: AGUIServer) -> dict[str, Any]:
     return {pattern.name: pattern.callback for pattern in patterns}
 
 
-def _post(user: Any) -> Any:
+def _post(user: Any, *texts: Any) -> Any:
+    said = [
+        text if isinstance(text, dict) else {"id": f"u{i}", "role": "user", "content": text}
+        for i, text in enumerate(texts)
+    ]
     body = {
         "threadId": "t1",
         "runId": "r1",
         "state": {},
-        "messages": [{"id": "u1", "role": "user", "content": "Go."}],
+        "messages": said or [{"id": "u1", "role": "user", "content": "Go."}],
         "tools": [],
         "context": [],
         "forwardedProps": {},
@@ -51,8 +56,8 @@ def _post(user: Any) -> Any:
     return request
 
 
-async def _events(server: AGUIServer, user: Any) -> list[dict[str, Any]]:
-    response = await _routes(server)["endpoint"](_post(user))
+async def _events(server: AGUIServer, user: Any, *texts: Any) -> list[dict[str, Any]]:
+    response = await _routes(server)["endpoint"](_post(user, *texts))
     assert isinstance(response, StreamingHttpResponse)
     body = ""
     async for chunk in response.streaming_content:
@@ -126,6 +131,92 @@ async def test_each_member_runs_with_their_own_stored_skills() -> None:
     seen.clear()
     await _events(server, bob)
     assert "- bob-notes:" in seen[0] and "ann-notes" not in seen[0]
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    ("text", "user_invocable", "model_invocable", "read"),
+    [
+        ("/triage", True, False, True),
+        ("/triage the inbox", True, False, True),
+        ("  /triage", True, False, True),
+        ("/triage", False, False, False),
+        ("/triage", True, True, False),
+        ("/triaged", True, False, False),
+        ("!triage", True, False, False),
+        ("/", True, False, False),
+    ],
+)
+async def test_a_pick_of_a_user_only_skill_reads_its_body_into_the_run(
+    text: str, user_invocable: bool, model_invocable: bool, read: bool
+) -> None:
+    ann = await sync_to_async(member)("ann", await sync_to_async(Tenant.objects.create)(name="a"))
+    fields = {"user_invocable": user_invocable, "model_invocable": model_invocable}
+    await sync_to_async(skill)(ann.member.tenant, "triage", **fields)
+    seen: list[str] = []
+    await _events(_server(_calling("nothing", {}, seen)), ann, text)
+    assert ("# Skill: triage" in seen[0]) is read
+    assert ("The secret steps of triage." in seen[0]) is read
+
+
+_ASKED = {
+    "id": "a1",
+    "role": "assistant",
+    "toolCalls": [{"id": "c1", "type": "function", "function": {"name": "ask", "arguments": "{}"}}],
+}
+_ANSWERED = {"id": "t1", "role": "tool", "toolCallId": "c1", "content": "Go."}
+_IMAGE = {"type": "image", "source": {"type": "url", "value": "https://example.test/x.png"}}
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    ("texts", "read"),
+    [
+        (("/triage", "Go."), False),
+        (([_IMAGE, {"type": "text", "text": "/triage"}],), True),
+        (([_IMAGE],), False),
+        (("/triage", _ASKED, _ANSWERED), True),
+    ],
+    ids=["an-earlier-pick", "beside-an-image", "an-image-alone", "then-a-tool-result"],
+)
+async def test_the_pick_is_the_latest_user_texts_first_word(
+    texts: tuple[Any, ...], read: bool
+) -> None:
+    ann = await sync_to_async(member)("ann", await sync_to_async(Tenant.objects.create)(name="a"))
+    await sync_to_async(skill)(ann.member.tenant, "triage", model_invocable=False)
+    seen: list[str] = []
+    await _events(_server(_calling("nothing", {}, seen)), ann, *texts)
+    assert ("# Skill: triage" in seen[0]) is read
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_with_no_pick_reads_no_skill_for_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    ann = await sync_to_async(member)("ann", await sync_to_async(Tenant.objects.create)(name="a"))
+    reads: list[Any] = []
+    monkeypatch.setattr(utils, "list_visible_skills", lambda *args: reads.append(args) or [])
+    await _events(_server(_calling("nothing", {}, [])), ann, "Go.")
+    assert reads == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_pick_keeps_the_skills_the_model_may_load() -> None:
+    ann = await sync_to_async(member)("ann", await sync_to_async(Tenant.objects.create)(name="a"))
+    await sync_to_async(skill)(ann.member.tenant, "triage", model_invocable=False)
+    await sync_to_async(skill)(ann.member.tenant, "notes")
+    seen: list[str] = []
+    await _events(_server(_calling("nothing", {}, seen)), ann, "/triage")
+    assert "The secret steps of triage." in seen[0] and "- notes:" in seen[0]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_pick_of_a_skill_the_caller_cannot_see_reads_nothing() -> None:
+    acme = await sync_to_async(Tenant.objects.create)(name="acme")
+    ann = await sync_to_async(member)("ann", acme)
+    other = await sync_to_async(Tenant.objects.create)(name="other")
+    await sync_to_async(skill)(other, "triage", model_invocable=False)
+    seen: list[str] = []
+    await _events(_server(_calling("nothing", {}, seen)), ann, "/triage")
+    assert "The secret steps of triage." not in seen[0]
 
 
 @pytest.mark.django_db(transaction=True)

@@ -89,10 +89,13 @@ that are user-invocable. A stored entry is
 ```
 
 and never carries a `prompt`. Picking it sends `/triage`. A registry skill wins a name
-both hold. In this release a run reads a stored skill's body only when the skill is
-also model-invocable, since django-spec-agents' `StoredSkills` offers only those: a skill
-that is user-invocable but not model-invocable is listed, and a pick of it reaches the
-model as the bare `/name`.
+both hold.
+
+A model-invocable skill is offered to the model as a deferred capability, which it
+loads when `/triage` asks for it. A skill that is user-invocable but not
+model-invocable is never offered, so the mount reads it for the run itself. When the
+latest user message opens with `/triage` and the caller can see such a skill, its body
+joins that run's instructions.
 
 ## The editor
 
