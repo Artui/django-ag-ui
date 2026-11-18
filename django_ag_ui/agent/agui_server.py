@@ -255,7 +255,8 @@ class AGUIServer:
     ``forwardedProps.detach``. ``id`` keys the mount for an
     [`AGUIHeadlessRunner`][django_ag_ui.agent.headless_runner.AGUIHeadlessRunner], which
     starts runs as ``headless_request(principal)``. Without a run store nothing changes.
-    See [Detached and headless runs](detached-runs.md).
+    See [Detached and headless runs](detached-runs.md). ``firing_queue`` queues a detached
+    browser run for a worker; see [Queued runs](queued-runs.md#a-detached-browser-start).
 
     **User skills.** ``skill_policy`` takes a django-spec-agents ``SkillPolicy``:
     the ``skills/`` catalog lists each caller's stored skills beside the

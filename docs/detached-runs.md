@@ -69,6 +69,10 @@ that nobody returns to needs an end of its own: the
 run that asks to detach is cancelled on disconnect as before. The headless runner
 requires `timeout=` for the same reason.
 
+On a mount with a `firing_queue=`, a detached browser run is enqueued for a worker
+instead and its POST answers `200 {"thread_id", "run_id"}`; see
+[Queued runs](queued-runs.md#a-detached-browser-start).
+
 The owner task runs on the event loop that served the request. To outlive the request
 it needs a loop that outlives it, which means ASGI. Under WSGI the run starts on the
 loop that drains the buffered response and finishes there, so the response carries the

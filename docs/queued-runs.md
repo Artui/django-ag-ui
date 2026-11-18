@@ -15,8 +15,9 @@ holds `run_headless(runner, permissions=[...])`, built over a runner with no que
 worker runs the start in its own process. Pass `spec_name=` when the spec is registered
 under another name than `"run_headless"`.
 
-Only headless starts are queued. A browser run, detached or not, still runs in the process
-that serves its request.
+A browser run that stays connected always runs in the process that serves its request. A
+detached one is queued when its mount has a queue too: see
+[A detached browser start](#a-detached-browser-start).
 
 ## What the caller sees
 
@@ -45,6 +46,36 @@ runner says otherwise); a worker that comes later raises
 run. A child's run composes its stored lineage on the worker, its first run as much as any
 later one. Both paths write the same lease and log. A worker that dies mid-run is not run again:
 the lease lapses and the thread reads `failed` with reason `interrupted`.
+
+## A detached browser start
+
+Give the mount the same queue, `AGUIServer(firing_queue=queue)`, and a browser run that asks
+to detach (`forwardedProps.detach`) is queued rather than run in the serving process:
+
+1. The POST is checked as before (authentication, throttle, identifiers, and a resume's
+   `404` or `409`), then claims the thread. A busy thread or a reused run id answers `409`,
+   and nothing is enqueued.
+2. The run's whole `RunAgentInput` as the client sent it (client tools, state, context,
+   `forwardedProps`, an A2UI catalog) is kept as the first entry of the run's log, with
+   the run it resumes, if any. A resume of a parked run records that it was parked while
+   the thread still says so.
+3. The start enqueues a `HeadlessFiring` with the claimed `run_id` and answers
+   `200 {"thread_id", "run_id"}`. The client reads the run from
+   [`events?after=0`](detached-runs.md#read-a-runs-events), which waits for its first
+   event; the replay never sends the kept input.
+4. The worker takes the claim up, reads the input back by `run_id`, and starts it as the
+   POST would have, detached, so the browser's own client tools park the run. A firing
+   whose input is gone finishes its claim as an error rather than run with no prompt.
+
+The mount needs what a headless run needs (`id=`, `run_store=`, `step_store=`, and a
+conversation store that keeps conversations without a browser session) and
+`RUN_TIMEOUT_SECONDS`, which is the queued run's `timeout`; it refuses at construction
+otherwise. A connected browser run on that mount still streams in-process.
+
+On the worker every per-request hook (`model_for_request`, `instructions_for_request`,
+`deps_factory`, the MCP bridge, the attachment store, `step_store`) is handed
+`headless_request(principal)`, not the browser's request: the worker never sees its
+headers, session or middleware state. Override `headless_request` when a hook reads them.
 
 ## From sync code
 

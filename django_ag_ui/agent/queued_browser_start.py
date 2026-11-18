@@ -18,11 +18,9 @@ from django_ag_ui.constants import QUEUED_INPUT_EVENT, QUEUED_RUN_LEASE, RUN_HEA
 
 
 class QueuedBrowserStart:
-    """A detached browser start a worker runs: its thread claimed, its input kept, then enqueued.
+    """A detached browser start a worker runs: its thread claimed, its input kept, enqueued.
 
-    The input is the run log's first entry, a CUSTOM ``ag_ui.queued_input`` event the
-    events replay skips, so the worker reads it back by ``run_id`` from the same store.
-    """
+    The input is the run log's first entry, which the events replay skips."""
 
     def __init__(
         self,
@@ -72,11 +70,15 @@ class QueuedBrowserStart:
         if not entries or not is_queued_input(entries[0].event):
             return None
         value = entries[0].event["value"]
-        return StoredBrowserInput(body=value["input"], resume_from=value["resume_from"])
+        return StoredBrowserInput(value["input"], value["resume_from"], value["resume_parked"])
 
 
 def _record(stored: StoredBrowserInput) -> dict[str, Any]:
-    value = {"input": stored.body, "resume_from": stored.resume_from}
+    value = {
+        "input": stored.body,
+        "resume_from": stored.resume_from,
+        "resume_parked": stored.resume_parked,
+    }
     return {"type": "CUSTOM", "name": QUEUED_INPUT_EVENT, "value": value}
 
 

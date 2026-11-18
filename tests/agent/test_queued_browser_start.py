@@ -9,11 +9,15 @@ from typing import Any
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.http import StreamingHttpResponse
+from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
+from django_spec_agents.contrib.store.default_inbound_queue import DefaultInboundQueue
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
+from django_spec_agents.contrib.store.models import StoredSnapshot
 from django_spec_agents.headless.types.headless_firing import HeadlessFiring
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
@@ -22,6 +26,7 @@ from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.constants import QUEUED_INPUT_EVENT, QUEUED_RUN_LEASE
+from tests.agent.test_park_run import _APPROVED, _DELETE_ARGS, _Calls, _guarded, _parked
 from tests.agent.worker_queue import WorkerQueue
 from tests.authed_request_factory import AuthedAsyncRequestFactory, authenticated_user
 
@@ -67,9 +72,9 @@ class _RefusingQueue(WorkerQueue):
         raise RuntimeError("the queue is down")
 
 
-def _server(model: _Model, queue: Any = None, **overrides: Any) -> AGUIServer:
+def _server(fake: _Model, queue: Any = None, **overrides: Any) -> AGUIServer:
     options: dict[str, Any] = {
-        "model": model.model(),
+        "model": fake.model(),
         "csrf_exempt": True,
         "conversation_store": DefaultConversationStore(),
         "step_store": DefaultStepStore,
@@ -190,6 +195,7 @@ async def test_the_worker_rebuilds_the_run_from_the_input_as_received() -> None:
     assert entry.event["name"] == QUEUED_INPUT_EVENT
     assert entry.event["value"]["input"] == json.loads(_body("r1"))
     assert entry.event["value"]["resume_from"] is None
+    assert entry.event["value"]["resume_parked"] is False
 
 
 @pytest.mark.django_db(transaction=True)
@@ -336,3 +342,102 @@ def test_a_firing_queue_needs_a_mount_a_worker_can_run(
 ) -> None:
     with pytest.raises(ImproperlyConfigured, match=reason):
         _server(_Model(), WorkerQueue.__new__(WorkerQueue), **overrides)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_an_approval_resumes_its_parked_run_on_the_worker() -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    options = _guarded(calls, run_timeout_seconds=120)
+    registry = options.pop("registry")
+
+    class _Late:
+        def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
+            return queue.enqueue(spec_name, params, actor=actor)
+
+    server = AGUIServer(registry, id="helper", firing_queue=_Late(), **options)
+    queue = WorkerQueue(AGUIHeadlessRunner(server))
+    stop, parked = await _parked(server)
+    body = {
+        "threadId": stop.thread_id,
+        "runId": "r-answer",
+        "messages": [],
+        "tools": [],
+        "context": [],
+        "state": None,
+        "forwardedProps": {"detach": True},
+        "resume": _APPROVED,
+    }
+    request = _post(json.dumps(body).encode(), f"/agent/resume/{stop.run_id}/")
+
+    response = await _route(server, "resume")(request, resume_from=stop.run_id)
+    assert calls.ran == []
+    [result] = await queue.work()
+
+    assert parked.status is ThreadRunStatus.WAITING
+    assert json.loads(response.content) == {"thread_id": stop.thread_id, "run_id": "r-answer"}
+    assert result.service_result.outcome is RunOutcome.COMPLETED
+    assert calls.ran == ["widget-1"]
+    [entry] = await DefaultRunStore().read("r-answer", request=request, limit=1)
+    assert entry.event["value"]["resume_from"] == stop.run_id
+    assert entry.event["value"]["resume_parked"] is True
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_resume_whose_snapshot_is_gone_by_the_worker_fails_its_claim() -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    options = _guarded(calls, run_timeout_seconds=120)
+    registry = options.pop("registry")
+
+    class _Late:
+        def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
+            return queue.enqueue(spec_name, params, actor=actor)
+
+    server = AGUIServer(registry, id="helper", firing_queue=_Late(), **options)
+    queue = WorkerQueue(AGUIHeadlessRunner(server))
+    stop, _ = await _parked(server)
+    body = json.loads(_body("r-answer"))
+    body.update(threadId=stop.thread_id, messages=[], tools=[], resume=_APPROVED)
+    request = _post(json.dumps(body).encode(), f"/agent/resume/{stop.run_id}/")
+    await _route(server, "resume")(request, resume_from=stop.run_id)
+    await StoredSnapshot.objects.all().adelete()
+
+    with pytest.raises(LookupError, match="r-answer"):
+        await queue.work()
+
+    assert calls.ran == []
+    state = await _state(stop.thread_id)
+    assert (state.status, state.active_run_id) == (ThreadRunStatus.FAILED, None)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_mail_that_lands_during_a_queued_browser_run_wakes_its_thread() -> None:
+    inbox = DefaultInboundQueue()
+    user = authenticated_user()
+    sent: list[int] = []
+    holder: dict[str, AGUIServer] = {}
+
+    async def stream_fn(messages: list, info: AgentInfo) -> Any:
+        sent.append(len(messages))
+        if len(sent) == 1:
+            request = holder["server"].headless_request(user)
+            await inbox.enqueue(
+                ThreadRef("t1", "browser"), InboundKind.STEER, {"text": "hi"}, request=request
+            )
+        yield "answer"
+
+    class _Late:
+        def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
+            return queue.enqueue(spec_name, params, actor=actor)
+
+    model = FunctionModel(stream_function=stream_fn)
+    server = holder["server"] = _server(_Model(), _Late(), model=model, inbound_queue=inbox)
+    queue = WorkerQueue(AGUIHeadlessRunner(server))
+    await _route(server, "endpoint")(_post(_body("r1")))
+
+    await queue.work()
+    for _ in range(300):
+        if len(sent) == 2:
+            break
+        await asyncio.sleep(0.01)
+
+    assert len(sent) == 2

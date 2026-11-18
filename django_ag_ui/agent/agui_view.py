@@ -223,7 +223,9 @@ class DjangoAGUIView:
             return ready
         detached = self._detaches(request, ready.run_input)
         if detached and self._queued is not None:
-            stored = StoredBrowserInput(body=json.loads(request.body), resume_from=resume_from)
+            parked = await self._resume_parked(request, resume_from)
+            body = json.loads(request.body)
+            stored = StoredBrowserInput(body=body, resume_from=resume_from, resume_parked=parked)
             return await self._enqueue(request, run_input, stored)
         session = self._session(request, ready.run_input, detached=detached, **ready.options)
         owner = session.own(self._owning_store(request))
@@ -251,7 +253,9 @@ class DjangoAGUIView:
         assert store is not None
         run_input = AGUIAdapter.build_run_input(json.dumps(stored.body).encode())
         try:
-            ready = await self._ready(request, run_input, stored.resume_from)
+            ready = await self._ready(
+                request, run_input, stored.resume_from, parked=stored.resume_parked
+            )
             if isinstance(ready, HttpResponseBase):
                 raise LookupError(f"run {run_input.run_id!r} resumes {stored.resume_from!r}")
             session = self._session(
@@ -270,13 +274,18 @@ class DjangoAGUIView:
         return owner
 
     async def _ready(
-        self, request: HttpRequest, run_input: Any, resume_from: str | None
+        self,
+        request: HttpRequest,
+        run_input: Any,
+        resume_from: str | None,
+        *,
+        parked: bool | None = None,
     ) -> _Ready | HttpResponseBase:
         """Everything a run's session is built from, or the response that refuses it."""
         if self._config.a2ui_enabled:
             run_input = with_a2ui_action(run_input)
         run_input, a2ui = self._a2ui_run(run_input)
-        prepared = await self._prepare_run(request, run_input, resume_from)
+        prepared = await self._prepare_run(request, run_input, resume_from, parked=parked)
         if isinstance(prepared, HttpResponseBase):
             return prepared
         message_history, source_messages = prepared
@@ -457,13 +466,18 @@ class DjangoAGUIView:
         task.add_done_callback(self._owners.discard)
 
     async def _prepare_run(
-        self, request: HttpRequest, run_input: Any, resume_from: str | None
+        self,
+        request: HttpRequest,
+        run_input: Any,
+        resume_from: str | None,
+        *,
+        parked: bool | None = None,
     ) -> tuple[list[Any] | None, list[Message] | None] | HttpResponseBase:
         """Refuse ids the stores cannot hold, then load what a resume seeds the run with."""
         self._preflight_identifiers(request, run_input, resume_from)
         if resume_from is None:
             return None, None
-        loaded = await self._load_resume_history(request, resume_from)
+        loaded = await self._load_resume_history(request, resume_from, parked=parked)
         if loaded is None:
             return JsonResponse({"error": "no resumable run", "run_id": resume_from}, status=404)
         message_history, source_thread_id = loaded
@@ -631,15 +645,16 @@ class DjangoAGUIView:
         ]
 
     async def _load_resume_history(
-        self, request: HttpRequest, resume_from: str
+        self, request: HttpRequest, resume_from: str, *, parked: bool | None = None
     ) -> tuple[list[Any], str | None] | None:
-        """Load a prior run's snapshot, and the thread that run belonged to."""
+        """Load a prior run's snapshot and its thread; ``parked`` when already read."""
         if self._step_store is None:
             return None
         from pydantic_ai_harness.step_persistence import continue_run
 
         store = self._step_store(request)
-        parked = await self._parked(request, store, resume_from)
+        if parked is None:
+            parked = await self._parked(request, store, resume_from)
         try:
             history = list(
                 await continue_run(store, run_id=resume_from, include_interrupted=parked)
@@ -647,6 +662,13 @@ class DjangoAGUIView:
         except LookupError:
             return None
         return history, await self._source_thread_id(store, resume_from)
+
+    async def _resume_parked(self, request: HttpRequest, resume_from: str | None) -> bool:
+        """Whether a queued start resumes a parked run, read before its claim makes it running."""
+        if resume_from is None:
+            return False
+        assert self._step_store is not None
+        return await self._parked(request, self._step_store(request), resume_from)
 
     async def _parked(self, request: HttpRequest, store: Any, run_id: str) -> bool:
         """Whether ``run_id`` is its thread's parked run, so its open calls were deferred."""

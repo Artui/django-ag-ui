@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A detached browser start runs on a worker.** `AGUIServer(firing_queue=)` queues a
+  browser run that asks to detach: the POST claims the thread, keeps the whole
+  `RunAgentInput` (client tools, state, context, `forwardedProps`, the A2UI catalog) and
+  the run it resumes as the first entry of the run's log, enqueues an unchanged
+  `HeadlessFiring` and answers `200 {"thread_id", "run_id"}`. The worker reads the input
+  back by `run_id` and starts it as the POST would have; the events replay skips the kept
+  entry, so `events?after=0` is the run's first view. The mount needs what a headless run
+  needs and `RUN_TIMEOUT_SECONDS`, and refuses at construction otherwise.
 - **`threads/<id>/events/` reads a run's log, from any process.** On a mount with a run
   store, `GET ...?after=<seq>` with `Accept: text/event-stream` replays the thread's
   current or last run and follows it to its end: its `RUN_STARTED`, a
