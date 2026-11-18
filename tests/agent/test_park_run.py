@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from collections.abc import Mapping
 from typing import Any
 
 import pytest
 from django.http import StreamingHttpResponse
-from django_spec_agents import DESTRUCTIVE_METADATA_KEY
+from django_service_specs import NotPermitted
+from django_spec_agents import DESTRUCTIVE_METADATA_KEY, RunNotParkedError
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.child_sessions.wake_thread import wake_thread
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
@@ -31,8 +33,10 @@ from django_ag_ui import ToolRegistry, tool
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
+from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.constants import RUN_LEASE
+from tests.agent.worker_queue import WorkerQueue
 from tests.authed_request_factory import AuthedAsyncRequestFactory, authenticated_user
 
 _DELETE_ARGS = '{"target": "widget-1"}'
@@ -571,3 +575,161 @@ async def test_a_resume_of_a_run_that_did_not_park_is_not_claimed_as_a_park_resu
     assert before.status is ThreadRunStatus.IDLE
     assert "RUN_FINISHED" in streamed
     assert state.last_run_id == "r-next"
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_park_on_a_store_that_is_not_resumable_resumes_only_on_its_own_thread() -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    options = {**_guarded(calls), "run_store": _PlainRunStore()}
+    stop, _ = await _parked(_server(dict(options)))
+
+    other, _ = await _resume(options, stop, "r-other", thread_id="t-other")
+
+    assert other.status_code == 404
+    assert calls.ran == []
+    streamed, state = await _resume(options, stop, "r-home")
+    assert "deleted widget-1" in streamed
+    assert calls.ran == ["widget-1"]
+    assert state.last_run_id == "r-home"
+
+
+class _DeniedQueue(WorkerQueue):
+    def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
+        raise NotPermitted()
+
+
+async def _asked(options: dict[str, Any]) -> tuple[AGUIServer, Any, Any]:
+    server = _server(dict(options))
+    stop, _ = await _parked(server)
+    return server, stop, server.headless_request(authenticated_user())
+
+
+def _answers(server: AGUIServer, stop: Any, **kwargs: Any) -> Any:
+    runner = AGUIHeadlessRunner(server, **kwargs)
+    return runner, {"timeout": 5, "thread_id": stop.thread_id, "answers": {"call-1": "blue"}}
+
+
+async def _first_claim_runs(monkeypatch: pytest.MonkeyPatch, before: Any) -> None:
+    claim = DefaultRunStore.claim
+    done: list[bool] = []
+
+    async def interleaved(self: DefaultRunStore, thread_id: str, run_id: str, **kwargs: Any) -> Any:
+        if not done:
+            done.append(True)
+            await before(self, thread_id, kwargs["request"])
+        return await claim(self, thread_id, run_id, **kwargs)
+
+    monkeypatch.setattr(DefaultRunStore, "claim", interleaved)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_refused_queued_answer_leaves_the_question_parked_for_a_later_one() -> None:
+    options = _guarded(_Calls("ask", '{"topic": "colour"}'))
+    server, stop, request = await _asked(options)
+    runner, kwargs = _answers(server, stop, queue=_DeniedQueue(AGUIHeadlessRunner(server)))
+
+    with pytest.raises(NotPermitted):
+        await runner.start("helper", "", authenticated_user(), **kwargs)
+
+    state = await DefaultRunStore().get(stop.thread_id, request=request)
+    assert (state.status, state.last_run_id) == (ThreadRunStatus.WAITING, stop.run_id)
+    later = await AGUIHeadlessRunner(server).run_to_first_stop(
+        "helper", "", authenticated_user(), **kwargs
+    )
+    assert later.outcome is RunOutcome.COMPLETED
+    stored = await DefaultConversationStore().load(stop.thread_id, request=request)
+    assert [m.get("content") for m in stored.messages][-2:] == ["blue", "done"]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_headless_answer_that_fails_after_its_claim_leaves_the_question_parked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    server, stop, request = await _asked(_guarded(_Calls("ask", '{"topic": "colour"}')))
+    runner, kwargs = _answers(server, stop)
+
+    async def failing(*args: Any, **kw: Any) -> Any:
+        raise RuntimeError("the history is unreadable")
+
+    monkeypatch.setattr(AGUIServer, "_link", failing)
+    with pytest.raises(RuntimeError, match="unreadable"):
+        await runner.start("helper", "", authenticated_user(), **kwargs)
+
+    state = await DefaultRunStore().get(stop.thread_id, request=request)
+    assert (state.status, state.last_run_id) == (ThreadRunStatus.WAITING, stop.run_id)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_two_interleaved_headless_answers_of_one_question_run_the_model_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    server, stop, request = await _asked(_guarded(_Calls("ask", '{"topic": "colour"}')))
+    runner, kwargs = _answers(server, stop)
+
+    async def inner(store: Any, thread_id: str, request: Any) -> None:
+        await runner.run_to_first_stop("helper", "", authenticated_user(), **kwargs)
+
+    await _first_claim_runs(monkeypatch, inner)
+    with pytest.raises(RunNotParkedError) as refused:
+        await runner.start("helper", "", authenticated_user(), **kwargs)
+
+    assert (refused.value.run_id, refused.value.active_run_id) == (stop.run_id, None)
+    stored = await DefaultConversationStore().load(stop.thread_id, request=request)
+    assert [m.get("content") for m in stored.messages].count("done") == 1
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_two_interleaved_queued_answers_of_one_question_run_the_model_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    server, stop, request = await _asked(_guarded(_Calls("ask", '{"topic": "colour"}')))
+    worker = WorkerQueue(AGUIHeadlessRunner(server))
+    runner, kwargs = _answers(server, stop, queue=worker)
+
+    async def inner(store: Any, thread_id: str, request: Any) -> None:
+        await runner.start("helper", "", authenticated_user(), **kwargs)
+        await worker.work()
+
+    await _first_claim_runs(monkeypatch, inner)
+    with pytest.raises(RunNotParkedError):
+        await runner.start("helper", "", authenticated_user(), **kwargs)
+    await worker.work()
+
+    assert len(worker.enqueued) == 1
+    stored = await DefaultConversationStore().load(stop.thread_id, request=request)
+    assert [m.get("content") for m in stored.messages].count("done") == 1
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("queued", [False, True])
+async def test_a_headless_answer_that_loses_its_park_to_a_live_run_names_the_holder(
+    monkeypatch: pytest.MonkeyPatch, queued: bool
+) -> None:
+    server, stop, _ = await _asked(_guarded(_Calls("ask", '{"topic": "colour"}')))
+    worker = WorkerQueue(AGUIHeadlessRunner(server))
+    runner, kwargs = _answers(server, stop, **({"queue": worker} if queued else {}))
+
+    async def inner(store: Any, thread_id: str, request: Any) -> None:
+        claim = await store.claim(
+            thread_id, "r-inner", request=request, lease=RUN_LEASE, resumes=stop.run_id
+        )
+        assert claim.claimed
+
+    await _first_claim_runs(monkeypatch, inner)
+    with pytest.raises(ThreadBusyError) as busy:
+        await runner.start("helper", "", authenticated_user(), **kwargs)
+
+    assert busy.value.run_id == "r-inner"
+    assert worker.enqueued == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_an_answer_to_a_thread_that_is_not_waiting_takes_a_plain_claim() -> None:
+    server, stop, request = await _asked(_guarded(_Calls("ask", '{"topic": "colour"}')))
+    runner, kwargs = _answers(server, stop)
+    await runner.run_to_first_stop("helper", "", authenticated_user(), **kwargs)
+
+    again = await runner.run_to_first_stop("helper", "", authenticated_user(), **kwargs)
+
+    state = await DefaultRunStore().get(stop.thread_id, request=request)
+    assert state.last_run_id == again.run_id

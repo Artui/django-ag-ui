@@ -8,11 +8,14 @@ from typing import Any
 from ag_ui.core import Message, ToolMessage
 from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest
-from django_spec_agents import IdentifierTooLongError, ResumableRunStore
+from django_spec_agents import IdentifierTooLongError, ResumableRunStore, RunNotParkedError
 from django_spec_agents.persistence.types.run_claim import RunClaim
+from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
+from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 
 from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD
+from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.constants import QUEUED_INPUT_EVENT
 
 ERROR_CODE = "error"
@@ -136,8 +139,52 @@ async def claim_thread(
     return await store.claim(thread_id, run_id, request=request, lease=lease)
 
 
+async def parked_run(store: RunStore, thread_id: str, *, request: HttpRequest) -> str | None:
+    """The run ``thread_id`` is parked on, read before a claim makes the thread running."""
+    state = await store.get(thread_id, request=request)
+    if state is None or state.status is not ThreadRunStatus.WAITING:
+        return None
+    return state.last_run_id
+
+
+async def claim_headless(
+    store: RunStore,
+    thread_id: str,
+    run_id: str,
+    *,
+    request: HttpRequest,
+    lease: timedelta,
+    answering: bool,
+) -> bool:
+    """Claim for a headless start, ``True`` if it resumed a park, which it does only once."""
+    resumes = await parked_run(store, thread_id, request=request) if answering else None
+    try:
+        claim = await claim_thread(
+            store, thread_id, run_id, request=request, lease=lease, resumes=resumes
+        )
+    except RunNotParkedError as error:
+        if error.active_run_id is None:
+            raise
+        raise ThreadBusyError(thread_id, error.active_run_id) from error
+    if not claim.claimed:
+        raise ThreadBusyError(thread_id, claim.active_run_id)
+    return resumes is not None
+
+
+async def give_back(store: RunStore, thread_id: str, run_id: str, *, request: HttpRequest) -> None:
+    """Release a claim the store can, so the thread keeps its state, a park too; else fail it."""
+    if isinstance(store, ResumableRunStore) and await store.release(
+        thread_id, run_id, request=request
+    ):
+        return
+    await store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+
+
 __all__ = [
+    "claim_headless",
     "claim_thread",
+    "give_back",
+    "parked_run",
     "is_permission_refusal",
     "is_queued_input",
     "kept_for_worker",

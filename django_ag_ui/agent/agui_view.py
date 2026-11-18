@@ -67,6 +67,8 @@ from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.agent.utils import (
     IDENTIFIER_TOO_LONG_CODE,
     a2ui_validator,
+    claim_headless,
+    give_back,
     is_permission_refusal,
     without_answered_by,
 )
@@ -344,10 +346,16 @@ class DjangoAGUIView:
         store = self._run_store
         assert store is not None
         thread_id, run_id = run_input.thread_id, run_input.run_id
+        parked = False
         if not adopt:
-            claim = await store.claim(thread_id, run_id, request=request, lease=RUN_LEASE)
-            if not claim.claimed:
-                raise ThreadBusyError(thread_id, claim.active_run_id)
+            parked = await claim_headless(
+                store,
+                thread_id,
+                run_id,
+                request=request,
+                lease=RUN_LEASE,
+                answering=answers is not None,
+            )
         try:
             run_input, prepared = await prepare(run_input)
             capabilities = [*prepared, *capabilities]
@@ -364,7 +372,10 @@ class DjangoAGUIView:
                 owner.after_finish(after_finish)
             await owner.detach()
         except BaseException:
-            await store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+            if parked:
+                await give_back(store, thread_id, run_id, request=request)
+            else:
+                await store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
             raise
         self._keep(owner.start())
         return owner

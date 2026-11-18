@@ -43,13 +43,12 @@ from django_ag_ui.agent.mcp_apps_view import MCPAppsView
 from django_ag_ui.agent.queued_browser_start import QueuedBrowserStart
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.runs_view import RunsView
-from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.spec_capability_source import SpecCapabilitySource
 from django_ag_ui.agent.types.spec_toolset_source import SpecToolsetSource
 from django_ag_ui.agent.types.stored_browser_input import StoredBrowserInput
 from django_ag_ui.agent.types.throttle import Throttle
-from django_ag_ui.agent.utils import kept_for_worker, queued_record
+from django_ag_ui.agent.utils import claim_headless, give_back, kept_for_worker, queued_record
 from django_ag_ui.check_no_dotted_paths import check_no_dotted_paths
 from django_ag_ui.check_removed_settings import check_removed_settings
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
@@ -540,23 +539,25 @@ class AGUIServer:
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
         inbox_mark: int | None = None,
-    ) -> None:
-        """Claim the thread for a run a worker will adopt; save its links and its inbox mark."""
+        answering: bool = False,
+    ) -> bool:
+        """Claim the thread for a worker's run, saving its links and mark; ``True`` if a park."""
         self._check_child(lineage)
         store = self._run_store
         assert store is not None
         thread_id, run_id = run_input.thread_id, run_input.run_id
-        claim = await store.claim(thread_id, run_id, request=request, lease=lease)
-        if not claim.claimed:
-            raise ThreadBusyError(thread_id, claim.active_run_id)
+        parked = await claim_headless(
+            store, thread_id, run_id, request=request, lease=lease, answering=answering
+        )
         try:
             await self._link(request, thread_id, parent, lineage)
             if inbox_mark is not None:
                 kept = queued_record({"inbox_mark": inbox_mark})
                 await store.append(run_id, [kept], request=request)
         except BaseException:
-            await self.abandon_queued(request, thread_id, run_id)
+            await self.abandon_queued(request, thread_id, run_id, release=parked)
             raise
+        return parked
 
     async def take_up_queued(self, request: HttpRequest, thread_id: str, run_id: str) -> bool:
         """Renew a queued run's claim for the worker; ``False``, finished, if it was cancelled."""
@@ -594,10 +595,15 @@ class AGUIServer:
             request, stored, timeout=timeout, after_finish=after_finish
         )
 
-    async def abandon_queued(self, request: HttpRequest, thread_id: str, run_id: str) -> None:
-        """Give back a queued run's claim that no worker will take up, recorded as an error."""
+    async def abandon_queued(
+        self, request: HttpRequest, thread_id: str, run_id: str, *, release: bool = False
+    ) -> None:
+        """Give back a queued run's claim: an error, or released, keeping a park it resumed."""
         assert self._run_store is not None
-        await self._run_store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+        if release:
+            await give_back(self._run_store, thread_id, run_id, request=request)
+        else:
+            await self._run_store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
 
     async def inbox_mark(self, request: HttpRequest, thread_id: str) -> int | None:
         """The id of the thread's newest pending message, ``0`` for none; ``None`` with no queue."""

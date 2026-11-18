@@ -231,7 +231,12 @@ agent = AGUIServer(
 ```
 
 A thread parked on a question is resumed with `start(..., answers={tool_call_id: text})`:
-the run continues the stored history with those answers and sends no new prompt.
+the run continues the stored history with those answers and sends no new prompt. The
+start claims the thread only while it is still parked on the run it read, so of two
+answers to one park the model runs once: the other raises `ThreadBusyError` naming the run
+that holds the thread, or django-spec-agents' `RunNotParkedError` once that run has ended.
+A start that fails after its claim, or a queued one whose enqueue is refused, gives the
+claim back where the store can, so the thread stays parked and the answer can be sent again.
 `wake_thread` resumes a parked thread this way when the park is recorded as waiting on a
 question ([a run that parks](#a-run-that-parks)): an `ANSWER` on the child's inbound
 queue resumes the parked call with its text.

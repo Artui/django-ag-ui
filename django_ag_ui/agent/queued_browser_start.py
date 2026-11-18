@@ -7,15 +7,13 @@ from typing import Any
 
 from asgiref.sync import sync_to_async
 from django.http import HttpRequest
-from django_spec_agents import ResumableRunStore
 from django_spec_agents.headless.types.firing_queue import FiringQueue
 from django_spec_agents.headless.types.headless_firing import HeadlessFiring
-from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
 
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.agent.types.stored_browser_input import StoredBrowserInput
-from django_ag_ui.agent.utils import claim_thread, kept_for_worker, queued_record
+from django_ag_ui.agent.utils import claim_thread, give_back, kept_for_worker, queued_record
 from django_ag_ui.constants import QUEUED_RUN_LEASE, RUN_HEADLESS_SPEC
 
 
@@ -66,16 +64,8 @@ class QueuedBrowserStart:
             params = dataclasses.asdict(firing)
             await sync_to_async(self._queue.enqueue)(self._spec_name, params, actor=request.user)
         except BaseException:
-            if not await self._give_back(request, thread_id, run_id):
-                await self._runs.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+            await give_back(self._runs, thread_id, run_id, request=request)
             raise
-
-    async def _give_back(self, request: HttpRequest, thread_id: str, run_id: str) -> bool:
-        """Release the claim where the store can, so the thread keeps its state, a park too."""
-        runs = self._runs
-        if not isinstance(runs, ResumableRunStore):
-            return False
-        return await runs.release(thread_id, run_id, request=request)
 
     @staticmethod
     async def stored(

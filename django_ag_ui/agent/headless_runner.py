@@ -191,13 +191,14 @@ class AGUIHeadlessRunner:
             agent_id, prompt, principal, timeout, thread_id, answers=answers
         )
         mark = await server.inbox_mark(request, run_input.thread_id)
-        await server.claim_queued(
+        parked = await server.claim_queued(
             request,
             run_input,
             lease=self._queued_lease,
             parent=parent,
             lineage=lineage,
             inbox_mark=mark,
+            answering=answers is not None,
         )
         firing = HeadlessFiring(
             agent_id,
@@ -214,7 +215,9 @@ class AGUIHeadlessRunner:
         try:
             await sync_to_async(queue.enqueue)(self._spec_name, params, actor=principal)
         except BaseException:
-            await server.abandon_queued(request, run_input.thread_id, run_input.run_id)
+            await server.abandon_queued(
+                request, run_input.thread_id, run_input.run_id, release=parked
+            )
             raise
         return HeadlessStart(thread_id=run_input.thread_id, run_id=run_input.run_id)
 

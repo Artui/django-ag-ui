@@ -23,19 +23,27 @@ detached one is queued when its mount has a queue too: see
 
 - **`start` holds the thread before it returns.** It takes the thread's inbox mark,
   claims the thread for a fresh `run_id`, saves a child's `parent` and `lineage`, then
-  enqueues the firing with that `run_id` and that `inbox_mark`. The `HeadlessStart` it returns names the claimed run, the one the thread's
-  state reports.
+  enqueues the firing with that `run_id` and that `inbox_mark`. The `HeadlessStart` it
+  returns names the claimed run, the one the thread's state reports.
 - **A busy thread is refused at the call**, with
   [`ThreadBusyError`][django_ag_ui.agent.thread_busy_error.ThreadBusyError], and nothing
   is enqueued.
 - **A failed enqueue gives the thread back.** The claim is finished as an error, so the
-  thread is free for the next start.
+  thread is free for the next start. A start that answers a parked thread (`answers=`)
+  gives its claim back instead, on a store that can (a django-spec-agents
+  `ResumableRunStore`): the thread keeps its park, and a later `answers=` still resumes
+  it. The spec's permission refusal at enqueue, `NotPermitted` or `PermissionDenied`,
+  is such a failure.
 - **No `capabilities=`.** They cannot cross a queue, so a queued start that passes any
   raises `ValueError`. A child session needs none: django-spec-agents' child-session
   tools (0.21.0 and later) pass only `parent=` and `lineage=`, which the firing carries,
   and the worker composes the child's bounds from them.
 - **`answers=` crosses the queue.** A start that resumes a thread parked on a question
   carries its answers in the firing, and the worker resumes the stored history with them.
+  The start claims the thread only while it is still parked on the run it read, so of two
+  answers to one park one is enqueued: the other raises `ThreadBusyError` naming the run
+  that holds the thread, or django-spec-agents' `RunNotParkedError` once that run has
+  ended. A thread that is not waiting takes a plain claim, as it always did.
 
 ## What the worker does
 

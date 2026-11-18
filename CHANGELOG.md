@@ -21,7 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refusal (`NotPermitted`, or Django's `PermissionDenied`) answers `403` and gives the
   claim back through django-spec-agents' `ResumableRunStore.release`, so the thread keeps
   the state it had, a park included, and the parked run can still be resumed. A run store
-  that cannot release finishes the claim as an error.
+  that cannot release finishes the claim as an error. A headless `answers=` start of a
+  parked question takes the same two guards: it claims the thread only while it is still
+  parked on the run it read, so of two answers to one park the model runs once (the other
+  raises `ThreadBusyError`, or `RunNotParkedError` once that run has ended), and a start
+  that fails after its claim, a refused queued enqueue included, gives it back and keeps
+  the park.
 - **`threads/<id>/events/` reads a run's log, from any process.** On a mount with a run
   store, `GET ...?after=<seq>` with `Accept: text/event-stream` replays the thread's
   current or last run and follows it to its end: its `RUN_STARTED`, a
