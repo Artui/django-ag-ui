@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **django-spec-agents floors at 0.20.0**, for the base requirement, the `[mcp]` and
+  `[specs]` extras and the dev group: child-session lineage (`HeadlessRunner.start`'s
+  `ThreadRef` parent and `lineage`, `Conversation.lineage`, `child_lineage_for`) first
+  ships there. 0.20.0 floors pydantic-ai-slim at 2.69, so this package's pydantic-ai-slim
+  floor moves from 2.66 to 2.69 and the `[harness]` and `[code-mode]` extras' from 0.66 to
+  0.69 (each harness release pins pydantic-ai-slim to its own minor).
+
+### Fixed
+
+- **A provider compaction keeps the id it streamed under on pydantic-ai 2.68 and later.**
+  From 2.68 the streamed `ACTIVITY_SNAPSHOT` carries the `canonical_system` stamp the
+  stored copy carries, and the transcript matched a streamed activity to its stored copy
+  by stripping the stamp from the stored side only, so an OpenAI compaction was saved
+  under a fresh id and a resumed client saw it twice. The stamp is now set aside on both
+  sides.
+
 ## [0.79.0] — 2026-11-17
 
 A minor release with no migration. Three floors move: pydantic-ai-slim to 2.66 (three

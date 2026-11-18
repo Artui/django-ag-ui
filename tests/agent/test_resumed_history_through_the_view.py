@@ -472,9 +472,8 @@ async def test_a_compaction_is_stored_under_the_id_it_streamed_under(provider: s
     (snapshot,) = _activity_snapshots(body)
     assert snapshot["activityType"] == "pydantic_ai_compaction"
     assert _compactions(_row(store)) == [(snapshot["messageId"], "summary 1")]
-    # The shape the lending has to see past: only the stored copy is stamped.
+    # The stamp the lending has to see past, whichever copies of it carry it.
     (stored,) = [m["content"] for m in _row(store) if m["role"] == "activity"]
-    assert "canonical_system" not in snapshot["content"]
     assert stored.get("canonical_system") == _stamp_the_dump_writes(provider)
 
 

@@ -26,7 +26,7 @@ server = AGUIServer(capabilities=[SlidingWindowCompaction(max_messages=80, keep_
     This strategy was called `SlidingWindow` before harness 0.13 renamed it to
     `SlidingWindowCompaction`. The old name survives as a deprecated alias that
     warns on import and is slated for removal, so the examples here use the new
-    one. The `[harness]` extra floors at `>=0.66`, well past the rename.
+    one. The `[harness]` extra floors at `>=0.69`, well past the rename.
 
 ## Choosing a strategy
 
@@ -39,7 +39,7 @@ cover most mounts:
 | `RelevanceCompaction` | the history passes a token budget | a judge model scores each step: it keeps what is needed verbatim and summarizes or truncates the rest |
 | `CompactOnRequest` | the model calls its `compact_context` tool at a break in its task | runs the strategy it wraps, before the next model request |
 
-Both ship in pydantic-ai-harness from 0.62, and the `[harness]` extra floors it at 0.66.
+Both ship in pydantic-ai-harness from 0.62, and the `[harness]` extra floors it at 0.69.
 `RelevanceCompaction` calls its judge model once per step, so give it a small, fast
 model:
 
