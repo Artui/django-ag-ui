@@ -104,6 +104,8 @@ Nest project-specific values somewhere else, not in `DJANGO_AG_UI`.
 | `audit_logger=...` | `AuditLogger` implementation. |
 | `provider=...` | Explicit Pydantic-AI `Provider`; takes precedence over `API_KEY`. |
 | `conversation_store=...` | Server-side conversation persistence. |
+| `inbound_queue=...` | django-spec-agents `InboundQueue` a child session's runs report to their parent on; needs `id=` (see [Child sessions](detached-runs.md#child-sessions)). |
+| `child_spend=...` | django-spec-agents `ChildSessionSpend` whose budgets every run of a child session counts against. |
 | `attachment_store=...` | Server-side file-upload storage (uploads off when unset). |
 | `transcription_backend=...` | Speech-to-text backend for voice input (voice off when unset). |
 | `mcp_server=...` | django-spec-mcp server whose tools the agent gets (`[mcp]` extra). |

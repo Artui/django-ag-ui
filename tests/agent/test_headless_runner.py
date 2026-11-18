@@ -6,8 +6,10 @@ from typing import Any
 import pytest
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.http import HttpRequest
+from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.contrib.store.default_child_session_index import DefaultChildSessionIndex
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
+from django_spec_agents.contrib.store.default_inbound_queue import DefaultInboundQueue
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 from django_spec_agents.persistence.django_session_conversation_store import (
@@ -286,7 +288,8 @@ async def test_a_child_is_listed_under_its_cross_agent_parent_once_start_returns
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_childs_lineage_outlives_its_runs_saves() -> None:
-    server = _server()
+    queue = DefaultInboundQueue()
+    server = _server(inbound_queue=queue)
     runner = AGUIHeadlessRunner(server)
     user = authenticated_user()
 
@@ -299,3 +302,7 @@ async def test_a_childs_lineage_outlives_its_runs_saves() -> None:
     conversation = await DefaultConversationStore().load(first.thread_id, request=request)
     assert [m["content"] for m in conversation.messages] == ["one", "answer 1", "two", "answer 2"]
     assert (conversation.parent, conversation.lineage) == (_PARENT, _LINEAGE)
+    reports = await queue.pending(_PARENT, request=request)
+    assert [(m.kind, m.sender) for m in reports] == [
+        (InboundKind.REPORT, ThreadRef(first.thread_id, "helper"))
+    ]

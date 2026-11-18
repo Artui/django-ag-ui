@@ -340,8 +340,8 @@ async def test_a_mount_without_a_run_timeout_cannot_detach_and_cancels_on_discon
     assert _cancels(audit) == ["cancelled: client disconnected mid-run"]
 
 
-async def _unchanged(run_input: Any) -> Any:
-    return run_input
+async def _unchanged(run_input: Any) -> tuple[Any, list[Any]]:
+    return run_input, []
 
 
 @pytest.mark.django_db(transaction=True)

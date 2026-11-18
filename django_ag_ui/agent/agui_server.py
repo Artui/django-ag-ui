@@ -9,6 +9,8 @@ from django.http import HttpRequest
 from django.urls import URLPattern, path
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
+from django_spec_agents.child_sessions.types.child_session_spend import ChildSessionSpend
+from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
 from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
 from django_spec_agents.integrations.types.spec_source import SpecSource
 from django_spec_agents.persistence.django_session_conversation_store import (
@@ -280,6 +282,8 @@ class AGUIServer:
         namespace: str = DEFAULT_NAMESPACE,
         run_store: RunStore | None = None,
         id: str | None = None,
+        inbound_queue: InboundQueue | None = None,
+        child_spend: ChildSessionSpend | None = None,
     ) -> None:
         check_removed_settings()
         # The same mistake in its constructor-shaped form: a name where an object belongs.
@@ -297,6 +301,8 @@ class AGUIServer:
             model_for_request=model_for_request,
             provider=provider,
             run_store=run_store,
+            inbound_queue=inbound_queue,
+            child_spend=child_spend,
             service_specs=service_specs,
             skills=skills,
             step_store=step_store,
@@ -309,6 +315,10 @@ class AGUIServer:
         )
         self._registry = registry
         self.id = id
+        if inbound_queue is not None and id is None:
+            raise ImproperlyConfigured(
+                "AGUIServer(inbound_queue=) needs id=: a child's report names its agent"
+            )
         self._run_store = run_store
         self._skills = skills
         self._namespace = namespace
@@ -367,6 +377,9 @@ class AGUIServer:
             throttle=throttle,
             config=self._config,
             run_store=run_store,
+            agent_id=id,
+            inbound_queue=inbound_queue,
+            child_spend=child_spend,
             **self._policy,
         )
 
@@ -417,10 +430,11 @@ class AGUIServer:
         lineage: ChildLineageRecord | None = None,
     ) -> RunOwner:
         """Start ``run_input`` with no response once it holds the thread, after its history."""
-        store = self._conversation_store
+        store, view = self._conversation_store, self._view
 
-        async def prepare(claimed: Any) -> Any:
+        async def prepare(claimed: Any) -> tuple[Any, list[Any]]:
             conversation = await store.load(claimed.thread_id, request=request)
+            stored_lineage = [] if lineage is not None else view.child_capabilities(conversation)
             stored = [] if conversation is None else conversation.messages
             if parent is not None or lineage is not None:
                 linked = Conversation(
@@ -432,7 +446,8 @@ class AGUIServer:
                 )
                 await store.save(linked, request=request)
             history = messages_from_jsonable(stored)
-            return claimed.model_copy(update={"messages": [*history, *claimed.messages]})
+            filled = claimed.model_copy(update={"messages": [*history, *claimed.messages]})
+            return filled, stored_lineage
 
         return await self._view.start_headless(
             request, run_input, timeout=timeout, capabilities=capabilities, prepare=prepare

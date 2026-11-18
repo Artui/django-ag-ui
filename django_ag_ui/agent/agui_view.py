@@ -23,11 +23,15 @@ from django_spec_agents.agent.build_model import build_model
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
+from django_spec_agents.child_sessions.child_lineage_for import child_lineage_for
+from django_spec_agents.child_sessions.types.child_session_spend import ChildSessionSpend
+from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.run_id_reused_error import RunIdReusedError
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
+from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
@@ -134,6 +138,9 @@ class DjangoAGUIView:
         throttle: Throttle | None = None,
         config: AGUIConfig | None = None,
         run_store: RunStore | None = None,
+        agent_id: str | None = None,
+        inbound_queue: InboundQueue | None = None,
+        child_spend: ChildSessionSpend | None = None,
     ) -> None:
         self._registry = registry
         self._model = model
@@ -156,6 +163,9 @@ class DjangoAGUIView:
         )
         self._step_store = step_store
         self._run_store = run_store
+        self._agent_id = agent_id
+        self._inbound_queue = inbound_queue
+        self._child_spend = child_spend
         self._owners: set[asyncio.Task[Any]] = set()
         self._deps_factory = deps_factory
         reject_async_throttle(throttle, allows="run")
@@ -202,6 +212,7 @@ class DjangoAGUIView:
         if isinstance(prepared, HttpResponseBase):
             return prepared
         message_history, source_messages = prepared
+        lineage = await self._stored_lineage(request, run_input.thread_id)
         session = self._session(
             request,
             run_input,
@@ -209,6 +220,7 @@ class DjangoAGUIView:
             a2ui=a2ui,
             message_history=message_history,
             source_messages=source_messages,
+            capabilities=lineage,
         )
         owner = session.own(self._owning_store(request))
         refused = await self._claim(owner, request, run_input)
@@ -228,10 +240,10 @@ class DjangoAGUIView:
         run_input: Any,
         *,
         timeout: float,
-        prepare: Callable[[Any], Awaitable[Any]],
+        prepare: Callable[[Any], Awaitable[tuple[Any, Sequence[Any]]]],
         capabilities: Sequence[Any] = (),
     ) -> RunOwner:
-        """Claim the thread, let ``prepare`` fill the input in, then start it with no response."""
+        """Claim the thread, let ``prepare`` fill in the input and more capabilities, then start."""
         self._preflight_identifiers(request, run_input, None)
         store = self._run_store
         assert store is not None
@@ -240,10 +252,11 @@ class DjangoAGUIView:
         if not claim.claimed:
             raise ThreadBusyError(thread_id, claim.active_run_id)
         try:
-            run_input = await prepare(run_input)
+            run_input, prepared = await prepare(run_input)
         except BaseException:
             await store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
             raise
+        capabilities = [*prepared, *capabilities]
         session = self._session(request, run_input, timeout=timeout, capabilities=capabilities)
         owner = session.own(store)
         await owner.detach()
@@ -281,6 +294,32 @@ class DjangoAGUIView:
             source_messages=source_messages,
             timeout=timeout,
         )
+
+    def child_capabilities(self, conversation: Conversation | None) -> list[Any]:
+        """What a run of a child session's thread composes, rebuilt from its stored lineage."""
+        if conversation is None or conversation.lineage is None or conversation.parent is None:
+            return []
+        if self._agent_id is None or self._inbound_queue is None:
+            raise ImproperlyConfigured(
+                f"thread {conversation.thread_id!r} is a child session, and a run of it "
+                "needs its mount's id= and inbound_queue= to keep its parent's bounds"
+            )
+        return child_lineage_for(
+            conversation,
+            agent_id=self._agent_id,
+            owner=conversation.owner_id or "",
+            queue=self._inbound_queue,
+            spend=self._child_spend,
+        )
+
+    async def _stored_lineage(self, request: HttpRequest, thread_id: str) -> list[Any]:
+        if isinstance(self._conversation_store, NullConversationStore):
+            return []
+        try:
+            conversation = await self._conversation_store.load(thread_id, request=request)
+        except AnonymousOperationError:
+            return []
+        return self.child_capabilities(conversation)
 
     def _owning_store(self, request: HttpRequest) -> RunStore | None:
         """The run store this request's run is owned through; none for an anonymous run."""

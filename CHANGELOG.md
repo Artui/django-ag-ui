@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   child's conversation before `start` returns, so `DefaultChildSessionIndex` lists the
   child under its parent from then on. Below this release `parent` was accepted and
   dropped. A later run's save names neither, which the store leaves alone.
+- **Every run of a child session keeps its parent's bounds.** A browser turn into a
+  child thread, a resume after an approval and a headless wake each rebuild the stored
+  lineage with `child_lineage_for` and compose it: the run sees only its parent's tools,
+  a tool the parent gated asks for approval, and its settle enqueues a report on the
+  parent's inbound queue. `AGUIServer` takes `inbound_queue=` (needs `id=`) and
+  `child_spend=`; a run of a child thread on a mount with no queue raises
+  `ImproperlyConfigured`.
 - `RUN_LEASE` in `django_ag_ui.constants`: how long a run's claim on its thread holds
   unless renewed.
 
