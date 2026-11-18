@@ -359,3 +359,23 @@ async def test_a_held_delta_that_cannot_be_logged_is_passed_over(
 
     assert "logging a run's held text" in caplog.text
     assert store.finished == [RunOutcome.CANCELLED]
+
+
+@pytest.mark.parametrize(
+    "terminal",
+    [RunFinishedEvent(thread_id="t1", run_id="r1"), RunErrorEvent(message="boom")],
+    ids=["finished", "errored"],
+)
+async def test_an_append_that_raises_after_the_end_does_not_finalize_again(
+    terminal: BaseEvent, caplog: pytest.LogCaptureFixture
+) -> None:
+    closed: list[str] = []
+    store = _Store()
+    store.append_raises = True
+    owner = _owner(_events(terminal), store=store, closed=closed)
+    await anext(owner._native)
+
+    with caplog.at_level(logging.ERROR, logger="django_ag_ui.agent"):
+        assert await owner.wait() is RunOutcome.ERROR
+
+    assert closed == ["provider stream"]
