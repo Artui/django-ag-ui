@@ -652,6 +652,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../queued-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Queued runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../memory/" class="md-nav__link">
         
   
@@ -768,6 +795,33 @@
     
   
     A2UI surfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Apps views
   
 
     
@@ -972,7 +1026,7 @@ where the seam lives: see
 <p>This strategy was called <code>SlidingWindow</code> before harness 0.13 renamed it to
 <code>SlidingWindowCompaction</code>. The old name survives as a deprecated alias that
 warns on import and is slated for removal, so the examples here use the new
-one. The <code>[harness]</code> extra floors at <code>&gt;=0.66</code>, well past the rename.</p>
+one. The <code>[harness]</code> extra floors at <code>&gt;=0.69</code>, well past the rename.</p>
 </div>
 <h2 id="choosing-a-strategy">Choosing a strategy<a class="headerlink" href="#choosing-a-strategy" title="Permanent link">&para;</a></h2>
 <p>Every strategy is a capability, so each goes in the same <code>capabilities=</code> list. Three
@@ -1003,7 +1057,7 @@ cover most mounts:</p>
 </tr>
 </tbody>
 </table>
-<p>Both ship in pydantic-ai-harness from 0.62, and the <code>[harness]</code> extra floors it at 0.66.
+<p>Both ship in pydantic-ai-harness from 0.62, and the <code>[harness]</code> extra floors it at 0.69.
 <code>RelevanceCompaction</code> calls its judge model once per step, so give it a small, fast
 model:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">CompactionObserver</span>

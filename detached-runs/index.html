@@ -16,7 +16,7 @@
         <link rel="prev" href="../step-persistence/">
       
       
-        <link rel="next" href="../memory/">
+        <link rel="next" href="../queued-runs/">
       
       
         
@@ -604,10 +604,48 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#child-sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Child sessions
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../queued-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Queued runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -754,6 +792,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../mcp-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Apps views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../concepts/" class="md-nav__link">
         
   
@@ -860,6 +925,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#child-sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Child sessions
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -943,7 +1019,9 @@ else can stop a detached run: there is no cancel endpoint yet. On a mount withou
 run that asks to detach is cancelled on disconnect as before. The headless runner
 requires <code>timeout=</code> for the same reason.</p>
 <p>The owner task runs on the event loop that served the request. To outlive the request
-it needs a loop that outlives it, which means ASGI. A restart loses any run in flight:
+it needs a loop that outlives it, which means ASGI. Under WSGI the run starts on the
+loop that drains the buffered response and finishes there, so the response carries the
+whole run and <code>detach</code> has nothing to outlive. A restart loses any run in flight:
 its lease lapses, and the store then reports the thread as <code>failed</code> with the reason
 <code>interrupted</code>.</p>
 <h2 id="start-a-headless-run">Start a headless run<a class="headerlink" href="#start-a-headless-run" title="Permanent link">&para;</a></h2>
@@ -976,6 +1054,31 @@ mount is keyed by its <code>id</code>:</p>
 <li><strong>Cancelling.</strong> <code>cancel(thread_id, principal)</code> records a cancel. The run acts on it
   the next time it renews its lease.</li>
 </ul>
+<h2 id="child-sessions">Child sessions<a class="headerlink" href="#child-sessions" title="Permanent link">&para;</a></h2>
+<p>A child session is a thread with a parent: django-spec-agents' child-session tools start
+one through <code>start(..., parent=, lineage=)</code>, which saves both on the child's conversation
+before it returns, so <code>DefaultChildSessionIndex</code> lists the child under its parent at once.
+<code>parent</code> is a <code>ThreadRef</code> in any scope, so the child may run on another agent.</p>
+<p>Every later run of that thread keeps its parent's bounds, whether a browser turn into the
+child, a resume after an approval, or a headless wake: the mount rebuilds the stored
+lineage with <code>child_lineage_for</code> and composes it into the run. The child sees only the
+tools its parent had, a tool its parent gated still asks for approval, and the run's
+settle enqueues a report on the parent's inbound queue. A run that parks reports nothing.
+A mount that serves child sessions names its queue, and <code>id=</code> names the agent each report
+comes from:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="nb">id</span><span class="o">=</span><span class="s2">"helper"</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">run_store</span><span class="o">=</span><span class="n">DefaultRunStore</span><span class="p">(),</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">step_store</span><span class="o">=</span><span class="n">DefaultStepStore</span><span class="p">,</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">conversation_store</span><span class="o">=</span><span class="n">DefaultConversationStore</span><span class="p">(),</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">inbound_queue</span><span class="o">=</span><span class="n">DefaultInboundQueue</span><span class="p">(),</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">child_spend</span><span class="o">=</span><span class="n">spend</span><span class="p">,</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><code>inbound_queue=</code> without <code>id=</code> is refused at startup, and a run of a child thread on a
+mount with no queue raises <code>ImproperlyConfigured</code> rather than run unbounded. <code>child_spend=</code>
+is optional; given, the run counts against the child-session budgets as well.</p>
 <p>Every seam a run reaches takes a request: the stores, <code>deps_factory</code>, the MCP bridge and
 <code>step_store</code>. A headless run gets the mount's <code>headless_request(principal)</code>, an
 <code>HttpRequest</code> whose <code>user</code> is the principal, with no session. Override it in a subclass

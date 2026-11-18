@@ -1095,6 +1095,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../queued-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Queued runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../memory/" class="md-nav__link">
         
   
@@ -1211,6 +1238,33 @@
     
   
     A2UI surfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp-apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Apps views
   
 
     
@@ -2049,6 +2103,10 @@ believes it configured, and a warning would scroll past in a deploy log.</p>
 <td>Rate limiter for <code>transcribe/</code>, the other route that spends provider money (see <a href="#throttle"><code>throttle=</code></a>).</td>
 </tr>
 <tr>
+<td><code>mcp_apps_throttle=...</code></td>
+<td>Rate limiter for <code>mcp-apps/</code>, whose <code>tools/call</code> runs a service per request (see <a href="../mcp-apps/#authorisation">MCP Apps views</a>).</td>
+</tr>
+<tr>
 <td><code>model_for_request=fn</code></td>
 <td><code>(request) -&gt; model</code> for this run (per-tenant models).</td>
 </tr>
@@ -2071,6 +2129,14 @@ believes it configured, and a warning would scroll past in a deploy log.</p>
 <tr>
 <td><code>conversation_store=...</code></td>
 <td>Server-side conversation persistence.</td>
+</tr>
+<tr>
+<td><code>inbound_queue=...</code></td>
+<td>django-spec-agents <code>InboundQueue</code> a child session's runs report to their parent on; needs <code>id=</code> (see <a href="../detached-runs/#child-sessions">Child sessions</a>).</td>
+</tr>
+<tr>
+<td><code>child_spend=...</code></td>
+<td>django-spec-agents <code>ChildSessionSpend</code> whose budgets every run of a child session counts against.</td>
 </tr>
 <tr>
 <td><code>attachment_store=...</code></td>
@@ -2701,7 +2767,9 @@ path closes idle connections sooner than 60 seconds.</p>
 connections. That skips the wrapper entirely — the stream is byte-for-byte what
 it was before this setting existed.</p>
 <p>Under WSGI the response is buffered whole rather than streamed, so no heartbeat
-reaches a proxy there. The endpoint already warns when it is served that way.</p>
+reaches a proxy there. That holds on a mount with a run store too: the run starts on the
+loop that drains the response, and the body ends once the run's end is recorded. The
+endpoint already warns when it is served that way.</p>
 <h2 id="run_timeout_seconds"><code>RUN_TIMEOUT_SECONDS</code><a class="headerlink" href="#run_timeout_seconds" title="Permanent link">&para;</a></h2>
 <p>The longest one run may take, in seconds. Unset (or <code>0</code>) means no bound.</p>
 <div class="language-python highlight"><span class="filename">settings.py</span><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="n">DJANGO_AG_UI</span> <span class="o">=</span> <span class="p">{</span>
