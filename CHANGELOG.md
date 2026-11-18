@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `wake_thread`, when mail arrived during the run, so a message that landed after its last
   read, or an answer that came before it parked, is not stranded. Mail already pending at
   the run's start, a failed run, and a browser run wake nothing.
+- **`TOOL_CALL_RESULT` and the stored `ToolMessage` carry `metadata.answered_by`.** A call
+  whose result part holds `metadata["answered_by"]` (a reviewer's or a routine's answer to
+  an approval) is stamped in `metadata` only. A resumed run copies the mark back from the
+  source thread's stored messages, since upstream's dump drops it, and drops one on a
+  client-posted `ToolMessage`. No store change.
 
 ### Changed
 

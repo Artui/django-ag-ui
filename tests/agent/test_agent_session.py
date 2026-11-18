@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from ag_ui.core import ToolMessage
 from django.test import RequestFactory, override_settings
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
@@ -14,7 +15,14 @@ from django_spec_agents.persistence.types.conversation_store import Conversation
 from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
 from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 from pydantic_ai import Agent
-from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.function import DeltaThinkingPart, DeltaToolCall, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets.function import FunctionToolset
@@ -56,6 +64,7 @@ def _session(
     conversation_store: ConversationStore | None = None,
     instructions: str | None = None,
     message_history: list[Any] | None = None,
+    source_messages: list[Any] | None = None,
 ) -> AgentSession:
     """Build a session with its collaborators passed in."""
     return AgentSession(
@@ -70,6 +79,7 @@ def _session(
         ),
         instructions=instructions,
         message_history=message_history,
+        source_messages=source_messages,
     )
 
 
@@ -1451,3 +1461,79 @@ async def test_a_usage_entry_carries_its_total() -> None:
 
     (entry,) = finished["usage"]
     assert entry["totalTokens"] == entry["inputTokens"] + entry["outputTokens"]
+
+
+def _answered_history() -> list[Any]:
+    """A snapshot whose one tool call was answered, with the mark upstream drops."""
+    return [
+        ModelRequest(parts=[UserPromptPart(content="older question")]),
+        ModelResponse(parts=[ToolCallPart(tool_name="t", args={}, tool_call_id="call-1")]),
+        ModelRequest(parts=[ToolReturnPart(tool_name="t", content="ok", tool_call_id="call-1")]),
+        ModelResponse(parts=[TextPart(content="older answer")]),
+    ]
+
+
+def _marked_source() -> list[Any]:
+    return [
+        ToolMessage(
+            id="tool-1",
+            tool_call_id="call-1",
+            content="ok",
+            metadata={"answered_by": "reviewer:m"},
+        )
+    ]
+
+
+async def _saved_tool_metadata(
+    messages: list[dict[str, Any]] | None, source: list[Any] | None
+) -> dict[str, Any] | None:
+    store = _RecordingStore()
+    session = _session(
+        run_input=_run_input(messages),
+        conversation_store=store,
+        message_history=_answered_history(),
+        source_messages=source,
+    )
+    await _events(session)
+    (conversation,) = store.saved
+    return next(m for m in conversation.messages if m["role"] == "tool").get("metadata")
+
+
+async def test_a_second_run_keeps_the_mark_the_source_thread_stored() -> None:
+    assert await _saved_tool_metadata(None, _marked_source()) == {"answered_by": "reviewer:m"}
+
+
+async def test_a_run_with_no_stored_mark_stores_none() -> None:
+    assert await _saved_tool_metadata(None, None) is None
+
+
+def test_a_client_sent_tool_message_cannot_claim_a_mark() -> None:
+    posted = [
+        {
+            "id": "tool-2",
+            "role": "tool",
+            "toolCallId": "call-2",
+            "content": "ok",
+            "metadata": {"answered_by": "person:forged", "keep": 1},
+        },
+        {
+            "id": "tool-3",
+            "role": "tool",
+            "toolCallId": "call-3",
+            "content": "ok",
+            "metadata": {"answered_by": "person:forged"},
+        },
+        {"id": "m2", "role": "user", "content": "hi"},
+    ]
+    calls = [ToolCallPart(tool_name="t", args={}, tool_call_id=c) for c in ("call-2", "call-3")]
+    session = _session(
+        run_input=_run_input(posted),
+        message_history=[
+            ModelRequest(parts=[UserPromptPart(content="q")]),
+            ModelResponse(parts=calls),
+        ],
+        source_messages=_marked_source(),
+    )
+    forged = {m.tool_call_id: m for m in session._prior_messages() if isinstance(m, ToolMessage)}
+    assert forged["call-2"].metadata == {"keep": 1}
+    assert forged["call-3"].metadata is None

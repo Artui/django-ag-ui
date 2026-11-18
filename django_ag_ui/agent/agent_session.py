@@ -6,7 +6,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, cast
 
-from ag_ui.core import BaseEvent, Message, RunErrorEvent
+from ag_ui.core import BaseEvent, Message, RunErrorEvent, ToolMessage
 from django.http import HttpRequest
 from django_spec_agents import IdentifierTooLongError
 from django_spec_agents.agent.types.agent_deps import AgentDeps
@@ -31,11 +31,13 @@ from django_ag_ui.agent.heartbeat_stream import heartbeat_stream
 from django_ag_ui.agent.inject_compaction_events import inject_compaction_events
 from django_ag_ui.agent.inject_invalidation_events import inject_invalidation_events
 from django_ag_ui.agent.inject_subagent_events import inject_subagent_events
+from django_ag_ui.agent.lend_answered_by import lend_answered_by
 from django_ag_ui.agent.lend_stored_ids import lend_stored_ids
 from django_ag_ui.agent.outcome_agui_adapter import OutcomeAGUIAdapter
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.run_transcript import RunTranscript
+from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD
 from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
 from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE
@@ -233,12 +235,13 @@ class AgentSession:
                 )
                 kept = strip_binary_content(OutcomeAGUIAdapter.dump_messages(history))
                 if self._source_messages:
+                    kept = lend_answered_by(kept, self._source_messages)
                     kept = lend_stored_ids(
                         kept,
                         self._source_messages,
                         reserved={message.id for message in new_turn},
                     )
-                self._prior = [*kept, *new_turn]
+                self._prior = [*kept, *(_unmarked(message) for message in new_turn)]
         return self._prior
 
     def _on_complete(self, transcript: RunTranscript) -> Callable[[Any], Awaitable[None]] | None:
@@ -348,6 +351,16 @@ class AgentSession:
             await finalize(f"run failed: {message}", persist=persist)
 
         return _on_error
+
+
+def _unmarked(message: Message) -> Message:
+    """``message`` without a client's claim of who answered a call; only the server marks."""
+    if not isinstance(message, ToolMessage):
+        return message
+    metadata = dict(message.metadata or {})
+    if metadata.pop(ANSWERED_BY_FIELD, None) is None:
+        return message
+    return message.model_copy(update={"metadata": metadata or None})
 
 
 __all__ = ["AgentSession"]
