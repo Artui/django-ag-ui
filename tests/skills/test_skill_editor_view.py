@@ -201,3 +201,19 @@ def test_only_a_visible_skill_is_reached_however_lax_can_write_is() -> None:
     assert response.status_code == 404
     theirs.refresh_from_db()
     assert theirs.body == "The secret steps of triage."
+
+
+@pytest.mark.parametrize(
+    ("method", "content_type", "skill_id"),
+    [("post", "text/plain", None), ("put", "text/plain", "1"), ("patch", "", "1")],
+)
+def test_a_write_that_is_not_json_is_a_415_and_writes_nothing(
+    method: str, content_type: str, skill_id: str | None
+) -> None:
+    ann = member("ann", Tenant.objects.create(name="acme"))
+    factory = getattr(RequestFactory(), method)
+    request = factory("/s/", data=json.dumps(_DRAFT), content_type=content_type)
+    request.user = ann
+    response = _editor()(request, skill_id)
+    assert response.status_code == 415
+    assert not TenantSkill.objects.exists()

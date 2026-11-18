@@ -7,30 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- **A child session's first run keeps its parent's bounds.** django-spec-agents 0.21.0
-  starts a child with `lineage=` only and leaves composing `child_lineage_for` to the
-  runner, which 0.80.0 did only from the second run on, so with 0.21.0 a child's first run
-  had no `ChildLineage`, no `ChildReport` and no spend budgets. `AGUIHeadlessRunner` now
-  composes them on every run, in process or on a queued worker, and the floor is
-  `django-spec-agents>=0.21.0`. 0.80.0 is not yanked: upgrade to this release.
-
 ### Added
 
 - **`answers=` on `AGUIHeadlessRunner.start` and `run_to_first_stop`**, and in the queued
-  firing: a thread parked on a question resumes its stored history with
+  firing: a caller that passes them resumes the thread's stored history with
   `DeferredToolResults(calls=answers)` and no new prompt, in this process or on a worker.
+  `wake_thread` resumes a parked thread this way only once a park is recorded as
+  waiting, which this mount does not do yet: a run that parks is recorded as completed.
 - **A browser run on a child's thread reports that the user joined** (`user_joined=True`).
 - **A headless run wakes its thread after its end is recorded** through django-spec-agents'
   `wake_thread`, when mail arrived during the run, so a message that landed after its last
-  read, or an answer that came before it parked, is not stranded. Mail already pending at
-  the run's start, a failed run, and a browser run wake nothing.
+  read starts the thread again. A run that waits for its result (a worker's, or
+  `start_from_sync`'s) runs the woken run to its first stop before it returns. Mail
+  already pending at the run's start, a failed run, and a browser run wake nothing.
 - **`TOOL_CALL_RESULT` and the stored `ToolMessage` carry `metadata.answered_by`.** A call
   whose result part holds `metadata["answered_by"]` (a reviewer's or a routine's answer to
   an approval) is stamped in `metadata` only. A resumed run copies the mark back from the
-  source thread's stored messages, since upstream's dump drops it, and drops one on a
-  client-posted `ToolMessage`. No store change.
+  source thread's stored messages, since upstream's dump drops it. A mark on a
+  client-posted `ToolMessage` is dropped on every browser run, and in client-managed mode
+  the marks the thread stored are lent back. No store change.
 - **User skills: a per-caller catalog, an editor endpoint and a skills-changed event.**
   `AGUIServer(skill_policy=...)` takes a django-spec-agents `SkillPolicy` over your
   `AbstractSkill` model. The `skills/` catalog then lists each caller's enabled,
@@ -46,12 +41,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a `409`, and none carries a body. The mount reserves the registry's skill names, so
   no stored skill can take one. A run that saves a stored skill sends the CUSTOM event
   `ag_ui.skills_changed` (`SKILLS_CHANGED_EVENT_NAME`), `{"name": ...}`, once the save
-  commits. See the User skills page.
+  commits. The editor is CSRF-exempt by default, like the threads endpoints, and refuses
+  a write that is not `application/json` with `415`. A skill that is user-invocable but
+  not model-invocable is listed, but a run does not read its body yet. See the User
+  skills page.
 
 ### Changed
 
 - **A queued runner serves child sessions.** The `ValueError` for `capabilities=` stays,
   but 0.21.0's child-session tools pass none, so a child's start enqueues like any other.
+
+### Fixed
+
+- **A child session's first run keeps its parent's bounds.** django-spec-agents 0.21.0
+  starts a child with `lineage=` only and leaves composing `child_lineage_for` to the
+  runner, which 0.80.0 did only from the second run on, so with 0.21.0 a child's first run
+  had no `ChildLineage`, no `ChildReport` and no spend budgets. `AGUIHeadlessRunner` now
+  composes them on every run, in process or on a queued worker, and the floor is
+  `django-spec-agents>=0.21.0`. 0.80.0 is not yanked: upgrade to this release.
 
 ## [0.80.0] — 2026-11-18
 

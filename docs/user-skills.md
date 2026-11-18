@@ -88,8 +88,11 @@ that are user-invocable. A stored entry is
 {"name": "triage", "title": "triage", "description": "Sort the inbox."}
 ```
 
-and never carries a `prompt`. Picking it sends `/triage`, and the body loads on the
-server, where the run reads it. A registry skill wins a name both hold.
+and never carries a `prompt`. Picking it sends `/triage`. A registry skill wins a name
+both hold. In this release a run reads a stored skill's body only when the skill is
+also model-invocable, since django-spec-agents' `StoredSkills` offers only those: a skill
+that is user-invocable but not model-invocable is listed, and a pick of it reaches the
+model as the bare `/name`.
 
 ## The editor
 
@@ -130,12 +133,15 @@ and `enable_skill`, so the rules are the authoring tools' own:
 | `403` `{"error": "..."}` | the policy's `can_write` refuses the write |
 | `404` `{"error": "not found"}` | the `<id>` is one the caller cannot see, or sees and may not write |
 | `409` `{"error": "..."}` | the caller already sees the most enabled skills the runtime allows |
+| `415` `{"error": "..."}` | a write whose content type is not `application/json` |
 
 No error carries a skill's body. The `error` text names the broken rule but not the
 field, so show it beside the form rather than under one field.
 
-The editor's writes are CSRF-checked unless the mount passes `csrf_exempt=True`, like
-the thread and attachment endpoints.
+Like the thread and attachment endpoints, the editor is CSRF-exempt unless the mount
+passes `csrf_exempt=False`. Its writes must be `application/json`, which a cross-site
+form or `text/plain` post cannot send without a CORS preflight, so they are refused with
+`415` otherwise.
 
 ## In a run
 

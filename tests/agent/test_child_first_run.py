@@ -21,6 +21,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from django_ag_ui import ToolRegistry, tool
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
+from django_ag_ui.agent.queued_start import start_from_sync
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.agent.worker_queue import WorkerQueue
 from tests.authed_request_factory import authenticated_user
@@ -257,3 +258,24 @@ async def test_a_failed_run_does_not_wake_its_thread() -> None:
 
     assert stop.outcome is RunOutcome.ERROR
     assert len(model.sent) == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_wake_from_a_sync_bridge_runs_before_the_bridge_returns() -> None:
+    inner = DefaultInboundQueue()
+    user = authenticated_user()
+    holder: dict[str, AGUIServer] = {}
+
+    async def mail() -> None:
+        request = holder["server"].headless_request(user)
+        await inner.enqueue(
+            ThreadRef("t-s", "helper"), InboundKind.STEER, {"x": 1}, request=request
+        )
+
+    model = _Model(mail)
+    server = holder["server"] = _server(model, inner)
+
+    start_from_sync(AGUIHeadlessRunner(server), "helper", "go", user, timeout=5, thread_id="t-s")
+
+    assert len(model.sent) == 2
+    assert "arrived while it was idle" in str(model.sent[1][-1])

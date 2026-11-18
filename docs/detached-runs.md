@@ -138,13 +138,20 @@ agent = AGUIServer(
 ```
 
 A thread parked on a question is resumed with `start(..., answers={tool_call_id: text})`:
-the run continues the stored history with those answers and sends no new prompt. After a
-headless run's end is recorded, the runner calls django-spec-agents' `wake_thread` for its
-thread when mail arrived during the run, so a message that landed after the run's last
-read, or an answer that came before the run parked, starts or resumes the thread. Mail
-that was already pending when the run started does not wake it again, since a mount that
-does not read its queue would otherwise wake forever, and a run that failed does not wake.
-A browser run's end wakes nothing.
+the run continues the stored history with those answers and sends no new prompt.
+`wake_thread` resumes a parked thread this way only when the park is recorded as waiting
+on a question, which this mount does not record yet: a run that parks is recorded as
+completed, so an answer reaches a parked child only through a caller that passes
+`answers=` itself.
+
+After a headless run's end is recorded, the runner calls django-spec-agents'
+`wake_thread` for its thread when mail arrived during the run, so a message that landed
+after the run's last read starts the thread again. A run whose caller waits for its
+result, as a queued worker or `start_from_sync` does, runs the woken run to its first
+stop before it returns, since its event loop may end with it. Mail that was already
+pending when the run started does not wake it again, since a mount that does not read
+its queue would otherwise wake forever, and a run that failed does not wake. A browser
+run's end wakes nothing.
 
 `inbound_queue=` without `id=` is refused at startup, and a run of a child thread on a
 mount with no queue raises `ImproperlyConfigured` rather than run unbounded. `child_spend=`

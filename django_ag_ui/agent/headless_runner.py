@@ -105,7 +105,7 @@ class AGUIHeadlessRunner:
             parent=parent,
             lineage=lineage,
             answers=answers,
-            after_finish=await self._waker(server, request, run_input.thread_id, timeout),
+            after_finish=await self._waker(server, request, run_input.thread_id, timeout, self),
         )
         return HeadlessStart(thread_id=run_input.thread_id, run_id=run_input.run_id)
 
@@ -139,7 +139,9 @@ class AGUIHeadlessRunner:
             lineage=lineage,
             adopt=run_id is not None,
             answers=answers,
-            after_finish=await self._waker(server, request, thread, timeout),
+            after_finish=await self._waker(
+                server, request, thread, timeout, _RunsToFirstStop(self)
+            ),
         )
         return RunStop(thread_id=thread, run_id=run, outcome=await owner.wait())
 
@@ -220,8 +222,9 @@ class AGUIHeadlessRunner:
         )
         return server, request, run_input
 
+    @staticmethod
     async def _waker(
-        self, server: AGUIServer, request: Any, thread_id: str, timeout: float
+        server: AGUIServer, request: Any, thread_id: str, timeout: float, runner: Any
     ) -> Callable[[RunOutcome], Awaitable[None]] | None:
         """What wakes the thread after the run's end is recorded; ``None`` with no inbound queue."""
         mark = await server.inbox_mark(request, thread_id)
@@ -230,7 +233,7 @@ class AGUIHeadlessRunner:
 
         async def wake(outcome: RunOutcome) -> None:
             if outcome is not RunOutcome.ERROR:
-                await server.wake(request, thread_id, after=mark, runner=self, timeout=timeout)
+                await server.wake(request, thread_id, after=mark, runner=runner, timeout=timeout)
 
         return wake
 
@@ -240,6 +243,19 @@ class AGUIHeadlessRunner:
         if owner_id_for(request) is None:
             raise PermissionDenied("a headless run needs an authenticated principal")
         return request
+
+
+class _RunsToFirstStop:
+    """Wakes by running to the first stop, for a run whose loop may end once it returns."""
+
+    def __init__(self, runner: AGUIHeadlessRunner) -> None:
+        self._runner = runner
+
+    async def start(
+        self, agent_id: str, prompt: str, principal: Any, **options: Any
+    ) -> HeadlessStart:
+        stop = await self._runner.run_to_first_stop(agent_id, prompt, principal, **options)
+        return HeadlessStart(thread_id=stop.thread_id, run_id=stop.run_id)
 
 
 __all__ = ["AGUIHeadlessRunner"]

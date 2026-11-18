@@ -48,11 +48,16 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
 from django_ag_ui.agent.build_mcp_bridge import build_mcp_bridge
+from django_ag_ui.agent.lend_answered_by import lend_answered_by
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.agent.types.throttle import Throttle
-from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE, a2ui_validator
+from django_ag_ui.agent.utils import (
+    IDENTIFIER_TOO_LONG_CODE,
+    a2ui_validator,
+    without_answered_by,
+)
 from django_ag_ui.agent.with_a2ui_action import with_a2ui_action
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
@@ -212,7 +217,10 @@ class DjangoAGUIView:
         if isinstance(prepared, HttpResponseBase):
             return prepared
         message_history, source_messages = prepared
-        lineage = await self._stored_lineage(request, run_input.thread_id)
+        stored = await self._stored_conversation(request, run_input.thread_id)
+        lineage = self.child_capabilities(stored, user_joined=True)
+        if message_history is None:
+            run_input = _marked_by_server(run_input, stored)
         session = self._session(
             request,
             run_input,
@@ -330,14 +338,15 @@ class DjangoAGUIView:
             user_joined=user_joined,
         )
 
-    async def _stored_lineage(self, request: HttpRequest, thread_id: str) -> list[Any]:
+    async def _stored_conversation(
+        self, request: HttpRequest, thread_id: str
+    ) -> Conversation | None:
         if isinstance(self._conversation_store, NullConversationStore):
-            return []
+            return None
         try:
-            conversation = await self._conversation_store.load(thread_id, request=request)
+            return await self._conversation_store.load(thread_id, request=request)
         except AnonymousOperationError:
-            return []
-        return self.child_capabilities(conversation, user_joined=True)
+            return None
 
     def _owning_store(self, request: HttpRequest) -> RunStore | None:
         """The run store this request's run is owned through; none for an anonymous run."""
@@ -676,6 +685,14 @@ class DjangoAGUIView:
 
     def _resolve_audit_logger(self) -> AuditLogger:
         return self._audit_logger if self._audit_logger is not None else NullAuditLogger()
+
+
+def _marked_by_server(run_input: Any, stored: Conversation | None) -> Any:
+    """``run_input`` with each client claim of who answered dropped, and the stored marks lent."""
+    messages = [without_answered_by(message) for message in run_input.messages]
+    if stored is not None:
+        messages = lend_answered_by(messages, messages_from_jsonable(stored.messages))
+    return run_input.model_copy(update={"messages": messages})
 
 
 __all__ = ["DjangoAGUIView"]
