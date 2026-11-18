@@ -12,6 +12,7 @@ from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.function import FunctionModel
+from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
@@ -337,3 +338,17 @@ async def test_a_mount_without_a_run_timeout_cannot_detach_and_cancels_on_discon
     await _settled(run_store, request)
 
     assert _cancels(audit) == ["cancelled: client disconnected mid-run"]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_headless_run_keeps_no_events_for_a_subscriber_it_never_has() -> None:
+    gate, audit, run_store = _Gate(), _Audit(), DefaultRunStore()
+    gate.release.set()
+    view = _view(gate, run_store, audit)
+
+    owner = await view.start_headless(
+        _post(b""), AGUIAdapter.build_run_input(_body("r1")), timeout=30
+    )
+
+    assert await owner.wait() is not None
+    assert owner._live is None or owner._live.empty()

@@ -69,7 +69,9 @@ run that asks to detach is cancelled on disconnect as before. The headless runne
 requires `timeout=` for the same reason.
 
 The owner task runs on the event loop that served the request. To outlive the request
-it needs a loop that outlives it, which means ASGI. A restart loses any run in flight:
+it needs a loop that outlives it, which means ASGI. Under WSGI the run starts on the
+loop that drains the buffered response and finishes there, so the response carries the
+whole run and `detach` has nothing to outlive. A restart loses any run in flight:
 its lease lapses, and the store then reports the thread as `failed` with the reason
 `interrupted`.
 

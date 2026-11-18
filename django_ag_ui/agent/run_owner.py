@@ -103,6 +103,7 @@ class RunOwner:
     async def _own(self) -> RunOutcome:
         self._running = True
         outcome = RunOutcome.COMPLETED
+        ran_out, end = False, STREAM_END
         watcher = None if self._store is None else asyncio.ensure_future(self._watch())
         try:
             async for event in self._events:
@@ -110,24 +111,32 @@ class RunOwner:
                     outcome = RunOutcome.ERROR
                 self._deliver(event)
                 await self._log(event)
+            ran_out = True
             await self._log(None)
-            if outcome is RunOutcome.COMPLETED:
-                outcome = self._ended() or outcome
+            outcome = self._ended() or outcome
         except asyncio.CancelledError:
             outcome = RunOutcome.CANCELLED
-            for stage in (self._events, *self._racing):
-                await _close_quietly(stage, "stream stage")
-            await _close_quietly(self._native, "provider stream")
-            await _quietly(self._on_cancel(), "finalizing a cancelled run")
             raise
         except Exception as error:
-            outcome = RunOutcome.ERROR
-            self._deliver(error)
+            outcome, end = RunOutcome.ERROR, error
         finally:
-            self._deliver(STREAM_END)
+            await self._wind_down(ran_out)
             await discard_tasks(watcher)
             await self._finish(outcome)
+            # Last, so a subscriber's loop ending (as under WSGI) never cuts the bookkeeping.
+            self._deliver(end)
         return outcome
+
+    async def _wind_down(self, ran_out: bool) -> None:
+        """Log the held delta; a run cut short also closes its stages and is finalized."""
+        if self._pending is not None:
+            await _quietly(self._log(None), "logging a run's held text")
+        if ran_out:
+            return
+        for stage in (self._events, *self._racing):
+            await _close_quietly(stage, "stream stage")
+        await _close_quietly(self._native, "provider stream")
+        await _quietly(self._on_cancel(), "finalizing a cancelled run")
 
     def _deliver(self, item: Any) -> None:
         if self._live is not None:
@@ -177,8 +186,9 @@ class RunOwner:
                 return
 
     async def _finish(self, outcome: RunOutcome) -> None:
-        if self._store is None or self._request is None:
+        if self._store is None:
             return
+        assert self._request is not None
         finish = self._store.finish(self._thread_id, self._run_id, outcome, request=self._request)
         await _quietly(finish, "recording how a run ended")
 

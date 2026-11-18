@@ -235,6 +235,7 @@ class DjangoAGUIView:
         claim = await owner.claim()
         if not claim.claimed:
             raise ThreadBusyError(run_input.thread_id, claim.active_run_id)
+        await owner.detach()
         self._keep(owner.start())
         return owner
 
@@ -279,7 +280,7 @@ class DjangoAGUIView:
     async def _claim(
         self, owner: RunOwner, request: HttpRequest, run_input: Any
     ) -> HttpResponseBase | None:
-        """Claim the thread for a store-backed run, or the 409 that says who holds it."""
+        """Claim a store-backed run's thread (or 409); under WSGI the response loop starts it."""
         if self._owning_store(request) is None:
             return None
         try:
@@ -297,7 +298,8 @@ class DjangoAGUIView:
                 },
                 status=409,
             )
-        self._keep(owner.start())
+        if isinstance(request, ASGIRequest):
+            self._keep(owner.start())
         return None
 
     def _detaches(self, request: HttpRequest, run_input: Any) -> bool:
