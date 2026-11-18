@@ -166,3 +166,16 @@ def test_the_package_imports_before_the_app_registry_is_ready() -> None:
     env = {"DJANGO_SETTINGS_MODULE": "tests.conftest_settings", "PATH": ""}
     result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_under_the_tool_guard_an_authoring_write_waits_for_approval(settings: Any) -> None:
+    settings.DJANGO_AG_UI = {"TOOL_GUARD": {"ENABLED": True}}
+    ann = await sync_to_async(member)("ann", await sync_to_async(Tenant.objects.create)(name="a"))
+    args = {"name": "triage", "description": "Sort the inbox.", "body": "Read, then sort."}
+    server = _server(_calling("create_skill", args, []), skill_authoring=True)
+    events = await _events(server, ann)
+    assert events[-1]["type"] == "RUN_FINISHED"
+    assert events[-1].get("outcome", {}).get("type") == "interrupt"
+    assert not [e for e in events if e.get("name") == SKILLS_CHANGED_EVENT_NAME]
+    assert not await sync_to_async(TenantSkill.objects.exists)()

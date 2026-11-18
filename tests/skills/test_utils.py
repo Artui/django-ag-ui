@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import contextlib
 from types import SimpleNamespace
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from django.db import transaction
 
 from django_ag_ui.agent.publish_invalidation import INVALIDATION_SINK
 from django_ag_ui.skills.utils import ReservingPolicy, StoredSkillsForRun, announce_skill_saved
@@ -39,3 +41,19 @@ def test_only_a_skill_save_is_announced() -> None:
     finally:
         INVALIDATION_SINK.reset(token)
     assert sink == []
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("commits", [True, False])
+def test_a_save_is_announced_only_once_its_transaction_commits(commits: bool) -> None:
+    sink: list = []
+    token = INVALIDATION_SINK.set(sink)
+    try:
+        with contextlib.suppress(RuntimeError), transaction.atomic():
+            announce_skill_saved(TenantSkill, TenantSkill(name="triage"))
+            assert sink == []
+            if not commits:
+                raise RuntimeError
+    finally:
+        INVALIDATION_SINK.reset(token)
+    assert [event.value for event in sink] == ([{"name": "triage"}] if commits else [])

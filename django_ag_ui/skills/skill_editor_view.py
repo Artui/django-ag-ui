@@ -19,7 +19,6 @@ from django_spec_agents.skills import (
 from django_spec_agents.utils import AuthorizePredicate, GetUser, auth_error_response, authorize
 
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
-from django_ag_ui.skills.utils import editor_entry
 from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 
 _FLAGS = (("userInvocable", "user_invocable"), ("modelInvocable", "model_invocable"))
@@ -91,11 +90,11 @@ class SkillEditorView:
 
     def _collection(self, request: HttpRequest) -> HttpResponseBase:
         if request.method == "GET":
-            skills = [editor_entry(skill) for skill in self._writable(request)]
+            skills = [_editor_entry(skill) for skill in self._writable(request)]
             return JsonResponse({"skills": skills})
         if request.method == "POST":
             skill = create_skill(self._policy, request, _draft(request))
-            return JsonResponse(editor_entry(skill), status=201)
+            return JsonResponse(_editor_entry(skill), status=201)
         return HttpResponseNotAllowed(["GET", "POST"])
 
     def _item(self, request: HttpRequest, skill_id: str) -> HttpResponseBase:
@@ -110,12 +109,24 @@ class SkillEditorView:
             skill = enable_skill(self._policy, request, skill)
         else:
             skill = disable_skill(self._policy, request, skill)
-        return JsonResponse(editor_entry(skill))
+        return JsonResponse(_editor_entry(skill))
 
     def _writable(self, request: HttpRequest) -> list[Any]:
         """Every skill the caller sees that ``can_write`` admits: the only ones it may touch."""
         visible = self._policy.visible(request)
         return [skill for skill in visible if self._policy.can_write(request, skill)]
+
+
+def _editor_entry(skill: Any) -> dict[str, Any]:
+    return {
+        "id": str(skill.pk),
+        "name": skill.name,
+        "description": skill.description,
+        "body": skill.body,
+        "userInvocable": skill.user_invocable,
+        "modelInvocable": skill.model_invocable,
+        "enabled": skill.enabled,
+    }
 
 
 def _body(request: HttpRequest) -> dict[str, Any]:

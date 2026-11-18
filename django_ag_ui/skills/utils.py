@@ -65,16 +65,3 @@ def announce_skill_saved(sender: Any, instance: Any, **kwargs: Any) -> None:
         return
     event = skills_changed(instance.name)
     transaction.on_commit(lambda: sink.append(event))
-
-
-def editor_entry(skill: Any) -> dict[str, Any]:
-    """A stored skill as the editor serves it, body included."""
-    return {
-        "id": str(skill.pk),
-        "name": skill.name,
-        "description": skill.description,
-        "body": skill.body,
-        "userInvocable": skill.user_invocable,
-        "modelInvocable": skill.model_invocable,
-        "enabled": skill.enabled,
-    }
