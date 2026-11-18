@@ -485,6 +485,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../user-skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../step-persistence/" class="md-nav__link">
         
   
@@ -1059,9 +1086,11 @@ mount is keyed by its <code>id</code>:</p>
 one through <code>start(..., parent=, lineage=)</code>, which saves both on the child's conversation
 before it returns, so <code>DefaultChildSessionIndex</code> lists the child under its parent at once.
 <code>parent</code> is a <code>ThreadRef</code> in any scope, so the child may run on another agent.</p>
-<p>Every later run of that thread keeps its parent's bounds, whether a browser turn into the
-child, a resume after an approval, or a headless wake: the mount rebuilds the stored
-lineage with <code>child_lineage_for</code> and composes it into the run. The child sees only the
+<p>Every run of that thread keeps its parent's bounds, the first included, whether a headless
+start, a browser turn into the child, a resume after an approval, or a headless wake: the
+mount rebuilds the stored lineage with <code>child_lineage_for</code> and composes it into the run.
+A browser turn into a child marks its report as one the user joined, so the parent knows
+the result may reflect the user's direction. The child sees only the
 tools its parent had, a tool its parent gated still asks for approval, and the run's
 settle enqueues a report on the parent's inbound queue. A run that parks reports nothing.
 A mount that serves child sessions names its queue, and <code>id=</code> names the agent each report
@@ -1076,6 +1105,20 @@ comes from:</p>
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">child_spend</span><span class="o">=</span><span class="n">spend</span><span class="p">,</span>
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">)</span>
 </span></code></pre></div>
+<p>A thread parked on a question is resumed with <code>start(..., answers={tool_call_id: text})</code>:
+the run continues the stored history with those answers and sends no new prompt.
+<code>wake_thread</code> resumes a parked thread this way only when the park is recorded as waiting
+on a question, which this mount does not record yet: a run that parks is recorded as
+completed, so an answer reaches a parked child only through a caller that passes
+<code>answers=</code> itself.</p>
+<p>After a headless run's end is recorded, the runner calls django-spec-agents'
+<code>wake_thread</code> for its thread when mail arrived during the run, so a message that landed
+after the run's last read starts the thread again. A run whose caller waits for its
+result, as a queued worker or <code>start_from_sync</code> does, runs the woken run to its first
+stop before it returns, since its event loop may end with it. Mail that was already
+pending when the run started does not wake it again, since a mount that does not read
+its queue would otherwise wake forever, and a run that failed does not wake. A browser
+run's end wakes nothing.</p>
 <p><code>inbound_queue=</code> without <code>id=</code> is refused at startup, and a run of a child thread on a
 mount with no queue raises <code>ImproperlyConfigured</code> rather than run unbounded. <code>child_spend=</code>
 is optional; given, the run counts against the child-session budgets as well.</p>

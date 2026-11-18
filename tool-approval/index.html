@@ -470,6 +470,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#who-answered-an-approval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who answered an approval
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#after-the-approval-telling-the-page" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -607,6 +618,33 @@
     
   
     Compaction & skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User skills
   
 
     
@@ -976,6 +1014,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#who-answered-an-approval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who answered an approval
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#after-the-approval-telling-the-page" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1190,6 +1239,15 @@ confirmation, so one concept covers both gates. A tool with neither source keeps
 the generated question, and an interrupt whose tool supplied its own <code>x-confirm</code>
 (by raising <code>ApprovalRequired(metadata=...)</code>) is left alone: it has said something
 more specific than any static mapping can.</p>
+<h2 id="who-answered-an-approval">Who answered an approval<a class="headerlink" href="#who-answered-an-approval" title="Permanent link">&para;</a></h2>
+<p>A call answered by something other than the person (a reviewer model, a routine's
+grant) carries the answerer in its tool result's <code>metadata.answered_by</code>, for example
+<code>reviewer:&lt;model&gt;</code> or <code>routine:&lt;id&gt;</code>. The run stamps it on <code>TOOL_CALL_RESULT</code> and on the
+stored <code>ToolMessage</code> from the result part's own <code>metadata["answered_by"]</code>, in <code>metadata</code>
+only: there is no top-level <code>answered_by</code> key. A person's own answer carries no mark.</p>
+<p>The stored message is the record. Each resumed run re-dumps history without the mark, so
+it is copied back from the source thread's stored messages; a mark on a <code>ToolMessage</code> the
+client posts is dropped, never trusted.</p>
 <h2 id="after-the-approval-telling-the-page">After the approval: telling the page<a class="headerlink" href="#after-the-approval-telling-the-page" title="Permanent link">&para;</a></h2>
 <p>An approved call runs a <strong>server-side</strong> tool, which means it can change data the
 host page is showing without the page hearing about it. Approving a booking writes

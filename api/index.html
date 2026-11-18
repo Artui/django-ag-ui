@@ -483,6 +483,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../user-skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../step-persistence/" class="md-nav__link">
         
   
@@ -1230,6 +1257,45 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="SkillsView">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.skills.skills_view.SkillsView.payload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        payload
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.skills.skill_editor_view.SkillEditorView" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SkillEditorView
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.SKILLS_CHANGED_EVENT_NAME" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SKILLS_CHANGED_EVENT_NAME
+      
+    </span>
+  </a>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1326,6 +1392,28 @@
     <span class="md-ellipsis">
       
         abandon_queued
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIServer.inbox_mark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        inbox_mark
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIServer.wake" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wake
       
     </span>
   </a>
@@ -3690,6 +3778,45 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="SkillsView">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.skills.skills_view.SkillsView.payload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        payload
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.skills.skill_editor_view.SkillEditorView" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SkillEditorView
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.SKILLS_CHANGED_EVENT_NAME" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SKILLS_CHANGED_EVENT_NAME
+      
+    </span>
+  </a>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3786,6 +3913,28 @@
     <span class="md-ellipsis">
       
         abandon_queued
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIServer.inbox_mark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        inbox_mark
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIServer.wake" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wake
       
     </span>
   </a>
@@ -6852,6 +7001,103 @@ carries the same authentication seam as <code>DjangoAGUIView</code>
 (<code>require_authenticated</code> / <code>get_user</code>, sync or async) and the same closed
 default: an anonymous <code>GET</code> is a <code>401</code> until you pass
 <code>require_authenticated=False</code>.</p>
+<p><strong>Per caller with <code>policy=</code>.</strong> Given a django-spec-agents <code>SkillPolicy</code>,
+the catalog also lists the caller's stored skills: the enabled ones
+<code>list_visible_skills</code> resolves, one per name, that are user-invocable.
+A stored entry carries <code>name</code>, <code>title</code> (the name) and <code>description</code>,
+and never a <code>prompt</code>: a pick sends <code>/name</code> and the body loads on the
+server. A code-registered skill wins a name both hold. See
+<a href="../user-skills/">User skills</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_ag_ui.skills.skills_view.SkillsView.payload" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">payload</span>
+
+
+<a href="#django_ag_ui.skills.skills_view.SkillsView.payload" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">payload</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The catalog for this caller: the registry's skills, then their stored ones.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.skills.skill_editor_view.SkillEditorView" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SkillEditorView</span>
+
+
+<a href="#django_ag_ui.skills.skill_editor_view.SkillEditorView" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>The stored-skill editor: the one endpoint that sends a skill's body to the browser.</p>
+<p>Mounted by <a class="autorefs autorefs-internal" title="AGUIServer" href="#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> with <code>skill_editor=True</code>
+at <code>skills/editor/</code> and <code>skills/editor/&lt;id&gt;/</code>, over a django-spec-agents
+<code>SkillPolicy</code>. Every write goes through the runtime's own functions, so the
+name, size, count, reserved-name and <code>can_write</code> rules are the same ones the
+authoring tools apply:</p>
+<ul>
+<li><code>GET    skills/editor/</code>      → <code>{"skills": [...]}</code>, every skill the
+  caller sees <em>and</em> <code>can_write</code> admits, disabled ones included;</li>
+<li><code>POST   skills/editor/</code>      → create from a whole skill (<code>201</code>);</li>
+<li><code>PUT    skills/editor/&lt;id&gt;/</code> → replace name, description, body and flags;</li>
+<li><code>PATCH  skills/editor/&lt;id&gt;/</code> → <code>{"enabled": false}</code> turns it off,
+  <code>{"enabled": true}</code> back on.</li>
+</ul>
+<p>A skill is <code>{"id", "name", "description", "body", "userInvocable",
+"modelInvocable", "enabled"}</code>. A write takes the same keys less <code>id</code> and
+<code>enabled</code>; the two flags default to <code>true</code>. An <code>&lt;id&gt;</code> the caller cannot
+see or write is a <code>404</code>, whichever it is. A broken rule is a <code>400</code>, the
+skill cap a <code>409</code> and a refused write a <code>403</code>, each <code>{"error": "..."}</code>
+with no body in it.</p>
+<p>The authentication seam and closed default are
+<a class="autorefs autorefs-internal" title="ThreadsView" href="#django_ag_ui.ThreadsView"><code>ThreadsView</code></a>'s. Like the threads endpoints it is
+CSRF-exempt unless <code>csrf_exempt=False</code>, so a write must be <code>application/json</code>
+(else <code>415</code>): a cross-site form or <code>text/plain</code> post cannot send that type
+without a CORS preflight.</p>
 
 
 
@@ -6877,6 +7123,32 @@ default: an anonymous <code>GET</code> is a <code>401</code> until you pass
 
 
   </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="django_ag_ui.SKILLS_CHANGED_EVENT_NAME" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">SKILLS_CHANGED_EVENT_NAME</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.SKILLS_CHANGED_EVENT_NAME" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">SKILLS_CHANGED_EVENT_NAME</span> <span class="o">=</span> <span class="s1">'ag_ui.skills_changed'</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p><code>name</code> of the <code>CUSTOM</code> event a run sends when it saved a stored skill.</p>
+<p>The page refetches its skill catalog on it. The value is <code>{"name": &lt;skill name&gt;}</code>,
+never a body: the catalog the page refetches is what decides what it may see.</p>
 
     </div>
 
@@ -6926,8 +7198,11 @@ mount point is the consumer's to choose the Django way, so there is no
 (<code>tools</code>) and the MCP Apps views relay (<code>mcp_apps</code>, <code>mcp-apps/</code>) always mount.
 The rest mount only when their backend is <em>active</em>:</p>
 <ul>
-<li><code>skills</code> — a <a class="autorefs autorefs-internal" title="SkillRegistry" href="#django_ag_ui.SkillRegistry"><code>SkillRegistry</code></a>
-  was passed (<code>skills/</code>, GET JSON for <code>data-skills-url</code>).</li>
+<li><code>skills</code> — a <a class="autorefs autorefs-internal" title="SkillRegistry" href="#django_ag_ui.SkillRegistry"><code>SkillRegistry</code></a> or a
+  <code>skill_policy</code> was passed (<code>skills/</code>, GET JSON for <code>data-skills-url</code>).</li>
+<li><code>skill_editor</code> / <code>skill_editor_item</code> — <code>skill_editor=True</code>
+  (<code>skills/editor/</code> + <code>skills/editor/&lt;id&gt;/</code>, see
+  <a class="autorefs autorefs-internal" title="SkillEditorView" href="#django_ag_ui.skills.skill_editor_view.SkillEditorView"><code>SkillEditorView</code></a>).</li>
 <li><code>threads</code> / <code>thread</code> — the conversation store is not a
   <code>NullConversationStore</code> (<code>threads/</code> + <code>threads/&lt;id&gt;/</code>, the history
   drawer's <code>data-threads-url</code>). A <code>thread_activity_source=</code> puts pushed
@@ -7068,6 +7343,14 @@ as <code>ScopedConversationStore</code> does for thread history.</p>
 <a class="autorefs autorefs-internal" title="AGUIHeadlessRunner" href="#django_ag_ui.agent.headless_runner.AGUIHeadlessRunner"><code>AGUIHeadlessRunner</code></a>, which
 starts runs as <code>headless_request(principal)</code>. Without a run store nothing changes.
 See <a href="../detached-runs/">Detached and headless runs</a>.</p>
+<p><strong>User skills.</strong> <code>skill_policy</code> takes a django-spec-agents <code>SkillPolicy</code>:
+the <code>skills/</code> catalog lists each caller's stored skills beside the
+registry's, and every run gets the caller's model-invocable ones through
+<code>StoredSkills</code>, with its authoring tools when <code>skill_authoring=True</code>. A
+run that saves a stored skill sends the <code>ag_ui.skills_changed</code> CUSTOM event.
+The policy is wrapped so the registry's skill names are reserved. An
+<code>agent_factory</code> builds its own agent and gets none of this. See
+<a href="../user-skills/">User skills</a>.</p>
 <p><strong>Namespacing.</strong> <a class="autorefs autorefs-internal" title="urls
 
 
@@ -7192,7 +7475,9 @@ a hook reads state your middleware sets.</p>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">parent</span><span class="p">:</span> <span class="n">ThreadRef</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">adopt</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunOwner</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">after_finish</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">RunOutcome</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunOwner</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -7277,6 +7562,61 @@ a hook reads state your middleware sets.</p>
     <div class="doc doc-contents ">
 
         <p>Give back a queued run's claim that no worker will take up, recorded as an error.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_ag_ui.AGUIServer.inbox_mark" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">inbox_mark</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_ag_ui.AGUIServer.inbox_mark" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">inbox_mark</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The id of the thread's newest pending message, <code>0</code> for none; <code>None</code> with no queue.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_ag_ui.AGUIServer.wake" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">wake</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_ag_ui.AGUIServer.wake" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">wake</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">after</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">runner</span><span class="p">:</span> <span class="n">HeadlessRunner</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Wake the thread for mail newer than <code>after</code>; unread older mail would wake forever.</p>
 
 
     </div>
@@ -7409,7 +7749,9 @@ silences it.</p>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">prepare</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">]]]],</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">adopt</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunOwner</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">after_finish</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">RunOutcome</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunOwner</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -7429,7 +7771,9 @@ silences it.</p>
 
 
 <a href="#django_ag_ui.DjangoAGUIView.child_capabilities" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">child_capabilities</span><span class="p">(</span><span class="n">conversation</span><span class="p">:</span> <span class="n">Conversation</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">child_capabilities</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">conversation</span><span class="p">:</span> <span class="n">Conversation</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">user_joined</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -7582,7 +7926,10 @@ its owner scope needs a browser session. The caller authorizes the run: the
 mount's <code>get_user</code>, <code>authorize</code> and <code>throttle</code> are not consulted.</p>
 <p>The prompt is the run's only new message; the thread's stored conversation, loaded
 once the run holds the thread, is its history, and it carries no client tools. A
-<code>parent</code> and <code>lineage</code> are saved on the child's conversation before <code>start</code> returns.</p>
+<code>parent</code> and <code>lineage</code> are saved on the child's conversation before <code>start</code> returns,
+and every run of the thread, the first included, composes the bounds they describe.
+<code>answers</code> resumes a thread parked on a question with no new prompt. After a run's end
+is recorded, mail that arrived during a run that did not fail wakes its thread.</p>
 <p>With a <code>queue</code>, <code>start</code> claims the thread for <code>queued_lease</code>, then enqueues
 <code>spec_name</code> for a worker, whose runner takes the claim up by its <code>run_id</code>.</p>
 
@@ -7653,7 +8000,8 @@ once the run holds the thread, is its history, and it carries no client tools. A
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">parent</span><span class="p">:</span> <span class="n">ThreadRef</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -7688,7 +8036,8 @@ once the run holds the thread, is its history, and it carries no client tools. A
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">

@@ -485,6 +485,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../user-skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../step-persistence/" class="md-nav__link">
         
   
@@ -965,16 +992,19 @@ that serves its request.</p>
 <li><strong>A failed enqueue gives the thread back.</strong> The claim is finished as an error, so the
   thread is free for the next start.</li>
 <li><strong>No <code>capabilities=</code>.</strong> They cannot cross a queue, so a queued start that passes any
-  raises <code>ValueError</code>. django-spec-agents' child-session tools pass the child's lineage
-  this way, so a queued runner cannot serve them yet.</li>
+  raises <code>ValueError</code>. A child session needs none: django-spec-agents' child-session
+  tools (0.21.0 and later) pass only <code>parent=</code> and <code>lineage=</code>, which the firing carries,
+  and the worker composes the child's bounds from them.</li>
+<li><strong><code>answers=</code> crosses the queue.</strong> A start that resumes a thread parked on a question
+  carries its answers in the firing, and the worker resumes the stored history with them.</li>
 </ul>
 <h2 id="what-the-worker-does">What the worker does<a class="headerlink" href="#what-the-worker-does" title="Permanent link">&para;</a></h2>
 <p>The worker's runner is called with the claimed <code>run_id</code> and takes the claim up rather than
 claim the thread again. The claim waits for it for <code>queued_lease=</code> (ten minutes unless the
 runner says otherwise); a worker that comes later raises
 <a class="autorefs autorefs-internal" title="ClaimLapsedError" href="../api/#django_ag_ui.agent.claim_lapsed_error.ClaimLapsedError"><code>ClaimLapsedError</code></a> and does not
-run. A child's run composes its stored lineage on the worker, as any later run of a child
-does. Both paths write the same lease and log. A worker that dies mid-run is not run again:
+run. A child's run composes its stored lineage on the worker, its first run as much as any
+later one. Both paths write the same lease and log. A worker that dies mid-run is not run again:
 the lease lapses and the thread reads <code>failed</code> with reason <code>interrupted</code>.</p>
 <h2 id="from-sync-code">From sync code<a class="headerlink" href="#from-sync-code" title="Permanent link">&para;</a></h2>
 <p><a class="autorefs autorefs-internal" title="start_from_sync" href="../api/#django_ag_ui.agent.queued_start.start_from_sync"><code>start_from_sync</code></a> claims and enqueues on
