@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import warnings
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any, cast
 
 from ag_ui.core import Message
@@ -41,7 +41,7 @@ from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.utils import AuthorizePredicate, aauthorize, auth_error_response
 from pydantic import ValidationError
-from pydantic_ai import Agent
+from pydantic_ai import Agent, DeferredToolResults
 from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
@@ -243,6 +243,7 @@ class DjangoAGUIView:
         prepare: Callable[[Any], Awaitable[tuple[Any, Sequence[Any]]]],
         capabilities: Sequence[Any] = (),
         adopt: bool = False,
+        answers: Mapping[str, str] | None = None,
     ) -> RunOwner:
         """Claim the thread (``adopt``: it is already held), ``prepare`` the input, then start."""
         self._preflight_identifiers(request, run_input, None)
@@ -256,7 +257,14 @@ class DjangoAGUIView:
         try:
             run_input, prepared = await prepare(run_input)
             capabilities = [*prepared, *capabilities]
-            session = self._session(request, run_input, timeout=timeout, capabilities=capabilities)
+            deferred = None if answers is None else DeferredToolResults(calls=dict(answers))
+            session = self._session(
+                request,
+                run_input,
+                timeout=timeout,
+                capabilities=capabilities,
+                deferred_tool_results=deferred,
+            )
             owner = session.own(store)
             await owner.detach()
         except BaseException:
@@ -276,6 +284,7 @@ class DjangoAGUIView:
         source_messages: list[Message] | None = None,
         timeout: float | None = None,
         capabilities: Sequence[Any] = (),
+        deferred_tool_results: DeferredToolResults | None = None,
     ) -> AgentSession:
         return AgentSession(
             self._agent(),
@@ -295,9 +304,12 @@ class DjangoAGUIView:
             message_history=message_history,
             source_messages=source_messages,
             timeout=timeout,
+            deferred_tool_results=deferred_tool_results,
         )
 
-    def child_capabilities(self, conversation: Conversation | None) -> list[Any]:
+    def child_capabilities(
+        self, conversation: Conversation | None, *, user_joined: bool = False
+    ) -> list[Any]:
         """What a run of a child session's thread composes, rebuilt from its stored lineage."""
         if conversation is None or conversation.lineage is None or conversation.parent is None:
             return []
@@ -312,6 +324,7 @@ class DjangoAGUIView:
             owner=conversation.owner_id or "",
             queue=self._inbound_queue,
             spend=self._child_spend,
+            user_joined=user_joined,
         )
 
     async def _stored_lineage(self, request: HttpRequest, thread_id: str) -> list[Any]:
@@ -321,7 +334,7 @@ class DjangoAGUIView:
             conversation = await self._conversation_store.load(thread_id, request=request)
         except AnonymousOperationError:
             return []
-        return self.child_capabilities(conversation)
+        return self.child_capabilities(conversation, user_joined=True)
 
     def _owning_store(self, request: HttpRequest) -> RunStore | None:
         """The run store this request's run is owned through; none for an anonymous run."""

@@ -435,6 +435,7 @@ class AGUIServer:
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
         adopt: bool = False,
+        answers: Mapping[str, str] | None = None,
     ) -> RunOwner:
         """Start ``run_input`` with no response once it holds the thread, after its history."""
         self._check_child(lineage)
@@ -442,8 +443,7 @@ class AGUIServer:
 
         async def prepare(claimed: Any) -> tuple[Any, list[Any]]:
             conversation = await self._link(request, claimed.thread_id, parent, lineage)
-            composed = lineage is None or adopt
-            stored_lineage = view.child_capabilities(conversation) if composed else []
+            stored_lineage = view.child_capabilities(conversation)
             stored = [] if conversation is None else conversation.messages
             history = messages_from_jsonable(stored)
             filled = claimed.model_copy(update={"messages": [*history, *claimed.messages]})
@@ -456,6 +456,7 @@ class AGUIServer:
             capabilities=capabilities,
             prepare=prepare,
             adopt=adopt,
+            answers=answers,
         )
 
     async def claim_queued(

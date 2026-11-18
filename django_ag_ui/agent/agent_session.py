@@ -19,7 +19,7 @@ from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.utils import owner_id_for, resolve_owner_id
 from django_spec_agents.policy.audit.types.audit_event import AuditEvent
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
-from pydantic_ai import Agent, CancellationToken
+from pydantic_ai import Agent, CancellationToken, DeferredToolResults
 from pydantic_ai.exceptions import RunCancelled, RunTimedOut
 from pydantic_ai.messages import ModelMessage
 
@@ -84,6 +84,7 @@ class AgentSession:
         toolsets: list[Any] | None = None,
         capabilities: list[Any] | None = None,
         timeout: float | None = None,
+        deferred_tool_results: DeferredToolResults | None = None,
     ) -> None:
         self._agent = agent
         self._run_input = run_input
@@ -99,6 +100,7 @@ class AgentSession:
         self._conversation_store = conversation_store
         self._message_history = message_history
         self._source_messages = source_messages
+        self._deferred_tool_results = deferred_tool_results
         self._prior: list[Message] | None = None
         self._timeout = timeout if timeout is not None else config.run_timeout_seconds
         self._token = CancellationToken()
@@ -138,6 +140,7 @@ class AgentSession:
         transcript = RunTranscript()
         native = self._adapter.run_stream_native(
             message_history=self._message_history,
+            deferred_tool_results=self._deferred_tool_results,
             deps=self._deps,
             model=self._model,
             instructions=self._run_instructions(),
