@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from typing import Any
 
 from asgiref.sync import sync_to_async
 from django.http import HttpRequest
+from django_spec_agents import ResumableRunStore
 from django_spec_agents.headless.types.firing_queue import FiringQueue
 from django_spec_agents.headless.types.headless_firing import HeadlessFiring
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
@@ -13,8 +15,8 @@ from django_spec_agents.persistence.types.run_store import RunStore
 
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.agent.types.stored_browser_input import StoredBrowserInput
-from django_ag_ui.agent.utils import is_queued_input
-from django_ag_ui.constants import QUEUED_INPUT_EVENT, QUEUED_RUN_LEASE, RUN_HEADLESS_SPEC
+from django_ag_ui.agent.utils import claim_thread, kept_for_worker, queued_record
+from django_ag_ui.constants import QUEUED_RUN_LEASE, RUN_HEADLESS_SPEC
 
 
 class QueuedBrowserStart:
@@ -29,6 +31,7 @@ class QueuedBrowserStart:
         *,
         agent_id: str,
         timeout: float,
+        inbox_mark: Callable[[HttpRequest, str], Awaitable[int | None]],
         spec_name: str = RUN_HEADLESS_SPEC,
         lease: timedelta = QUEUED_RUN_LEASE,
     ) -> None:
@@ -36,6 +39,7 @@ class QueuedBrowserStart:
         self._runs = runs
         self._agent_id = agent_id
         self._timeout = timeout
+        self._inbox_mark = inbox_mark
         self._spec_name = spec_name
         self._lease = lease
 
@@ -47,39 +51,51 @@ class QueuedBrowserStart:
         stored: StoredBrowserInput,
     ) -> None:
         """Claim the thread for ``run_id``, keep ``stored`` and enqueue it; busy raises."""
-        claim = await self._runs.claim(thread_id, run_id, request=request, lease=self._lease)
+        mark = await self._inbox_mark(request, thread_id)
+        resumes = stored.resume_from if stored.resume_parked else None
+        claim = await claim_thread(
+            self._runs, thread_id, run_id, request=request, lease=self._lease, resumes=resumes
+        )
         if not claim.claimed:
             raise ThreadBusyError(thread_id, claim.active_run_id)
         try:
-            await self._runs.append(run_id, [_record(stored)], request=request)
+            await self._runs.append(run_id, [_record(stored, mark)], request=request)
             firing = HeadlessFiring(
-                self._agent_id, "", self._timeout, thread_id, None, None, run_id, None
+                self._agent_id, "", self._timeout, thread_id, run_id=run_id, inbox_mark=mark
             )
             params = dataclasses.asdict(firing)
             await sync_to_async(self._queue.enqueue)(self._spec_name, params, actor=request.user)
         except BaseException:
-            await self._runs.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+            if not await self._give_back(request, thread_id, run_id):
+                await self._runs.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
             raise
+
+    async def _give_back(self, request: HttpRequest, thread_id: str, run_id: str) -> bool:
+        """Release the claim where the store can, so the thread keeps its state, a park too."""
+        runs = self._runs
+        if not isinstance(runs, ResumableRunStore):
+            return False
+        return await runs.release(thread_id, run_id, request=request)
 
     @staticmethod
     async def stored(
         runs: RunStore, run_id: str, request: HttpRequest
     ) -> StoredBrowserInput | None:
         """The input a queued browser start kept for ``run_id``; ``None`` for any other run."""
-        entries = await runs.read(run_id, request=request, limit=1)
-        if not entries or not is_queued_input(entries[0].event):
+        value = await kept_for_worker(runs, run_id, request)
+        if value is None or "input" not in value:
             return None
-        value = entries[0].event["value"]
         return StoredBrowserInput(value["input"], value["resume_from"], value["resume_parked"])
 
 
-def _record(stored: StoredBrowserInput) -> dict[str, Any]:
+def _record(stored: StoredBrowserInput, mark: int | None) -> dict[str, Any]:
     value = {
         "input": stored.body,
         "resume_from": stored.resume_from,
         "resume_parked": stored.resume_parked,
+        "inbox_mark": mark,
     }
-    return {"type": "CUSTOM", "name": QUEUED_INPUT_EVENT, "value": value}
+    return queued_record(value)
 
 
 __all__ = ["QueuedBrowserStart"]

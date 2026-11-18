@@ -21,6 +21,7 @@ from django_spec_agents.headless.types.headless_firing import HeadlessFiring
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
+from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 from pydantic import ValidationError
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
@@ -30,7 +31,16 @@ from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
 from django_ag_ui.agent.utils import is_permission_refusal
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.constants import QUEUED_INPUT_EVENT, QUEUED_RUN_LEASE
-from tests.agent.test_park_run import _APPROVED, _DELETE_ARGS, _Calls, _guarded, _parked
+from tests.agent.test_park_run import (
+    _AGAIN,
+    _APPROVED,
+    _DELETE_ARGS,
+    _Calls,
+    _guarded,
+    _interleaved,
+    _parked,
+    _PlainRunStore,
+)
 from tests.agent.worker_queue import WorkerQueue
 from tests.authed_request_factory import AuthedAsyncRequestFactory, authenticated_user
 
@@ -309,9 +319,26 @@ async def test_an_unknown_resume_is_refused_before_anything_is_claimed() -> None
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_refused_enqueue_gives_the_claim_back_as_an_error() -> None:
+async def test_a_refused_enqueue_gives_the_claim_back() -> None:
     model = _Model()
     server, _ = _queued(model, _RefusingQueue)
+
+    with pytest.raises(RuntimeError, match="the queue is down"):
+        await _route(server, "endpoint")(_post(_body("r1")))
+
+    assert await _state() is None
+    assert await DefaultRunStore().read("r1", request=_post(b"{}")) == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_refused_enqueue_a_store_cannot_release_fails_the_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def kept(self: Any, thread_id: str, run_id: str, *, request: Any) -> bool:
+        return False
+
+    monkeypatch.setattr(DefaultRunStore, "release", kept)
+    server, _ = _queued(_Model(), _RefusingQueue)
 
     with pytest.raises(RuntimeError, match="the queue is down"):
         await _route(server, "endpoint")(_post(_body("r1")))
@@ -321,7 +348,19 @@ async def test_a_refused_enqueue_gives_the_claim_back_as_an_error() -> None:
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_specs_permission_refusal_at_enqueue_answers_403_and_fails_the_claim() -> None:
+async def test_a_refused_enqueue_on_a_store_that_is_not_resumable_fails_the_claim() -> None:
+    model = _Model()
+    server = _server(model, _RefusingQueue.__new__(_RefusingQueue), run_store=_PlainRunStore())
+
+    with pytest.raises(RuntimeError, match="the queue is down"):
+        await _route(server, "endpoint")(_post(_body("r1")))
+
+    state = await _state()
+    assert (state.status, state.active_run_id) == (ThreadRunStatus.FAILED, None)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_specs_permission_refusal_at_enqueue_answers_403_and_gives_the_claim_back() -> None:
     server, queue = _queued(_Model(), _DeniedQueue)
 
     response = await _route(server, "endpoint")(_post(_body("r1")))
@@ -329,8 +368,7 @@ async def test_a_specs_permission_refusal_at_enqueue_answers_403_and_fails_the_c
     assert response.status_code == 403
     assert json.loads(response.content) == {"error": "the spec refuses that run"}
     assert queue.enqueued == []
-    state = await _state()
-    assert (state.status, state.active_run_id) == (ThreadRunStatus.FAILED, None)
+    assert await _state() is None
 
 
 @pytest.mark.django_db(transaction=True)
@@ -582,3 +620,133 @@ async def test_mail_that_lands_during_a_queued_browser_run_wakes_its_thread() ->
         await asyncio.sleep(0.01)
 
     assert len(sent) == 2
+
+
+async def _parked_on_queue(
+    calls: _Calls, queue_class: type[WorkerQueue] = WorkerQueue, **config: Any
+) -> tuple[AGUIServer, WorkerQueue, Any]:
+    options = _guarded(calls, run_timeout_seconds=120, **config)
+    registry = options.pop("registry")
+
+    class _Late:
+        def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
+            return queue.enqueue(spec_name, params, actor=actor)
+
+    server = AGUIServer(registry, id="helper", firing_queue=_Late(), **options)
+    queue = queue_class(AGUIHeadlessRunner(server))
+    stop, _ = await _parked(server)
+    return server, queue, stop
+
+
+async def _resume_on(
+    server: AGUIServer,
+    stop: Any,
+    run_id: str,
+    *,
+    detach: bool = True,
+    resume: Any = _APPROVED,
+    messages: Any = (),
+) -> Any:
+    body = json.loads(_body(run_id, detach=detach))
+    body.update(threadId=stop.thread_id, messages=list(messages), tools=[], resume=resume)
+    request = _post(json.dumps(body).encode(), f"/agent/resume/{stop.run_id}/")
+    response = await _route(server, "resume")(request, resume_from=stop.run_id)
+    if isinstance(response, StreamingHttpResponse):
+        return await _drain(response)
+    return response
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_two_interleaved_queued_resumes_of_one_park_run_its_approved_call_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    server, queue, stop = await _parked_on_queue(calls)
+
+    async def inner(store: Any, thread_id: str, request: Any) -> None:
+        await _resume_on(server, stop, "r-inner")
+        await queue.work()
+
+    _interleaved(monkeypatch, "r-outer", inner)
+    response = await _resume_on(server, stop, "r-outer")
+    await queue.work()
+
+    assert calls.ran == ["widget-1"]
+    assert response.status_code == 404
+    assert len(queue.enqueued) == 1
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_queued_resume_that_loses_its_park_to_a_live_one_names_the_holder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    server, queue, stop = await _parked_on_queue(calls)
+
+    async def inner(store: Any, thread_id: str, request: Any) -> None:
+        await _resume_on(server, stop, "r-inner")
+
+    _interleaved(monkeypatch, "r-outer", inner)
+    response = await _resume_on(server, stop, "r-outer")
+
+    assert response.status_code == 409
+    assert json.loads(response.content)["run_id"] == "r-inner"
+    assert len(queue.enqueued) == 1
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_refused_resume_keeps_its_park_for_a_later_resume() -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    server, queue, stop = await _parked_on_queue(calls, _DeniedQueue)
+
+    refused = await _resume_on(server, stop, "r-refused")
+    state = await _state(stop.thread_id)
+    streamed = await _resume_on(server, stop, "r-answer", detach=False)
+
+    assert refused.status_code == 403
+    assert (state.status, state.last_run_id) == (ThreadRunStatus.WAITING, stop.run_id)
+    assert state.waiting is not None
+    assert "deleted widget-1" in streamed
+    assert calls.ran == ["widget-1"]
+    assert await DefaultRunStore().read("r-refused", request=_post(b"{}")) == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_mail_that_lands_before_the_worker_takes_a_browser_start_up_wakes_it_once() -> None:
+    inbox = DefaultInboundQueue()
+    sent: list[int] = []
+
+    async def stream_fn(messages: list, info: AgentInfo) -> Any:
+        sent.append(len(messages))
+        yield "answer"
+
+    class _Late:
+        def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
+            return queue.enqueue(spec_name, params, actor=actor)
+
+    model = FunctionModel(stream_function=stream_fn)
+    server = _server(_Model(), _Late(), model=model, inbound_queue=inbox)
+    queue = WorkerQueue(AGUIHeadlessRunner(server))
+    await _route(server, "endpoint")(_post(_body("r1")))
+    request = server.headless_request(authenticated_user())
+    await inbox.enqueue(ThreadRef("t1", "browser"), InboundKind.STEER, {"x": 1}, request=request)
+
+    await queue.work()
+    await asyncio.sleep(0.1)
+
+    assert len(sent) == 2
+    [(_, params, _)] = queue.enqueued
+    assert params["inbox_mark"] == 0
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_queued_resume_of_a_run_that_did_not_park_is_no_park_resume() -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    unguarded = ToolGuardConfig(enabled=False)
+    server, queue, stop = await _parked_on_queue(calls, tool_guard=unguarded)
+
+    response = await _resume_on(server, stop, "r-next", resume=None, messages=_AGAIN)
+    [result] = await queue.work()
+
+    assert response.status_code == 200
+    assert result.service_result.outcome is RunOutcome.COMPLETED

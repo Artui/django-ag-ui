@@ -131,7 +131,10 @@ class AGUIHeadlessRunner:
         if run_id is not None and not await server.take_up_queued(request, thread, run):
             return RunStop(thread_id=thread, run_id=run, outcome=RunOutcome.CANCELLED)
         try:
-            waker = await self._waker(server, request, thread, timeout, _RunsToFirstStop(self))
+            kept = None if run_id is None else await server.queued_mark(request, run)
+            waker = await self._waker(
+                server, request, thread, timeout, _RunsToFirstStop(self), kept
+            )
             stored = None if run_id is None else await server.queued_input(request, run)
             if stored is not None:
                 owner = await server.start_queued(
@@ -187,8 +190,14 @@ class AGUIHeadlessRunner:
         server, request, run_input = self._prepare(
             agent_id, prompt, principal, timeout, thread_id, answers=answers
         )
+        mark = await server.inbox_mark(request, run_input.thread_id)
         await server.claim_queued(
-            request, run_input, lease=self._queued_lease, parent=parent, lineage=lineage
+            request,
+            run_input,
+            lease=self._queued_lease,
+            parent=parent,
+            lineage=lineage,
+            inbox_mark=mark,
         )
         firing = HeadlessFiring(
             agent_id,
@@ -199,6 +208,7 @@ class AGUIHeadlessRunner:
             lineage,
             run_input.run_id,
             None if answers is None else dict(answers),
+            mark,
         )
         params = dataclasses.asdict(firing)
         try:
@@ -238,16 +248,22 @@ class AGUIHeadlessRunner:
 
     @staticmethod
     async def _waker(
-        server: AGUIServer, request: Any, thread_id: str, timeout: float, runner: Any
+        server: AGUIServer,
+        request: Any,
+        thread_id: str,
+        timeout: float,
+        runner: Any,
+        kept: int | None = None,
     ) -> Callable[[RunOutcome], Awaitable[None]] | None:
-        """What wakes the thread after the run's end is recorded; ``None`` with no inbound queue."""
+        """What wakes the thread after the run; mail is new past ``kept``, the enqueue's mark."""
         mark = await server.inbox_mark(request, thread_id)
         if mark is None:
             return None
+        after = mark if kept is None else kept
 
         async def wake(outcome: RunOutcome) -> None:
             if outcome is not RunOutcome.ERROR:
-                await server.wake(request, thread_id, after=mark, runner=runner, timeout=timeout)
+                await server.wake(request, thread_id, after=after, runner=runner, timeout=timeout)
 
         return wake
 

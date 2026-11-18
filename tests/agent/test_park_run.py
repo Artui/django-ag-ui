@@ -334,10 +334,17 @@ async def test_an_answered_question_resumes_a_parked_child_through_wake_thread()
 
 
 _APPROVED = [{"interruptId": "int-call-1", "status": "resolved", "payload": {"approved": True}}]
+_AGAIN = [{"id": "u-again", "role": "user", "content": "again"}]
 
 
 async def _resume(
-    options: dict[str, Any], stop: Any, run_id: str, *, thread_id: str | None = None
+    options: dict[str, Any],
+    stop: Any,
+    run_id: str,
+    *,
+    thread_id: str | None = None,
+    resume: Any = _APPROVED,
+    messages: Any = (),
 ) -> Any:
     view = DjangoAGUIView(
         options["registry"], **{k: v for k, v in options.items() if k != "registry"}
@@ -345,12 +352,12 @@ async def _resume(
     body = {
         "threadId": thread_id or stop.thread_id,
         "runId": run_id,
-        "messages": [],
+        "messages": list(messages),
         "tools": [],
         "context": [],
         "state": None,
         "forwardedProps": None,
-        "resume": _APPROVED,
+        "resume": resume,
     }
     request = AuthedAsyncRequestFactory().post(
         f"/agent/resume/{stop.run_id}/", data=json.dumps(body), content_type="application/json"
@@ -469,3 +476,98 @@ async def test_a_parked_run_whose_thread_state_is_gone_is_not_resumable() -> Non
     response, _ = await _resume(options, stop, "r-answer")
 
     assert response.status_code == 404
+
+
+def _interleaved(monkeypatch: pytest.MonkeyPatch, outer: str, before: Any) -> None:
+    claim = DefaultRunStore.claim
+    done: list[bool] = []
+
+    async def interleaved(self: DefaultRunStore, thread_id: str, run_id: str, **kwargs: Any) -> Any:
+        if run_id == outer and not done:
+            done.append(True)
+            await before(self, thread_id, kwargs["request"])
+        return await claim(self, thread_id, run_id, **kwargs)
+
+    monkeypatch.setattr(DefaultRunStore, "claim", interleaved)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_two_interleaved_resumes_of_one_park_run_its_approved_call_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    options = _guarded(calls)
+    stop, _ = await _parked(_server(dict(options)))
+
+    async def inner(store: Any, thread_id: str, request: Any) -> None:
+        await _resume(options, stop, "r-inner")
+
+    _interleaved(monkeypatch, "r-outer", inner)
+    response, _ = await _resume(options, stop, "r-outer")
+
+    assert calls.ran == ["widget-1"]
+    assert response.status_code == 404
+    assert json.loads(response.content) == {"error": "no resumable run", "run_id": stop.run_id}
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_resume_that_loses_its_park_to_a_live_one_names_the_holder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    options = _guarded(calls)
+    stop, _ = await _parked(_server(dict(options)))
+
+    async def inner(store: Any, thread_id: str, request: Any) -> None:
+        claim = await store.claim(
+            thread_id, "r-inner", request=request, lease=RUN_LEASE, resumes=stop.run_id
+        )
+        assert claim.claimed
+
+    _interleaved(monkeypatch, "r-outer", inner)
+    response, _ = await _resume(options, stop, "r-outer")
+
+    assert response.status_code == 409
+    assert json.loads(response.content)["run_id"] == "r-inner"
+    assert calls.ran == []
+
+
+class _PlainRunStore:
+    """A run store with no ``release`` and no ``resumes=``, so it is not a resumable one."""
+
+    def __init__(self) -> None:
+        self._store = DefaultRunStore()
+
+    async def claim(self, thread_id: str, run_id: str, *, request: Any, lease: Any) -> Any:
+        return await self._store.claim(thread_id, run_id, request=request, lease=lease)
+
+    def __getattr__(self, name: str) -> Any:
+        if name == "release":
+            raise AttributeError(name)
+        return getattr(self._store, name)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_park_on_a_store_that_is_not_resumable_still_resumes() -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    options = {**_guarded(calls), "run_store": _PlainRunStore()}
+    stop, _ = await _parked(_server(dict(options)))
+
+    streamed, state = await _resume(options, stop, "r-answer")
+
+    assert "deleted widget-1" in streamed
+    assert calls.ran == ["widget-1"]
+    assert state.last_run_id == "r-answer"
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_resume_of_a_run_that_did_not_park_is_not_claimed_as_a_park_resume() -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    options = _guarded(calls, tool_guard=ToolGuardConfig(enabled=False))
+    stop, before = await _parked(_server(dict(options)))
+
+    streamed, state = await _resume(options, stop, "r-next", resume=None, messages=_AGAIN)
+
+    assert before.status is ThreadRunStatus.IDLE
+    assert "RUN_FINISHED" in streamed
+    assert state.last_run_id == "r-next"

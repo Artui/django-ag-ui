@@ -49,6 +49,7 @@ from django_ag_ui.agent.types.spec_capability_source import SpecCapabilitySource
 from django_ag_ui.agent.types.spec_toolset_source import SpecToolsetSource
 from django_ag_ui.agent.types.stored_browser_input import StoredBrowserInput
 from django_ag_ui.agent.types.throttle import Throttle
+from django_ag_ui.agent.utils import kept_for_worker, queued_record
 from django_ag_ui.check_no_dotted_paths import check_no_dotted_paths
 from django_ag_ui.check_removed_settings import check_removed_settings
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
@@ -454,7 +455,9 @@ class AGUIServer:
             )
         self.check_headless()
         assert self.id is not None and self._run_store is not None
-        return QueuedBrowserStart(queue, self._run_store, agent_id=self.id, timeout=timeout)
+        return QueuedBrowserStart(
+            queue, self._run_store, agent_id=self.id, timeout=timeout, inbox_mark=self.inbox_mark
+        )
 
     def headless_request(self, principal: Any) -> HttpRequest:
         """The request a headless run's seams see: ``user=principal``, and no session.
@@ -536,8 +539,9 @@ class AGUIServer:
         lease: timedelta,
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
+        inbox_mark: int | None = None,
     ) -> None:
-        """Claim the thread for a run a worker will adopt, and save its parent and lineage."""
+        """Claim the thread for a run a worker will adopt; save its links and its inbox mark."""
         self._check_child(lineage)
         store = self._run_store
         assert store is not None
@@ -547,6 +551,9 @@ class AGUIServer:
             raise ThreadBusyError(thread_id, claim.active_run_id)
         try:
             await self._link(request, thread_id, parent, lineage)
+            if inbox_mark is not None:
+                kept = queued_record({"inbox_mark": inbox_mark})
+                await store.append(run_id, [kept], request=request)
         except BaseException:
             await self.abandon_queued(request, thread_id, run_id)
             raise
@@ -567,6 +574,12 @@ class AGUIServer:
         """The input a queued browser start kept for ``run_id``; ``None`` for any other run."""
         assert self._run_store is not None
         return await QueuedBrowserStart.stored(self._run_store, run_id, request)
+
+    async def queued_mark(self, request: HttpRequest, run_id: str) -> int | None:
+        """The inbox mark a queued start took for ``run_id`` when enqueued; ``None`` if none."""
+        assert self._run_store is not None
+        kept = await kept_for_worker(self._run_store, run_id, request)
+        return None if kept is None else kept.get("inbox_mark")
 
     async def start_queued(
         self,

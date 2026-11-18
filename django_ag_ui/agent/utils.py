@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Callable
+from datetime import timedelta
 from typing import Any
 
 from ag_ui.core import Message, ToolMessage
 from django.core.exceptions import PermissionDenied
-from django_spec_agents import IdentifierTooLongError
+from django.http import HttpRequest
+from django_spec_agents import IdentifierTooLongError, ResumableRunStore
+from django_spec_agents.persistence.types.run_claim import RunClaim
+from django_spec_agents.persistence.types.run_store import RunStore
 
 from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD
 from django_ag_ui.constants import QUEUED_INPUT_EVENT
@@ -102,9 +106,42 @@ def is_permission_refusal(error: BaseException) -> bool:
     return isinstance(error, NotPermitted)
 
 
+def queued_record(value: dict[str, Any]) -> dict[str, Any]:
+    """The run log entry a queued start keeps for its worker; no client is sent it."""
+    return {"type": "CUSTOM", "name": QUEUED_INPUT_EVENT, "value": value}
+
+
+async def kept_for_worker(
+    runs: RunStore, run_id: str, request: HttpRequest
+) -> dict[str, Any] | None:
+    """What a queued start kept as ``run_id``'s first log entry; ``None`` if it kept nothing."""
+    entries = await runs.read(run_id, request=request, limit=1)
+    if not entries or not is_queued_input(entries[0].event):
+        return None
+    return entries[0].event["value"]
+
+
+async def claim_thread(
+    store: RunStore,
+    thread_id: str,
+    run_id: str,
+    *,
+    request: HttpRequest,
+    lease: timedelta,
+    resumes: str | None = None,
+) -> RunClaim:
+    """Claim the thread; ``resumes`` a parked run only once, where the store can say so."""
+    if isinstance(store, ResumableRunStore):
+        return await store.claim(thread_id, run_id, request=request, lease=lease, resumes=resumes)
+    return await store.claim(thread_id, run_id, request=request, lease=lease)
+
+
 __all__ = [
+    "claim_thread",
     "is_permission_refusal",
     "is_queued_input",
+    "kept_for_worker",
+    "queued_record",
     "ERROR_CODE",
     "IDENTIFIER_TOO_LONG_CODE",
     "INTERRUPTED_CODE",

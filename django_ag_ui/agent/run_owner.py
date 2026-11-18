@@ -14,7 +14,7 @@ from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from pydantic_ai import CancellationToken
 
-from django_ag_ui.agent.utils import STREAM_END, discard_tasks
+from django_ag_ui.agent.utils import STREAM_END, claim_thread, discard_tasks
 from django_ag_ui.constants import RUN_LEASE
 
 _logger = logging.getLogger("django_ag_ui.agent")
@@ -61,11 +61,16 @@ class RunOwner:
         self._running = False
         self._after_finish: Callable[[RunOutcome], Awaitable[None]] | None = None
 
-    async def claim(self) -> RunClaim:
+    async def claim(self, *, resumes: str | None = None) -> RunClaim:
         """Take the thread for this run; a loss names the run that holds it."""
         assert self._store is not None and self._request is not None
-        return await self._store.claim(
-            self._thread_id, self._run_id, request=self._request, lease=RUN_LEASE
+        return await claim_thread(
+            self._store,
+            self._thread_id,
+            self._run_id,
+            request=self._request,
+            lease=RUN_LEASE,
+            resumes=resumes,
         )
 
     def after_finish(self, callback: Callable[[RunOutcome], Awaitable[None]]) -> None:

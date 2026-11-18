@@ -21,9 +21,9 @@ detached one is queued when its mount has a queue too: see
 
 ## What the caller sees
 
-- **`start` holds the thread before it returns.** It claims the thread for a fresh
-  `run_id`, saves a child's `parent` and `lineage`, then enqueues the firing with that
-  `run_id`. The `HeadlessStart` it returns names the claimed run, the one the thread's
+- **`start` holds the thread before it returns.** It takes the thread's inbox mark,
+  claims the thread for a fresh `run_id`, saves a child's `parent` and `lineage`, then
+  enqueues the firing with that `run_id` and that `inbox_mark`. The `HeadlessStart` it returns names the claimed run, the one the thread's
   state reports.
 - **A busy thread is refused at the call**, with
   [`ThreadBusyError`][django_ag_ui.agent.thread_busy_error.ThreadBusyError], and nothing
@@ -44,7 +44,12 @@ claim the thread again. The claim waits for it for `queued_lease=` (ten minutes 
 runner says otherwise); a worker that comes later raises
 [`ClaimLapsedError`][django_ag_ui.agent.claim_lapsed_error.ClaimLapsedError] and does not
 run. A child's run composes its stored lineage on the worker, its first run as much as any
-later one. Both paths write the same lease and log. A worker that dies mid-run is not run again:
+later one. Both paths write the same lease and log, but for one entry: on a mount with an
+inbound queue, the claim keeps the inbox mark taken at the start as the log's first entry,
+which the events replay skips. After the run, the worker wakes the thread for mail newer
+than that mark, so mail that arrives while the firing waits in the queue wakes it too
+(`run_headless` does not hand the runner the firing's `inbox_mark`, so the worker reads it
+back from the log). A worker that dies mid-run is not run again:
 the lease lapses and the thread reads `failed` with reason `interrupted`.
 
 ## A detached browser start
@@ -54,15 +59,19 @@ to detach (`forwardedProps.detach`) is queued rather than run in the serving pro
 
 1. The POST is checked as before (authentication, throttle, identifiers, and a resume's
    `404` or `409`), then claims the thread. A busy thread or a reused run id answers `409`,
-   and nothing is enqueued. The queue checks the spec's permissions at enqueue, after the
-   claim, so a refusal (`NotPermitted`, or Django's `PermissionDenied`) answers `403` and a
-   refused start finishes its run as an error; a refused resume of a parked run loses the
-   park, because the claim has already moved the thread out of `waiting` and the store
-   cannot yet give a claim back.
+   and nothing is enqueued. A resume of a parked run claims the thread only while it is
+   still parked on that run, so of two resumes of one park (a double click, two tabs) one
+   is enqueued; the other answers `409` naming the run that holds the thread, or `404`
+   once that run has ended. The queue checks the spec's permissions at enqueue, after the
+   claim, so a refusal (`NotPermitted`, or Django's `PermissionDenied`) answers `403` and
+   the claim is given back: the thread keeps the state it had before, a park included, so
+   the parked run can still be resumed, and the refused run's log is deleted. A run store
+   that cannot give a claim back (one that is not a django-spec-agents
+   `ResumableRunStore`) finishes the refused run as an error instead.
 2. The run's whole `RunAgentInput` as the client sent it (client tools, state, context,
    `forwardedProps`, an A2UI catalog) is kept as the first entry of the run's log, with
-   the run it resumes, if any. A resume of a parked run records that it was parked while
-   the thread still says so.
+   the run it resumes, if any, and the thread's inbox mark. A resume of a parked run
+   records that it was parked while the thread still says so.
 3. The start enqueues a `HeadlessFiring` with the claimed `run_id` and answers
    `200 {"thread_id", "run_id"}`. The client reads the run from
    [`events?after=0`](detached-runs.md#read-a-runs-events), which waits for its first

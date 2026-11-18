@@ -18,8 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entry, so `events?after=0` is the run's first view. The mount needs what a headless run
   needs and `RUN_TIMEOUT_SECONDS`, and refuses at construction otherwise.
   The spec's permissions are checked when the start is enqueued, after the claim: a
-  refusal (`NotPermitted`, or Django's `PermissionDenied`) answers `403` and finishes the
-  claim as an error.
+  refusal (`NotPermitted`, or Django's `PermissionDenied`) answers `403` and gives the
+  claim back through django-spec-agents' `ResumableRunStore.release`, so the thread keeps
+  the state it had, a park included, and the parked run can still be resumed. A run store
+  that cannot release finishes the claim as an error.
 - **`threads/<id>/events/` reads a run's log, from any process.** On a mount with a run
   store, `GET ...?after=<seq>` with `Accept: text/event-stream` replays the thread's
   current or last run and follows it to its end: its `RUN_STARTED`, a
@@ -46,7 +48,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `StepPersistence` skips a history ending on an unanswered deferred call, and the route
   loads it only while the run store shows that run as the `waiting` run of the thread the
   request names; a resume or a fork of it onto another thread answers `404`, so an approval
-  runs once.
+  runs once. On a `ResumableRunStore` the resume claims the thread with `resumes=`, won only
+  while the thread is still parked on that run, so of two resumes of one park (a double
+  click, two tabs), connected or queued, one runs the approved call; the other answers
+  `409` naming the live run, or `404` once it has ended.
+
+### Changed
+
+- **django-spec-agents floors at 0.23.0**, for the base requirement, the `[mcp]` and
+  `[specs]` extras and the dev group: `ResumableRunStore` (`claim(..., resumes=)` and
+  `release`) and `HeadlessFiring.inbox_mark` first ship there.
+
+### Fixed
+
+- **Mail that arrives while a queued run waits for a worker wakes its thread.** The
+  worker took the thread's inbox mark when it picked the run up, so a message enqueued
+  between the start and the pickup was below the mark and never woke the thread. A queued
+  headless start and a queued browser start now take the mark at enqueue, send it as the
+  firing's `inbox_mark` and keep it as the run log's first entry, which the worker reads
+  back, since `run_headless` does not pass it on.
 
 ## [0.81.0] — 2026-11-18
 

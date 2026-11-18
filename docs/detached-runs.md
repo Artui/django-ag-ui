@@ -196,7 +196,10 @@ before. A headless run's `RunStop` carries the same `waiting`.
 An answer to a parked run resumes it through `resume/<run_id>/`, with `resume` naming the
 call's interrupt. The mount saves the parked run's messages when it parks, and the route
 loads them only while the run store shows that run as its thread's `waiting` run; any
-other run id answers 404.
+other run id answers 404. On a django-spec-agents `ResumableRunStore` (`DefaultRunStore`
+is one) the resume claims the thread only while it is still parked on that run, in the
+claim's one conditional update, so of two resumes of one park the approved call runs once:
+the other answers `409` naming the run that holds the thread, or `404` once it has ended.
 
 ## Child sessions
 
@@ -235,7 +238,8 @@ queue resumes the parked call with its text.
 
 After a headless run's end is recorded, the runner calls django-spec-agents'
 `wake_thread` for its thread when mail arrived during the run, so a message that landed
-after the run's last read starts the thread again. A run whose caller waits for its
+after the run's last read starts the thread again; a queued run counts mail from when it
+was enqueued, not from when a worker took it up. A run whose caller waits for its
 result, as a queued worker or `start_from_sync` does, runs the woken run to its first
 stop before it returns, since its event loop may end with it. Mail that was already
 pending when the run started does not wake it again, since a mount that does not read

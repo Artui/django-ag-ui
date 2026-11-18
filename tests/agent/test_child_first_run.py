@@ -301,3 +301,24 @@ async def test_a_wake_hands_wake_thread_the_queue_inside_a_waking_one(
     await server.wake(request, "t-q", after=0, runner=AGUIHeadlessRunner(server), timeout=5)
 
     assert handed == [inner]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_mail_that_lands_before_a_worker_takes_a_queued_start_up_wakes_it_once() -> None:
+    queue, model = DefaultInboundQueue(), _Model()
+    server = _server(model, queue)
+    worker = WorkerQueue(AGUIHeadlessRunner(server))
+    user = authenticated_user()
+    await AGUIHeadlessRunner(server, queue=worker).start(
+        "helper", "go", user, timeout=5, thread_id="t-w"
+    )
+    request = server.headless_request(user)
+    await queue.enqueue(ThreadRef("t-w", "helper"), InboundKind.STEER, {"x": 1}, request=request)
+
+    await worker.work()
+    await asyncio.sleep(0.1)
+
+    assert len(model.sent) == 2
+    assert "arrived while it was idle" in str(model.sent[1][-1])
+    [(_, params, _)] = worker.enqueued
+    assert params["inbox_mark"] == 0

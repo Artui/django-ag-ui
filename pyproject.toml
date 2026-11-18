@@ -105,7 +105,11 @@ dependencies = [
     # runner, which composes them on every run of a child's thread from 0.81.0;
     # 0.80.0 with 0.21.0 ran a child unbounded. Held by
     # ``tests/agent/test_child_first_run.py``.
-    "django-spec-agents>=0.21.0",
+    # 0.23.0's ``ResumableRunStore`` claims a resume of a parked run atomically
+    # (``resumes=``) and gives a refused claim back (``release``), and its
+    # ``HeadlessFiring`` carries the inbox mark taken at enqueue. Held by
+    # ``tests/agent/test_park_run.py`` and ``tests/agent/test_queued_browser_start.py``.
+    "django-spec-agents>=0.23.0",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
@@ -189,13 +193,13 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a django-spec-mcp server's tools as a
 # Pydantic-AI toolset (``mcp_server=``). Floored with the core dependency
-# above, at 0.21.0, for the reasons given there; its own ``[mcp]`` extra floors
+# above, at 0.23.0, for the reasons given there; its own ``[mcp]`` extra floors
 # django-spec-mcp.
-mcp = ["django-spec-agents[mcp]>=0.21.0"]
+mcp = ["django-spec-agents[mcp]>=0.23.0"]
 # Expose django-service-specs specs directly as agent tools via django-spec-agents'
 # ``spec_tools.SpecCapability`` -- no MCP server in the path (service_specs=).
-# Floored with the core dependency above, at 0.21.0, for the reasons given there.
-specs = ["django-spec-agents[specs]>=0.21.0"]
+# Floored with the core dependency above, at 0.23.0, for the reasons given there.
+specs = ["django-spec-agents[specs]>=0.23.0"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via capabilities=. Floored at 0.69: ``RelevanceCompaction`` first ships in
@@ -238,7 +242,7 @@ dev = [
     "django-stubs>=5.0",
     # The [specs] and [mcp] extras' backing package, so the spec capability, the
     # spec-mcp bridge and their tests run in dev.
-    "django-spec-agents[specs,mcp]>=0.21.0",
+    "django-spec-agents[specs,mcp]>=0.23.0",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.69",
     # The [a2ui] extra's backing package, so the render tool's validation runs in dev.
