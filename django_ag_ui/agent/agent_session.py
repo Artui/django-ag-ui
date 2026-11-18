@@ -22,7 +22,7 @@ from django_spec_agents.policy.audit.types.audit_event import AuditEvent
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from pydantic_ai import Agent, CancellationToken, DeferredToolResults
 from pydantic_ai.exceptions import RunCancelled, RunTimedOut
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.messages import ModelMessage, ModelResponse
 
 from django_ag_ui.agent.build_client_context_toolset import build_client_context_toolset
 from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
@@ -262,6 +262,7 @@ class AgentSession:
                 self._waiting = self._park.waiting(result.output)
                 if self._waiting is not None:
                     self._ended = RunOutcome.WAITING
+                    await self._snapshot_park(result.all_messages())
             if save is None:
                 return
             dumped = OutcomeAGUIAdapter.dump_messages(result.new_messages())
@@ -269,6 +270,29 @@ class AgentSession:
             await save([*self._prior_messages(), *new])
 
         return _on_complete
+
+    async def _snapshot_park(self, messages: list[ModelMessage]) -> None:
+        """Save the parked history as an interrupted snapshot, which ``StepPersistence`` skips."""
+        try:
+            from pydantic_ai_harness.step_persistence import ContinuableSnapshot, StepPersistence
+        except ImportError:
+            return
+        persistence = next(
+            (c for c in self._capabilities or [] if isinstance(c, StepPersistence)), None
+        )
+        if persistence is None or persistence.run_id is None:
+            return
+        await persistence.store.save_snapshot(
+            ContinuableSnapshot(
+                run_id=persistence.run_id,
+                step_index=sum(isinstance(m, ModelResponse) for m in messages),
+                messages=messages,
+                conversation_id=self._run_input.thread_id,
+                parent_run_id=persistence.parent_run_id,
+                agent_name=persistence.agent_name,
+                state="interrupted",
+            )
+        )
 
     def _persists(self) -> bool:
         """Whether this run has anywhere to store what it produces."""

@@ -125,6 +125,11 @@ A browser run's own client tools count only when the run is detached: a connecte
 answers their calls itself, so a run that ends on them alone finishes `completed`, as
 before. A headless run's `RunStop` carries the same `waiting`.
 
+An answer to a parked run resumes it through `resume/<run_id>/`, with `resume` naming the
+call's interrupt. The mount saves the parked run's messages when it parks, and the route
+loads them only while the run store shows that run as its thread's `waiting` run; any
+other run id answers 404.
+
 ## Child sessions
 
 A child session is a thread with a parent: django-spec-agents' child-session tools start

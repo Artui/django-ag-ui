@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only a detached run, since a connected client answers them. With parks recorded,
   `wake_thread` resumes a child parked on a question when its answer arrives, which 0.81.0
   could not.
+  A parked run's answer resumes it through `resume/<run_id>/`: on park the session saves
+  one interrupted snapshot of the run's messages, since pydantic-ai-harness'
+  `StepPersistence` skips a history ending on an unanswered deferred call, and the route
+  loads it only while the run store shows that run as its thread's `waiting` run.
 
 ## [0.81.0] — 2026-11-18
 
