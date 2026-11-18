@@ -29,6 +29,7 @@ from django_spec_agents.persistence.null_conversation_store import NullConversat
 from django_spec_agents.persistence.run_id_reused_error import RunIdReusedError
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.utils import owner_id_for
 from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
@@ -50,7 +51,7 @@ from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE, a2ui_validator
 from django_ag_ui.agent.with_a2ui_action import with_a2ui_action
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
-from django_ag_ui.constants import A2UI_RENDER_TOOL_NAME, DETACH_PROP
+from django_ag_ui.constants import A2UI_RENDER_TOOL_NAME, DETACH_PROP, RUN_LEASE
 from django_ag_ui.persistence.utils import messages_from_jsonable
 from django_ag_ui.reject_async_throttle import reject_async_throttle
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
@@ -226,15 +227,24 @@ class DjangoAGUIView:
         run_input: Any,
         *,
         timeout: float,
+        prepare: Callable[[Any], Awaitable[Any]],
         capabilities: Sequence[Any] = (),
     ) -> RunOwner:
-        """Start a run with no response, past the auth gates; raises ``ThreadBusyError``."""
+        """Claim the thread, let ``prepare`` fill the input in, then start it with no response."""
         self._preflight_identifiers(request, run_input, None)
-        session = self._session(request, run_input, timeout=timeout, capabilities=capabilities)
-        owner = session.own(self._run_store)
-        claim = await owner.claim()
+        store = self._run_store
+        assert store is not None
+        thread_id, run_id = run_input.thread_id, run_input.run_id
+        claim = await store.claim(thread_id, run_id, request=request, lease=RUN_LEASE)
         if not claim.claimed:
-            raise ThreadBusyError(run_input.thread_id, claim.active_run_id)
+            raise ThreadBusyError(thread_id, claim.active_run_id)
+        try:
+            run_input = await prepare(run_input)
+        except BaseException:
+            await store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+            raise
+        session = self._session(request, run_input, timeout=timeout, capabilities=capabilities)
+        owner = session.own(store)
         self._keep(owner.start())
         return owner
 

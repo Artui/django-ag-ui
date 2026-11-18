@@ -5,13 +5,18 @@ from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.http import HttpRequest
+from django_spec_agents.contrib.store.default_child_session_index import DefaultChildSessionIndex
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 from django_spec_agents.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
 )
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
+from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.function import AgentInfo, FunctionModel
@@ -21,6 +26,7 @@ from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from django_ag_ui.constants import RUN_LEASE
 from tests.authed_request_factory import authenticated_user
 
 
@@ -188,3 +194,108 @@ async def test_a_recorded_cancel_reaches_the_run(monkeypatch: pytest.MonkeyPatch
 
     assert stop.outcome is RunOutcome.CANCELLED
     assert await runner.cancel("t-cancel", user) is False
+
+
+class _OtherRunFinishesAtClaim(DefaultRunStore):
+    """Lets another run of the thread save its messages and finish as this run claims."""
+
+    def __init__(self, conversations: DefaultConversationStore, other_run: str) -> None:
+        super().__init__()
+        self._conversations = conversations
+        self._other: str | None = other_run
+
+    async def claim(self, thread_id: str, run_id: str, **kwargs: Any) -> Any:
+        if self._other is not None and run_id != self._other:
+            other, self._other = self._other, None
+            request = kwargs["request"]
+            said = [
+                {"id": "a1", "role": "user", "content": "from a"},
+                {"id": "a2", "role": "assistant", "content": "a answered"},
+            ]
+            finished = Conversation(thread_id=thread_id, messages=said, owner_id="1")
+            await self._conversations.save(finished, request=request)
+            await self.finish(thread_id, other, RunOutcome.COMPLETED, request=request)
+        return await super().claim(thread_id, run_id, **kwargs)
+
+
+class _FailingLoad(DefaultConversationStore):
+    async def load(self, thread_id: str, *, request: HttpRequest) -> Any:
+        raise RuntimeError("the store is down")
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_finishing_as_a_headless_start_claims_keeps_both_runs_messages() -> None:
+    conversations = DefaultConversationStore()
+    runs = _OtherRunFinishesAtClaim(conversations, "run-a")
+    server = _server(conversation_store=conversations, run_store=runs)
+    user = authenticated_user()
+    request = server.headless_request(user)
+    await runs.claim("t-race", "run-a", request=request, lease=RUN_LEASE)
+
+    stop = await AGUIHeadlessRunner(server).run_to_first_stop(
+        "helper", "two", user, timeout=5, thread_id="t-race"
+    )
+
+    assert stop.outcome is RunOutcome.COMPLETED
+    conversation = await conversations.load("t-race", request=request)
+    assert [m["content"] for m in conversation.messages] == [
+        "from a",
+        "a answered",
+        "two",
+        "answer 1",
+    ]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_history_that_fails_to_load_gives_the_thread_back() -> None:
+    server = _server(conversation_store=_FailingLoad())
+    user = authenticated_user()
+
+    with pytest.raises(RuntimeError, match="the store is down"):
+        await AGUIHeadlessRunner(server).start("helper", "one", user, timeout=5, thread_id="t-f")
+
+    state = await DefaultRunStore().get("t-f", request=server.headless_request(user))
+    assert state is not None
+    assert state.status is not ThreadRunStatus.RUNNING
+    assert state.active_run_id is None
+
+
+_PARENT = ThreadRef("t-parent", "planner")
+_LINEAGE = ChildLineageRecord(root=_PARENT, depth=1, tools=["lookup", "write"], gated=["write"])
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_child_is_listed_under_its_cross_agent_parent_once_start_returns() -> None:
+    model = _Model()
+    model.park = True
+    server = _server(model)
+    user = authenticated_user()
+    request = server.headless_request(user)
+    index = DefaultChildSessionIndex(DefaultRunStore())
+
+    started = await AGUIHeadlessRunner(server).start(
+        "helper", "one", user, timeout=0.2, parent=_PARENT
+    )
+    listed = await index.children(_PARENT, request=request)
+    await _settled(server, started.thread_id)
+
+    assert [child.thread for child in listed] == [ThreadRef(started.thread_id)]
+    conversation = await DefaultConversationStore().load(started.thread_id, request=request)
+    assert conversation.parent == _PARENT
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_childs_lineage_outlives_its_runs_saves() -> None:
+    server = _server()
+    runner = AGUIHeadlessRunner(server)
+    user = authenticated_user()
+
+    first = await runner.run_to_first_stop(
+        "helper", "one", user, timeout=5, parent=_PARENT, lineage=_LINEAGE
+    )
+    await runner.run_to_first_stop("helper", "two", user, timeout=5, thread_id=first.thread_id)
+
+    request = server.headless_request(user)
+    conversation = await DefaultConversationStore().load(first.thread_id, request=request)
+    assert [m["content"] for m in conversation.messages] == ["one", "answer 1", "two", "answer 2"]
+    assert (conversation.parent, conversation.lineage) == (_PARENT, _LINEAGE)

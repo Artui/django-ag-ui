@@ -4,7 +4,6 @@ import dataclasses
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from ag_ui.core import Message
 from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpRequest
 from django.urls import URLPattern, path
@@ -18,8 +17,12 @@ from django_spec_agents.persistence.django_session_conversation_store import (
 from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
+from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.persistence.types.run_store import RunStore
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
+from django_spec_agents.persistence.utils import owner_id_for
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.utils import AuthorizePredicate, GetUser
@@ -403,16 +406,30 @@ class AGUIServer:
         *,
         timeout: float,
         capabilities: Sequence[Any] = (),
+        parent: ThreadRef | None = None,
+        lineage: ChildLineageRecord | None = None,
     ) -> RunOwner:
-        """Start ``run_input`` with no response; see ``DjangoAGUIView.start_headless``."""
-        return await self._view.start_headless(
-            request, run_input, timeout=timeout, capabilities=capabilities
-        )
+        """Start ``run_input`` with no response once it holds the thread, after its history."""
+        store = self._conversation_store
 
-    async def load_history(self, thread_id: str, *, request: HttpRequest) -> list[Message]:
-        """The thread's stored messages, the history a headless run continues."""
-        conversation = await self._conversation_store.load(thread_id, request=request)
-        return [] if conversation is None else messages_from_jsonable(conversation.messages)
+        async def prepare(claimed: Any) -> Any:
+            conversation = await store.load(claimed.thread_id, request=request)
+            stored = [] if conversation is None else conversation.messages
+            if parent is not None or lineage is not None:
+                linked = Conversation(
+                    thread_id=claimed.thread_id,
+                    messages=stored,
+                    owner_id=owner_id_for(request),
+                    parent=parent,
+                    lineage=lineage,
+                )
+                await store.save(linked, request=request)
+            history = messages_from_jsonable(stored)
+            return claimed.model_copy(update={"messages": [*history, *claimed.messages]})
+
+        return await self._view.start_headless(
+            request, run_input, timeout=timeout, capabilities=capabilities, prepare=prepare
+        )
 
     async def request_cancel(self, thread_id: str, *, request: HttpRequest) -> bool:
         """Record a cancel for the thread's live run, for its owner to act on."""

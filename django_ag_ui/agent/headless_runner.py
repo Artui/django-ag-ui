@@ -8,6 +8,8 @@ from ag_ui.core import RunAgentInput, UserMessage
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.utils import owner_id_for
 from pydantic_ai.capabilities import AbstractCapability
 
@@ -25,9 +27,9 @@ class AGUIHeadlessRunner:
     its owner scope needs a browser session. The caller authorizes the run: the
     mount's ``get_user``, ``authorize`` and ``throttle`` are not consulted.
 
-    The prompt is the run's only new message; the thread's stored conversation is
-    its history, and it carries no client tools. ``parent`` is accepted for the
-    protocol and not yet recorded.
+    The prompt is the run's only new message; the thread's stored conversation, loaded
+    once the run holds the thread, is its history, and it carries no client tools. A
+    ``parent`` and ``lineage`` are saved on the child's conversation before ``start`` returns.
     """
 
     def __init__(self, *servers: AGUIServer) -> None:
@@ -47,12 +49,13 @@ class AGUIHeadlessRunner:
         *,
         timeout: float,
         thread_id: str | None = None,
-        parent: str | None = None,
+        parent: ThreadRef | None = None,
+        lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
     ) -> HeadlessStart:
         """Start the run and return once it has claimed its thread; it goes on in the background."""
         thread, run, _ = await self._start(
-            agent_id, prompt, principal, timeout, thread_id, capabilities
+            agent_id, prompt, principal, timeout, thread_id, parent, lineage, capabilities
         )
         return HeadlessStart(thread_id=thread, run_id=run)
 
@@ -64,12 +67,13 @@ class AGUIHeadlessRunner:
         *,
         timeout: float,
         thread_id: str | None = None,
-        parent: str | None = None,
+        parent: ThreadRef | None = None,
+        lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
     ) -> RunStop:
         """Run until the run ends, for a caller that waits on the answer."""
         thread, run, owner = await self._start(
-            agent_id, prompt, principal, timeout, thread_id, capabilities
+            agent_id, prompt, principal, timeout, thread_id, parent, lineage, capabilities
         )
         return RunStop(thread_id=thread, run_id=run, outcome=await owner.wait())
 
@@ -88,6 +92,8 @@ class AGUIHeadlessRunner:
         principal: Any,
         timeout: float,
         thread_id: str | None,
+        parent: ThreadRef | None,
+        lineage: ChildLineageRecord | None,
         capabilities: Sequence[AbstractCapability[Any]],
     ) -> tuple[str, str, RunOwner]:
         if not timeout > 0:
@@ -98,18 +104,22 @@ class AGUIHeadlessRunner:
         request = self._request(server, principal)
         thread_id = thread_id or uuid.uuid4().hex
         run_id = uuid.uuid4().hex
-        history = await server.load_history(thread_id, request=request)
         run_input = RunAgentInput(
             thread_id=thread_id,
             run_id=run_id,
             state=None,
-            messages=[*history, UserMessage(id=uuid.uuid4().hex, content=prompt)],
+            messages=[UserMessage(id=uuid.uuid4().hex, content=prompt)],
             tools=[],
             context=[],
             forwarded_props=None,
         )
         owner = await server.start_headless(
-            request, run_input, timeout=timeout, capabilities=capabilities
+            request,
+            run_input,
+            timeout=timeout,
+            capabilities=capabilities,
+            parent=parent,
+            lineage=lineage,
         )
         return thread_id, run_id, owner
 

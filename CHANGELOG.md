@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A headless child keeps its parent and lineage.** `AGUIHeadlessRunner.start` and
+  `run_to_first_stop` take `parent` as a django-spec-agents `ThreadRef` (any scope, so a
+  child on another agent) and `lineage` as a `ChildLineageRecord`, and save both on the
+  child's conversation before `start` returns, so `DefaultChildSessionIndex` lists the
+  child under its parent from then on. Below this release `parent` was accepted and
+  dropped. A later run's save names neither, which the store leaves alone.
+- `RUN_LEASE` in `django_ag_ui.constants`: how long a run's claim on its thread holds
+  unless renewed.
+
 ### Changed
 
 - **django-spec-agents floors at 0.20.0**, for the base requirement, the `[mcp]` and
@@ -24,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   by stripping the stamp from the stored side only, so an OpenAI compaction was saved
   under a fresh id and a resumed client saw it twice. The stamp is now set aside on both
   sides.
+- **A headless start claims its thread before it loads the history.** It loaded first,
+  so a run of the same thread that finished in between had its messages saved over by the
+  new run. The claim now comes first, and a history that fails to load gives the thread
+  back (the run is recorded as an error) rather than holding it until the lease lapses.
+  `AGUIServer.load_history` is gone; `AGUIServer.start_headless` loads it once claimed.
 
 ## [0.79.0] — 2026-11-17
 
