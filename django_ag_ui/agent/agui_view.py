@@ -37,6 +37,7 @@ from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
+from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.persistence.utils import owner_id_for
 from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
@@ -638,11 +639,25 @@ class DjangoAGUIView:
         from pydantic_ai_harness.step_persistence import continue_run
 
         store = self._step_store(request)
+        parked = await self._parked(request, store, resume_from)
         try:
-            history = list(await continue_run(store, run_id=resume_from))
+            history = list(
+                await continue_run(store, run_id=resume_from, include_interrupted=parked)
+            )
         except LookupError:
             return None
         return history, await self._source_thread_id(store, resume_from)
+
+    async def _parked(self, request: HttpRequest, store: Any, run_id: str) -> bool:
+        """Whether ``run_id`` is its thread's parked run, so its open calls were deferred."""
+        runs = self._owning_store(request)
+        record = await store.get_run(run_id=run_id)
+        if runs is None or record is None or record.conversation_id is None:
+            return False
+        state = await runs.get(record.conversation_id, request=request)
+        if state is None or state.status is not ThreadRunStatus.WAITING:
+            return False
+        return state.last_run_id == run_id
 
     async def _source_thread_id(self, store: Any, resume_from: str) -> str | None:
         """The thread the source run belonged to, or ``None`` where it cannot matter."""
