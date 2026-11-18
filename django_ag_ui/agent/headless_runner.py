@@ -6,6 +6,7 @@ from typing import Any
 
 from ag_ui.core import RunAgentInput, UserMessage
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django_spec_agents.headless.types.firing_queue import FiringQueue
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
 from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
@@ -14,6 +15,7 @@ from django_spec_agents.persistence.utils import owner_id_for
 from pydantic_ai.capabilities import AbstractCapability
 
 from django_ag_ui.agent.agui_server import AGUIServer
+from django_ag_ui.agent.queued_start import RUN_HEADLESS_SPEC, enqueue_headless
 from django_ag_ui.agent.run_owner import RunOwner
 
 
@@ -32,7 +34,14 @@ class AGUIHeadlessRunner:
     ``parent`` and ``lineage`` are saved on the child's conversation before ``start`` returns.
     """
 
-    def __init__(self, *servers: AGUIServer) -> None:
+    def __init__(
+        self,
+        *servers: AGUIServer,
+        queue: FiringQueue | None = None,
+        spec_name: str = RUN_HEADLESS_SPEC,
+    ) -> None:
+        self._queue = queue
+        self._spec_name = spec_name
         self._servers: dict[str, AGUIServer] = {}
         for server in servers:
             server.check_headless()
@@ -53,7 +62,20 @@ class AGUIHeadlessRunner:
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
     ) -> HeadlessStart:
-        """Start the run and return once it has claimed its thread; it goes on in the background."""
+        """Start the run and return once it has claimed its thread; queued, once enqueued."""
+        if self._queue is not None:
+            return enqueue_headless(
+                self._queue,
+                agent_id,
+                prompt,
+                principal,
+                timeout=timeout,
+                thread_id=thread_id,
+                parent=parent,
+                lineage=lineage,
+                capabilities=capabilities,
+                spec_name=self._spec_name,
+            )
         thread, run, _ = await self._start(
             agent_id, prompt, principal, timeout, thread_id, parent, lineage, capabilities
         )

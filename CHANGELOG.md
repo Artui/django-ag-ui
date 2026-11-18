@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own identity; see the MCP Apps views page.
   `mcp_apps_throttle=` on `AGUIServer` gives the route its own limiter; the run
   endpoint's `throttle=` does not reach it.
+- **A headless start can run on a worker.** `AGUIHeadlessRunner(server, queue=...)` takes a
+  django-spec-agents `FiringQueue` and enqueues `run_headless` with the start's
+  `HeadlessFiring` instead of starting an in-process task, so the run's owner lives in the
+  worker. `start` then returns once the run is enqueued, with `run_id` the queue's id for
+  the firing, and refuses `capabilities=`. `start_from_sync` and `enqueue_headless`
+  (`django_ag_ui.agent.queued_start`) serve sync callers; with no queue the former runs the
+  start to its first stop. See [Queued runs](docs/queued-runs.md).
 - **A headless child keeps its parent and lineage.** `AGUIHeadlessRunner.start` and
   `run_to_first_stop` take `parent` as a django-spec-agents `ThreadRef` (any scope, so a
   child on another agent) and `lineage` as a `ChildLineageRecord`, and save both on the
