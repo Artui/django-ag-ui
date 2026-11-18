@@ -90,6 +90,7 @@ pyvenv.cfg
 
 # The A2UI fixture generator's npm install (tests/fixtures/a2ui_middleware/README.md).
 tests/fixtures/a2ui_middleware/node_modules/
+tests/fixtures/replay_verify/node_modules/
 
 # uv
 .uv-cache/

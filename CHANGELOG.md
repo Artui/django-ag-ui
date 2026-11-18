@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`threads/<id>/events/` reads a run's log, from any process.** On a mount with a run
+  store, `GET ...?after=<seq>` with `Accept: text/event-stream` replays the thread's
+  current or last run and follows it to its end: its `RUN_STARTED`, a
+  `MESSAGES_SNAPSHOT` of the stored conversation plus the run's messages at `after`, the
+  start of each item still open there, then each later event with an SSE `id:`. The
+  replay passes `@ag-ui/client`'s `verifyEvents` from any `after`, checked against
+  `@ag-ui/client` 1.0.4, and `after=0` waits for a queued run's first event. A run whose
+  log holds no `RUN_FINISHED` or `RUN_ERROR` closes on a `RUN_ERROR`. Without that
+  header the route answers JSON pages of raw entries with the next `after`, a `done`
+  flag and an `ETag` that answers `If-None-Match` with a `304`.
+- **`threads/<id>/cancel/` records a cancel** for the thread's live run through
+  `AGUIServer.request_cancel` (`202`, or `404` with no run in progress); the run's owner
+  acts on it when it next renews its lease.
+
 ## [0.81.0] — 2026-11-18
 
 ### Added
