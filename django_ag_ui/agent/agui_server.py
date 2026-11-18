@@ -35,7 +35,9 @@ from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.utils import AuthorizePredicate, GetUser
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.agent.cancel_view import CancelView
 from django_ag_ui.agent.claim_lapsed_error import ClaimLapsedError
+from django_ag_ui.agent.events_view import EventsView
 from django_ag_ui.agent.mcp_apps_view import MCPAppsView
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.runs_view import RunsView
@@ -107,6 +109,9 @@ class AGUIServer:
     - ``transcribe`` — the transcription backend is not a
       ``NullTranscriptionBackend`` (the mic's ``data-transcribe-url``).
     - ``resume`` / ``fork`` / ``runs`` — a ``step_store`` is configured.
+    - ``thread_events`` / ``thread_cancel`` — a ``run_store`` is configured
+      (``threads/<id>/events/``, a run's log replayed and tailed, and
+      ``threads/<id>/cancel/``; see [Detached runs](detached-runs.md)).
 
     Collaborators are **passed here or absent**: there is no settings fallback,
     and the keys that once held a dotted path are refused at startup by
@@ -683,6 +688,17 @@ class AGUIServer:
             )
             patterns.append(path("threads/", threads_view, name="threads"))
             patterns.append(path("threads/<str:thread_id>/", threads_view, name="thread"))
+        if self._run_store is not None:
+            events_view = EventsView(
+                self._run_store, self._conversation_store, config=self._config, **self._policy
+            )
+            cancel_view = CancelView(self.request_cancel, **self._policy)
+            patterns.append(
+                path("threads/<str:thread_id>/events/", events_view, name="thread_events")
+            )
+            patterns.append(
+                path("threads/<str:thread_id>/cancel/", cancel_view, name="thread_cancel")
+            )
         if not isinstance(self._attachment_store, NullAttachmentStore):
             attachments_view = AttachmentsView(
                 self._attachment_store, config=self._config, **self._policy

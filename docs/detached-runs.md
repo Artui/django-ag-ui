@@ -63,8 +63,9 @@ subscription closes: the run finishes, its transcript is stored, and no cancel i
 audited. A run that did not ask to detach is still cancelled when its client
 disconnects.
 
-A browser run detaches only on a mount with `RUN_TIMEOUT_SECONDS` set, because nothing
-else can stop a detached run: there is no cancel endpoint yet. On a mount without it, a
+A browser run detaches only on a mount with `RUN_TIMEOUT_SECONDS` set, because a run
+that nobody returns to needs an end of its own: the
+[cancel route](#reattach-and-cancel) stops a run only when a client asks. On a mount without it, a
 run that asks to detach is cancelled on disconnect as before. The headless runner
 requires `timeout=` for the same reason.
 
@@ -74,6 +75,69 @@ loop that drains the buffered response and finishes there, so the response carri
 whole run and `detach` has nothing to outlive. A restart loses any run in flight:
 its lease lapses, and the store then reports the thread as `failed` with the reason
 `interrupted`.
+
+## Reattach and cancel
+
+A mount with a run store serves two more routes per thread. Both answer only the
+thread's owner, with the same authentication as the endpoint, and a `404` for a thread
+that is not theirs.
+
+### Read a run's events
+
+`GET <mount>threads/<id>/events/?after=<seq>` reads the log of the thread's current run,
+or its last one once it has ended. `after` is a sequence number within that run, `0` to
+read from the start. Any process can answer, since it reads only the run store.
+
+With `Accept: text/event-stream` the answer is an AG-UI stream that replays the run and
+then follows it to its end:
+
+1. The run's `RUN_STARTED`.
+2. A `MESSAGES_SNAPSHOT`: the stored conversation, without the messages this run
+   streams, followed by the run's messages as they stood at `after`.
+3. The start event of each item still open at `after`: a text message, a tool call with
+   its arguments so far in one `TOOL_CALL_ARGS`, a reasoning span or message, a step, or
+   a subagent.
+4. Every logged event after `after`, each with an SSE `id:` holding its sequence number,
+   until `RUN_FINISHED` or `RUN_ERROR`.
+
+The replay passes `@ag-ui/client`'s `verifyEvents` from any `after`, and leaves a fresh
+client with the messages a client that watched the whole run holds. A client that
+reconnects can send the last `id:` it received. The items are re-opened after the
+snapshot, not before, because the client's reducer would otherwise mark a tool call
+it already holds for argument replacement. AG-UI 1.0 has no resumption, so this route is
+an extension of the protocol.
+
+`after=0` is also the first view of a run queued for a worker. The stream waits for the
+run's first event. If a run ends with no `RUN_FINISHED` or `RUN_ERROR` in its log, the
+stream closes on a `RUN_ERROR` with the message `the run ended without finishing` and a
+`code` that is the thread's end reason, or its status. A lapsed lease, for example,
+gives `interrupted`.
+
+Without that `Accept` header the answer is one JSON page of raw entries:
+
+```json
+{
+  "thread_id": "t1",
+  "run_id": "r1",
+  "status": "running",
+  "events": [{"seq": 1, "event": {"type": "RUN_STARTED", "...": "..."}}],
+  "after": 1,
+  "done": false
+}
+```
+
+Pass `after` back to read the next page. `limit` caps a page at 100 entries by default,
+and at 500 at most. `done` is `true` on the last page of a run that has ended. Each page
+carries an `ETag`, and a request that sends it back in `If-None-Match` gets a `304` while
+nothing has changed. An `after` or `limit` that is not a whole number in range gets a `400`.
+
+### Cancel a run
+
+`POST <mount>threads/<id>/cancel/` records a cancel for the thread's live run and answers
+`202` with `{"thread_id": ..., "cancel_requested": true}`. The run's owner acts on it the
+next time it renews its lease, about every ten seconds. A thread
+with no run in progress gets a `404`. The route is checked by CSRF unless the mount
+says otherwise.
 
 ## Start a headless run
 
