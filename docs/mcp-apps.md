@@ -60,7 +60,17 @@ A `GET` answers `405`.
 The route takes the endpoint's own authorisation and CSRF policy, the one `tools/` takes:
 `require_authenticated`, `get_user`, `authorize` and `csrf_exempt` on `AGUIServer`. The
 run endpoint's `throttle=` is not applied, as it is not to `tools/`: one limiter is one
-counter, and a view's calls would spend the run budget.
+counter, and a view's calls would spend the run budget. A `tools/call` runs a service per
+request, so give the route its own limiter with `mcp_apps_throttle=`, the same `Throttle`
+seam, answering the same `429`:
+
+```python
+AGUIServer(
+    registry,
+    throttle=FixedWindowThrottle(max_runs=20, per_seconds=60),
+    mcp_apps_throttle=FixedWindowThrottle(max_runs=120, per_seconds=60, namespace="mcp_apps"),
+)
+```
 
 Every call that passes authorisation is recorded through the endpoint's `audit_logger=`,
 refused ones included: `tool_name` is `mcp_apps.tools/call` or `mcp_apps.resources/read`

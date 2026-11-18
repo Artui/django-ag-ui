@@ -75,8 +75,9 @@ class AGUIServer:
     mount point is the consumer's to choose the Django way, so there is no
     ``prefix=``.
 
-    **What gets mounted.** The agent endpoint (``endpoint``) and its tool catalog
-    (``tools``) always mount. The rest mount only when their backend is *active*:
+    **What gets mounted.** The agent endpoint (``endpoint``), its tool catalog
+    (``tools``) and the MCP Apps views relay (``mcp_apps``, ``mcp-apps/``) always mount.
+    The rest mount only when their backend is *active*:
 
     - ``skills`` — a [`SkillRegistry`][django_ag_ui.SkillRegistry]
       was passed (``skills/``, GET JSON for ``data-skills-url``).
@@ -185,6 +186,8 @@ class AGUIServer:
     it, not how often. It is a **separate** argument rather than a second use of
     ``throttle`` because one limiter instance is one counter: sharing would let
     voice clips eat the run budget, and the two want different numbers anyway.
+    ``mcp_apps_throttle`` is the same again on ``mcp-apps/``, whose ``tools/call`` runs a
+    service for each request a view sends.
 
         AGUIServer(
             registry,
@@ -260,6 +263,7 @@ class AGUIServer:
         deps_factory: Callable[[HttpRequest], AgentDeps] | None = None,
         throttle: Throttle | None = None,
         transcribe_throttle: Throttle | None = None,
+        mcp_apps_throttle: Throttle | None = None,
         attachment_store: AttachmentStore | None = None,
         transcription_backend: TranscriptionBackend | None = None,
         toolsets: list[Any] | None = None,
@@ -300,6 +304,7 @@ class AGUIServer:
             throttle=throttle,
             toolsets=toolsets,
             transcribe_throttle=transcribe_throttle,
+            mcp_apps_throttle=mcp_apps_throttle,
             transcription_backend=transcription_backend,
         )
         self._registry = registry
@@ -330,6 +335,7 @@ class AGUIServer:
         )
         self._mcp_server = mcp_server
         self._transcribe_throttle = transcribe_throttle
+        self._mcp_apps_throttle = mcp_apps_throttle
         self._service_specs, self._spec_capability, self._spec_source = _resolve_spec_source(
             service_specs
         )
@@ -469,6 +475,7 @@ class AGUIServer:
                     mcp_server=self._mcp_server,
                     claimed_names=self._view._registry_names,
                     audit_logger=self._view._resolve_audit_logger(),
+                    throttle=self._mcp_apps_throttle,
                     **self._policy,
                 ),
                 name="mcp_apps",

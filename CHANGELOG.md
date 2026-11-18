@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   user. It answers `{result}` or a coded `{error}`, audits every call, and never touches the
   conversation. A remote pydantic-ai `MCPToolset` needs an explicit `id=` and acts as its
   own identity; see the MCP Apps views page.
+  `mcp_apps_throttle=` on `AGUIServer` gives the route its own limiter; the run
+  endpoint's `throttle=` does not reach it.
 - **A headless child keeps its parent and lineage.** `AGUIHeadlessRunner.start` and
   `run_to_first_stop` take `parent` as a django-spec-agents `ThreadRef` (any scope, so a
   child on another agent) and `lineage` as a `ChildLineageRecord`, and save both on the

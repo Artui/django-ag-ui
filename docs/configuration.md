@@ -97,6 +97,7 @@ Nest project-specific values somewhere else, not in `DJANGO_AG_UI`.
 | `capabilities=[...]` | Pydantic-AI capabilities. |
 | `throttle=...` | Rate limiter for the agent endpoint (see [`throttle=`](#throttle)). |
 | `transcribe_throttle=...` | Rate limiter for `transcribe/`, the other route that spends provider money (see [`throttle=`](#throttle)). |
+| `mcp_apps_throttle=...` | Rate limiter for `mcp-apps/`, whose `tools/call` runs a service per request (see [MCP Apps views](mcp-apps.md#authorisation)). |
 | `model_for_request=fn` | `(request) -> model` for this run (per-tenant models). |
 | `instructions_for_request=fn` | `(request) -> str` for this run (per-tenant prompts). |
 | `agent_factory=fn` | Escape hatch replacing `build_agent`. |
