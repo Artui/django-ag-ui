@@ -25,6 +25,7 @@ from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.utils import AuthorizePredicate, GetUser
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.agent.mcp_apps_view import MCPAppsView
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.runs_view import RunsView
 from django_ag_ui.agent.tools_view import ToolsView
@@ -443,6 +444,17 @@ class AGUIServer:
                     **self._policy,
                 ),
                 name="tools",
+            ),
+            path(
+                "mcp-apps/",
+                MCPAppsView(
+                    lambda: self._view._agent().toolsets,
+                    mcp_server=self._mcp_server,
+                    claimed_names=self._view._registry_names,
+                    audit_logger=self._view._resolve_audit_logger(),
+                    **self._policy,
+                ),
+                name="mcp_apps",
             ),
         ]
         if self._step_store is not None:

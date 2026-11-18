@@ -42,6 +42,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
+from django_ag_ui.agent.build_mcp_bridge import build_mcp_bridge
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
@@ -450,9 +451,7 @@ class DjangoAGUIView:
         server = self._mcp_server
         if server is None:
             return []
-        from django_spec_agents.integrations.mcp import MCPToolset
-
-        toolset = MCPToolset(server, request, exclude_names=frozenset(seen))
+        toolset = build_mcp_bridge(server, request, exclude_names=seen)
         seen.update(binding.name for binding in server.tools.all())
         return [toolset]
 

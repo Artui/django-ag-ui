@@ -43,8 +43,8 @@ def test_namespace_is_overridable() -> None:
     assert app_name == namespace == "agent"
 
 
-def test_bare_server_mounts_only_endpoint_and_tools() -> None:
-    assert _names(_server()) == {"endpoint", "tools"}
+def test_bare_server_mounts_only_endpoint_tools_and_mcp_apps() -> None:
+    assert _names(_server()) == {"endpoint", "tools", "mcp_apps"}
 
 
 def test_endpoint_mounts_at_the_prefix_root() -> None:

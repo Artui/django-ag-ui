@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **An `mcp-apps/` route relays an MCP Apps view's calls.** `AGUIServer` mounts it beside
+  `tools/`, under the same authorisation and CSRF policy. `POST {serverId, method, params}`
+  with `tools/call` or `resources/read` finds the toolset whose `id` is `serverId` among the
+  agent's toolsets and the request's `mcp_server=` bridge (`"mcp"`), unwrapping wrapper
+  toolsets, and calls its `call_tool_for_app` / `read_resource_for_app` as the request's
+  user. It answers `{result}` or a coded `{error}`, audits every call, and never touches the
+  conversation. A remote pydantic-ai `MCPToolset` needs an explicit `id=` and acts as its
+  own identity; see the MCP Apps views page.
+
 ### Changed
 
 - **django-spec-agents floors at 0.20.0**, for the base requirement, the `[mcp]` and
