@@ -11,6 +11,7 @@ from django.http import StreamingHttpResponse
 from django.test import AsyncRequestFactory
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
+from django_spec_agents.contrib.store.models import StoredThreadRun
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.registry.tool_registry import ToolRegistry
@@ -20,7 +21,8 @@ from pydantic_ai.models.test import TestModel
 from django_ag_ui.agent import events_view as events_view_module
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
-from tests.authed_request_factory import AuthedAsyncRequestFactory
+from django_ag_ui.constants import QUEUED_INPUT_EVENT
+from tests.authed_request_factory import AuthedAsyncRequestFactory, authenticated_user
 
 
 class _Gate:
@@ -212,6 +214,55 @@ async def test_json_pages_carry_the_next_after_and_an_etag_a_poller_sends_back()
 
 
 @pytest.mark.django_db(transaction=True)
+async def test_a_custom_event_that_is_not_the_queued_input_is_kept() -> None:
+    run_store = DefaultRunStore()
+    server = _server(TestModel(), run_store)
+    other = {"type": "CUSTOM", "name": "something-else", "value": {}}
+    queued = {"type": "CUSTOM", "name": QUEUED_INPUT_EVENT, "value": {}}
+    await _claimed(run_store, queued, other, _START, _DONE)
+
+    page = json.loads((await _get(server, "?after=0")).content)
+    sse = _events(await _drain(await _get(server, "?after=0", **_SSE)))
+
+    assert [e["event"] for e in page["events"]] == [other, _START, _DONE]
+    assert other in sse
+    assert queued not in sse
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_finished_run_paged_at_its_length_is_done_only_on_the_empty_page() -> None:
+    run_store = DefaultRunStore()
+    server = _server(TestModel(), run_store)
+    request = await _claimed(run_store, _START, _TEXT, _DONE)
+    await run_store.finish("t1", "r1", RunOutcome.COMPLETED, request=request)
+
+    full = json.loads((await _get(server, "?after=0&limit=3")).content)
+    empty = json.loads((await _get(server, "?after=3&limit=3")).content)
+    short = json.loads((await _get(server, "?after=0&limit=4")).content)
+
+    assert (len(full["events"]), full["done"]) == (3, False)
+    assert (empty["events"], empty["done"]) == ([], True)
+    assert (len(short["events"]), short["done"]) == (3, True)
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("headers", [{}, _SSE], ids=["json", "sse"])
+async def test_the_events_of_another_users_thread_answer_404(headers: dict[str, str]) -> None:
+    run_store = DefaultRunStore()
+    server = _server(TestModel(), run_store)
+    await _claimed(run_store, _START)
+    stranger = AsyncRequestFactory().get("/agent/threads/t1/events/", headers=headers)
+    stranger.user = authenticated_user(pk=2, username="stranger")
+
+    response = await _route(server, "thread_events")(stranger, thread_id="t1")
+    owner = await _get(server, "", **headers)
+
+    assert response.status_code == 404
+    assert json.loads(response.content) == {"error": "the thread has no run", "thread_id": "t1"}
+    assert owner.status_code == 200
+
+
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("query", ["?after=-1", "?after=x", "?limit=0", "?limit=501"])
 async def test_a_bad_after_or_limit_is_a_400(query: str) -> None:
     run_store = DefaultRunStore()
@@ -302,3 +353,24 @@ async def test_a_run_that_ends_with_no_terminal_event_closes_on_a_run_error(
 
     last = _events(await replay)[-1]
     assert last == {"type": "RUN_ERROR", "message": "the run ended without finishing", "code": code}
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_replay_whose_thread_state_vanishes_closes_on_a_run_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(events_view_module, "_POLL_SECONDS", 0.01)
+    run_store = DefaultRunStore()
+    server = _server(TestModel(), run_store)
+    await _claimed(run_store)
+    replay = asyncio.ensure_future(_drain(await _get(server, "?after=0", **_SSE)))
+    await asyncio.sleep(0.05)
+
+    await StoredThreadRun.objects.filter(thread_id="t1").adelete()
+
+    last = _events(await asyncio.wait_for(replay, timeout=5))[-1]
+    assert last == {
+        "type": "RUN_ERROR",
+        "message": "the run ended without finishing",
+        "code": "interrupted",
+    }

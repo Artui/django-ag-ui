@@ -3,27 +3,31 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import sys
 from collections.abc import Mapping
 from typing import Any
 
 import pytest
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.http import StreamingHttpResponse
+from django_service_specs import NotPermitted
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.contrib.store.default_inbound_queue import DefaultInboundQueue
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
-from django_spec_agents.contrib.store.models import StoredSnapshot
+from django_spec_agents.contrib.store.models import StoredRunEvent, StoredSnapshot
 from django_spec_agents.headless.types.headless_firing import HeadlessFiring
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
+from pydantic import ValidationError
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
 from django_ag_ui import ToolRegistry
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
+from django_ag_ui.agent.utils import is_permission_refusal
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.constants import QUEUED_INPUT_EVENT, QUEUED_RUN_LEASE
 from tests.agent.test_park_run import _APPROVED, _DELETE_ARGS, _Calls, _guarded, _parked
@@ -70,6 +74,11 @@ def _last_user_text(messages: list) -> str:
 class _RefusingQueue(WorkerQueue):
     def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
         raise RuntimeError("the queue is down")
+
+
+class _DeniedQueue(WorkerQueue):
+    def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
+        raise NotPermitted()
 
 
 def _server(fake: _Model, queue: Any = None, **overrides: Any) -> AGUIServer:
@@ -312,6 +321,40 @@ async def test_a_refused_enqueue_gives_the_claim_back_as_an_error() -> None:
 
 
 @pytest.mark.django_db(transaction=True)
+async def test_a_specs_permission_refusal_at_enqueue_answers_403_and_fails_the_claim() -> None:
+    server, queue = _queued(_Model(), _DeniedQueue)
+
+    response = await _route(server, "endpoint")(_post(_body("r1")))
+
+    assert response.status_code == 403
+    assert json.loads(response.content) == {"error": "the spec refuses that run"}
+    assert queue.enqueued == []
+    state = await _state()
+    assert (state.status, state.active_run_id) == (ThreadRunStatus.FAILED, None)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_django_permission_denied_at_enqueue_answers_403() -> None:
+    class _Denied(WorkerQueue):
+        def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
+            raise PermissionDenied
+
+    server, _ = _queued(_Model(), _Denied)
+
+    response = await _route(server, "endpoint")(_post(_body("r1")))
+
+    assert response.status_code == 403
+
+
+def test_a_refusal_is_not_recognised_without_the_kernel(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(sys.modules, "django_service_specs.authorization.not_permitted", None)
+
+    assert is_permission_refusal(PermissionDenied())
+    assert not is_permission_refusal(NotPermitted())
+    assert not is_permission_refusal(RuntimeError())
+
+
+@pytest.mark.django_db(transaction=True)
 async def test_a_firing_whose_input_is_gone_fails_rather_than_runs_an_empty_prompt() -> None:
     model = _Model()
     server, queue = _queued(model)
@@ -327,6 +370,79 @@ async def test_a_firing_whose_input_is_gone_fails_rather_than_runs_an_empty_prom
     assert model.offered == []
     state = await _state()
     assert (state.status, state.active_run_id) == (ThreadRunStatus.FAILED, None)
+
+
+async def _queued_start_that_cannot_begin(model: _Model) -> tuple[AGUIServer, WorkerQueue]:
+    server, queue = _queued(model)
+    await _route(server, "endpoint")(_post(_body("r1")))
+    return server, queue
+
+
+async def _failed_claim(model: _Model) -> None:
+    assert model.offered == []
+    state = await _state()
+    assert (state.status, state.active_run_id) == (ThreadRunStatus.FAILED, None)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_whose_first_entry_is_not_the_kept_input_has_none() -> None:
+    server, _ = _queued(_Model())
+    request = _post(b"{}")
+    await DefaultRunStore().claim("t1", "r1", request=request, lease=QUEUED_RUN_LEASE)
+    other = {"type": "CUSTOM", "name": "something-else", "value": {}}
+    await DefaultRunStore().append("r1", [other], request=request)
+
+    assert await server.queued_input(request, "r1") is None
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_kept_input_that_no_longer_parses_fails_the_claim_not_holds_it() -> None:
+    model = _Model()
+    server, queue = await _queued_start_that_cannot_begin(model)
+    entry = await StoredRunEvent.objects.aget(log__run_id="r1", seq=1)
+    entry.event["value"]["input"] = {"not": "a run input"}
+    await entry.asave()
+
+    with pytest.raises(ValidationError):
+        await queue.work()
+
+    await _failed_claim(model)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_worker_whose_wake_mark_cannot_be_read_fails_the_claim_not_holds_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = _Model()
+    server, queue = await _queued_start_that_cannot_begin(model)
+
+    async def broken(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("the inbox is down")
+
+    monkeypatch.setattr(server, "inbox_mark", broken)
+
+    with pytest.raises(RuntimeError, match="the inbox is down"):
+        await queue.work()
+
+    await _failed_claim(model)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_worker_whose_kept_input_cannot_be_read_fails_the_claim_not_holds_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = _Model()
+    server, queue = await _queued_start_that_cannot_begin(model)
+
+    async def broken(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("the log is down")
+
+    monkeypatch.setattr(server, "queued_input", broken)
+
+    with pytest.raises(RuntimeError, match="the log is down"):
+        await queue.work()
+
+    await _failed_claim(model)
 
 
 @pytest.mark.parametrize(
@@ -380,6 +496,31 @@ async def test_an_approval_resumes_its_parked_run_on_the_worker() -> None:
     [entry] = await DefaultRunStore().read("r-answer", request=request, limit=1)
     assert entry.event["value"]["resume_from"] == stop.run_id
     assert entry.event["value"]["resume_parked"] is True
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_parked_approval_resumed_on_another_thread_is_not_queued() -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    options = _guarded(calls, run_timeout_seconds=120)
+    registry = options.pop("registry")
+
+    class _Late:
+        def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
+            return queue.enqueue(spec_name, params, actor=actor)
+
+    server = AGUIServer(registry, id="helper", firing_queue=_Late(), **options)
+    queue = WorkerQueue(AGUIHeadlessRunner(server))
+    stop, _ = await _parked(server)
+    body = json.loads(_body("r-other"))
+    body.update(threadId="t-other", messages=[], tools=[], resume=_APPROVED)
+    request = _post(json.dumps(body).encode(), f"/agent/resume/{stop.run_id}/")
+
+    response = await _route(server, "resume")(request, resume_from=stop.run_id)
+
+    assert response.status_code == 404
+    assert queue.enqueued == []
+    assert calls.ran == []
+    assert await _state("t-other") is None
 
 
 @pytest.mark.django_db(transaction=True)

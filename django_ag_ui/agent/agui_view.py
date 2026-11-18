@@ -62,6 +62,7 @@ from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.agent.utils import (
     IDENTIFIER_TOO_LONG_CODE,
     a2ui_validator,
+    is_permission_refusal,
     without_answered_by,
 )
 from django_ag_ui.agent.with_a2ui_action import with_a2ui_action
@@ -223,7 +224,7 @@ class DjangoAGUIView:
             return ready
         detached = self._detaches(request, ready.run_input)
         if detached and self._queued is not None:
-            parked = await self._resume_parked(request, resume_from)
+            parked = await self._resume_parked(request, resume_from, run_input.thread_id)
             body = json.loads(request.body)
             stored = StoredBrowserInput(body=body, resume_from=resume_from, resume_parked=parked)
             return await self._enqueue(request, run_input, stored)
@@ -313,6 +314,10 @@ class DjangoAGUIView:
             return _reused(run_id)
         except ThreadBusyError as error:
             return _busy(thread_id, error.run_id)
+        except Exception as error:
+            if not is_permission_refusal(error):
+                raise
+            return JsonResponse({"error": "the spec refuses that run"}, status=403)
         return JsonResponse({"thread_id": thread_id, "run_id": run_id})
 
     async def start_headless(
@@ -477,7 +482,9 @@ class DjangoAGUIView:
         self._preflight_identifiers(request, run_input, resume_from)
         if resume_from is None:
             return None, None
-        loaded = await self._load_resume_history(request, resume_from, parked=parked)
+        loaded = await self._load_resume_history(
+            request, resume_from, run_input.thread_id, parked=parked
+        )
         if loaded is None:
             return JsonResponse({"error": "no resumable run", "run_id": resume_from}, status=404)
         message_history, source_thread_id = loaded
@@ -645,7 +652,7 @@ class DjangoAGUIView:
         ]
 
     async def _load_resume_history(
-        self, request: HttpRequest, resume_from: str, *, parked: bool | None = None
+        self, request: HttpRequest, resume_from: str, thread_id: str, *, parked: bool | None = None
     ) -> tuple[list[Any], str | None] | None:
         """Load a prior run's snapshot and its thread; ``parked`` when already read."""
         if self._step_store is None:
@@ -654,7 +661,7 @@ class DjangoAGUIView:
 
         store = self._step_store(request)
         if parked is None:
-            parked = await self._parked(request, store, resume_from)
+            parked = await self._parked(request, store, resume_from, thread_id)
         try:
             history = list(
                 await continue_run(store, run_id=resume_from, include_interrupted=parked)
@@ -663,20 +670,22 @@ class DjangoAGUIView:
             return None
         return history, await self._source_thread_id(store, resume_from)
 
-    async def _resume_parked(self, request: HttpRequest, resume_from: str | None) -> bool:
+    async def _resume_parked(
+        self, request: HttpRequest, resume_from: str | None, thread_id: str
+    ) -> bool:
         """Whether a queued start resumes a parked run, read before its claim makes it running."""
         if resume_from is None:
             return False
         assert self._step_store is not None
-        return await self._parked(request, self._step_store(request), resume_from)
+        return await self._parked(request, self._step_store(request), resume_from, thread_id)
 
-    async def _parked(self, request: HttpRequest, store: Any, run_id: str) -> bool:
-        """Whether ``run_id`` is its thread's parked run, so its open calls were deferred."""
+    async def _parked(self, request: HttpRequest, store: Any, run_id: str, thread_id: str) -> bool:
+        """Whether ``run_id`` is ``thread_id``'s parked run, so its open calls were deferred."""
         runs = self._owning_store(request)
         record = await store.get_run(run_id=run_id)
-        if runs is None or record is None or record.conversation_id is None:
+        if runs is None or record is None or record.conversation_id != thread_id:
             return False
-        state = await runs.get(record.conversation_id, request=request)
+        state = await runs.get(thread_id, request=request)
         if state is None or state.status is not ThreadRunStatus.WAITING:
             return False
         return state.last_run_id == run_id

@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   back by `run_id` and starts it as the POST would have; the events replay skips the kept
   entry, so `events?after=0` is the run's first view. The mount needs what a headless run
   needs and `RUN_TIMEOUT_SECONDS`, and refuses at construction otherwise.
+  The spec's permissions are checked when the start is enqueued, after the claim: a
+  refusal (`NotPermitted`, or Django's `PermissionDenied`) answers `403` and finishes the
+  claim as an error.
 - **`threads/<id>/events/` reads a run's log, from any process.** On a mount with a run
   store, `GET ...?after=<seq>` with `Accept: text/event-stream` replays the thread's
   current or last run and follows it to its end: its `RUN_STARTED`, a
@@ -41,7 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A parked run's answer resumes it through `resume/<run_id>/`: on park the session saves
   one interrupted snapshot of the run's messages, since pydantic-ai-harness'
   `StepPersistence` skips a history ending on an unanswered deferred call, and the route
-  loads it only while the run store shows that run as its thread's `waiting` run.
+  loads it only while the run store shows that run as the `waiting` run of the thread the
+  request names; a resume or a fork of it onto another thread answers `404`, so an approval
+  runs once.
 
 ## [0.81.0] — 2026-11-18
 

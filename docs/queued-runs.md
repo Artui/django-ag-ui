@@ -54,7 +54,11 @@ to detach (`forwardedProps.detach`) is queued rather than run in the serving pro
 
 1. The POST is checked as before (authentication, throttle, identifiers, and a resume's
    `404` or `409`), then claims the thread. A busy thread or a reused run id answers `409`,
-   and nothing is enqueued.
+   and nothing is enqueued. The queue checks the spec's permissions at enqueue, after the
+   claim, so a refusal (`NotPermitted`, or Django's `PermissionDenied`) answers `403` and a
+   refused start finishes its run as an error; a refused resume of a parked run loses the
+   park, because the claim has already moved the thread out of `waiting` and the store
+   cannot yet give a claim back.
 2. The run's whole `RunAgentInput` as the client sent it (client tools, state, context,
    `forwardedProps`, an A2UI catalog) is kept as the first entry of the run's log, with
    the run it resumes, if any. A resume of a parked run records that it was parked while

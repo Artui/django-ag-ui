@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from ag_ui.core import Message, ToolMessage
+from django.core.exceptions import PermissionDenied
 from django_spec_agents import IdentifierTooLongError
 
 from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD
@@ -90,7 +91,19 @@ def is_queued_input(event: Any) -> bool:
     )
 
 
+def is_permission_refusal(error: BaseException) -> bool:
+    """Whether ``error`` refuses the principal: ``PermissionDenied`` or ``NotPermitted``."""
+    if isinstance(error, PermissionDenied):
+        return True
+    try:
+        from django_service_specs.authorization.not_permitted import NotPermitted
+    except ImportError:
+        return False
+    return isinstance(error, NotPermitted)
+
+
 __all__ = [
+    "is_permission_refusal",
     "is_queued_input",
     "ERROR_CODE",
     "IDENTIFIER_TOO_LONG_CODE",

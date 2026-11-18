@@ -15,6 +15,7 @@ from django_spec_agents.contrib.store.default_inbound_queue import DefaultInboun
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 from django_spec_agents.contrib.store.models import StoredThreadRun
+from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_waiting import RunWaiting
@@ -335,12 +336,14 @@ async def test_an_answered_question_resumes_a_parked_child_through_wake_thread()
 _APPROVED = [{"interruptId": "int-call-1", "status": "resolved", "payload": {"approved": True}}]
 
 
-async def _resume(options: dict[str, Any], stop: Any, run_id: str) -> Any:
+async def _resume(
+    options: dict[str, Any], stop: Any, run_id: str, *, thread_id: str | None = None
+) -> Any:
     view = DjangoAGUIView(
         options["registry"], **{k: v for k, v in options.items() if k != "registry"}
     )
     body = {
-        "threadId": stop.thread_id,
+        "threadId": thread_id or stop.thread_id,
         "runId": run_id,
         "messages": [],
         "tools": [],
@@ -426,3 +429,43 @@ async def test_a_run_parks_without_the_harness_installed(monkeypatch: pytest.Mon
     )
 
     assert (state.status, state.waiting.kind) == (ThreadRunStatus.WAITING, "approval")
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_parked_approval_is_resumable_only_on_its_own_thread() -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    options = _guarded(calls)
+    stop, _ = await _parked(_server(dict(options)))
+
+    resumed, _ = await _resume(options, stop, "r-other", thread_id="t-other")
+    forked, _ = await _resume(options, stop, "r-fork", thread_id="t-fork")
+
+    assert (resumed.status_code, forked.status_code) == (404, 404)
+    assert calls.ran == []
+    streamed, state = await _resume(options, stop, "r-home")
+    assert "deleted widget-1" in streamed
+    assert calls.ran == ["widget-1"]
+    assert state.last_run_id == "r-home"
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_with_no_conversation_store_still_parks() -> None:
+    options = _guarded(_Calls("delete_thing", _DELETE_ARGS), run_timeout_seconds=300)
+    options["conversation_store"] = NullConversationStore()
+
+    state = await _browser_run(
+        DjangoAGUIView(options.pop("registry"), **options), _browser_body("r1")
+    )
+
+    assert (state.status, state.waiting.kind) == (ThreadRunStatus.WAITING, "approval")
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_parked_run_whose_thread_state_is_gone_is_not_resumable() -> None:
+    options = _guarded(_Calls("delete_thing", _DELETE_ARGS))
+    stop, _ = await _parked(_server(dict(options)))
+    await StoredThreadRun.objects.filter(thread_id=stop.thread_id).adelete()
+
+    response, _ = await _resume(options, stop, "r-answer")
+
+    assert response.status_code == 404
