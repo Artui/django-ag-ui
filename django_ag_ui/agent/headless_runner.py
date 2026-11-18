@@ -159,8 +159,10 @@ class AGUIHeadlessRunner:
         await server.claim_queued(
             request, run_input, lease=self._queued_lease, parent=parent, lineage=lineage
         )
-        firing = HeadlessFiring(agent_id, prompt, timeout, run_input.thread_id, parent, lineage)
-        params = {**dataclasses.asdict(firing), "run_id": run_input.run_id}
+        firing = HeadlessFiring(
+            agent_id, prompt, timeout, run_input.thread_id, parent, lineage, run_input.run_id
+        )
+        params = dataclasses.asdict(firing)
         try:
             await sync_to_async(queue.enqueue)(self._spec_name, params, actor=principal)
         except BaseException:

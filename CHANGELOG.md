@@ -49,10 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **django-spec-agents floors at 0.20.0**, for the base requirement, the `[mcp]` and
+- **django-spec-agents floors at 0.20.1**, for the base requirement, the `[mcp]` and
   `[specs]` extras and the dev group: child-session lineage (`HeadlessRunner.start`'s
   `ThreadRef` parent and `lineage`, `Conversation.lineage`, `child_lineage_for`) first
-  ships there. 0.20.0 floors pydantic-ai-slim at 2.69, so this package's pydantic-ai-slim
+  ships in 0.20.0, and 0.20.1 adds `HeadlessFiring.run_id`, which a queued start
+  enqueues, and a child's report that pydantic-ai-harness 0.70 no longer drops. 0.20.0 floors pydantic-ai-slim at 2.69, so this package's pydantic-ai-slim
   floor moves from 2.66 to 2.69 and the `[harness]` and `[code-mode]` extras' from 0.66 to
   0.69 (each harness release pins pydantic-ai-slim to its own minor).
 - **`DjangoAGUIView.start_headless` takes a required `prepare=`.** It claims the thread,
