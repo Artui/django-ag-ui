@@ -24,8 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lineage, and enqueues `run_headless` with the claimed `run_id`, so it returns the run the
   thread's state names and refuses a busy thread at the call with `ThreadBusyError`. The
   worker's `run_to_first_stop(run_id=...)` takes the claim up, or raises the new
-  `ClaimLapsedError` once `queued_lease=` (ten minutes by default) has passed. A queued
-  start refuses `capabilities=`. `start_from_sync` serves sync callers; with no queue it
+  `ClaimLapsedError` once `queued_lease=` (ten minutes by default) has passed; a cancel
+  recorded while the run waited ends it there, before it starts. A queued start refuses
+  `capabilities=`. `start_from_sync` serves sync callers; with no queue it
   runs the start to its first stop. Browser runs are not queued. See
   [Queued runs](docs/queued-runs.md).
 - **A headless child keeps its parent and lineage.** `AGUIHeadlessRunner.start` and
@@ -40,7 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a tool the parent gated asks for approval, and its settle enqueues a report on the
   parent's inbound queue. `AGUIServer` takes `inbound_queue=` (needs `id=`) and
   `child_spend=`; a run of a child thread on a mount with no queue raises
-  `ImproperlyConfigured`.
+  `ImproperlyConfigured`, and a headless or queued start that names a `lineage` there
+  raises it at the call, before it claims the thread.
 - `RUN_LEASE`, `QUEUED_RUN_LEASE` and `RUN_HEADLESS_SPEC` in `django_ag_ui.constants`:
   how long a run's claim on its thread holds unless renewed, how long a queued run's claim
   waits for a worker, and the spec name a queued start enqueues under.
@@ -53,6 +55,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ships there. 0.20.0 floors pydantic-ai-slim at 2.69, so this package's pydantic-ai-slim
   floor moves from 2.66 to 2.69 and the `[harness]` and `[code-mode]` extras' from 0.66 to
   0.69 (each harness release pins pydantic-ai-slim to its own minor).
+- **`DjangoAGUIView.start_headless` takes a required `prepare=`.** It claims the thread,
+  awaits `prepare(run_input)` for `(run_input, capabilities)`, and composes the returned
+  capabilities before its own; `adopt=True` starts a run whose claim is already held.
+  A caller of the view's method passes `prepare=` (one that returns
+  `(run_input, [])` keeps the old behaviour); `AGUIServer.start_headless` is unchanged
+  for its callers.
+
+### Removed
+
+- **`AGUIServer.load_history`.** `AGUIServer.start_headless` loads the thread's history
+  itself once it holds the claim; read a thread's messages from the conversation store.
 
 ### Fixed
 
@@ -82,8 +95,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A headless start claims its thread before it loads the history.** It loaded first,
   so a run of the same thread that finished in between had its messages saved over by the
   new run. The claim now comes first, and a history that fails to load gives the thread
-  back (the run is recorded as an error) rather than holding it until the lease lapses.
-  `AGUIServer.load_history` is gone; `AGUIServer.start_headless` loads it once claimed.
+  back (the run is recorded as an error) rather than holding it until the lease lapses,
+  as does an agent that fails to build.
 
 ## [0.79.0] — 2026-11-17
 

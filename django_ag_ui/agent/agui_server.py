@@ -32,6 +32,7 @@ from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.utils import AuthorizePredicate, GetUser
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.agent.claim_lapsed_error import ClaimLapsedError
 from django_ag_ui.agent.mcp_apps_view import MCPAppsView
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.runs_view import RunsView
@@ -44,6 +45,7 @@ from django_ag_ui.check_no_dotted_paths import check_no_dotted_paths
 from django_ag_ui.check_removed_settings import check_removed_settings
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.constants import RUN_LEASE
 from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.threads_view import ThreadsView
@@ -322,6 +324,7 @@ class AGUIServer:
             raise ImproperlyConfigured(
                 "AGUIServer(inbound_queue=) needs id=: a child's report names its agent"
             )
+        self._inbound_queue = inbound_queue
         self._run_store = run_store
         self._skills = skills
         self._namespace = namespace
@@ -434,6 +437,7 @@ class AGUIServer:
         adopt: bool = False,
     ) -> RunOwner:
         """Start ``run_input`` with no response once it holds the thread, after its history."""
+        self._check_child(lineage)
         view = self._view
 
         async def prepare(claimed: Any) -> tuple[Any, list[Any]]:
@@ -464,6 +468,7 @@ class AGUIServer:
         lineage: ChildLineageRecord | None = None,
     ) -> None:
         """Claim the thread for a run a worker will adopt, and save its parent and lineage."""
+        self._check_child(lineage)
         store = self._run_store
         assert store is not None
         thread_id, run_id = run_input.thread_id, run_input.run_id
@@ -476,10 +481,28 @@ class AGUIServer:
             await self.abandon_queued(request, thread_id, run_id)
             raise
 
+    async def take_up_queued(self, request: HttpRequest, thread_id: str, run_id: str) -> bool:
+        """Renew a queued run's claim for the worker; ``False``, finished, if it was cancelled."""
+        store = self._run_store
+        assert store is not None
+        if not await store.renew(thread_id, run_id, request=request, lease=RUN_LEASE):
+            raise ClaimLapsedError(thread_id, run_id)
+        state = await store.get(thread_id, request=request)
+        if state is not None and state.cancel_requested:
+            await store.finish(thread_id, run_id, RunOutcome.CANCELLED, request=request)
+            return False
+        return True
+
     async def abandon_queued(self, request: HttpRequest, thread_id: str, run_id: str) -> None:
         """Give back a queued run's claim that no worker will take up, recorded as an error."""
         assert self._run_store is not None
         await self._run_store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+
+    def _check_child(self, lineage: ChildLineageRecord | None) -> None:
+        if lineage is not None and self._inbound_queue is None:
+            raise ImproperlyConfigured(
+                f"mount {self.id!r} has no inbound_queue=, so it cannot run a child session"
+            )
 
     async def _link(
         self,

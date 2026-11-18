@@ -48,7 +48,6 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
 from django_ag_ui.agent.build_mcp_bridge import build_mcp_bridge
-from django_ag_ui.agent.claim_lapsed_error import ClaimLapsedError
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
@@ -245,27 +244,24 @@ class DjangoAGUIView:
         capabilities: Sequence[Any] = (),
         adopt: bool = False,
     ) -> RunOwner:
-        """Claim (or ``adopt`` the queued claim on) the thread, ``prepare`` the input, start."""
+        """Claim the thread (``adopt``: it is already held), ``prepare`` the input, then start."""
         self._preflight_identifiers(request, run_input, None)
         store = self._run_store
         assert store is not None
         thread_id, run_id = run_input.thread_id, run_input.run_id
-        if adopt:
-            if not await store.renew(thread_id, run_id, request=request, lease=RUN_LEASE):
-                raise ClaimLapsedError(thread_id, run_id)
-        else:
+        if not adopt:
             claim = await store.claim(thread_id, run_id, request=request, lease=RUN_LEASE)
             if not claim.claimed:
                 raise ThreadBusyError(thread_id, claim.active_run_id)
         try:
             run_input, prepared = await prepare(run_input)
+            capabilities = [*prepared, *capabilities]
+            session = self._session(request, run_input, timeout=timeout, capabilities=capabilities)
+            owner = session.own(store)
+            await owner.detach()
         except BaseException:
             await store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
             raise
-        capabilities = [*prepared, *capabilities]
-        session = self._session(request, run_input, timeout=timeout, capabilities=capabilities)
-        owner = session.own(store)
-        await owner.detach()
         self._keep(owner.start())
         return owner
 

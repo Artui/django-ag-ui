@@ -15,7 +15,11 @@ from django.core.exceptions import ImproperlyConfigured
 from django.http import Http404, StreamingHttpResponse
 from django.test import RequestFactory, override_settings
 from django_spec_agents import AttachmentInlineConfig, IdentifierTooLongError
+from django_spec_agents.contrib.store.default_inbound_queue import DefaultInboundQueue
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
+from django_spec_agents.persistence.types.conversation import Conversation
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
@@ -1985,3 +1989,13 @@ async def test_a_resume_whose_store_refuses_the_id_on_read_is_a_400(
 
     assert _refused(response) == "thread_id is too long for this store"
     assert calls == []
+
+
+def test_a_child_thread_on_a_view_with_no_agent_id_is_refused() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel(), inbound_queue=DefaultInboundQueue())
+    parent = ThreadRef("t-parent", "planner")
+    lineage = ChildLineageRecord(root=parent, depth=1, tools=[], gated=[])
+    child = Conversation("t-child", messages=[], parent=parent, lineage=lineage)
+
+    with pytest.raises(ImproperlyConfigured, match="needs its mount's id="):
+        view.child_capabilities(child)

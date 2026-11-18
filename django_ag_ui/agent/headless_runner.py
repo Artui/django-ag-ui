@@ -14,12 +14,12 @@ from django_spec_agents.headless.types.headless_firing import HeadlessFiring
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
 from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
+from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.utils import owner_id_for
 from pydantic_ai.capabilities import AbstractCapability
 
 from django_ag_ui.agent.agui_server import AGUIServer
-from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.constants import QUEUED_RUN_LEASE, RUN_HEADLESS_SPEC
 
 
@@ -89,10 +89,16 @@ class AGUIHeadlessRunner:
                 lineage,
                 capabilities,
             )
-        thread, run, _ = await self._start(
-            agent_id, prompt, principal, timeout, thread_id, parent, lineage, capabilities, None
+        server, request, run_input = self._prepare(agent_id, prompt, principal, timeout, thread_id)
+        await server.start_headless(
+            request,
+            run_input,
+            timeout=timeout,
+            capabilities=capabilities,
+            parent=parent,
+            lineage=lineage,
         )
-        return HeadlessStart(thread_id=thread, run_id=run)
+        return HeadlessStart(thread_id=run_input.thread_id, run_id=run_input.run_id)
 
     async def run_to_first_stop(
         self,
@@ -108,8 +114,20 @@ class AGUIHeadlessRunner:
         run_id: str | None = None,
     ) -> RunStop:
         """Run until it ends; a ``run_id`` takes up the claim a queued ``start`` made."""
-        thread, run, owner = await self._start(
-            agent_id, prompt, principal, timeout, thread_id, parent, lineage, capabilities, run_id
+        server, request, run_input = self._prepare(
+            agent_id, prompt, principal, timeout, thread_id, run_id
+        )
+        thread, run = run_input.thread_id, run_input.run_id
+        if run_id is not None and not await server.take_up_queued(request, thread, run):
+            return RunStop(thread_id=thread, run_id=run, outcome=RunOutcome.CANCELLED)
+        owner = await server.start_headless(
+            request,
+            run_input,
+            timeout=timeout,
+            capabilities=capabilities,
+            parent=parent,
+            lineage=lineage,
+            adopt=run_id is not None,
         )
         return RunStop(thread_id=thread, run_id=run, outcome=await owner.wait())
 
@@ -149,32 +167,6 @@ class AGUIHeadlessRunner:
             await server.abandon_queued(request, run_input.thread_id, run_input.run_id)
             raise
         return HeadlessStart(thread_id=run_input.thread_id, run_id=run_input.run_id)
-
-    async def _start(
-        self,
-        agent_id: str,
-        prompt: str,
-        principal: Any,
-        timeout: float,
-        thread_id: str | None,
-        parent: ThreadRef | None,
-        lineage: ChildLineageRecord | None,
-        capabilities: Sequence[AbstractCapability[Any]],
-        run_id: str | None,
-    ) -> tuple[str, str, RunOwner]:
-        server, request, run_input = self._prepare(
-            agent_id, prompt, principal, timeout, thread_id, run_id
-        )
-        owner = await server.start_headless(
-            request,
-            run_input,
-            timeout=timeout,
-            capabilities=capabilities,
-            parent=parent,
-            lineage=lineage,
-            adopt=run_id is not None,
-        )
-        return run_input.thread_id, run_input.run_id, owner
 
     def _prepare(
         self,

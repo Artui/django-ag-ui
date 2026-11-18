@@ -7,6 +7,8 @@ from typing import Any
 
 import pytest
 from asgiref.sync import async_to_sync
+from django.core.exceptions import ImproperlyConfigured
+from django.db import transaction
 from django_spec_agents import IdentifierTooLongError
 from django_spec_agents.contrib.store.default_child_session_index import DefaultChildSessionIndex
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
@@ -36,7 +38,9 @@ _PARENT = ThreadRef("t-parent", "planner")
 _LINEAGE = ChildLineageRecord(root=_PARENT, depth=1, tools=["lookup"], gated=[])
 
 
-def _server(offered: list[list[str]] | None = None, conversations: Any = None) -> AGUIServer:
+def _server(
+    offered: list[list[str]] | None = None, conversations: Any = None, **overrides: Any
+) -> AGUIServer:
     registry = ToolRegistry()
 
     @tool(registry)
@@ -63,7 +67,7 @@ def _server(offered: list[list[str]] | None = None, conversations: Any = None) -
         run_store=DefaultRunStore(),
         config=build_ag_ui_config(heartbeat_seconds=0),
         id="helper",
-        inbound_queue=DefaultInboundQueue(),
+        **{"inbound_queue": DefaultInboundQueue(), **overrides},
     )
 
 
@@ -309,3 +313,53 @@ def test_a_sync_start_with_no_queue_runs_to_its_first_stop() -> None:
     state = async_to_sync(_state)(server, "t2")
     assert state.status is ThreadRunStatus.IDLE
     assert state.last_run_id == started.run_id
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_cancel_recorded_while_queued_ends_the_run_before_it_starts() -> None:
+    offered: list[list[str]] = []
+    server, runner, _ = _runner_and_queue(_server(offered))
+    user = authenticated_user()
+    started = await runner.start("helper", "hi", user, timeout=5, thread_id="t-c")
+    assert await runner.cancel("t-c", user)
+
+    stop = await AGUIHeadlessRunner(server).run_to_first_stop(
+        "helper", "hi", user, timeout=5, thread_id="t-c", run_id=started.run_id
+    )
+
+    assert stop.outcome is RunOutcome.CANCELLED
+    assert offered == []
+    state = await _state(server, "t-c")
+    assert (state.status, state.active_run_id, state.cancel_requested) == (
+        ThreadRunStatus.IDLE,
+        None,
+        False,
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_queued_child_on_a_mount_with_no_inbound_queue_is_refused_before_it_claims() -> (
+    None
+):
+    server = _server(inbound_queue=None)
+    _, runner, queue = _runner_and_queue(server)
+
+    with pytest.raises(ImproperlyConfigured, match="no inbound_queue="):
+        await runner.start(
+            "helper", "hi", authenticated_user(), timeout=5, thread_id="t1", lineage=_LINEAGE
+        )
+
+    assert await _state(server, "t1") is None
+    assert queue.enqueued == []
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_sync_start_enqueues_inside_the_callers_transaction() -> None:
+    server, runner, queue = _runner_and_queue()
+
+    with pytest.raises(RuntimeError, match="the caller rolls back"), transaction.atomic():
+        start_from_sync(runner, "helper", "hi", authenticated_user(), timeout=5, thread_id="t-tx")
+        assert len(queue.enqueued) == 1
+        raise RuntimeError("the caller rolls back")
+
+    assert async_to_sync(_state)(server, "t-tx") is None

@@ -4,14 +4,14 @@ import uuid
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from django_service_specs import Unrestricted, adispatch
+from django_service_specs import Unrestricted, adispatch, check_call
 from django_spec_agents.headless.run_headless import run_headless
 from django_spec_agents.headless.types.firing_state import FiringState
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 
 
 class WorkerQueue:
-    """A FiringQueue whose ``work`` runs what was enqueued, as a worker would."""
+    """A FiringQueue that checks a call as it is enqueued, and whose ``work`` runs it."""
 
     def __init__(self, runner: HeadlessRunner) -> None:
         self._spec = run_headless(runner, permissions=[Unrestricted()])
@@ -20,6 +20,7 @@ class WorkerQueue:
         self._states: dict[str, FiringState] = {}
 
     def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
+        check_call(self._spec, principal=actor, arguments=params)
         firing_id = uuid.uuid4().hex
         self.enqueued.append((spec_name, params, actor))
         self._states[firing_id] = FiringState.PENDING

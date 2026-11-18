@@ -119,13 +119,14 @@ async def test_a_browser_turn_into_a_child_sees_only_its_parents_tools() -> None
 @pytest.mark.django_db(transaction=True)
 async def test_a_tool_the_parent_gated_still_asks_for_approval_in_a_browser_turn() -> None:
     calls: list[str] = []
-    offered: list[list[str]] = []
-    await _seed_child("t-child")
+    queue = DefaultInboundQueue()
+    request = await _seed_child("t-child")
 
-    body = await _turn(_server(calls, offered, call="write"), "t-child")
+    body = await _turn(_server(calls, [], call="write", inbound_queue=queue), "t-child")
 
     assert '"type":"interrupt"' in body
     assert calls == []
+    assert await queue.pending(_PARENT, request=request) == []
 
 
 @pytest.mark.django_db(transaction=True)
@@ -147,6 +148,18 @@ async def test_a_thread_with_no_lineage_keeps_every_tool() -> None:
     await _seed_child("t-plain", lineage=None)
 
     await _turn(_server([], offered), "t-plain")
+
+    assert offered[0] == ["lookup", "wider", "write"]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_lineage_with_no_parent_runs_on_a_mount_with_no_queue() -> None:
+    offered: list[list[str]] = []
+    request = AuthedRequestFactory().get("/")
+    orphan = Conversation("t-orphan", messages=[], owner_id="1", lineage=_LINEAGE)
+    await DefaultConversationStore().save(orphan, request=request)
+
+    await _turn(_server([], offered, inbound_queue=None), "t-orphan")
 
     assert offered[0] == ["lookup", "wider", "write"]
 

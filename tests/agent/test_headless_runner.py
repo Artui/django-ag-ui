@@ -306,3 +306,65 @@ async def test_a_childs_lineage_outlives_its_runs_saves() -> None:
     assert [(m.kind, m.sender) for m in reports] == [
         (InboundKind.REPORT, ThreadRef(first.thread_id, "helper"))
     ]
+
+
+def _unbuildable(registry: Any, config: Any) -> Any:
+    raise RuntimeError("the agent cannot be built")
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_an_agent_that_fails_to_build_gives_the_thread_back() -> None:
+    server = _server(agent_factory=_unbuildable)
+    runner = AGUIHeadlessRunner(server)
+    user = authenticated_user()
+
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match="cannot be built"):
+            await runner.start("helper", "one", user, timeout=5, thread_id="t-b")
+
+    state = await DefaultRunStore().get("t-b", request=server.headless_request(user))
+    assert (state.status, state.active_run_id) == (ThreadRunStatus.FAILED, None)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_child_on_a_mount_with_no_inbound_queue_is_refused_before_it_claims() -> None:
+    server = _server()
+    user = authenticated_user()
+
+    with pytest.raises(ImproperlyConfigured, match="no inbound_queue="):
+        await AGUIHeadlessRunner(server).start(
+            "helper", "one", user, timeout=5, thread_id="t-q", parent=_PARENT, lineage=_LINEAGE
+        )
+
+    assert await DefaultRunStore().get("t-q", request=server.headless_request(user)) is None
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_parent_named_on_a_thread_with_history_keeps_the_history() -> None:
+    server = _server()
+    runner = AGUIHeadlessRunner(server)
+    user = authenticated_user()
+    first = await runner.run_to_first_stop("helper", "one", user, timeout=5)
+
+    await runner.run_to_first_stop(
+        "helper", "two", user, timeout=5, thread_id=first.thread_id, parent=_PARENT
+    )
+
+    request = server.headless_request(user)
+    conversation = await DefaultConversationStore().load(first.thread_id, request=request)
+    assert [m["content"] for m in conversation.messages] == ["one", "answer 1", "two", "answer 2"]
+    assert conversation.parent == _PARENT
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_lineage_named_without_a_parent_is_saved() -> None:
+    server = _server(inbound_queue=DefaultInboundQueue())
+    user = authenticated_user()
+
+    stop = await AGUIHeadlessRunner(server).run_to_first_stop(
+        "helper", "one", user, timeout=5, lineage=_LINEAGE
+    )
+
+    request = server.headless_request(user)
+    conversation = await DefaultConversationStore().load(stop.thread_id, request=request)
+    assert (conversation.parent, conversation.lineage) == (None, _LINEAGE)
