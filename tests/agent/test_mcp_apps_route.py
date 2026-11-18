@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from typing import Any
 
 import pytest
@@ -17,6 +18,7 @@ from pydantic_ai.toolsets.function import FunctionToolset
 
 from django_ag_ui.agent.agui_server import AGUIServer
 from tests.authed_request_factory import AuthedAsyncRequestFactory
+from tests.integrations.spec_mcp_server import server as plain_mcp_server
 
 _VIEW_URI = "ui://counter/view"
 _VIEW_HTML = "<!doctype html><p>counter</p>"
@@ -125,6 +127,28 @@ async def test_a_model_only_tool_is_refused_to_the_app() -> None:
     assert status == 200
     assert body["error"]["code"] == -32602
     assert "not available to apps" in body["error"]["message"]
+
+
+@pytest.mark.django_db
+async def test_an_unknown_resource_keeps_the_servers_code() -> None:
+    _, body = await _answer(_route(mcp_server=_apps_server()), _read("mcp", "ui://nope"))
+    assert body["error"]["code"] == -32602
+    assert "ui://nope" in body["error"]["message"]
+
+
+@pytest.mark.django_db
+async def test_a_failing_service_is_a_result_with_is_error() -> None:
+    route = _route(mcp_server=plain_mcp_server)
+    _, body = await _answer(route, _call("mcp", "denied", {"a": 1, "b": 2}))
+    assert body["result"]["isError"] is True
+    assert "denied by policy" in body["result"]["content"][0]["text"]
+
+
+def test_the_route_adds_no_second_csrf_warning() -> None:
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        _ = AGUIServer(ToolRegistry(), model=TestModel()).urls
+    assert len([w for w in caught if "CSRF" in str(w.message)]) == 1
 
 
 async def test_a_wrapped_toolset_is_found_by_its_id() -> None:

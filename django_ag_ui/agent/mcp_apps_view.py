@@ -17,7 +17,6 @@ from django_ag_ui.agent.build_mcp_bridge import build_mcp_bridge
 from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.reject_async_throttle import reject_async_throttle
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
-from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 
 _PARSE_ERROR = -32700
 _METHOD_NOT_FOUND = -32601
@@ -65,7 +64,6 @@ class MCPAppsView:
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
-        warn_if_csrf_unstated(csrf_exempt, get_user)
         self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
         markcoroutinefunction(cast("Any", self))
 
