@@ -108,7 +108,8 @@ dependencies = [
     # 0.23.0's ``ResumableRunStore`` claims a resume of a parked run atomically
     # (``resumes=``) and gives a refused claim back (``release``), and its
     # ``HeadlessFiring`` carries the inbox mark taken at enqueue. Held by
-    # ``tests/agent/test_park_run.py`` and ``tests/agent/test_queued_browser_start.py``.
+    # ``tests/agent/test_park_run.py``, ``tests/agent/test_queued_browser_start.py``
+    # and ``tests/agent/test_child_first_run.py``.
     "django-spec-agents>=0.23.0",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the

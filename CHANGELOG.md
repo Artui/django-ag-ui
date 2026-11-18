@@ -61,12 +61,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Mail that arrives while a queued run waits for a worker wakes its thread.** The
-  worker took the thread's inbox mark when it picked the run up, so a message enqueued
-  between the start and the pickup was below the mark and never woke the thread. A queued
-  headless start and a queued browser start now take the mark at enqueue, send it as the
-  firing's `inbox_mark` and keep it as the run log's first entry, which the worker reads
-  back, since `run_headless` does not pass it on.
+- **Mail that arrives while a queued headless start waits for a worker wakes its
+  thread.** The worker took the thread's inbox mark when it picked the run up, so a
+  message enqueued between `start` and the pickup was below the mark and never woke the
+  thread. The start now takes the mark at enqueue, sends it as the firing's `inbox_mark`
+  and, on a mount with an inbound queue, keeps it as the run log's first entry (an
+  `ag_ui.queued_input` the events replay skips), which the worker reads back, since
+  `run_headless` does not pass it on. A detached browser start does the same.
 
 ## [0.81.0] — 2026-11-18
 

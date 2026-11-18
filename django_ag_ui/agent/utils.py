@@ -87,7 +87,7 @@ def without_answered_by(message: Message) -> Message:
 
 
 def is_queued_input(event: Any) -> bool:
-    """Whether a run log event is a queued browser start's kept input, never sent to a client."""
+    """Whether a run log event is what a queued start kept for its worker, never sent out."""
     return (
         isinstance(event, dict)
         and event.get("type") == "CUSTOM"

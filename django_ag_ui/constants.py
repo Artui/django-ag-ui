@@ -24,7 +24,7 @@ QUEUED_RUN_LEASE = timedelta(minutes=10)
 """How long a queued run's claim waits for a worker to take it up, unless the runner says."""
 
 QUEUED_INPUT_EVENT = "ag_ui.queued_input"
-"""The CUSTOM event name a queued browser start logs its input under, ahead of the run."""
+"""The CUSTOM event name a queued start logs what its worker needs under, ahead of the run."""
 
 A2UI_SCHEMA_CONTEXT_DESCRIPTION = (
     "A2UI Component Schema — available components for generating UI surfaces. "
