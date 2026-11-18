@@ -217,3 +217,12 @@ def test_a_write_that_is_not_json_is_a_415_and_writes_nothing(
     response = _editor()(request, skill_id)
     assert response.status_code == 415
     assert not TenantSkill.objects.exists()
+
+
+def test_the_editor_is_exported_from_the_package() -> None:
+    import django_ag_ui
+
+    assert django_ag_ui.SkillEditorView is SkillEditorView
+    assert "SkillEditorView" in django_ag_ui.__all__
+    with pytest.raises(AttributeError, match="no attribute 'Missing'"):
+        django_ag_ui.Missing  # noqa: B018

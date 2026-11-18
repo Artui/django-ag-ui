@@ -19,6 +19,7 @@ from pydantic_ai.messages import ModelRequest, ToolReturnPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from django_ag_ui import ToolRegistry, tool
+from django_ag_ui.agent import agui_server
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
 from django_ag_ui.agent.queued_start import start_from_sync
@@ -279,3 +280,23 @@ def test_a_wake_from_a_sync_bridge_runs_before_the_bridge_returns() -> None:
 
     assert len(model.sent) == 2
     assert "arrived while it was idle" in str(model.sent[1][-1])
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_wake_hands_wake_thread_the_queue_inside_a_waking_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inner = DefaultInboundQueue()
+    waking = WakingInboundQueue(inner, runner=None, runs=DefaultRunStore(), timeout=5)
+    server = _server(_Model(), waking)
+    request = server.headless_request(authenticated_user())
+    await inner.enqueue(ThreadRef("t-q", "helper"), InboundKind.STEER, {"x": 1}, request=request)
+    handed: list[Any] = []
+
+    async def wake_thread(thread: ThreadRef, **kwargs: Any) -> None:
+        handed.append(kwargs["queue"])
+
+    monkeypatch.setattr(agui_server, "wake_thread", wake_thread)
+    await server.wake(request, "t-q", after=0, runner=AGUIHeadlessRunner(server), timeout=5)
+
+    assert handed == [inner]

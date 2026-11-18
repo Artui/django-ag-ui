@@ -151,6 +151,7 @@ __all__ = [
     "OpenedAttachment",
     "ContextDelivery",
     "RunContextConfig",
+    "SkillEditorView",
     "SkillRegistry",
     "SkillSpec",
     "ThreadActivity",
@@ -181,3 +182,12 @@ __all__ = [
     "build_input_schema",
     "tool",
 ]
+
+
+def __getattr__(name: str) -> type:
+    """``SkillEditorView`` on first use: its module imports a model, so needs the app registry."""
+    if name == "SkillEditorView":
+        from django_ag_ui.skills.skill_editor_view import SkillEditorView
+
+        return SkillEditorView
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

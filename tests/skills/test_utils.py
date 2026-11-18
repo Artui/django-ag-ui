@@ -21,9 +21,10 @@ def test_the_mount_reserves_its_registry_names_beside_the_policys_own() -> None:
     assert merged.reserved_names(request) == {"summarize", "house-style"}
 
 
-async def test_a_run_whose_deps_carry_no_request_is_refused() -> None:
+@pytest.mark.parametrize("context", [{}, {"request": SimpleNamespace(user=None)}])
+async def test_a_run_whose_deps_carry_no_django_request_is_refused(context: dict) -> None:
     capability = StoredSkillsForRun(TenantSkillPolicy(), authoring=False)
-    ctx = SimpleNamespace(deps=SimpleNamespace(call_context={}))
+    ctx = SimpleNamespace(deps=SimpleNamespace(call_context=context))
     with pytest.raises(ImproperlyConfigured, match="call_context"):
         await capability.for_run(ctx)  # ty: ignore[invalid-argument-type]
 
