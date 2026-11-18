@@ -85,6 +85,7 @@ from django_ag_ui.persistence.types.thread_activity import ThreadActivity
 from django_ag_ui.persistence.types.thread_activity_source import ThreadActivitySource
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
 from django_ag_ui.skills.skill_registry import SkillRegistry
+from django_ag_ui.skills.skills_changed import SKILLS_CHANGED_EVENT_NAME
 from django_ag_ui.skills.types.skill_spec import SkillSpec
 from django_ag_ui.version import __version__
 
@@ -102,6 +103,7 @@ __all__ = [
     "SUGGESTIONS_ACTIVITY_TYPE",
     "SUBAGENT_EVENT_NAME",
     "INVALIDATE_EVENT_NAME",
+    "SKILLS_CHANGED_EVENT_NAME",
     "INVALIDATION_SINK",
     "MAX_LABELS",
     "MAX_MAGNITUDE",
@@ -149,6 +151,7 @@ __all__ = [
     "OpenedAttachment",
     "ContextDelivery",
     "RunContextConfig",
+    "SkillEditorView",
     "SkillRegistry",
     "SkillSpec",
     "ThreadActivity",
@@ -179,3 +182,12 @@ __all__ = [
     "build_input_schema",
     "tool",
 ]
+
+
+def __getattr__(name: str) -> type:
+    """``SkillEditorView`` on first use: its module imports a model, so needs the app registry."""
+    if name == "SkillEditorView":
+        from django_ag_ui.skills.skill_editor_view import SkillEditorView
+
+        return SkillEditorView
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

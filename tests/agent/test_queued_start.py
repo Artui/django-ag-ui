@@ -125,6 +125,7 @@ async def test_a_queued_start_holds_its_thread_before_it_returns() -> None:
             "gated": [],
         },
         "run_id": started.run_id,
+        "answers": None,
     }
     assert started == HeadlessStart(thread_id="t1", run_id=started.run_id)
 

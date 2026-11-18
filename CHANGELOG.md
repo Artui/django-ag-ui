@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.81.0] — 2026-11-18
+
+### Added
+
+- **`answers=` on `AGUIHeadlessRunner.start` and `run_to_first_stop`**, and in the queued
+  firing: a caller that passes them resumes the thread's stored history with
+  `DeferredToolResults(calls=answers)` and no new prompt, in this process or on a worker.
+  `wake_thread` resumes a parked thread this way only once a park is recorded as
+  waiting, which this mount does not do yet: a run that parks is recorded as completed.
+- **A browser run on a child's thread reports that the user joined** (`user_joined=True`).
+- **A headless run wakes its thread after its end is recorded** through django-spec-agents'
+  `wake_thread`, when mail arrived during the run, so a message that landed after its last
+  read starts the thread again. A run that waits for its result (a worker's, or
+  `start_from_sync`'s) runs the woken run to its first stop before it returns. Mail
+  already pending at the run's start, a failed run, and a browser run wake nothing.
+- **`TOOL_CALL_RESULT` and the stored `ToolMessage` carry `metadata.answered_by`.** A call
+  whose result part holds `metadata["answered_by"]` (a reviewer's or a routine's answer to
+  an approval) is stamped in `metadata` only. A resumed run copies the mark back from the
+  source thread's stored messages, since upstream's dump drops it. A mark on a
+  client-posted `ToolMessage` is dropped on every browser run, and in client-managed mode
+  the marks the thread stored are lent back. No store change.
+- **User skills: a per-caller catalog, an editor endpoint and a skills-changed event.**
+  `AGUIServer(skill_policy=...)` takes a django-spec-agents `SkillPolicy` over your
+  `AbstractSkill` model. The `skills/` catalog then lists each caller's enabled,
+  user-invocable stored skills after the registry's, as `{name, title, description}`
+  with no `prompt`, so a pick sends `/name`; a registry skill wins a shared name.
+  `SkillsView` takes the same `policy=`. Every run gets the caller's stored skills
+  through `StoredSkills`, read from `deps.call_context["request"]`, and
+  `skill_authoring=True` adds the runtime's authoring tools. `skill_editor=True` mounts
+  `SkillEditorView` (exported from `django_ag_ui`) at `skills/editor/` and
+  `skills/editor/<id>/`: `GET` lists the skills the caller may write with their bodies,
+  `POST` creates, `PUT` replaces and `PATCH {"enabled": ...}` turns a skill off or on. A skill the caller cannot see or
+  write is a `404`; a broken rule is a `400`, a refused write a `403` and the skill cap
+  a `409`, and none carries a body. The mount reserves the registry's skill names, so
+  no stored skill can take one. A run that saves a stored skill sends the CUSTOM event
+  `ag_ui.skills_changed` (`SKILLS_CHANGED_EVENT_NAME`), `{"name": ...}`, once the save
+  commits. The editor is CSRF-exempt by default, like the threads endpoints, and refuses
+  a write that is not `application/json` with `415`. A pick of a skill that is
+  user-invocable but not model-invocable adds its body to that run's instructions: the
+  latest user message must open with its `/name`. See the User skills page.
+
+### Changed
+
+- **A queued runner serves child sessions.** The `ValueError` for `capabilities=` stays,
+  but 0.21.0's child-session tools pass none, so a child's start enqueues like any other.
+
+### Fixed
+
+- **A child session's first run keeps its parent's bounds.** django-spec-agents 0.21.0
+  starts a child with `lineage=` only and leaves composing `child_lineage_for` to the
+  runner, which 0.80.0 did only from the second run on, so with 0.21.0 a child's first run
+  had no `ChildLineage`, no `ChildReport` and no spend budgets. `AGUIHeadlessRunner` now
+  composes them on every run, in process or on a queued worker, and the floor is
+  `django-spec-agents>=0.21.0`. 0.80.0 is not yanked: upgrade to this release.
+
 ## [0.80.0] — 2026-11-18
 
 ### Added
@@ -4573,7 +4628,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.80.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.81.0...HEAD
+[0.81.0]: https://github.com/Artui/django-ag-ui/compare/v0.80.0...v0.81.0
 [0.80.0]: https://github.com/Artui/django-ag-ui/compare/v0.79.0...v0.80.0
 [0.79.0]: https://github.com/Artui/django-ag-ui/compare/v0.78.0...v0.79.0
 [0.78.0]: https://github.com/Artui/django-ag-ui/compare/v0.77.0...v0.78.0

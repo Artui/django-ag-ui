@@ -547,3 +547,55 @@ def test_building_the_stream_raises_no_warning() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         adapter.build_event_stream()
+
+
+# --- answered_by ---------------------------------------------------------------
+
+
+async def test_an_answered_by_mark_reaches_the_encoded_frame_in_metadata_only() -> None:
+    part = _tool_return(metadata={"answered_by": "reviewer:m"})
+    events = await _drain(_stream().handle_function_tool_result(FunctionToolResultEvent(part=part)))
+    result = next(e for e in events if isinstance(e, ToolCallResultEvent))
+    frame = _served(result)
+    assert frame["metadata"] == {"answered_by": "reviewer:m"}
+    assert "answered_by" not in frame
+
+
+async def test_an_output_tool_result_carries_its_mark() -> None:
+    part = _tool_return(metadata={"answered_by": "routine:7"})
+    events = await _drain(_stream().handle_output_tool_result(OutputToolResultEvent(part=part)))
+    result = next(e for e in events if isinstance(e, ToolCallResultEvent))
+    assert result.metadata == {"answered_by": "routine:7"}
+
+
+async def test_a_result_with_no_mark_carries_none() -> None:
+    events = await _drain(
+        _stream().handle_function_tool_result(
+            FunctionToolResultEvent(part=_tool_return(metadata={"other": 1}))
+        )
+    )
+    result = next(e for e in events if isinstance(e, ToolCallResultEvent))
+    assert "answered_by" not in (result.metadata or {})
+
+
+async def test_a_non_string_mark_is_ignored() -> None:
+    events = await _drain(
+        _stream().handle_function_tool_result(
+            FunctionToolResultEvent(part=_tool_return(metadata={"answered_by": 3}))
+        )
+    )
+    result = next(e for e in events if isinstance(e, ToolCallResultEvent))
+    assert "answered_by" not in (result.metadata or {})
+
+
+def test_a_dumped_result_carries_its_mark_in_metadata_only() -> None:
+    (stored,) = _dumped_tools(_tool_return(metadata={"answered_by": "reviewer:m"}))
+    assert stored["metadata"] == {"answered_by": "reviewer:m"}
+    assert "answered_by" not in stored
+
+
+def test_a_dumped_result_carries_its_mark_beside_its_outcome() -> None:
+    (stored,) = _dumped_tools(
+        _tool_return(outcome="denied", metadata={"answered_by": "reviewer:m"})
+    )
+    assert stored["metadata"] == {OUTCOME_FIELD: "denied", "answered_by": "reviewer:m"}

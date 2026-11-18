@@ -305,7 +305,7 @@ async def test_a_childs_lineage_outlives_its_runs_saves() -> None:
     reports = await queue.pending(_PARENT, request=request)
     assert [(m.kind, m.sender) for m in reports] == [
         (InboundKind.REPORT, ThreadRef(first.thread_id, "helper"))
-    ]
+    ] * 2
 
 
 def _unbuildable(registry: Any, config: Any) -> Any:

@@ -30,8 +30,11 @@ that serves its request.
 - **A failed enqueue gives the thread back.** The claim is finished as an error, so the
   thread is free for the next start.
 - **No `capabilities=`.** They cannot cross a queue, so a queued start that passes any
-  raises `ValueError`. django-spec-agents' child-session tools pass the child's lineage
-  this way, so a queued runner cannot serve them yet.
+  raises `ValueError`. A child session needs none: django-spec-agents' child-session
+  tools (0.21.0 and later) pass only `parent=` and `lineage=`, which the firing carries,
+  and the worker composes the child's bounds from them.
+- **`answers=` crosses the queue.** A start that resumes a thread parked on a question
+  carries its answers in the firing, and the worker resumes the stored history with them.
 
 ## What the worker does
 
@@ -39,8 +42,8 @@ The worker's runner is called with the claimed `run_id` and takes the claim up r
 claim the thread again. The claim waits for it for `queued_lease=` (ten minutes unless the
 runner says otherwise); a worker that comes later raises
 [`ClaimLapsedError`][django_ag_ui.agent.claim_lapsed_error.ClaimLapsedError] and does not
-run. A child's run composes its stored lineage on the worker, as any later run of a child
-does. Both paths write the same lease and log. A worker that dies mid-run is not run again:
+run. A child's run composes its stored lineage on the worker, its first run as much as any
+later one. Both paths write the same lease and log. A worker that dies mid-run is not run again:
 the lease lapses and the thread reads `failed` with reason `interrupted`.
 
 ## From sync code

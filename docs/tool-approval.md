@@ -154,6 +154,18 @@ the generated question, and an interrupt whose tool supplied its own `x-confirm`
 (by raising `ApprovalRequired(metadata=...)`) is left alone: it has said something
 more specific than any static mapping can.
 
+## Who answered an approval
+
+A call answered by something other than the person (a reviewer model, a routine's
+grant) carries the answerer in its tool result's `metadata.answered_by`, for example
+`reviewer:<model>` or `routine:<id>`. The run stamps it on `TOOL_CALL_RESULT` and on the
+stored `ToolMessage` from the result part's own `metadata["answered_by"]`, in `metadata`
+only: there is no top-level `answered_by` key. A person's own answer carries no mark.
+
+The stored message is the record. Each resumed run re-dumps history without the mark, so
+it is copied back from the source thread's stored messages; a mark on a `ToolMessage` the
+client posts is dropped, never trusted.
+
 ## After the approval: telling the page
 
 An approved call runs a **server-side** tool, which means it can change data the

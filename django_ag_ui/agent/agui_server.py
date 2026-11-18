@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import timedelta
 from typing import Any
 
@@ -12,6 +12,9 @@ from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
 from django_spec_agents.child_sessions.types.child_session_spend import ChildSessionSpend
 from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
+from django_spec_agents.child_sessions.wake_thread import wake_thread
+from django_spec_agents.child_sessions.waking_inbound_queue import WakingInboundQueue
+from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
 from django_spec_agents.integrations.types.spec_source import SpecSource
 from django_spec_agents.persistence.django_session_conversation_store import (
@@ -86,8 +89,11 @@ class AGUIServer:
     (``tools``) and the MCP Apps views relay (``mcp_apps``, ``mcp-apps/``) always mount.
     The rest mount only when their backend is *active*:
 
-    - ``skills`` — a [`SkillRegistry`][django_ag_ui.SkillRegistry]
-      was passed (``skills/``, GET JSON for ``data-skills-url``).
+    - ``skills`` — a [`SkillRegistry`][django_ag_ui.SkillRegistry] or a
+      ``skill_policy`` was passed (``skills/``, GET JSON for ``data-skills-url``).
+    - ``skill_editor`` / ``skill_editor_item`` — ``skill_editor=True``
+      (``skills/editor/`` + ``skills/editor/<id>/``, see
+      [`SkillEditorView`][django_ag_ui.skills.skill_editor_view.SkillEditorView]).
     - ``threads`` / ``thread`` — the conversation store is not a
       ``NullConversationStore`` (``threads/`` + ``threads/<id>/``, the history
       drawer's ``data-threads-url``). A ``thread_activity_source=`` puts pushed
@@ -243,6 +249,15 @@ class AGUIServer:
     starts runs as ``headless_request(principal)``. Without a run store nothing changes.
     See [Detached and headless runs](detached-runs.md).
 
+    **User skills.** ``skill_policy`` takes a django-spec-agents ``SkillPolicy``:
+    the ``skills/`` catalog lists each caller's stored skills beside the
+    registry's, and every run gets the caller's model-invocable ones through
+    ``StoredSkills``, with its authoring tools when ``skill_authoring=True``. A
+    run that saves a stored skill sends the ``ag_ui.skills_changed`` CUSTOM event.
+    The policy is wrapped so the registry's skill names are reserved. An
+    ``agent_factory`` builds its own agent and gets none of this. See
+    [User skills](user-skills.md).
+
     **Namespacing.** [`urls`][django_ag_ui.AGUIServer.urls] returns the
     ``(patterns, app_name, namespace)``
     triple ``path()`` mounts directly (like ``admin.site.urls`` — no
@@ -264,6 +279,9 @@ class AGUIServer:
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
         skills: SkillRegistry | None = None,
+        skill_policy: Any = None,
+        skill_editor: bool = False,
+        skill_authoring: bool = False,
         conversation_store: ConversationStore | None = None,
         thread_activity_source: ThreadActivitySource | None = None,
         step_store: Callable[[HttpRequest], Any] | None = None,
@@ -310,6 +328,7 @@ class AGUIServer:
             child_spend=child_spend,
             service_specs=service_specs,
             skills=skills,
+            skill_policy=skill_policy,
             step_store=step_store,
             thread_activity_source=thread_activity_source,
             throttle=throttle,
@@ -337,6 +356,16 @@ class AGUIServer:
             "authorize": authorize,
             "csrf_exempt": csrf_exempt,
         }
+        self._skill_policy: Any = None
+        self._skill_editor: Any = None
+        if skill_policy is not None:
+            capabilities = self._mount_skill_policy(
+                skill_policy, capabilities, editor=skill_editor, authoring=skill_authoring
+            )
+        elif skill_editor or skill_authoring:
+            raise ImproperlyConfigured(
+                "AGUIServer(skill_editor=, skill_authoring=) need skill_policy="
+            )
         self._conversation_store: ConversationStore = (
             conversation_store if conversation_store is not None else NullConversationStore()
         )
@@ -389,6 +418,19 @@ class AGUIServer:
             **self._policy,
         )
 
+    def _mount_skill_policy(
+        self, policy: Any, capabilities: list[Any] | None, *, editor: bool, authoring: bool
+    ) -> list[Any]:
+        # Imported late: django_spec_agents.skills defines a model, so needs the app registry.
+        from django_ag_ui.skills.skill_editor_view import SkillEditorView
+        from django_ag_ui.skills.utils import ReservingPolicy, StoredSkillsForRun
+
+        self._skill_policy = ReservingPolicy(policy, (spec.name for spec in self._skills or ()))
+        if editor:
+            self._skill_editor = SkillEditorView(self._skill_policy, **self._policy)
+        stored = StoredSkillsForRun(self._skill_policy, authoring=authoring)
+        return [stored, *(capabilities or [])]
+
     def headless_request(self, principal: Any) -> HttpRequest:
         """The request a headless run's seams see: ``user=principal``, and no session.
 
@@ -435,6 +477,8 @@ class AGUIServer:
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
         adopt: bool = False,
+        answers: Mapping[str, str] | None = None,
+        after_finish: Callable[[RunOutcome], Awaitable[None]] | None = None,
     ) -> RunOwner:
         """Start ``run_input`` with no response once it holds the thread, after its history."""
         self._check_child(lineage)
@@ -442,8 +486,7 @@ class AGUIServer:
 
         async def prepare(claimed: Any) -> tuple[Any, list[Any]]:
             conversation = await self._link(request, claimed.thread_id, parent, lineage)
-            composed = lineage is None or adopt
-            stored_lineage = view.child_capabilities(conversation) if composed else []
+            stored_lineage = view.child_capabilities(conversation)
             stored = [] if conversation is None else conversation.messages
             history = messages_from_jsonable(stored)
             filled = claimed.model_copy(update={"messages": [*history, *claimed.messages]})
@@ -456,6 +499,8 @@ class AGUIServer:
             capabilities=capabilities,
             prepare=prepare,
             adopt=adopt,
+            answers=answers,
+            after_finish=after_finish,
         )
 
     async def claim_queued(
@@ -497,6 +542,45 @@ class AGUIServer:
         """Give back a queued run's claim that no worker will take up, recorded as an error."""
         assert self._run_store is not None
         await self._run_store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+
+    async def inbox_mark(self, request: HttpRequest, thread_id: str) -> int | None:
+        """The id of the thread's newest pending message, ``0`` for none; ``None`` with no queue."""
+        queue = self._inner_queue()
+        if queue is None:
+            return None
+        assert self.id is not None
+        pending = await queue.pending(ThreadRef(thread_id, self.id), request=request)
+        return max((message.id for message in pending), default=0)
+
+    async def wake(
+        self,
+        request: HttpRequest,
+        thread_id: str,
+        *,
+        after: int,
+        runner: HeadlessRunner,
+        timeout: float,
+    ) -> None:
+        """Wake the thread for mail newer than ``after``; unread older mail would wake forever."""
+        queue = self._inner_queue()
+        assert queue is not None and self.id is not None and self._run_store is not None
+        thread = ThreadRef(thread_id, self.id)
+        if not await queue.pending(thread, request=request, after=after):
+            return
+        await wake_thread(
+            thread,
+            request=request,
+            runner=runner,
+            runs=self._run_store,
+            queue=queue,
+            timeout=timeout,
+            conversations=self._conversation_store,
+        )
+
+    def _inner_queue(self) -> InboundQueue | None:
+        # The inner queue: an answer whose start fails is enqueued again, which must not wake.
+        queue = self._inbound_queue
+        return queue.queue if isinstance(queue, WakingInboundQueue) else queue
 
     def _check_child(self, lineage: ChildLineageRecord | None) -> None:
         if lineage is not None and self._inbound_queue is None:
@@ -583,10 +667,13 @@ class AGUIServer:
                     name="runs",
                 ),
             )
-        if self._skills is not None:
-            patterns.append(
-                path("skills/", SkillsView(self._skills, **self._policy), name="skills")
-            )
+        if self._skills is not None or self._skill_policy is not None:
+            catalog = SkillsView(self._skills, policy=self._skill_policy, **self._policy)
+            patterns.append(path("skills/", catalog, name="skills"))
+        if self._skill_editor is not None:
+            editor = self._skill_editor
+            patterns.append(path("skills/editor/", editor, name="skill_editor"))
+            patterns.append(path("skills/editor/<str:skill_id>/", editor, name="skill_editor_item"))
         if not isinstance(self._conversation_store, NullConversationStore):
             threads_view = ThreadsView(
                 self._conversation_store,

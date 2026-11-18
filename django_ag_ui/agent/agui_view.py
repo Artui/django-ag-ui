@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import warnings
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any, cast
 
 from ag_ui.core import Message
@@ -41,18 +41,23 @@ from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.utils import AuthorizePredicate, aauthorize, auth_error_response
 from pydantic import ValidationError
-from pydantic_ai import Agent
+from pydantic_ai import Agent, DeferredToolResults
 from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
 from django_ag_ui.agent.build_mcp_bridge import build_mcp_bridge
+from django_ag_ui.agent.lend_answered_by import lend_answered_by
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.agent.types.throttle import Throttle
-from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE, a2ui_validator
+from django_ag_ui.agent.utils import (
+    IDENTIFIER_TOO_LONG_CODE,
+    a2ui_validator,
+    without_answered_by,
+)
 from django_ag_ui.agent.with_a2ui_action import with_a2ui_action
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
@@ -212,7 +217,10 @@ class DjangoAGUIView:
         if isinstance(prepared, HttpResponseBase):
             return prepared
         message_history, source_messages = prepared
-        lineage = await self._stored_lineage(request, run_input.thread_id)
+        stored = await self._stored_conversation(request, run_input.thread_id)
+        lineage = self.child_capabilities(stored, user_joined=True)
+        if message_history is None:
+            run_input = _marked_by_server(run_input, stored)
         session = self._session(
             request,
             run_input,
@@ -243,6 +251,8 @@ class DjangoAGUIView:
         prepare: Callable[[Any], Awaitable[tuple[Any, Sequence[Any]]]],
         capabilities: Sequence[Any] = (),
         adopt: bool = False,
+        answers: Mapping[str, str] | None = None,
+        after_finish: Callable[[RunOutcome], Awaitable[None]] | None = None,
     ) -> RunOwner:
         """Claim the thread (``adopt``: it is already held), ``prepare`` the input, then start."""
         self._preflight_identifiers(request, run_input, None)
@@ -256,8 +266,17 @@ class DjangoAGUIView:
         try:
             run_input, prepared = await prepare(run_input)
             capabilities = [*prepared, *capabilities]
-            session = self._session(request, run_input, timeout=timeout, capabilities=capabilities)
+            deferred = None if answers is None else DeferredToolResults(calls=dict(answers))
+            session = self._session(
+                request,
+                run_input,
+                timeout=timeout,
+                capabilities=capabilities,
+                deferred_tool_results=deferred,
+            )
             owner = session.own(store)
+            if after_finish is not None:
+                owner.after_finish(after_finish)
             await owner.detach()
         except BaseException:
             await store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
@@ -276,6 +295,7 @@ class DjangoAGUIView:
         source_messages: list[Message] | None = None,
         timeout: float | None = None,
         capabilities: Sequence[Any] = (),
+        deferred_tool_results: DeferredToolResults | None = None,
     ) -> AgentSession:
         return AgentSession(
             self._agent(),
@@ -295,9 +315,12 @@ class DjangoAGUIView:
             message_history=message_history,
             source_messages=source_messages,
             timeout=timeout,
+            deferred_tool_results=deferred_tool_results,
         )
 
-    def child_capabilities(self, conversation: Conversation | None) -> list[Any]:
+    def child_capabilities(
+        self, conversation: Conversation | None, *, user_joined: bool = False
+    ) -> list[Any]:
         """What a run of a child session's thread composes, rebuilt from its stored lineage."""
         if conversation is None or conversation.lineage is None or conversation.parent is None:
             return []
@@ -312,16 +335,18 @@ class DjangoAGUIView:
             owner=conversation.owner_id or "",
             queue=self._inbound_queue,
             spend=self._child_spend,
+            user_joined=user_joined,
         )
 
-    async def _stored_lineage(self, request: HttpRequest, thread_id: str) -> list[Any]:
+    async def _stored_conversation(
+        self, request: HttpRequest, thread_id: str
+    ) -> Conversation | None:
         if isinstance(self._conversation_store, NullConversationStore):
-            return []
+            return None
         try:
-            conversation = await self._conversation_store.load(thread_id, request=request)
+            return await self._conversation_store.load(thread_id, request=request)
         except AnonymousOperationError:
-            return []
-        return self.child_capabilities(conversation)
+            return None
 
     def _owning_store(self, request: HttpRequest) -> RunStore | None:
         """The run store this request's run is owned through; none for an anonymous run."""
@@ -660,6 +685,14 @@ class DjangoAGUIView:
 
     def _resolve_audit_logger(self) -> AuditLogger:
         return self._audit_logger if self._audit_logger is not None else NullAuditLogger()
+
+
+def _marked_by_server(run_input: Any, stored: Conversation | None) -> Any:
+    """``run_input`` with each client claim of who answered dropped, and the stored marks lent."""
+    messages = [without_answered_by(message) for message in run_input.messages]
+    if stored is not None:
+        messages = lend_answered_by(messages, messages_from_jsonable(stored.messages))
+    return run_input.model_copy(update={"messages": messages})
 
 
 __all__ = ["DjangoAGUIView"]

@@ -4,7 +4,10 @@ import asyncio
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
+from ag_ui.core import Message, ToolMessage
 from django_spec_agents import IdentifierTooLongError
+
+from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD
 
 ERROR_CODE = "error"
 TIMED_OUT_CODE = "timed_out"
@@ -67,6 +70,16 @@ def a2ui_validator() -> Callable[..., dict[str, Any]]:
     return validate_a2ui_components
 
 
+def without_answered_by(message: Message) -> Message:
+    """``message`` without a client's claim of who answered a call; only the server marks."""
+    if not isinstance(message, ToolMessage):
+        return message
+    metadata = dict(message.metadata or {})
+    if metadata.pop(ANSWERED_BY_FIELD, None) is None:
+        return message
+    return message.model_copy(update={"metadata": metadata or None})
+
+
 __all__ = [
     "ERROR_CODE",
     "IDENTIFIER_TOO_LONG_CODE",
@@ -78,4 +91,5 @@ __all__ = [
     "discard_tasks",
     "pump_in_lockstep",
     "run_error_code",
+    "without_answered_by",
 ]

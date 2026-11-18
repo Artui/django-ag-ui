@@ -55,6 +55,7 @@ class RunOwner:
         self._pending: TextMessageContentEvent | None = None
         self._pending_since = 0.0
         self._running = False
+        self._after_finish: Callable[[RunOutcome], Awaitable[None]] | None = None
 
     async def claim(self) -> RunClaim:
         """Take the thread for this run; a loss names the run that holds it."""
@@ -62,6 +63,10 @@ class RunOwner:
         return await self._store.claim(
             self._thread_id, self._run_id, request=self._request, lease=RUN_LEASE
         )
+
+    def after_finish(self, callback: Callable[[RunOutcome], Awaitable[None]]) -> None:
+        """Call ``callback`` with the outcome once the run's end is recorded and delivered."""
+        self._after_finish = callback
 
     def start(self) -> asyncio.Task[RunOutcome]:
         """Start the run's task, once; the caller keeps a reference to it."""
@@ -125,6 +130,8 @@ class RunOwner:
             await self._finish(outcome)
             # Last, so a subscriber's loop ending (as under WSGI) never cuts the bookkeeping.
             self._deliver(end)
+            if self._after_finish is not None:
+                await _quietly(self._after_finish(outcome), "acting on a run's end")
         return outcome
 
     async def _wind_down(self, ended: bool) -> None:
