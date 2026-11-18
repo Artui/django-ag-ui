@@ -23,12 +23,17 @@ from django_spec_agents.agent.build_model import build_model
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
+from django_spec_agents.child_sessions.child_lineage_for import child_lineage_for
+from django_spec_agents.child_sessions.types.child_session_spend import ChildSessionSpend
+from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.run_id_reused_error import RunIdReusedError
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
+from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.utils import owner_id_for
 from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
@@ -42,6 +47,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
+from django_ag_ui.agent.build_mcp_bridge import build_mcp_bridge
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
@@ -50,7 +56,7 @@ from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE, a2ui_validator
 from django_ag_ui.agent.with_a2ui_action import with_a2ui_action
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
-from django_ag_ui.constants import A2UI_RENDER_TOOL_NAME, DETACH_PROP
+from django_ag_ui.constants import A2UI_RENDER_TOOL_NAME, DETACH_PROP, RUN_LEASE
 from django_ag_ui.persistence.utils import messages_from_jsonable
 from django_ag_ui.reject_async_throttle import reject_async_throttle
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
@@ -132,6 +138,9 @@ class DjangoAGUIView:
         throttle: Throttle | None = None,
         config: AGUIConfig | None = None,
         run_store: RunStore | None = None,
+        agent_id: str | None = None,
+        inbound_queue: InboundQueue | None = None,
+        child_spend: ChildSessionSpend | None = None,
     ) -> None:
         self._registry = registry
         self._model = model
@@ -154,6 +163,9 @@ class DjangoAGUIView:
         )
         self._step_store = step_store
         self._run_store = run_store
+        self._agent_id = agent_id
+        self._inbound_queue = inbound_queue
+        self._child_spend = child_spend
         self._owners: set[asyncio.Task[Any]] = set()
         self._deps_factory = deps_factory
         reject_async_throttle(throttle, allows="run")
@@ -200,6 +212,7 @@ class DjangoAGUIView:
         if isinstance(prepared, HttpResponseBase):
             return prepared
         message_history, source_messages = prepared
+        lineage = await self._stored_lineage(request, run_input.thread_id)
         session = self._session(
             request,
             run_input,
@@ -207,6 +220,7 @@ class DjangoAGUIView:
             a2ui=a2ui,
             message_history=message_history,
             source_messages=source_messages,
+            capabilities=lineage,
         )
         owner = session.own(self._owning_store(request))
         refused = await self._claim(owner, request, run_input)
@@ -226,15 +240,28 @@ class DjangoAGUIView:
         run_input: Any,
         *,
         timeout: float,
+        prepare: Callable[[Any], Awaitable[tuple[Any, Sequence[Any]]]],
         capabilities: Sequence[Any] = (),
+        adopt: bool = False,
     ) -> RunOwner:
-        """Start a run with no response, past the auth gates; raises ``ThreadBusyError``."""
+        """Claim the thread (``adopt``: it is already held), ``prepare`` the input, then start."""
         self._preflight_identifiers(request, run_input, None)
-        session = self._session(request, run_input, timeout=timeout, capabilities=capabilities)
-        owner = session.own(self._run_store)
-        claim = await owner.claim()
-        if not claim.claimed:
-            raise ThreadBusyError(run_input.thread_id, claim.active_run_id)
+        store = self._run_store
+        assert store is not None
+        thread_id, run_id = run_input.thread_id, run_input.run_id
+        if not adopt:
+            claim = await store.claim(thread_id, run_id, request=request, lease=RUN_LEASE)
+            if not claim.claimed:
+                raise ThreadBusyError(thread_id, claim.active_run_id)
+        try:
+            run_input, prepared = await prepare(run_input)
+            capabilities = [*prepared, *capabilities]
+            session = self._session(request, run_input, timeout=timeout, capabilities=capabilities)
+            owner = session.own(store)
+            await owner.detach()
+        except BaseException:
+            await store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+            raise
         self._keep(owner.start())
         return owner
 
@@ -270,6 +297,32 @@ class DjangoAGUIView:
             timeout=timeout,
         )
 
+    def child_capabilities(self, conversation: Conversation | None) -> list[Any]:
+        """What a run of a child session's thread composes, rebuilt from its stored lineage."""
+        if conversation is None or conversation.lineage is None or conversation.parent is None:
+            return []
+        if self._agent_id is None or self._inbound_queue is None:
+            raise ImproperlyConfigured(
+                f"thread {conversation.thread_id!r} is a child session, and a run of it "
+                "needs its mount's id= and inbound_queue= to keep its parent's bounds"
+            )
+        return child_lineage_for(
+            conversation,
+            agent_id=self._agent_id,
+            owner=conversation.owner_id or "",
+            queue=self._inbound_queue,
+            spend=self._child_spend,
+        )
+
+    async def _stored_lineage(self, request: HttpRequest, thread_id: str) -> list[Any]:
+        if isinstance(self._conversation_store, NullConversationStore):
+            return []
+        try:
+            conversation = await self._conversation_store.load(thread_id, request=request)
+        except AnonymousOperationError:
+            return []
+        return self.child_capabilities(conversation)
+
     def _owning_store(self, request: HttpRequest) -> RunStore | None:
         """The run store this request's run is owned through; none for an anonymous run."""
         if self._run_store is None or owner_id_for(request) is None:
@@ -279,7 +332,7 @@ class DjangoAGUIView:
     async def _claim(
         self, owner: RunOwner, request: HttpRequest, run_input: Any
     ) -> HttpResponseBase | None:
-        """Claim the thread for a store-backed run, or the 409 that says who holds it."""
+        """Claim a store-backed run's thread (or 409); under WSGI the response loop starts it."""
         if self._owning_store(request) is None:
             return None
         try:
@@ -297,7 +350,8 @@ class DjangoAGUIView:
                 },
                 status=409,
             )
-        self._keep(owner.start())
+        if isinstance(request, ASGIRequest):
+            self._keep(owner.start())
         return None
 
     def _detaches(self, request: HttpRequest, run_input: Any) -> bool:
@@ -450,9 +504,7 @@ class DjangoAGUIView:
         server = self._mcp_server
         if server is None:
             return []
-        from django_spec_agents.integrations.mcp import MCPToolset
-
-        toolset = MCPToolset(server, request, exclude_names=frozenset(seen))
+        toolset = build_mcp_bridge(server, request, exclude_names=seen)
         seen.update(binding.name for binding in server.tools.all())
         return [toolset]
 

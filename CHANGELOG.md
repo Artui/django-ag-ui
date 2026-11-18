@@ -7,6 +7,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.80.0] — 2026-11-18
+
+### Added
+
+- **An `mcp-apps/` route relays an MCP Apps view's calls.** `AGUIServer` mounts it beside
+  `tools/`, under the same authorisation and CSRF policy. `POST {serverId, method, params}`
+  with `tools/call` or `resources/read` finds the toolset whose `id` is `serverId` among the
+  agent's toolsets and the request's `mcp_server=` bridge (`"mcp"`), unwrapping wrapper
+  toolsets, and calls its `call_tool_for_app` / `read_resource_for_app` as the request's
+  user. It answers `{result}` or a coded `{error}`, audits every call, and never touches the
+  conversation. A remote pydantic-ai `MCPToolset` needs an explicit `id=` and acts as its
+  own identity; see the MCP Apps views page.
+  `mcp_apps_throttle=` on `AGUIServer` gives the route its own limiter; the run
+  endpoint's `throttle=` does not reach it.
+- **A headless start can run on a worker.** `AGUIHeadlessRunner(server, queue=...)` takes a
+  django-spec-agents `FiringQueue`. `start` claims the thread, saves a child's parent and
+  lineage, and enqueues `run_headless` with the claimed `run_id`, so it returns the run the
+  thread's state names and refuses a busy thread at the call with `ThreadBusyError`. The
+  worker's `run_to_first_stop(run_id=...)` takes the claim up, or raises the new
+  `ClaimLapsedError` once `queued_lease=` (ten minutes by default) has passed; a cancel
+  recorded while the run waited ends it there, before it starts. A queued start refuses
+  `capabilities=`. `start_from_sync` serves sync callers; with no queue it
+  runs the start to its first stop. Browser runs are not queued. See
+  [Queued runs](docs/queued-runs.md).
+- **A headless child keeps its parent and lineage.** `AGUIHeadlessRunner.start` and
+  `run_to_first_stop` take `parent` as a django-spec-agents `ThreadRef` (any scope, so a
+  child on another agent) and `lineage` as a `ChildLineageRecord`, and save both on the
+  child's conversation before `start` returns, so `DefaultChildSessionIndex` lists the
+  child under its parent from then on. Below this release `parent` was accepted and
+  dropped. A later run's save names neither, which the store leaves alone.
+- **Every run of a child session keeps its parent's bounds.** A browser turn into a
+  child thread, a resume after an approval and a headless wake each rebuild the stored
+  lineage with `child_lineage_for` and compose it: the run sees only its parent's tools,
+  a tool the parent gated asks for approval, and its settle enqueues a report on the
+  parent's inbound queue. `AGUIServer` takes `inbound_queue=` (needs `id=`) and
+  `child_spend=`; a run of a child thread on a mount with no queue raises
+  `ImproperlyConfigured`, and a headless or queued start that names a `lineage` there
+  raises it at the call, before it claims the thread.
+- `RUN_LEASE`, `QUEUED_RUN_LEASE` and `RUN_HEADLESS_SPEC` in `django_ag_ui.constants`:
+  how long a run's claim on its thread holds unless renewed, how long a queued run's claim
+  waits for a worker, and the spec name a queued start enqueues under.
+
+### Changed
+
+- **django-spec-agents floors at 0.20.1**, for the base requirement, the `[mcp]` and
+  `[specs]` extras and the dev group: child-session lineage (`HeadlessRunner.start`'s
+  `ThreadRef` parent and `lineage`, `Conversation.lineage`, `child_lineage_for`) first
+  ships in 0.20.0, and 0.20.1 adds `HeadlessFiring.run_id`, which a queued start
+  enqueues, and a child's report that pydantic-ai-harness 0.70 no longer drops. 0.20.0 floors pydantic-ai-slim at 2.69, so this package's pydantic-ai-slim
+  floor moves from 2.66 to 2.69 and the `[harness]` and `[code-mode]` extras' from 0.66 to
+  0.69 (each harness release pins pydantic-ai-slim to its own minor).
+- **`DjangoAGUIView.start_headless` takes a required `prepare=`.** It claims the thread,
+  awaits `prepare(run_input)` for `(run_input, capabilities)`, and composes the returned
+  capabilities before its own; `adopt=True` starts a run whose claim is already held.
+  A caller of the view's method passes `prepare=` (one that returns
+  `(run_input, [])` keeps the old behaviour); `AGUIServer.start_headless` is unchanged
+  for its callers.
+
+### Removed
+
+- **`AGUIServer.load_history`.** `AGUIServer.start_headless` loads the thread's history
+  itself once it holds the claim; read a thread's messages from the conversation store.
+
+### Fixed
+
+- **A run-store mount served under WSGI answers with the whole run.** The view started
+  the run on the loop that served the request, which ends when the view returns, so the
+  run was cancelled and the response was an empty 200. Under WSGI the run now starts on
+  the loop that drains the buffered response.
+- **A run's stream ends after its end is recorded.** Under ASGI and WSGI alike, the last
+  item a subscriber reads now follows the run store's record of how the run ended (and,
+  for a run cut short, its finalizing), so a client that sees the end can start the
+  thread's next run at once.
+- **A held text delta reaches the run log when a run is cancelled or fails.** Consecutive
+  deltas of one message are merged before they are logged, and the last one was dropped
+  on a cancel or an error. A run that fails before its end (a run-store append that
+  raises included) now also closes its stream stages and is finalized: its partial
+  exchange is stored and audited. A run whose end had already streamed is not finalized
+  twice.
+- **A headless run keeps no events in memory.** Nothing subscribes to a run the server
+  started itself, yet every event was queued for a subscriber until the run ended. The
+  owner now starts detached.
+- **A provider compaction keeps the id it streamed under on pydantic-ai 2.68 and later.**
+  From 2.68 the streamed `ACTIVITY_SNAPSHOT` carries the `canonical_system` stamp the
+  stored copy carries, and the transcript matched a streamed activity to its stored copy
+  by stripping the stamp from the stored side only, so an OpenAI compaction was saved
+  under a fresh id and a resumed client saw it twice. The stamp is now set aside on both
+  sides.
+- **A headless start claims its thread before it loads the history.** It loaded first,
+  so a run of the same thread that finished in between had its messages saved over by the
+  new run. The claim now comes first, and a history that fails to load gives the thread
+  back (the run is recorded as an error) rather than holding it until the lease lapses,
+  as does an agent that fails to build.
+
 ## [0.79.0] — 2026-11-17
 
 A minor release with no migration. Three floors move: pydantic-ai-slim to 2.66 (three
@@ -4479,7 +4573,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.79.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.80.0...HEAD
+[0.80.0]: https://github.com/Artui/django-ag-ui/compare/v0.79.0...v0.80.0
 [0.79.0]: https://github.com/Artui/django-ag-ui/compare/v0.78.0...v0.79.0
 [0.78.0]: https://github.com/Artui/django-ag-ui/compare/v0.77.0...v0.78.0
 [0.77.0]: https://github.com/Artui/django-ag-ui/compare/v0.76.0...v0.77.0

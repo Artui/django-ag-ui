@@ -69,7 +69,9 @@ run that asks to detach is cancelled on disconnect as before. The headless runne
 requires `timeout=` for the same reason.
 
 The owner task runs on the event loop that served the request. To outlive the request
-it needs a loop that outlives it, which means ASGI. A restart loses any run in flight:
+it needs a loop that outlives it, which means ASGI. Under WSGI the run starts on the
+loop that drains the buffered response and finishes there, so the response carries the
+whole run and `detach` has nothing to outlive. A restart loses any run in flight:
 its lease lapses, and the store then reports the thread as `failed` with the reason
 `interrupted`.
 
@@ -105,6 +107,37 @@ stop = await runner.run_to_first_stop("assistant", "Summarise today's tickets", 
   [`ThreadBusyError`][django_ag_ui.agent.thread_busy_error.ThreadBusyError].
 - **Cancelling.** `cancel(thread_id, principal)` records a cancel. The run acts on it
   the next time it renews its lease.
+
+## Child sessions
+
+A child session is a thread with a parent: django-spec-agents' child-session tools start
+one through `start(..., parent=, lineage=)`, which saves both on the child's conversation
+before it returns, so `DefaultChildSessionIndex` lists the child under its parent at once.
+`parent` is a `ThreadRef` in any scope, so the child may run on another agent.
+
+Every later run of that thread keeps its parent's bounds, whether a browser turn into the
+child, a resume after an approval, or a headless wake: the mount rebuilds the stored
+lineage with `child_lineage_for` and composes it into the run. The child sees only the
+tools its parent had, a tool its parent gated still asks for approval, and the run's
+settle enqueues a report on the parent's inbound queue. A run that parks reports nothing.
+A mount that serves child sessions names its queue, and `id=` names the agent each report
+comes from:
+
+```python
+agent = AGUIServer(
+    registry,
+    id="helper",
+    run_store=DefaultRunStore(),
+    step_store=DefaultStepStore,
+    conversation_store=DefaultConversationStore(),
+    inbound_queue=DefaultInboundQueue(),
+    child_spend=spend,
+)
+```
+
+`inbound_queue=` without `id=` is refused at startup, and a run of a child thread on a
+mount with no queue raises `ImproperlyConfigured` rather than run unbounded. `child_spend=`
+is optional; given, the run counts against the child-session budgets as well.
 
 Every seam a run reaches takes a request: the stores, `deps_factory`, the MCP bridge and
 `step_store`. A headless run gets the mount's `headless_request(principal)`, an

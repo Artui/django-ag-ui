@@ -42,6 +42,7 @@ from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.chart_activity import CHART_ACTIVITY_TYPE, chart_activity
 from django_ag_ui.agent.chart_limits import MAX_LABELS, MAX_MAGNITUDE, MAX_POINTS
 from django_ag_ui.agent.chart_points_delta import chart_points_delta
+from django_ag_ui.agent.claim_lapsed_error import ClaimLapsedError
 from django_ag_ui.agent.compaction_observer import CompactionObserver
 from django_ag_ui.agent.fixed_window_throttle import FixedWindowThrottle
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
@@ -50,6 +51,7 @@ from django_ag_ui.agent.publish_invalidation import (
     INVALIDATION_SINK,
     publish_invalidation,
 )
+from django_ag_ui.agent.queued_start import start_from_sync
 from django_ag_ui.agent.resource_invalidation import (
     INVALIDATE_EVENT_NAME,
     resource_invalidation,
@@ -120,6 +122,8 @@ __all__ = [
     "DEFAULT_SYSTEM_PROMPT",
     "AGUIServer",
     "AGUIHeadlessRunner",
+    "ClaimLapsedError",
+    "start_from_sync",
     "AgentConfig",
     "AgentFactoryFn",
     "AgentSession",

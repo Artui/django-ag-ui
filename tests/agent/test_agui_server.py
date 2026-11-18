@@ -43,8 +43,8 @@ def test_namespace_is_overridable() -> None:
     assert app_name == namespace == "agent"
 
 
-def test_bare_server_mounts_only_endpoint_and_tools() -> None:
-    assert _names(_server()) == {"endpoint", "tools"}
+def test_bare_server_mounts_only_endpoint_tools_and_mcp_apps() -> None:
+    assert _names(_server()) == {"endpoint", "tools", "mcp_apps"}
 
 
 def test_endpoint_mounts_at_the_prefix_root() -> None:
@@ -443,3 +443,11 @@ def test_the_runs_view_gets_the_endpoints_own_config() -> None:
     patterns, _, _ = server.urls
 
     assert next(p for p in patterns if p.name == "runs").callback._config.run_list_limit == 3
+
+
+def test_mcp_apps_throttle_reaches_the_mcp_apps_view_alone() -> None:
+    runs, calls = _NoThrottle(), _NoThrottle()
+    patterns, _, _ = _server(throttle=runs, mcp_apps_throttle=calls).urls
+
+    assert next(p for p in patterns if p.name == "mcp_apps").callback._throttle is calls
+    assert next(p for p in patterns if p.name == "endpoint").callback._throttle is runs

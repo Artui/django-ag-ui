@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 A2UI_ACTIVITY_TYPE = "a2ui-surface"
 """``activity_type`` of an A2UI surface, the value ``@ag-ui/a2ui-middleware`` emits.
 
@@ -11,6 +13,15 @@ A2UI_RENDER_TOOL_NAME = "render_a2ui"
 
 DETACH_PROP = "detach"
 """The ``RunAgentInput.forwardedProps`` key by which a client asks its run to outlive it."""
+
+RUN_LEASE = timedelta(seconds=30)
+"""How long a run's claim on its thread holds unless its owner renews it."""
+
+RUN_HEADLESS_SPEC = "run_headless"
+"""The name a queued headless start enqueues its spec under, unless the runner says."""
+
+QUEUED_RUN_LEASE = timedelta(minutes=10)
+"""How long a queued run's claim waits for a worker to take it up, unless the runner says."""
 
 A2UI_SCHEMA_CONTEXT_DESCRIPTION = (
     "A2UI Component Schema — available components for generating UI surfaces. "
@@ -131,5 +142,8 @@ __all__ = [
     "A2UI_RENDER_GUIDE_V0_9",
     "A2UI_RENDER_TOOL_NAME",
     "DETACH_PROP",
+    "QUEUED_RUN_LEASE",
+    "RUN_HEADLESS_SPEC",
+    "RUN_LEASE",
     "A2UI_SCHEMA_CONTEXT_DESCRIPTION",
 ]

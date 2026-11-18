@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import dataclasses
 from collections.abc import Callable, Mapping, Sequence
+from datetime import timedelta
 from typing import Any
 
-from ag_ui.core import Message
 from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpRequest
 from django.urls import URLPattern, path
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
+from django_spec_agents.child_sessions.types.child_session_spend import ChildSessionSpend
+from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
 from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
 from django_spec_agents.integrations.types.spec_source import SpecSource
 from django_spec_agents.persistence.django_session_conversation_store import (
@@ -18,15 +20,23 @@ from django_spec_agents.persistence.django_session_conversation_store import (
 from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
+from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
+from django_spec_agents.persistence.utils import owner_id_for
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.utils import AuthorizePredicate, GetUser
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.agent.claim_lapsed_error import ClaimLapsedError
+from django_ag_ui.agent.mcp_apps_view import MCPAppsView
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.runs_view import RunsView
+from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.spec_capability_source import SpecCapabilitySource
 from django_ag_ui.agent.types.spec_toolset_source import SpecToolsetSource
@@ -35,6 +45,7 @@ from django_ag_ui.check_no_dotted_paths import check_no_dotted_paths
 from django_ag_ui.check_removed_settings import check_removed_settings
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.constants import RUN_LEASE
 from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
 from django_ag_ui.persistence.threads_view import ThreadsView
@@ -71,8 +82,9 @@ class AGUIServer:
     mount point is the consumer's to choose the Django way, so there is no
     ``prefix=``.
 
-    **What gets mounted.** The agent endpoint (``endpoint``) and its tool catalog
-    (``tools``) always mount. The rest mount only when their backend is *active*:
+    **What gets mounted.** The agent endpoint (``endpoint``), its tool catalog
+    (``tools``) and the MCP Apps views relay (``mcp_apps``, ``mcp-apps/``) always mount.
+    The rest mount only when their backend is *active*:
 
     - ``skills`` — a [`SkillRegistry`][django_ag_ui.SkillRegistry]
       was passed (``skills/``, GET JSON for ``data-skills-url``).
@@ -181,6 +193,8 @@ class AGUIServer:
     it, not how often. It is a **separate** argument rather than a second use of
     ``throttle`` because one limiter instance is one counter: sharing would let
     voice clips eat the run budget, and the two want different numbers anyway.
+    ``mcp_apps_throttle`` is the same again on ``mcp-apps/``, whose ``tools/call`` runs a
+    service for each request a view sends.
 
         AGUIServer(
             registry,
@@ -256,6 +270,7 @@ class AGUIServer:
         deps_factory: Callable[[HttpRequest], AgentDeps] | None = None,
         throttle: Throttle | None = None,
         transcribe_throttle: Throttle | None = None,
+        mcp_apps_throttle: Throttle | None = None,
         attachment_store: AttachmentStore | None = None,
         transcription_backend: TranscriptionBackend | None = None,
         toolsets: list[Any] | None = None,
@@ -272,6 +287,8 @@ class AGUIServer:
         namespace: str = DEFAULT_NAMESPACE,
         run_store: RunStore | None = None,
         id: str | None = None,
+        inbound_queue: InboundQueue | None = None,
+        child_spend: ChildSessionSpend | None = None,
     ) -> None:
         check_removed_settings()
         # The same mistake in its constructor-shaped form: a name where an object belongs.
@@ -289,6 +306,8 @@ class AGUIServer:
             model_for_request=model_for_request,
             provider=provider,
             run_store=run_store,
+            inbound_queue=inbound_queue,
+            child_spend=child_spend,
             service_specs=service_specs,
             skills=skills,
             step_store=step_store,
@@ -296,10 +315,16 @@ class AGUIServer:
             throttle=throttle,
             toolsets=toolsets,
             transcribe_throttle=transcribe_throttle,
+            mcp_apps_throttle=mcp_apps_throttle,
             transcription_backend=transcription_backend,
         )
         self._registry = registry
         self.id = id
+        if inbound_queue is not None and id is None:
+            raise ImproperlyConfigured(
+                "AGUIServer(inbound_queue=) needs id=: a child's report names its agent"
+            )
+        self._inbound_queue = inbound_queue
         self._run_store = run_store
         self._skills = skills
         self._namespace = namespace
@@ -326,6 +351,7 @@ class AGUIServer:
         )
         self._mcp_server = mcp_server
         self._transcribe_throttle = transcribe_throttle
+        self._mcp_apps_throttle = mcp_apps_throttle
         self._service_specs, self._spec_capability, self._spec_source = _resolve_spec_source(
             service_specs
         )
@@ -357,6 +383,9 @@ class AGUIServer:
             throttle=throttle,
             config=self._config,
             run_store=run_store,
+            agent_id=id,
+            inbound_queue=inbound_queue,
+            child_spend=child_spend,
             **self._policy,
         )
 
@@ -403,16 +432,98 @@ class AGUIServer:
         *,
         timeout: float,
         capabilities: Sequence[Any] = (),
+        parent: ThreadRef | None = None,
+        lineage: ChildLineageRecord | None = None,
+        adopt: bool = False,
     ) -> RunOwner:
-        """Start ``run_input`` with no response; see ``DjangoAGUIView.start_headless``."""
-        return await self._view.start_headless(
-            request, run_input, timeout=timeout, capabilities=capabilities
+        """Start ``run_input`` with no response once it holds the thread, after its history."""
+        self._check_child(lineage)
+        view = self._view
+
+        async def prepare(claimed: Any) -> tuple[Any, list[Any]]:
+            conversation = await self._link(request, claimed.thread_id, parent, lineage)
+            composed = lineage is None or adopt
+            stored_lineage = view.child_capabilities(conversation) if composed else []
+            stored = [] if conversation is None else conversation.messages
+            history = messages_from_jsonable(stored)
+            filled = claimed.model_copy(update={"messages": [*history, *claimed.messages]})
+            return filled, stored_lineage
+
+        return await view.start_headless(
+            request,
+            run_input,
+            timeout=timeout,
+            capabilities=capabilities,
+            prepare=prepare,
+            adopt=adopt,
         )
 
-    async def load_history(self, thread_id: str, *, request: HttpRequest) -> list[Message]:
-        """The thread's stored messages, the history a headless run continues."""
-        conversation = await self._conversation_store.load(thread_id, request=request)
-        return [] if conversation is None else messages_from_jsonable(conversation.messages)
+    async def claim_queued(
+        self,
+        request: HttpRequest,
+        run_input: Any,
+        *,
+        lease: timedelta,
+        parent: ThreadRef | None = None,
+        lineage: ChildLineageRecord | None = None,
+    ) -> None:
+        """Claim the thread for a run a worker will adopt, and save its parent and lineage."""
+        self._check_child(lineage)
+        store = self._run_store
+        assert store is not None
+        thread_id, run_id = run_input.thread_id, run_input.run_id
+        claim = await store.claim(thread_id, run_id, request=request, lease=lease)
+        if not claim.claimed:
+            raise ThreadBusyError(thread_id, claim.active_run_id)
+        try:
+            await self._link(request, thread_id, parent, lineage)
+        except BaseException:
+            await self.abandon_queued(request, thread_id, run_id)
+            raise
+
+    async def take_up_queued(self, request: HttpRequest, thread_id: str, run_id: str) -> bool:
+        """Renew a queued run's claim for the worker; ``False``, finished, if it was cancelled."""
+        store = self._run_store
+        assert store is not None
+        if not await store.renew(thread_id, run_id, request=request, lease=RUN_LEASE):
+            raise ClaimLapsedError(thread_id, run_id)
+        state = await store.get(thread_id, request=request)
+        if state is not None and state.cancel_requested:
+            await store.finish(thread_id, run_id, RunOutcome.CANCELLED, request=request)
+            return False
+        return True
+
+    async def abandon_queued(self, request: HttpRequest, thread_id: str, run_id: str) -> None:
+        """Give back a queued run's claim that no worker will take up, recorded as an error."""
+        assert self._run_store is not None
+        await self._run_store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+
+    def _check_child(self, lineage: ChildLineageRecord | None) -> None:
+        if lineage is not None and self._inbound_queue is None:
+            raise ImproperlyConfigured(
+                f"mount {self.id!r} has no inbound_queue=, so it cannot run a child session"
+            )
+
+    async def _link(
+        self,
+        request: HttpRequest,
+        thread_id: str,
+        parent: ThreadRef | None,
+        lineage: ChildLineageRecord | None,
+    ) -> Conversation | None:
+        store = self._conversation_store
+        conversation = await store.load(thread_id, request=request)
+        if parent is None and lineage is None:
+            return conversation
+        linked = Conversation(
+            thread_id=thread_id,
+            messages=[] if conversation is None else conversation.messages,
+            owner_id=owner_id_for(request),
+            parent=parent,
+            lineage=lineage,
+        )
+        await store.save(linked, request=request)
+        return linked
 
     async def request_cancel(self, thread_id: str, *, request: HttpRequest) -> bool:
         """Record a cancel for the thread's live run, for its owner to act on."""
@@ -443,6 +554,18 @@ class AGUIServer:
                     **self._policy,
                 ),
                 name="tools",
+            ),
+            path(
+                "mcp-apps/",
+                MCPAppsView(
+                    lambda: self._view._agent().toolsets,
+                    mcp_server=self._mcp_server,
+                    claimed_names=self._view._registry_names,
+                    audit_logger=self._view._resolve_audit_logger(),
+                    throttle=self._mcp_apps_throttle,
+                    **self._policy,
+                ),
+                name="mcp_apps",
             ),
         ]
         if self._step_store is not None:

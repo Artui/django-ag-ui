@@ -97,12 +97,15 @@ Nest project-specific values somewhere else, not in `DJANGO_AG_UI`.
 | `capabilities=[...]` | Pydantic-AI capabilities. |
 | `throttle=...` | Rate limiter for the agent endpoint (see [`throttle=`](#throttle)). |
 | `transcribe_throttle=...` | Rate limiter for `transcribe/`, the other route that spends provider money (see [`throttle=`](#throttle)). |
+| `mcp_apps_throttle=...` | Rate limiter for `mcp-apps/`, whose `tools/call` runs a service per request (see [MCP Apps views](mcp-apps.md#authorisation)). |
 | `model_for_request=fn` | `(request) -> model` for this run (per-tenant models). |
 | `instructions_for_request=fn` | `(request) -> str` for this run (per-tenant prompts). |
 | `agent_factory=fn` | Escape hatch replacing `build_agent`. |
 | `audit_logger=...` | `AuditLogger` implementation. |
 | `provider=...` | Explicit Pydantic-AI `Provider`; takes precedence over `API_KEY`. |
 | `conversation_store=...` | Server-side conversation persistence. |
+| `inbound_queue=...` | django-spec-agents `InboundQueue` a child session's runs report to their parent on; needs `id=` (see [Child sessions](detached-runs.md#child-sessions)). |
+| `child_spend=...` | django-spec-agents `ChildSessionSpend` whose budgets every run of a child session counts against. |
 | `attachment_store=...` | Server-side file-upload storage (uploads off when unset). |
 | `transcription_backend=...` | Speech-to-text backend for voice input (voice off when unset). |
 | `mcp_server=...` | django-spec-mcp server whose tools the agent gets (`[mcp]` extra). |
@@ -829,7 +832,9 @@ connections. That skips the wrapper entirely — the stream is byte-for-byte wha
 it was before this setting existed.
 
 Under WSGI the response is buffered whole rather than streamed, so no heartbeat
-reaches a proxy there. The endpoint already warns when it is served that way.
+reaches a proxy there. That holds on a mount with a run store too: the run starts on the
+loop that drains the response, and the body ends once the run's end is recorded. The
+endpoint already warns when it is served that way.
 
 ## `RUN_TIMEOUT_SECONDS`
 

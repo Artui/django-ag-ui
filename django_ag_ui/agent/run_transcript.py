@@ -249,8 +249,13 @@ def _same_text(streamed: str, dumped: str | None) -> bool:
 
 
 def _same_content(streamed: dict[str, Any] | None, dumped: dict[str, Any]) -> bool:
-    """Whether a streamed activity's content and a dumped one's are one content."""
-    return streamed == {key: value for key, value in dumped.items() if key != "canonical_system"}
+    """Whether two activity contents match, either side's ``canonical_system`` stamp aside."""
+    return streamed is not None and _unstamped(streamed) == _unstamped(dumped)
+
+
+def _unstamped(content: dict[str, Any]) -> dict[str, Any]:
+    """``content`` without the ``canonical_system`` stamp pydantic-ai may add to it."""
+    return {key: value for key, value in content.items() if key != "canonical_system"}
 
 
 def _take(queues: dict[str, deque[_T]], key: str) -> _T | None:
