@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.80.0] — 2026-11-18
+
 ### Added
 
 - **An `mcp-apps/` route relays an MCP Apps view's calls.** `AGUIServer` mounts it beside
@@ -4571,7 +4573,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.79.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.80.0...HEAD
+[0.80.0]: https://github.com/Artui/django-ag-ui/compare/v0.79.0...v0.80.0
 [0.79.0]: https://github.com/Artui/django-ag-ui/compare/v0.78.0...v0.79.0
 [0.78.0]: https://github.com/Artui/django-ag-ui/compare/v0.77.0...v0.78.0
 [0.77.0]: https://github.com/Artui/django-ag-ui/compare/v0.76.0...v0.77.0
