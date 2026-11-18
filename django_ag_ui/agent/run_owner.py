@@ -11,6 +11,7 @@ from django.http import HttpRequest
 from django_spec_agents.persistence.types.run_claim import RunClaim
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
+from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from pydantic_ai import CancellationToken
 
 from django_ag_ui.agent.utils import STREAM_END, discard_tasks
@@ -34,6 +35,7 @@ class RunOwner:
         racing_stages: Sequence[AsyncIterator[Any]] = (),
         on_cancel: Callable[[], Awaitable[None]],
         ended: Callable[[], RunOutcome | None],
+        waiting: Callable[[], RunWaiting | None] = lambda: None,
         token: CancellationToken,
         run_store: RunStore | None = None,
         request: HttpRequest | None = None,
@@ -45,6 +47,8 @@ class RunOwner:
         self._racing = tuple(racing_stages)
         self._on_cancel = on_cancel
         self._ended = ended
+        self._waiting = waiting
+        self._parked: RunWaiting | None = None
         self._token = token
         self._store = run_store
         self._request = request
@@ -73,6 +77,11 @@ class RunOwner:
         if self._task is None:
             self._task = asyncio.ensure_future(self._own())
         return self._task
+
+    @property
+    def waiting(self) -> RunWaiting | None:
+        """What the run parked on, once it has finished ``WAITING``; ``None`` otherwise."""
+        return self._parked
 
     async def wait(self) -> RunOutcome:
         """How the run ended, once it has."""
@@ -119,6 +128,8 @@ class RunOwner:
             ended = True
             await self._log(None)
             outcome = self._ended() or outcome
+            if outcome is RunOutcome.WAITING:
+                self._parked = self._waiting()
         except asyncio.CancelledError:
             outcome = RunOutcome.CANCELLED
             raise
@@ -195,7 +206,10 @@ class RunOwner:
         if self._store is None:
             return
         assert self._request is not None
-        finish = self._store.finish(self._thread_id, self._run_id, outcome, request=self._request)
+        waiting = self._parked if outcome is RunOutcome.WAITING else None
+        finish = self._store.finish(
+            self._thread_id, self._run_id, outcome, request=self._request, waiting=waiting
+        )
         await _quietly(finish, "recording how a run ended")
 
 

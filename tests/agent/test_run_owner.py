@@ -52,7 +52,13 @@ class _Store:
         return SimpleNamespace(cancel_requested=self.cancel_requested)
 
     async def finish(
-        self, thread_id: str, run_id: str, outcome: RunOutcome, *, request: Any
+        self,
+        thread_id: str,
+        run_id: str,
+        outcome: RunOutcome,
+        *,
+        request: Any,
+        waiting: Any = None,
     ) -> bool:
         if self.finish_raises:
             raise RuntimeError("store down")

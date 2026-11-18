@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A run that ends on deferred calls parks.** On a mount with a run store it finishes
+  `waiting` with a `RunWaiting` (`kind`, `summary`, `tool_call_id`, `destructive`) for the
+  first deferred call, approvals first, built with django-spec-agents'
+  `build_run_waiting`; the thread reads `waiting`, and a headless `RunStop` carries the
+  record. Gated calls and questions park every run; a browser run's own client tools park
+  only a detached run, since a connected client answers them. With parks recorded,
+  `wake_thread` resumes a child parked on a question when its answer arrives, which 0.81.0
+  could not.
+
 ## [0.81.0] — 2026-11-18
 
 ### Added

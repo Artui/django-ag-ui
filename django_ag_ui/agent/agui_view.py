@@ -16,7 +16,7 @@ from django.http import (
     StreamingHttpResponse,
 )
 from django.http.response import HttpResponseBase
-from django_spec_agents import IdentifierTooLongError, preflight_identifiers
+from django_spec_agents import IdentifierTooLongError, ToolGuard, preflight_identifiers
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.attachment_toolset import build_attachment_toolset
 from django_spec_agents.agent.build_model import build_model
@@ -49,6 +49,7 @@ from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
 from django_ag_ui.agent.build_mcp_bridge import build_mcp_bridge
 from django_ag_ui.agent.lend_answered_by import lend_answered_by
+from django_ag_ui.agent.park_run import ParkRun
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
@@ -221,6 +222,7 @@ class DjangoAGUIView:
         lineage = self.child_capabilities(stored, user_joined=True)
         if message_history is None:
             run_input = _marked_by_server(run_input, stored)
+        detached = self._detaches(request, run_input)
         session = self._session(
             request,
             run_input,
@@ -229,13 +231,14 @@ class DjangoAGUIView:
             message_history=message_history,
             source_messages=source_messages,
             capabilities=lineage,
+            detached=detached,
         )
         owner = session.own(self._owning_store(request))
         refused = await self._claim(owner, request, run_input)
         if refused is not None:
             return refused
         response = StreamingHttpResponse(
-            session.stream(owner, detached=self._detaches(request, run_input)),
+            session.stream(owner, detached=detached),
             content_type="text/event-stream",
         )
         response["Cache-Control"] = "no-cache"
@@ -296,6 +299,7 @@ class DjangoAGUIView:
         timeout: float | None = None,
         capabilities: Sequence[Any] = (),
         deferred_tool_results: DeferredToolResults | None = None,
+        detached: bool = True,
     ) -> AgentSession:
         return AgentSession(
             self._agent(),
@@ -316,6 +320,15 @@ class DjangoAGUIView:
             source_messages=source_messages,
             timeout=timeout,
             deferred_tool_results=deferred_tool_results,
+            park=self._park_run(run_input, detached),
+        )
+
+    def _park_run(self, run_input: Any, detached: bool) -> ParkRun:
+        """What parks this run; a connected client answers its own tools' calls."""
+        return ParkRun(
+            guard=ToolGuard(self._registry, config=self._config.tool_guard),
+            prompts=self._config.approval_prompts,
+            client_tools=() if detached else [t.name for t in run_input.tools],
         )
 
     def child_capabilities(

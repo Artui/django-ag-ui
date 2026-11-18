@@ -108,6 +108,23 @@ stop = await runner.run_to_first_stop("assistant", "Summarise today's tickets", 
 - **Cancelling.** `cancel(thread_id, principal)` records a cancel. The run acts on it
   the next time it renews its lease.
 
+## A run that parks
+
+A run on a mount with a run store that ends on deferred calls finishes `waiting`, not
+`completed`, and its thread reads `waiting` until a run takes it up. The thread's
+`RunWaiting` names the first such call, approvals first:
+
+| Field | Value |
+| --- | --- |
+| `kind` | `approval` for a gated call, `question` for a tool that raised `CallDeferred(kind="question")`, `external` for any other deferred call |
+| `summary` | the call's `APPROVAL_PROMPTS` entry, or its tool's name |
+| `tool_call_id` | the call's id; the run's `RUN_FINISHED` interrupt for it is `int-<tool_call_id>` |
+| `destructive` | `ToolGuard.requires_approval` for the call's tool, whether the guard is on or not |
+
+A browser run's own client tools count only when the run is detached: a connected client
+answers their calls itself, so a run that ends on them alone finishes `completed`, as
+before. A headless run's `RunStop` carries the same `waiting`.
+
 ## Child sessions
 
 A child session is a thread with a parent: django-spec-agents' child-session tools start
@@ -139,10 +156,9 @@ agent = AGUIServer(
 
 A thread parked on a question is resumed with `start(..., answers={tool_call_id: text})`:
 the run continues the stored history with those answers and sends no new prompt.
-`wake_thread` resumes a parked thread this way only when the park is recorded as waiting
-on a question, which this mount does not record yet: a run that parks is recorded as
-completed, so an answer reaches a parked child only through a caller that passes
-`answers=` itself.
+`wake_thread` resumes a parked thread this way when the park is recorded as waiting on a
+question ([a run that parks](#a-run-that-parks)): an `ANSWER` on the child's inbound
+queue resumes the parked call with its text.
 
 After a headless run's end is recorded, the runner calls django-spec-agents'
 `wake_thread` for its thread when mail arrived during the run, so a message that landed
