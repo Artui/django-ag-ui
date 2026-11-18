@@ -109,5 +109,6 @@ nav:
   - Invalidating host data: invalidation.md
   - Charts: charts.md
   - A2UI surfaces: a2ui.md
+  - MCP Apps views: mcp-apps.md
   - Key concepts: concepts.md
   - API reference: api.md
