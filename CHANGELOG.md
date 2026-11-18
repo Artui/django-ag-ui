@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A child session's first run keeps its parent's bounds.** django-spec-agents 0.21.0
+  starts a child with `lineage=` only and leaves composing `child_lineage_for` to the
+  runner, which 0.80.0 did only from the second run on, so with 0.21.0 a child's first run
+  had no `ChildLineage`, no `ChildReport` and no spend budgets. `AGUIHeadlessRunner` now
+  composes them on every run, in process or on a queued worker, and the floor is
+  `django-spec-agents>=0.21.0`. 0.80.0 is not yanked: upgrade to this release.
+
+### Added
+
+- **`answers=` on `AGUIHeadlessRunner.start` and `run_to_first_stop`**, and in the queued
+  firing: a thread parked on a question resumes its stored history with
+  `DeferredToolResults(calls=answers)` and no new prompt, in this process or on a worker.
+- **A browser run on a child's thread reports that the user joined** (`user_joined=True`).
+- **A headless run wakes its thread after its end is recorded** through django-spec-agents'
+  `wake_thread`, when mail arrived during the run, so a message that landed after its last
+  read, or an answer that came before it parked, is not stranded. Mail already pending at
+  the run's start, a failed run, and a browser run wake nothing.
+
+### Changed
+
+- **A queued runner serves child sessions.** The `ValueError` for `capabilities=` stays,
+  but 0.21.0's child-session tools pass none, so a child's start enqueues like any other.
+
 ## [0.80.0] — 2026-11-18
 
 ### Added

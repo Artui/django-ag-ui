@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.http import StreamingHttpResponse
+from django_spec_agents.child_sessions.child_report import _USER_JOINED
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.contrib.store.default_inbound_queue import DefaultInboundQueue
@@ -140,6 +141,7 @@ async def test_a_browser_turn_into_a_child_reports_to_its_parent_when_it_settles
     assert [(m.kind, m.sender) for m in reports] == [
         (InboundKind.REPORT, ThreadRef("t-child", "helper"))
     ]
+    assert _USER_JOINED in reports[0].body["text"]
 
 
 @pytest.mark.django_db(transaction=True)

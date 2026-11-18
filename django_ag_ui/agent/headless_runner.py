@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import uuid
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import timedelta
 from typing import Any
 
@@ -35,7 +35,10 @@ class AGUIHeadlessRunner:
 
     The prompt is the run's only new message; the thread's stored conversation, loaded
     once the run holds the thread, is its history, and it carries no client tools. A
-    ``parent`` and ``lineage`` are saved on the child's conversation before ``start`` returns.
+    ``parent`` and ``lineage`` are saved on the child's conversation before ``start`` returns,
+    and every run of the thread, the first included, composes the bounds they describe.
+    ``answers`` resumes a thread parked on a question with no new prompt. After a run's end
+    is recorded, mail that arrived during a run that did not fail wakes its thread.
 
     With a ``queue``, ``start`` claims the thread for ``queued_lease``, then enqueues
     ``spec_name`` for a worker, whose runner takes the claim up by its ``run_id``.
@@ -75,6 +78,7 @@ class AGUIHeadlessRunner:
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
+        answers: Mapping[str, str] | None = None,
     ) -> HeadlessStart:
         """Start the run and return once it has claimed its thread; it goes on elsewhere."""
         if self._queue is not None:
@@ -88,8 +92,11 @@ class AGUIHeadlessRunner:
                 parent,
                 lineage,
                 capabilities,
+                answers,
             )
-        server, request, run_input = self._prepare(agent_id, prompt, principal, timeout, thread_id)
+        server, request, run_input = self._prepare(
+            agent_id, prompt, principal, timeout, thread_id, answers=answers
+        )
         await server.start_headless(
             request,
             run_input,
@@ -97,6 +104,8 @@ class AGUIHeadlessRunner:
             capabilities=capabilities,
             parent=parent,
             lineage=lineage,
+            answers=answers,
+            after_finish=await self._waker(server, request, run_input.thread_id, timeout),
         )
         return HeadlessStart(thread_id=run_input.thread_id, run_id=run_input.run_id)
 
@@ -112,10 +121,11 @@ class AGUIHeadlessRunner:
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
         run_id: str | None = None,
+        answers: Mapping[str, str] | None = None,
     ) -> RunStop:
         """Run until it ends; a ``run_id`` takes up the claim a queued ``start`` made."""
         server, request, run_input = self._prepare(
-            agent_id, prompt, principal, timeout, thread_id, run_id
+            agent_id, prompt, principal, timeout, thread_id, run_id, answers=answers
         )
         thread, run = run_input.thread_id, run_input.run_id
         if run_id is not None and not await server.take_up_queued(request, thread, run):
@@ -128,6 +138,8 @@ class AGUIHeadlessRunner:
             parent=parent,
             lineage=lineage,
             adopt=run_id is not None,
+            answers=answers,
+            after_finish=await self._waker(server, request, thread, timeout),
         )
         return RunStop(thread_id=thread, run_id=run, outcome=await owner.wait())
 
@@ -150,17 +162,27 @@ class AGUIHeadlessRunner:
         parent: ThreadRef | None,
         lineage: ChildLineageRecord | None,
         capabilities: Sequence[AbstractCapability[Any]],
+        answers: Mapping[str, str] | None,
     ) -> HeadlessStart:
         if capabilities:
             raise ValueError(
                 "a queued headless start carries no capabilities=: they cannot cross a queue"
             )
-        server, request, run_input = self._prepare(agent_id, prompt, principal, timeout, thread_id)
+        server, request, run_input = self._prepare(
+            agent_id, prompt, principal, timeout, thread_id, answers=answers
+        )
         await server.claim_queued(
             request, run_input, lease=self._queued_lease, parent=parent, lineage=lineage
         )
         firing = HeadlessFiring(
-            agent_id, prompt, timeout, run_input.thread_id, parent, lineage, run_input.run_id
+            agent_id,
+            prompt,
+            timeout,
+            run_input.thread_id,
+            parent,
+            lineage,
+            run_input.run_id,
+            None if answers is None else dict(answers),
         )
         params = dataclasses.asdict(firing)
         try:
@@ -178,6 +200,8 @@ class AGUIHeadlessRunner:
         timeout: float,
         thread_id: str | None,
         run_id: str | None = None,
+        *,
+        answers: Mapping[str, str] | None = None,
     ) -> tuple[AGUIServer, Any, RunAgentInput]:
         if not timeout > 0:
             raise ValueError(f"a headless run needs a positive timeout=, not {timeout!r}")
@@ -189,12 +213,26 @@ class AGUIHeadlessRunner:
             thread_id=thread_id or uuid.uuid4().hex,
             run_id=run_id or uuid.uuid4().hex,
             state=None,
-            messages=[UserMessage(id=uuid.uuid4().hex, content=prompt)],
+            messages=[] if answers else [UserMessage(id=uuid.uuid4().hex, content=prompt)],
             tools=[],
             context=[],
             forwarded_props=None,
         )
         return server, request, run_input
+
+    async def _waker(
+        self, server: AGUIServer, request: Any, thread_id: str, timeout: float
+    ) -> Callable[[RunOutcome], Awaitable[None]] | None:
+        """What wakes the thread after the run's end is recorded; ``None`` with no inbound queue."""
+        mark = await server.inbox_mark(request, thread_id)
+        if mark is None:
+            return None
+
+        async def wake(outcome: RunOutcome) -> None:
+            if outcome is not RunOutcome.ERROR:
+                await server.wake(request, thread_id, after=mark, runner=self, timeout=timeout)
+
+        return wake
 
     @staticmethod
     def _request(server: AGUIServer, principal: Any) -> Any:

@@ -115,9 +115,11 @@ one through `start(..., parent=, lineage=)`, which saves both on the child's con
 before it returns, so `DefaultChildSessionIndex` lists the child under its parent at once.
 `parent` is a `ThreadRef` in any scope, so the child may run on another agent.
 
-Every later run of that thread keeps its parent's bounds, whether a browser turn into the
-child, a resume after an approval, or a headless wake: the mount rebuilds the stored
-lineage with `child_lineage_for` and composes it into the run. The child sees only the
+Every run of that thread keeps its parent's bounds, the first included, whether a headless
+start, a browser turn into the child, a resume after an approval, or a headless wake: the
+mount rebuilds the stored lineage with `child_lineage_for` and composes it into the run.
+A browser turn into a child marks its report as one the user joined, so the parent knows
+the result may reflect the user's direction. The child sees only the
 tools its parent had, a tool its parent gated still asks for approval, and the run's
 settle enqueues a report on the parent's inbound queue. A run that parks reports nothing.
 A mount that serves child sessions names its queue, and `id=` names the agent each report
@@ -134,6 +136,15 @@ agent = AGUIServer(
     child_spend=spend,
 )
 ```
+
+A thread parked on a question is resumed with `start(..., answers={tool_call_id: text})`:
+the run continues the stored history with those answers and sends no new prompt. After a
+headless run's end is recorded, the runner calls django-spec-agents' `wake_thread` for its
+thread when mail arrived during the run, so a message that landed after the run's last
+read, or an answer that came before the run parked, starts or resumes the thread. Mail
+that was already pending when the run started does not wake it again, since a mount that
+does not read its queue would otherwise wake forever, and a run that failed does not wake.
+A browser run's end wakes nothing.
 
 `inbound_queue=` without `id=` is refused at startup, and a run of a child thread on a
 mount with no queue raises `ImproperlyConfigured` rather than run unbounded. `child_spend=`

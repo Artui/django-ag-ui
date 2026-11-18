@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import timedelta
 from typing import Any
 
@@ -12,6 +12,9 @@ from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
 from django_spec_agents.child_sessions.types.child_session_spend import ChildSessionSpend
 from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
+from django_spec_agents.child_sessions.wake_thread import wake_thread
+from django_spec_agents.child_sessions.waking_inbound_queue import WakingInboundQueue
+from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
 from django_spec_agents.integrations.types.spec_source import SpecSource
 from django_spec_agents.persistence.django_session_conversation_store import (
@@ -436,6 +439,7 @@ class AGUIServer:
         lineage: ChildLineageRecord | None = None,
         adopt: bool = False,
         answers: Mapping[str, str] | None = None,
+        after_finish: Callable[[RunOutcome], Awaitable[None]] | None = None,
     ) -> RunOwner:
         """Start ``run_input`` with no response once it holds the thread, after its history."""
         self._check_child(lineage)
@@ -457,6 +461,7 @@ class AGUIServer:
             prepare=prepare,
             adopt=adopt,
             answers=answers,
+            after_finish=after_finish,
         )
 
     async def claim_queued(
@@ -498,6 +503,45 @@ class AGUIServer:
         """Give back a queued run's claim that no worker will take up, recorded as an error."""
         assert self._run_store is not None
         await self._run_store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+
+    async def inbox_mark(self, request: HttpRequest, thread_id: str) -> int | None:
+        """The id of the thread's newest pending message, ``0`` for none; ``None`` with no queue."""
+        queue = self._inner_queue()
+        if queue is None:
+            return None
+        assert self.id is not None
+        pending = await queue.pending(ThreadRef(thread_id, self.id), request=request)
+        return max((message.id for message in pending), default=0)
+
+    async def wake(
+        self,
+        request: HttpRequest,
+        thread_id: str,
+        *,
+        after: int,
+        runner: HeadlessRunner,
+        timeout: float,
+    ) -> None:
+        """Wake the thread for mail newer than ``after``; unread older mail would wake forever."""
+        queue = self._inner_queue()
+        assert queue is not None and self.id is not None and self._run_store is not None
+        thread = ThreadRef(thread_id, self.id)
+        if not await queue.pending(thread, request=request, after=after):
+            return
+        await wake_thread(
+            thread,
+            request=request,
+            runner=runner,
+            runs=self._run_store,
+            queue=queue,
+            timeout=timeout,
+            conversations=self._conversation_store,
+        )
+
+    def _inner_queue(self) -> InboundQueue | None:
+        # The inner queue: an answer whose start fails is enqueued again, which must not wake.
+        queue = self._inbound_queue
+        return queue.queue if isinstance(queue, WakingInboundQueue) else queue
 
     def _check_child(self, lineage: ChildLineageRecord | None) -> None:
         if lineage is not None and self._inbound_queue is None:

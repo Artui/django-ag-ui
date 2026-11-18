@@ -244,6 +244,7 @@ class DjangoAGUIView:
         capabilities: Sequence[Any] = (),
         adopt: bool = False,
         answers: Mapping[str, str] | None = None,
+        after_finish: Callable[[RunOutcome], Awaitable[None]] | None = None,
     ) -> RunOwner:
         """Claim the thread (``adopt``: it is already held), ``prepare`` the input, then start."""
         self._preflight_identifiers(request, run_input, None)
@@ -266,6 +267,8 @@ class DjangoAGUIView:
                 deferred_tool_results=deferred,
             )
             owner = session.own(store)
+            if after_finish is not None:
+                owner.after_finish(after_finish)
             await owner.detach()
         except BaseException:
             await store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
