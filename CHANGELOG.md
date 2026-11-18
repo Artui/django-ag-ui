@@ -31,6 +31,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an approval) is stamped in `metadata` only. A resumed run copies the mark back from the
   source thread's stored messages, since upstream's dump drops it, and drops one on a
   client-posted `ToolMessage`. No store change.
+- **User skills: a per-caller catalog, an editor endpoint and a skills-changed event.**
+  `AGUIServer(skill_policy=...)` takes a django-spec-agents `SkillPolicy` over your
+  `AbstractSkill` model. The `skills/` catalog then lists each caller's enabled,
+  user-invocable stored skills after the registry's, as `{name, title, description}`
+  with no `prompt`, so a pick sends `/name`; a registry skill wins a shared name.
+  `SkillsView` takes the same `policy=`. Every run gets the caller's stored skills
+  through `StoredSkills`, read from `deps.call_context["request"]`, and
+  `skill_authoring=True` adds the runtime's authoring tools. `skill_editor=True` mounts
+  `SkillEditorView` at `skills/editor/` and `skills/editor/<id>/`: `GET` lists the
+  skills the caller may write with their bodies, `POST` creates, `PUT` replaces and
+  `PATCH {"enabled": ...}` turns a skill off or on. A skill the caller cannot see or
+  write is a `404`; a broken rule is a `400`, a refused write a `403` and the skill cap
+  a `409`, and none carries a body. The mount reserves the registry's skill names, so
+  no stored skill can take one. A run that saves a stored skill sends the CUSTOM event
+  `ag_ui.skills_changed` (`SKILLS_CHANGED_EVENT_NAME`), `{"name": ...}`, once the save
+  commits. See the User skills page.
 
 ### Changed
 
