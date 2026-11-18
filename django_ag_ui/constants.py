@@ -17,6 +17,12 @@ DETACH_PROP = "detach"
 RUN_LEASE = timedelta(seconds=30)
 """How long a run's claim on its thread holds unless its owner renews it."""
 
+RUN_HEADLESS_SPEC = "run_headless"
+"""The name a queued headless start enqueues its spec under, unless the runner says."""
+
+QUEUED_RUN_LEASE = timedelta(minutes=10)
+"""How long a queued run's claim waits for a worker to take it up, unless the runner says."""
+
 A2UI_SCHEMA_CONTEXT_DESCRIPTION = (
     "A2UI Component Schema — available components for generating UI surfaces. "
     "Use these component names and properties when creating A2UI operations."
@@ -136,6 +142,8 @@ __all__ = [
     "A2UI_RENDER_GUIDE_V0_9",
     "A2UI_RENDER_TOOL_NAME",
     "DETACH_PROP",
+    "QUEUED_RUN_LEASE",
+    "RUN_HEADLESS_SPEC",
     "RUN_LEASE",
     "A2UI_SCHEMA_CONTEXT_DESCRIPTION",
 ]

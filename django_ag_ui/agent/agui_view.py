@@ -48,6 +48,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
 from django_ag_ui.agent.build_mcp_bridge import build_mcp_bridge
+from django_ag_ui.agent.claim_lapsed_error import ClaimLapsedError
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.system_prompt import DEFAULT_SYSTEM_PROMPT
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
@@ -242,15 +243,20 @@ class DjangoAGUIView:
         timeout: float,
         prepare: Callable[[Any], Awaitable[tuple[Any, Sequence[Any]]]],
         capabilities: Sequence[Any] = (),
+        adopt: bool = False,
     ) -> RunOwner:
-        """Claim the thread, let ``prepare`` fill in the input and more capabilities, then start."""
+        """Claim (or ``adopt`` the queued claim on) the thread, ``prepare`` the input, start."""
         self._preflight_identifiers(request, run_input, None)
         store = self._run_store
         assert store is not None
         thread_id, run_id = run_input.thread_id, run_input.run_id
-        claim = await store.claim(thread_id, run_id, request=request, lease=RUN_LEASE)
-        if not claim.claimed:
-            raise ThreadBusyError(thread_id, claim.active_run_id)
+        if adopt:
+            if not await store.renew(thread_id, run_id, request=request, lease=RUN_LEASE):
+                raise ClaimLapsedError(thread_id, run_id)
+        else:
+            claim = await store.claim(thread_id, run_id, request=request, lease=RUN_LEASE)
+            if not claim.claimed:
+                raise ThreadBusyError(thread_id, claim.active_run_id)
         try:
             run_input, prepared = await prepare(run_input)
         except BaseException:

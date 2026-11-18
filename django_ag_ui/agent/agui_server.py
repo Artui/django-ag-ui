@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 from collections.abc import Callable, Mapping, Sequence
+from datetime import timedelta
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
@@ -22,6 +23,7 @@ from django_spec_agents.persistence.types.attachment_store import AttachmentStor
 from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.utils import owner_id_for
@@ -33,6 +35,7 @@ from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.mcp_apps_view import MCPAppsView
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.runs_view import RunsView
+from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.spec_capability_source import SpecCapabilitySource
 from django_ag_ui.agent.types.spec_toolset_source import SpecToolsetSource
@@ -428,30 +431,76 @@ class AGUIServer:
         capabilities: Sequence[Any] = (),
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
+        adopt: bool = False,
     ) -> RunOwner:
         """Start ``run_input`` with no response once it holds the thread, after its history."""
-        store, view = self._conversation_store, self._view
+        view = self._view
 
         async def prepare(claimed: Any) -> tuple[Any, list[Any]]:
-            conversation = await store.load(claimed.thread_id, request=request)
-            stored_lineage = [] if lineage is not None else view.child_capabilities(conversation)
+            conversation = await self._link(request, claimed.thread_id, parent, lineage)
+            composed = lineage is None or adopt
+            stored_lineage = view.child_capabilities(conversation) if composed else []
             stored = [] if conversation is None else conversation.messages
-            if parent is not None or lineage is not None:
-                linked = Conversation(
-                    thread_id=claimed.thread_id,
-                    messages=stored,
-                    owner_id=owner_id_for(request),
-                    parent=parent,
-                    lineage=lineage,
-                )
-                await store.save(linked, request=request)
             history = messages_from_jsonable(stored)
             filled = claimed.model_copy(update={"messages": [*history, *claimed.messages]})
             return filled, stored_lineage
 
-        return await self._view.start_headless(
-            request, run_input, timeout=timeout, capabilities=capabilities, prepare=prepare
+        return await view.start_headless(
+            request,
+            run_input,
+            timeout=timeout,
+            capabilities=capabilities,
+            prepare=prepare,
+            adopt=adopt,
         )
+
+    async def claim_queued(
+        self,
+        request: HttpRequest,
+        run_input: Any,
+        *,
+        lease: timedelta,
+        parent: ThreadRef | None = None,
+        lineage: ChildLineageRecord | None = None,
+    ) -> None:
+        """Claim the thread for a run a worker will adopt, and save its parent and lineage."""
+        store = self._run_store
+        assert store is not None
+        thread_id, run_id = run_input.thread_id, run_input.run_id
+        claim = await store.claim(thread_id, run_id, request=request, lease=lease)
+        if not claim.claimed:
+            raise ThreadBusyError(thread_id, claim.active_run_id)
+        try:
+            await self._link(request, thread_id, parent, lineage)
+        except BaseException:
+            await self.abandon_queued(request, thread_id, run_id)
+            raise
+
+    async def abandon_queued(self, request: HttpRequest, thread_id: str, run_id: str) -> None:
+        """Give back a queued run's claim that no worker will take up, recorded as an error."""
+        assert self._run_store is not None
+        await self._run_store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+
+    async def _link(
+        self,
+        request: HttpRequest,
+        thread_id: str,
+        parent: ThreadRef | None,
+        lineage: ChildLineageRecord | None,
+    ) -> Conversation | None:
+        store = self._conversation_store
+        conversation = await store.load(thread_id, request=request)
+        if parent is None and lineage is None:
+            return conversation
+        linked = Conversation(
+            thread_id=thread_id,
+            messages=[] if conversation is None else conversation.messages,
+            owner_id=owner_id_for(request),
+            parent=parent,
+            lineage=lineage,
+        )
+        await store.save(linked, request=request)
+        return linked
 
     async def request_cancel(self, thread_id: str, *, request: HttpRequest) -> bool:
         """Record a cancel for the thread's live run, for its owner to act on."""

@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import dataclasses
 import uuid
 from collections.abc import Sequence
+from datetime import timedelta
 from typing import Any
 
 from ag_ui.core import RunAgentInput, UserMessage
+from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django_spec_agents.headless.types.firing_queue import FiringQueue
+from django_spec_agents.headless.types.headless_firing import HeadlessFiring
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
 from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
@@ -15,8 +19,8 @@ from django_spec_agents.persistence.utils import owner_id_for
 from pydantic_ai.capabilities import AbstractCapability
 
 from django_ag_ui.agent.agui_server import AGUIServer
-from django_ag_ui.agent.queued_start import RUN_HEADLESS_SPEC, enqueue_headless
 from django_ag_ui.agent.run_owner import RunOwner
+from django_ag_ui.constants import QUEUED_RUN_LEASE, RUN_HEADLESS_SPEC
 
 
 class AGUIHeadlessRunner:
@@ -32,6 +36,9 @@ class AGUIHeadlessRunner:
     The prompt is the run's only new message; the thread's stored conversation, loaded
     once the run holds the thread, is its history, and it carries no client tools. A
     ``parent`` and ``lineage`` are saved on the child's conversation before ``start`` returns.
+
+    With a ``queue``, ``start`` claims the thread for ``queued_lease``, then enqueues
+    ``spec_name`` for a worker, whose runner takes the claim up by its ``run_id``.
     """
 
     def __init__(
@@ -39,9 +46,11 @@ class AGUIHeadlessRunner:
         *servers: AGUIServer,
         queue: FiringQueue | None = None,
         spec_name: str = RUN_HEADLESS_SPEC,
+        queued_lease: timedelta = QUEUED_RUN_LEASE,
     ) -> None:
         self._queue = queue
         self._spec_name = spec_name
+        self._queued_lease = queued_lease
         self._servers: dict[str, AGUIServer] = {}
         for server in servers:
             server.check_headless()
@@ -49,6 +58,11 @@ class AGUIHeadlessRunner:
             if server.id in self._servers:
                 raise ImproperlyConfigured(f"two mounts share the id {server.id!r}")
             self._servers[server.id] = server
+
+    @property
+    def queued(self) -> bool:
+        """Whether ``start`` enqueues the run for a worker rather than start it here."""
+        return self._queue is not None
 
     async def start(
         self,
@@ -62,22 +76,21 @@ class AGUIHeadlessRunner:
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
     ) -> HeadlessStart:
-        """Start the run and return once it has claimed its thread; queued, once enqueued."""
+        """Start the run and return once it has claimed its thread; it goes on elsewhere."""
         if self._queue is not None:
-            return enqueue_headless(
+            return await self._enqueue(
                 self._queue,
                 agent_id,
                 prompt,
                 principal,
-                timeout=timeout,
-                thread_id=thread_id,
-                parent=parent,
-                lineage=lineage,
-                capabilities=capabilities,
-                spec_name=self._spec_name,
+                timeout,
+                thread_id,
+                parent,
+                lineage,
+                capabilities,
             )
         thread, run, _ = await self._start(
-            agent_id, prompt, principal, timeout, thread_id, parent, lineage, capabilities
+            agent_id, prompt, principal, timeout, thread_id, parent, lineage, capabilities, None
         )
         return HeadlessStart(thread_id=thread, run_id=run)
 
@@ -92,10 +105,11 @@ class AGUIHeadlessRunner:
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
+        run_id: str | None = None,
     ) -> RunStop:
-        """Run until the run ends, for a caller that waits on the answer."""
+        """Run until it ends; a ``run_id`` takes up the claim a queued ``start`` made."""
         thread, run, owner = await self._start(
-            agent_id, prompt, principal, timeout, thread_id, parent, lineage, capabilities
+            agent_id, prompt, principal, timeout, thread_id, parent, lineage, capabilities, run_id
         )
         return RunStop(thread_id=thread, run_id=run, outcome=await owner.wait())
 
@@ -107,6 +121,35 @@ class AGUIHeadlessRunner:
             cancelled = await server.request_cancel(thread_id, request=request) or cancelled
         return cancelled
 
+    async def _enqueue(
+        self,
+        queue: FiringQueue,
+        agent_id: str,
+        prompt: str,
+        principal: Any,
+        timeout: float,
+        thread_id: str | None,
+        parent: ThreadRef | None,
+        lineage: ChildLineageRecord | None,
+        capabilities: Sequence[AbstractCapability[Any]],
+    ) -> HeadlessStart:
+        if capabilities:
+            raise ValueError(
+                "a queued headless start carries no capabilities=: they cannot cross a queue"
+            )
+        server, request, run_input = self._prepare(agent_id, prompt, principal, timeout, thread_id)
+        await server.claim_queued(
+            request, run_input, lease=self._queued_lease, parent=parent, lineage=lineage
+        )
+        firing = HeadlessFiring(agent_id, prompt, timeout, run_input.thread_id, parent, lineage)
+        params = {**dataclasses.asdict(firing), "run_id": run_input.run_id}
+        try:
+            await sync_to_async(queue.enqueue)(self._spec_name, params, actor=principal)
+        except BaseException:
+            await server.abandon_queued(request, run_input.thread_id, run_input.run_id)
+            raise
+        return HeadlessStart(thread_id=run_input.thread_id, run_id=run_input.run_id)
+
     async def _start(
         self,
         agent_id: str,
@@ -117,23 +160,10 @@ class AGUIHeadlessRunner:
         parent: ThreadRef | None,
         lineage: ChildLineageRecord | None,
         capabilities: Sequence[AbstractCapability[Any]],
+        run_id: str | None,
     ) -> tuple[str, str, RunOwner]:
-        if not timeout > 0:
-            raise ValueError(f"a headless run needs a positive timeout=, not {timeout!r}")
-        server = self._servers.get(agent_id)
-        if server is None:
-            raise LookupError(f"no headless mount has the id {agent_id!r}")
-        request = self._request(server, principal)
-        thread_id = thread_id or uuid.uuid4().hex
-        run_id = uuid.uuid4().hex
-        run_input = RunAgentInput(
-            thread_id=thread_id,
-            run_id=run_id,
-            state=None,
-            messages=[UserMessage(id=uuid.uuid4().hex, content=prompt)],
-            tools=[],
-            context=[],
-            forwarded_props=None,
+        server, request, run_input = self._prepare(
+            agent_id, prompt, principal, timeout, thread_id, run_id
         )
         owner = await server.start_headless(
             request,
@@ -142,8 +172,35 @@ class AGUIHeadlessRunner:
             capabilities=capabilities,
             parent=parent,
             lineage=lineage,
+            adopt=run_id is not None,
         )
-        return thread_id, run_id, owner
+        return run_input.thread_id, run_input.run_id, owner
+
+    def _prepare(
+        self,
+        agent_id: str,
+        prompt: str,
+        principal: Any,
+        timeout: float,
+        thread_id: str | None,
+        run_id: str | None = None,
+    ) -> tuple[AGUIServer, Any, RunAgentInput]:
+        if not timeout > 0:
+            raise ValueError(f"a headless run needs a positive timeout=, not {timeout!r}")
+        server = self._servers.get(agent_id)
+        if server is None:
+            raise LookupError(f"no headless mount has the id {agent_id!r}")
+        request = self._request(server, principal)
+        run_input = RunAgentInput(
+            thread_id=thread_id or uuid.uuid4().hex,
+            run_id=run_id or uuid.uuid4().hex,
+            state=None,
+            messages=[UserMessage(id=uuid.uuid4().hex, content=prompt)],
+            tools=[],
+            context=[],
+            forwarded_props=None,
+        )
+        return server, request, run_input
 
     @staticmethod
     def _request(server: AGUIServer, principal: Any) -> Any:

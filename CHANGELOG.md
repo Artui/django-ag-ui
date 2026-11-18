@@ -20,12 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `mcp_apps_throttle=` on `AGUIServer` gives the route its own limiter; the run
   endpoint's `throttle=` does not reach it.
 - **A headless start can run on a worker.** `AGUIHeadlessRunner(server, queue=...)` takes a
-  django-spec-agents `FiringQueue` and enqueues `run_headless` with the start's
-  `HeadlessFiring` instead of starting an in-process task, so the run's owner lives in the
-  worker. `start` then returns once the run is enqueued, with `run_id` the queue's id for
-  the firing, and refuses `capabilities=`. `start_from_sync` and `enqueue_headless`
-  (`django_ag_ui.agent.queued_start`) serve sync callers; with no queue the former runs the
-  start to its first stop. See [Queued runs](docs/queued-runs.md).
+  django-spec-agents `FiringQueue`. `start` claims the thread, saves a child's parent and
+  lineage, and enqueues `run_headless` with the claimed `run_id`, so it returns the run the
+  thread's state names and refuses a busy thread at the call with `ThreadBusyError`. The
+  worker's `run_to_first_stop(run_id=...)` takes the claim up, or raises the new
+  `ClaimLapsedError` once `queued_lease=` (ten minutes by default) has passed. A queued
+  start refuses `capabilities=`. `start_from_sync` serves sync callers; with no queue it
+  runs the start to its first stop. Browser runs are not queued. See
+  [Queued runs](docs/queued-runs.md).
 - **A headless child keeps its parent and lineage.** `AGUIHeadlessRunner.start` and
   `run_to_first_stop` take `parent` as a django-spec-agents `ThreadRef` (any scope, so a
   child on another agent) and `lineage` as a `ChildLineageRecord`, and save both on the
@@ -39,8 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parent's inbound queue. `AGUIServer` takes `inbound_queue=` (needs `id=`) and
   `child_spend=`; a run of a child thread on a mount with no queue raises
   `ImproperlyConfigured`.
-- `RUN_LEASE` in `django_ag_ui.constants`: how long a run's claim on its thread holds
-  unless renewed.
+- `RUN_LEASE`, `QUEUED_RUN_LEASE` and `RUN_HEADLESS_SPEC` in `django_ag_ui.constants`:
+  how long a run's claim on its thread holds unless renewed, how long a queued run's claim
+  waits for a worker, and the spec name a queued start enqueues under.
 
 ### Changed
 

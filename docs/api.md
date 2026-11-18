@@ -43,11 +43,11 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.agent.headless_runner.AGUIHeadlessRunner
 
-::: django_ag_ui.agent.queued_start.enqueue_headless
-
 ::: django_ag_ui.agent.queued_start.start_from_sync
 
 ::: django_ag_ui.agent.thread_busy_error.ThreadBusyError
+
+::: django_ag_ui.agent.claim_lapsed_error.ClaimLapsedError
 
 ::: django_ag_ui.ToolsView
 
