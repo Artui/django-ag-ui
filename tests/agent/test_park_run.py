@@ -182,23 +182,47 @@ async def test_an_approval_the_guard_does_not_ask_for_is_not_destructive() -> No
     assert (state.waiting.kind, state.waiting.destructive) == ("approval", False)
 
 
-def _browser_body(*, detach: bool) -> bytes:
-    pick = {
-        "name": "pick_colour",
-        "description": "Let the person pick a colour.",
-        "parameters": {"type": "object", "properties": {}},
+_PICK = {
+    "name": "pick_colour",
+    "description": "Let the person pick a colour.",
+    "parameters": {"type": "object", "properties": {}},
+}
+_ASKED_TO_DELETE = [
+    {"id": "u1", "role": "user", "content": "delete widget-1"},
+    {
+        "id": "a1",
+        "role": "assistant",
+        "toolCalls": [
+            {
+                "id": "call-1",
+                "type": "function",
+                "function": {"name": "delete_thing", "arguments": _DELETE_ARGS},
+            }
+        ],
+    },
+]
+
+
+def _browser_body(
+    run_id: str,
+    *,
+    detach: bool = False,
+    tools: list[dict[str, Any]] | None = None,
+    messages: list[dict[str, Any]] | None = None,
+    resume: list[dict[str, Any]] | None = None,
+) -> bytes:
+    body: dict[str, Any] = {
+        "threadId": "t-browser",
+        "runId": run_id,
+        "messages": messages or [{"id": "u1", "role": "user", "content": "go"}],
+        "tools": tools or [],
+        "context": [],
+        "state": None,
+        "forwardedProps": {"detach": True} if detach else {},
     }
-    return json.dumps(
-        {
-            "threadId": "t-browser",
-            "runId": f"r-{detach}",
-            "messages": [{"id": "u1", "role": "user", "content": "pick"}],
-            "tools": [pick],
-            "context": [],
-            "state": None,
-            "forwardedProps": {"detach": True} if detach else {},
-        }
-    ).encode()
+    if resume is not None:
+        body["resume"] = resume
+    return json.dumps(body).encode()
 
 
 async def _settled(thread_id: str, request: Any) -> Any:
@@ -210,11 +234,9 @@ async def _settled(thread_id: str, request: Any) -> Any:
     raise AssertionError("the run never settled")
 
 
-async def _browser_run(*, detach: bool) -> Any:
-    options = _guarded(_Calls("pick_colour"), run_timeout_seconds=300)
-    view = DjangoAGUIView(options.pop("registry"), **options)
+async def _browser_run(view: DjangoAGUIView, body: bytes) -> Any:
     request = AuthedAsyncRequestFactory().post(
-        "/agent/", data=_browser_body(detach=detach), content_type="application/json"
+        "/agent/", data=body, content_type="application/json"
     )
     response = await view(request)
     assert isinstance(response, StreamingHttpResponse)
@@ -223,9 +245,16 @@ async def _browser_run(*, detach: bool) -> Any:
     return await _settled("t-browser", request)
 
 
+def _browser_view(calls: _Calls) -> DjangoAGUIView:
+    options = _guarded(calls, run_timeout_seconds=300)
+    return DjangoAGUIView(options.pop("registry"), **options)
+
+
 @pytest.mark.django_db(transaction=True)
 async def test_a_detached_browser_run_parks_on_a_client_tool_as_external() -> None:
-    state = await _browser_run(detach=True)
+    body = _browser_body("r1", detach=True, tools=[_PICK])
+
+    state = await _browser_run(_browser_view(_Calls("pick_colour")), body)
 
     assert state.status is ThreadRunStatus.WAITING
     assert state.waiting == RunWaiting(
@@ -234,10 +263,36 @@ async def test_a_detached_browser_run_parks_on_a_client_tool_as_external() -> No
 
 
 @pytest.mark.django_db(transaction=True)
+async def test_a_client_tool_stamped_destructive_parks_as_destructive() -> None:
+    stamped = {**_PICK, "parameters": {**_PICK["parameters"], "x-destructive": True}}
+    body = _browser_body("r1", detach=True, tools=[stamped])
+
+    state = await _browser_run(_browser_view(_Calls("pick_colour")), body)
+
+    assert (state.waiting.kind, state.waiting.destructive) == ("external", True)
+
+
+@pytest.mark.django_db(transaction=True)
 async def test_a_connected_browser_run_ending_on_a_client_tool_does_not_park() -> None:
-    state = await _browser_run(detach=False)
+    body = _browser_body("r1", tools=[_PICK])
+
+    state = await _browser_run(_browser_view(_Calls("pick_colour")), body)
 
     assert (state.status, state.waiting) == (ThreadRunStatus.IDLE, None)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_connected_browser_approval_parks_then_its_answer_completes() -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    view = _browser_view(calls)
+    parked = await _browser_run(view, _browser_body("r1"))
+    answer = [{"interruptId": "int-call-1", "status": "resolved", "payload": {"approved": True}}]
+
+    state = await _browser_run(view, _browser_body("r2", messages=_ASKED_TO_DELETE, resume=answer))
+
+    assert (parked.status, parked.waiting.kind) == (ThreadRunStatus.WAITING, "approval")
+    assert (state.status, state.waiting, state.last_run_id) == (ThreadRunStatus.IDLE, None, "r2")
+    assert calls.ran == ["widget-1"]
 
 
 @pytest.mark.django_db(transaction=True)
