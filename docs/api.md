@@ -33,6 +33,10 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.skills.skills_view.SkillsView
 
+::: django_ag_ui.skills.skill_editor_view.SkillEditorView
+
+::: django_ag_ui.SKILLS_CHANGED_EVENT_NAME
+
 ## Agent and view
 
 ::: django_ag_ui.AGUIServer

@@ -102,6 +102,7 @@ nav:
   - Batching tool calls (CodeMode): code-mode.md
   - Delegating to sub-agents: subagents.md
   - Compaction & skills: compaction.md
+  - User skills: user-skills.md
   - Durable step persistence: step-persistence.md
   - Detached and headless runs: detached-runs.md
   - Queued runs: queued-runs.md

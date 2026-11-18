@@ -86,8 +86,11 @@ class AGUIServer:
     (``tools``) and the MCP Apps views relay (``mcp_apps``, ``mcp-apps/``) always mount.
     The rest mount only when their backend is *active*:
 
-    - ``skills`` — a [`SkillRegistry`][django_ag_ui.SkillRegistry]
-      was passed (``skills/``, GET JSON for ``data-skills-url``).
+    - ``skills`` — a [`SkillRegistry`][django_ag_ui.SkillRegistry] or a
+      ``skill_policy`` was passed (``skills/``, GET JSON for ``data-skills-url``).
+    - ``skill_editor`` / ``skill_editor_item`` — ``skill_editor=True``
+      (``skills/editor/`` + ``skills/editor/<id>/``, see
+      [`SkillEditorView`][django_ag_ui.skills.skill_editor_view.SkillEditorView]).
     - ``threads`` / ``thread`` — the conversation store is not a
       ``NullConversationStore`` (``threads/`` + ``threads/<id>/``, the history
       drawer's ``data-threads-url``). A ``thread_activity_source=`` puts pushed
@@ -243,6 +246,15 @@ class AGUIServer:
     starts runs as ``headless_request(principal)``. Without a run store nothing changes.
     See [Detached and headless runs](detached-runs.md).
 
+    **User skills.** ``skill_policy`` takes a django-spec-agents ``SkillPolicy``:
+    the ``skills/`` catalog lists each caller's stored skills beside the
+    registry's, and every run gets the caller's model-invocable ones through
+    ``StoredSkills``, with its authoring tools when ``skill_authoring=True``. A
+    run that saves a stored skill sends the ``ag_ui.skills_changed`` CUSTOM event.
+    The policy is wrapped so the registry's skill names are reserved. An
+    ``agent_factory`` builds its own agent and gets none of this. See
+    [User skills](user-skills.md).
+
     **Namespacing.** [`urls`][django_ag_ui.AGUIServer.urls] returns the
     ``(patterns, app_name, namespace)``
     triple ``path()`` mounts directly (like ``admin.site.urls`` — no
@@ -264,6 +276,9 @@ class AGUIServer:
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
         skills: SkillRegistry | None = None,
+        skill_policy: Any = None,
+        skill_editor: bool = False,
+        skill_authoring: bool = False,
         conversation_store: ConversationStore | None = None,
         thread_activity_source: ThreadActivitySource | None = None,
         step_store: Callable[[HttpRequest], Any] | None = None,
@@ -310,6 +325,7 @@ class AGUIServer:
             child_spend=child_spend,
             service_specs=service_specs,
             skills=skills,
+            skill_policy=skill_policy,
             step_store=step_store,
             thread_activity_source=thread_activity_source,
             throttle=throttle,
@@ -337,6 +353,16 @@ class AGUIServer:
             "authorize": authorize,
             "csrf_exempt": csrf_exempt,
         }
+        self._skill_policy: Any = None
+        self._skill_editor: Any = None
+        if skill_policy is not None:
+            capabilities = self._mount_skill_policy(
+                skill_policy, capabilities, editor=skill_editor, authoring=skill_authoring
+            )
+        elif skill_editor or skill_authoring:
+            raise ImproperlyConfigured(
+                "AGUIServer(skill_editor=, skill_authoring=) need skill_policy="
+            )
         self._conversation_store: ConversationStore = (
             conversation_store if conversation_store is not None else NullConversationStore()
         )
@@ -388,6 +414,19 @@ class AGUIServer:
             child_spend=child_spend,
             **self._policy,
         )
+
+    def _mount_skill_policy(
+        self, policy: Any, capabilities: list[Any] | None, *, editor: bool, authoring: bool
+    ) -> list[Any]:
+        # Imported late: django_spec_agents.skills defines a model, so needs the app registry.
+        from django_ag_ui.skills.skill_editor_view import SkillEditorView
+        from django_ag_ui.skills.utils import ReservingPolicy, StoredSkillsForRun
+
+        self._skill_policy = ReservingPolicy(policy, (spec.name for spec in self._skills or ()))
+        if editor:
+            self._skill_editor = SkillEditorView(self._skill_policy, **self._policy)
+        stored = StoredSkillsForRun(self._skill_policy, authoring=authoring)
+        return [stored, *(capabilities or [])]
 
     def headless_request(self, principal: Any) -> HttpRequest:
         """The request a headless run's seams see: ``user=principal``, and no session.
@@ -584,10 +623,13 @@ class AGUIServer:
                     name="runs",
                 ),
             )
-        if self._skills is not None:
-            patterns.append(
-                path("skills/", SkillsView(self._skills, **self._policy), name="skills")
-            )
+        if self._skills is not None or self._skill_policy is not None:
+            catalog = SkillsView(self._skills, policy=self._skill_policy, **self._policy)
+            patterns.append(path("skills/", catalog, name="skills"))
+        if self._skill_editor is not None:
+            editor = self._skill_editor
+            patterns.append(path("skills/editor/", editor, name="skill_editor"))
+            patterns.append(path("skills/editor/<str:skill_id>/", editor, name="skill_editor_item"))
         if not isinstance(self._conversation_store, NullConversationStore):
             threads_view = ThreadsView(
                 self._conversation_store,
