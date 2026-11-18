@@ -16,6 +16,7 @@ from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
+from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from django_spec_agents.persistence.utils import owner_id_for, resolve_owner_id
 from django_spec_agents.policy.audit.types.audit_event import AuditEvent
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
@@ -34,6 +35,7 @@ from django_ag_ui.agent.inject_subagent_events import inject_subagent_events
 from django_ag_ui.agent.lend_answered_by import lend_answered_by
 from django_ag_ui.agent.lend_stored_ids import lend_stored_ids
 from django_ag_ui.agent.outcome_agui_adapter import OutcomeAGUIAdapter
+from django_ag_ui.agent.park_run import ParkRun
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.run_transcript import RunTranscript
@@ -66,6 +68,8 @@ class AgentSession:
     only the client's new turn from ``run_input``. ``source_messages`` is then
     the source thread's stored conversation, if there is one, and the snapshot's
     messages are stored under the ids it holds for them rather than fresh ones.
+
+    With ``park``, a run that ends on deferred calls it names finishes ``WAITING``.
     """
 
     def __init__(
@@ -86,6 +90,7 @@ class AgentSession:
         capabilities: list[Any] | None = None,
         timeout: float | None = None,
         deferred_tool_results: DeferredToolResults | None = None,
+        park: ParkRun | None = None,
     ) -> None:
         self._agent = agent
         self._run_input = run_input
@@ -94,7 +99,9 @@ class AgentSession:
         self._model = model
         self._instructions = instructions
         self._toolsets = toolsets
-        self._capabilities = capabilities
+        self._capabilities = capabilities if park is None else [*(capabilities or []), park]
+        self._park = park
+        self._waiting: RunWaiting | None = None
         self._deps = deps
         self._audit_logger = audit_logger
         self._config = config
@@ -171,6 +178,7 @@ class AgentSession:
             racing_stages=(subagents,),
             on_cancel=self._on_cancel(transcript),
             ended=lambda: self._ended,
+            waiting=lambda: self._waiting,
             token=self._token,
             run_store=run_store,
             request=self._request,
@@ -244,12 +252,18 @@ class AgentSession:
         return self._prior
 
     def _on_complete(self, transcript: RunTranscript) -> Callable[[Any], Awaitable[None]] | None:
-        """The adapter's ``on_complete`` callback persisting the conversation."""
+        """The adapter's ``on_complete`` callback: note a park, then persist the conversation."""
         save = self._message_saver()
-        if save is None:
+        if save is None and self._park is None:
             return None
 
         async def _on_complete(result: Any) -> None:
+            if self._park is not None:
+                self._waiting = self._park.waiting(result.output)
+                if self._waiting is not None:
+                    self._ended = RunOutcome.WAITING
+            if save is None:
+                return
             dumped = OutcomeAGUIAdapter.dump_messages(result.new_messages())
             new = strip_binary_content(transcript.with_streamed_ids(dumped))
             await save([*self._prior_messages(), *new])

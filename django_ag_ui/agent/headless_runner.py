@@ -143,7 +143,8 @@ class AGUIHeadlessRunner:
                 server, request, thread, timeout, _RunsToFirstStop(self)
             ),
         )
-        return RunStop(thread_id=thread, run_id=run, outcome=await owner.wait())
+        outcome = await owner.wait()
+        return RunStop(thread_id=thread, run_id=run, outcome=outcome, waiting=owner.waiting)
 
     async def cancel(self, thread_id: str, principal: Any) -> bool:
         """Record a cancel for the thread's live run; ``False`` if no run holds it."""
