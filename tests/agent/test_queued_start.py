@@ -316,19 +316,29 @@ def test_a_sync_start_with_no_queue_runs_to_its_first_stop() -> None:
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_cancel_recorded_while_queued_ends_the_run_before_it_starts() -> None:
+async def test_a_cancel_recorded_while_queued_ends_the_run_before_it_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     offered: list[list[str]] = []
     server, runner, _ = _runner_and_queue(_server(offered))
     user = authenticated_user()
     started = await runner.start("helper", "hi", user, timeout=5, thread_id="t-c")
     assert await runner.cancel("t-c", user)
+    reached: list[str] = []
+    real_start = server.start_headless
+
+    async def start_headless(*args: Any, **kwargs: Any) -> Any:
+        reached.append("start_headless")
+        return await real_start(*args, **kwargs)
+
+    monkeypatch.setattr(server, "start_headless", start_headless)
 
     stop = await AGUIHeadlessRunner(server).run_to_first_stop(
         "helper", "hi", user, timeout=5, thread_id="t-c", run_id=started.run_id
     )
 
     assert stop.outcome is RunOutcome.CANCELLED
-    assert offered == []
+    assert (offered, reached) == ([], [])
     state = await _state(server, "t-c")
     assert (state.status, state.active_run_id, state.cancel_requested) == (
         ThreadRunStatus.IDLE,
