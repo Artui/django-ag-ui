@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`TOOL_CALL_RESULT` and the stored `ToolMessage` carry `metadata.answered_by`.** A call
+  whose result part holds `metadata["answered_by"]` (a reviewer's or a routine's answer to
+  an approval) is stamped in `metadata` only. A resumed run copies the mark back from the
+  source thread's stored messages, since upstream's dump drops it, and drops one on a
+  client-posted `ToolMessage`. No store change.
+
 ## [0.80.0] — 2026-11-18
 
 ### Added

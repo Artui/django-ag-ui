@@ -27,6 +27,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.ui import UIEventStream
 from pydantic_ai.ui.ag_ui import AGUIAdapter, AGUIEventStream
 
+from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD, stamp_answered_by
 from django_ag_ui.agent.stamp_outcome import stamp_outcome
 from django_ag_ui.agent.utils import run_error_code
 
@@ -52,8 +53,9 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
     def dump_messages(cls, messages: Sequence[ModelMessage], **kwargs: Any) -> list[Message]:
         """``AGUIAdapter.dump_messages``, each tool result stamped as the stream stamps it."""
         outcomes = _outcomes_by_call(messages)
+        marks = _answered_by_call(messages)
         dumped = super().dump_messages(messages, **kwargs)
-        return [_with_stored_outcome(message, outcomes) for message in dumped]
+        return [_with_stored_marks(message, outcomes, marks) for message in dumped]
 
 
 class _OutcomeEventStream(AGUIEventStream[Any, Any]):
@@ -63,16 +65,22 @@ class _OutcomeEventStream(AGUIEventStream[Any, Any]):
         self, event: FunctionToolResultEvent
     ) -> AsyncIterator[BaseEvent]:
         return _with_outcome(
-            super().handle_function_tool_result(event), _forwardable_outcome(event.part)
+            super().handle_function_tool_result(event),
+            _forwardable_outcome(event.part),
+            _answered_by(event.part),
         )
 
     def handle_output_tool_result(self, event: OutputToolResultEvent) -> AsyncIterator[BaseEvent]:
         return _with_outcome(
-            super().handle_output_tool_result(event), _forwardable_outcome(event.part)
+            super().handle_output_tool_result(event),
+            _forwardable_outcome(event.part),
+            _answered_by(event.part),
         )
 
     def handle_builtin_tool_return(self, part: NativeToolReturnPart) -> AsyncIterator[BaseEvent]:
-        return _with_outcome(super().handle_builtin_tool_return(part), _forwardable_outcome(part))
+        return _with_outcome(
+            super().handle_builtin_tool_return(part), _forwardable_outcome(part), None
+        )
 
     async def on_error(self, error: Exception) -> AsyncIterator[BaseEvent]:
         code = run_error_code(error)
@@ -110,23 +118,46 @@ def _outcomes_by_call(messages: Sequence[ModelMessage]) -> dict[str, str]:
     return outcomes
 
 
-def _with_stored_outcome(message: Message, outcomes: Mapping[str, str]) -> Message:
-    """``message``, stamped when it is the result of a call ``outcomes`` names."""
+def _answered_by(part: object) -> str | None:
+    """The mark a tool result's metadata carries for who answered its approval, if any."""
+    metadata = getattr(part, "metadata", None)
+    mark = metadata.get(ANSWERED_BY_FIELD) if isinstance(metadata, dict) else None
+    return mark if isinstance(mark, str) else None
+
+
+def _answered_by_call(messages: Sequence[ModelMessage]) -> dict[str, str]:
+    """Each tool call's answered-by mark, keyed by call id."""
+    marks: dict[str, str] = {}
+    for message in messages:
+        for part in message.parts:
+            if isinstance(part, ToolReturnPart) and (mark := _answered_by(part)) is not None:
+                marks[part.tool_call_id] = mark
+    return marks
+
+
+def _with_stored_marks(
+    message: Message, outcomes: Mapping[str, str], marks: Mapping[str, str]
+) -> Message:
+    """``message``, stamped when it is the result of a call ``outcomes`` or ``marks`` names."""
     if not isinstance(message, ToolMessage):
         return message
     outcome = outcomes.get(message.tool_call_id)
-    if outcome is None:
-        return message
-    return stamp_outcome(message, outcome)
+    if outcome is not None:
+        message = stamp_outcome(message, outcome)
+    mark = marks.get(message.tool_call_id)
+    return message if mark is None else stamp_answered_by(message, mark)
 
 
 async def _with_outcome(
-    events: AsyncIterator[BaseEvent], outcome: str | None
+    events: AsyncIterator[BaseEvent], outcome: str | None, answered_by: str | None
 ) -> AsyncIterator[BaseEvent]:
-    """Forward ``events``, stamping ``outcome`` onto every tool result among them."""
+    """Forward ``events``, stamping ``outcome`` and ``answered_by`` onto every tool result."""
     async for event in events:
-        if outcome is not None and isinstance(event, ToolCallResultEvent):
-            event = stamp_outcome(event, outcome)
+        if isinstance(event, ToolCallResultEvent):
+            if outcome is not None:
+                event = stamp_outcome(event, outcome)
+            if answered_by is not None:
+                event = stamp_answered_by(event, answered_by)
         yield event
 
 
