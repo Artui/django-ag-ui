@@ -3052,7 +3052,7 @@ the seam to every view it builds, including the agent endpoint:</p>
   gives <strong>403</strong> (JSON, never an HTML login redirect). Use it for a staff gate.</li>
 <li><strong><code>get_user=&lt;hook&gt;</code></strong> establishes <code>request.user</code> (sync or async — a sync ORM
   token lookup runs off the event loop).</li>
-<li><strong><code>csrf_exempt</code></strong> (default: unstated, which behaves as exempt) → see
+<li><strong><code>csrf_exempt</code></strong> (default: unstated, which behaves as exempt, the skill editor excepted) → see
   <a href="#csrf">CSRF</a> below.</li>
 </ul>
 <h3 id="csrf">CSRF<a class="headerlink" href="#csrf" title="Permanent link">&para;</a></h3>
@@ -3067,7 +3067,8 @@ default <code>SameSite=Lax</code> cookie.</p>
 <p><code>AGUIServer</code> forwards the answer to <strong>every</strong> view it mounts, so the run
 endpoint and the write routes beside it — <code>POST</code>/<code>DELETE</code> on <code>attachments/</code>,
 <code>PATCH</code>/<code>DELETE</code> on <code>threads/&lt;id&gt;/</code>, <code>POST</code> on <code>transcribe/</code> — are always
-governed together.</p>
+governed together. The skill editor alone treats an unstated <code>csrf_exempt</code> as <code>False</code>;
+only an explicit <code>csrf_exempt=True</code> exempts it (see <a href="../user-skills/">User skills</a>).</p>
 <div class="admonition warning">
 <p class="admonition-title"><code>csrf_exempt=True</code> exempts the write routes, not just the stream</p>
 <p>Under <code>csrf_exempt=True</code> a cross-site page can <code>POST multipart/form-data</code> to

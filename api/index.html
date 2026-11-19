@@ -7239,9 +7239,9 @@ skill cap a <code>409</code> and a refused write a <code>403</code>, each <code>
 with no body in it.</p>
 <p>The authentication seam and closed default are
 <a class="autorefs autorefs-internal" title="ThreadsView" href="#django_ag_ui.ThreadsView"><code>ThreadsView</code></a>'s. Like the threads endpoints it is
-CSRF-exempt unless <code>csrf_exempt=False</code>, so a write must be <code>application/json</code>
-(else <code>415</code>): a cross-site form or <code>text/plain</code> post cannot send that type
-without a CORS preflight.</p>
+CSRF-checked by default, unlike the threads endpoints: an unstated <code>csrf_exempt</code>
+is <code>False</code> here, and only an explicit <code>csrf_exempt=True</code> exempts it. A write
+must also be <code>application/json</code> (else <code>415</code>).</p>
 
 
 
@@ -7378,7 +7378,8 @@ on the first request instead.</p>
 <code>get_user</code> / <code>authorize</code> / <code>csrf_exempt</code> are forwarded to <strong>every</strong>
 view this object builds, so one policy governs the whole mount — including
 the write endpoints (attachment upload / delete, thread rename / delete,
-transcribe), which <code>csrf_exempt=True</code> exempts alongside the run endpoint.
+transcribe), which <code>csrf_exempt=True</code> exempts alongside the run endpoint. The
+skill editor alone treats an unstated <code>csrf_exempt</code> as <code>False</code>.
 <code>require_authenticated</code> defaults to <strong>True</strong>, so a bare
 <code>AGUIServer(registry)</code> serves nobody who is not logged in; pass
 <code>require_authenticated=False</code> to serve anonymous runs deliberately. The

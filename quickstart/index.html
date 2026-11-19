@@ -1178,7 +1178,7 @@ a <strong>deployment</strong> — the settings read included — set <code>"MODE
 (see <a href="#1-configure-the-model">step 1</a>).</p>
 <div class="admonition warning">
 <p class="admonition-title">CSRF and cookie-authenticated deployments</p>
-<p>CSRF is exempt unless you say otherwise — right for header-token auth
+<p>CSRF is exempt unless you say otherwise (the skill editor excepted) — right for header-token auth
 (Bearer / API key), where CSRF doesn't apply. If your deployment
 authenticates with <strong>session cookies</strong>, pass <code>csrf_exempt=False</code> and send
 the token from the client: tools act as <code>request.user</code>, so a cookie-auth

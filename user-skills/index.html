@@ -1170,10 +1170,11 @@ and <code>enable_skill</code>, so the rules are the authoring tools' own:</p>
 </table>
 <p>No error carries a skill's body. The <code>error</code> text names the broken rule but not the
 field, so show it beside the form rather than under one field.</p>
-<p>Like the thread and attachment endpoints, the editor is CSRF-exempt unless the mount
-passes <code>csrf_exempt=False</code>. Its writes must be <code>application/json</code>, which a cross-site
-form or <code>text/plain</code> post cannot send without a CORS preflight, so they are refused with
-<code>415</code> otherwise.</p>
+<p>Unlike the thread and attachment endpoints, the editor is CSRF-checked by default, so a
+cross-site write without a token is refused with <code>403</code> whatever its content type. Only
+an explicit <code>csrf_exempt=True</code> on the server exempts it; the server's unstated default
+does not. Its writes must also be <code>application/json</code>, and are refused with <code>415</code>
+otherwise.</p>
 <h2 id="in-a-run">In a run<a class="headerlink" href="#in-a-run" title="Permanent link">&para;</a></h2>
 <p>Every run of the mount gets <code>StoredSkills(policy, request)</code>: each enabled,
 model-invocable skill the caller sees becomes a deferred capability, listed to the model
