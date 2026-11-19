@@ -10,6 +10,7 @@ import pytest
 from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured
 from django.http import StreamingHttpResponse
+from django.middleware.csrf import CsrfViewMiddleware
 from django.test import RequestFactory
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.registry.tool_registry import ToolRegistry
@@ -94,6 +95,33 @@ def test_a_policy_alone_mounts_the_catalog_and_the_editor_needs_its_keyword() ->
     )
     editing = _routes(server)
     assert {"skill_editor", "skill_editor_item"} <= set(editing)
+
+
+def _cross_site_json_write(view: Any) -> Any:
+    request = RequestFactory().post(
+        "/s/", data="{}", content_type="application/json", HTTP_ORIGIN="https://evil.example"
+    )
+    return CsrfViewMiddleware(lambda r: None).process_view(request, view, (), {})
+
+
+def test_an_unstated_mount_checks_the_editor_alone() -> None:
+    routes = _routes(_server(_IDLE, skill_editor=True))
+    assert routes["skill_editor"].csrf_exempt is False
+    assert routes["skill_editor_item"].csrf_exempt is False
+    assert routes["tools"].csrf_exempt is True
+    assert _cross_site_json_write(routes["skill_editor"]).status_code == 403
+    assert _cross_site_json_write(routes["tools"]) is None
+
+
+def test_an_explicit_exempt_mount_still_exempts_the_editor() -> None:
+    routes = _routes(_server(_IDLE, skill_editor=True, csrf_exempt=True))
+    assert routes["skill_editor"].csrf_exempt is True
+    assert _cross_site_json_write(routes["skill_editor"]) is None
+
+
+def test_an_enforced_mount_checks_the_editor() -> None:
+    routes = _routes(_server(_IDLE, skill_editor=True, csrf_exempt=False))
+    assert routes["skill_editor"].csrf_exempt is False
 
 
 @pytest.mark.parametrize("keyword", ["skill_editor", "skill_authoring"])

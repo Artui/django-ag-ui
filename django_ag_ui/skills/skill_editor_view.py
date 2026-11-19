@@ -18,9 +18,6 @@ from django_spec_agents.skills import (
 )
 from django_spec_agents.utils import AuthorizePredicate, GetUser, auth_error_response, authorize
 
-from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
-from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
-
 _WRITES = frozenset({"POST", "PUT", "PATCH"})
 _FLAGS = (("userInvocable", "user_invocable"), ("modelInvocable", "model_invocable"))
 
@@ -50,9 +47,9 @@ class SkillEditorView:
 
     The authentication seam and closed default are
     [`ThreadsView`][django_ag_ui.ThreadsView]'s. Like the threads endpoints it is
-    CSRF-exempt unless ``csrf_exempt=False``, so a write must be ``application/json``
-    (else ``415``): a cross-site form or ``text/plain`` post cannot send that type
-    without a CORS preflight.
+    CSRF-checked by default, unlike the threads endpoints: an unstated ``csrf_exempt``
+    is ``False`` here, and only an explicit ``csrf_exempt=True`` exempts it. A write
+    must also be ``application/json`` (else ``415``).
     """
 
     def __init__(
@@ -68,8 +65,7 @@ class SkillEditorView:
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
-        warn_if_csrf_unstated(csrf_exempt, get_user)
-        self.csrf_exempt = resolve_csrf_exempt(csrf_exempt)
+        self.csrf_exempt = csrf_exempt is True
 
     def __call__(self, request: HttpRequest, skill_id: str | None = None) -> HttpResponseBase:
         deny = authorize(

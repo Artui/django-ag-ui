@@ -141,10 +141,11 @@ and `enable_skill`, so the rules are the authoring tools' own:
 No error carries a skill's body. The `error` text names the broken rule but not the
 field, so show it beside the form rather than under one field.
 
-Like the thread and attachment endpoints, the editor is CSRF-exempt unless the mount
-passes `csrf_exempt=False`. Its writes must be `application/json`, which a cross-site
-form or `text/plain` post cannot send without a CORS preflight, so they are refused with
-`415` otherwise.
+Unlike the thread and attachment endpoints, the editor is CSRF-checked by default, so a
+cross-site write without a token is refused with `403` whatever its content type. Only
+an explicit `csrf_exempt=True` on the server exempts it; the server's unstated default
+does not. Its writes must also be `application/json`, and are refused with `415`
+otherwise.
 
 ## In a run
 

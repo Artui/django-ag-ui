@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from typing import Any
 
 import pytest
@@ -185,6 +186,12 @@ def test_an_anonymous_caller_is_401() -> None:
 def test_the_writes_are_csrf_checked_unless_exempted() -> None:
     assert _editor().csrf_exempt is False
     assert SkillEditorView(TenantSkillPolicy(), csrf_exempt=True).csrf_exempt is True
+
+
+def test_an_unstated_csrf_is_checked_without_a_warning() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert SkillEditorView(TenantSkillPolicy()).csrf_exempt is False
 
 
 def test_only_a_visible_skill_is_reached_however_lax_can_write_is() -> None:
