@@ -648,6 +648,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-detached-browser-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A detached browser start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#from-sync-code" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -931,6 +942,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-detached-browser-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A detached browser start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#from-sync-code" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -978,25 +1000,34 @@ start is enqueued instead: a worker runs it, and its owner lives there.</p>
 holds <code>run_headless(runner, permissions=[...])</code>, built over a runner with no queue, so the
 worker runs the start in its own process. Pass <code>spec_name=</code> when the spec is registered
 under another name than <code>"run_headless"</code>.</p>
-<p>Only headless starts are queued. A browser run, detached or not, still runs in the process
-that serves its request.</p>
+<p>A browser run that stays connected always runs in the process that serves its request. A
+detached one is queued when its mount has a queue too: see
+<a href="#a-detached-browser-start">A detached browser start</a>.</p>
 <h2 id="what-the-caller-sees">What the caller sees<a class="headerlink" href="#what-the-caller-sees" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><code>start</code> holds the thread before it returns.</strong> It claims the thread for a fresh
-  <code>run_id</code>, saves a child's <code>parent</code> and <code>lineage</code>, then enqueues the firing with that
-  <code>run_id</code>. The <code>HeadlessStart</code> it returns names the claimed run, the one the thread's
-  state reports.</li>
+<li><strong><code>start</code> holds the thread before it returns.</strong> It takes the thread's inbox mark,
+  claims the thread for a fresh <code>run_id</code>, saves a child's <code>parent</code> and <code>lineage</code>, then
+  enqueues the firing with that <code>run_id</code> and that <code>inbox_mark</code>. The <code>HeadlessStart</code> it
+  returns names the claimed run, the one the thread's state reports.</li>
 <li><strong>A busy thread is refused at the call</strong>, with
   <a class="autorefs autorefs-internal" title="ThreadBusyError" href="../api/#django_ag_ui.agent.thread_busy_error.ThreadBusyError"><code>ThreadBusyError</code></a>, and nothing
   is enqueued.</li>
 <li><strong>A failed enqueue gives the thread back.</strong> The claim is finished as an error, so the
-  thread is free for the next start.</li>
+  thread is free for the next start. A start that answers a parked thread (<code>answers=</code>)
+  gives its claim back instead, on a store that can (a django-spec-agents
+  <code>ResumableRunStore</code>): the thread keeps its park, and a later <code>answers=</code> still resumes
+  it. The spec's permission refusal at enqueue, <code>NotPermitted</code> or <code>PermissionDenied</code>,
+  is such a failure.</li>
 <li><strong>No <code>capabilities=</code>.</strong> They cannot cross a queue, so a queued start that passes any
   raises <code>ValueError</code>. A child session needs none: django-spec-agents' child-session
   tools (0.21.0 and later) pass only <code>parent=</code> and <code>lineage=</code>, which the firing carries,
   and the worker composes the child's bounds from them.</li>
 <li><strong><code>answers=</code> crosses the queue.</strong> A start that resumes a thread parked on a question
-  carries its answers in the firing, and the worker resumes the stored history with them.</li>
+  carries its answers in the firing, and the worker resumes the stored history with them.
+  The start claims the thread only while it is still parked on the run it read, so of two
+  answers to one park one is enqueued: the other raises <code>ThreadBusyError</code> naming the run
+  that holds the thread, or django-spec-agents' <code>RunNotParkedError</code> once that run has
+  ended. A thread that is not waiting takes a plain claim, as it always did.</li>
 </ul>
 <h2 id="what-the-worker-does">What the worker does<a class="headerlink" href="#what-the-worker-does" title="Permanent link">&para;</a></h2>
 <p>The worker's runner is called with the claimed <code>run_id</code> and takes the claim up rather than
@@ -1004,8 +1035,48 @@ claim the thread again. The claim waits for it for <code>queued_lease=</code> (t
 runner says otherwise); a worker that comes later raises
 <a class="autorefs autorefs-internal" title="ClaimLapsedError" href="../api/#django_ag_ui.agent.claim_lapsed_error.ClaimLapsedError"><code>ClaimLapsedError</code></a> and does not
 run. A child's run composes its stored lineage on the worker, its first run as much as any
-later one. Both paths write the same lease and log. A worker that dies mid-run is not run again:
+later one. Both paths write the same lease and log, but for one entry: on a mount with an
+inbound queue, the claim keeps the inbox mark taken at the start as the log's first entry,
+which the events replay skips. After the run, the worker wakes the thread for mail newer
+than that mark, so mail that arrives while the firing waits in the queue wakes it too
+(<code>run_headless</code> does not hand the runner the firing's <code>inbox_mark</code>, so the worker reads it
+back from the log). A worker that dies mid-run is not run again:
 the lease lapses and the thread reads <code>failed</code> with reason <code>interrupted</code>.</p>
+<h2 id="a-detached-browser-start">A detached browser start<a class="headerlink" href="#a-detached-browser-start" title="Permanent link">&para;</a></h2>
+<p>Give the mount the same queue, <code>AGUIServer(firing_queue=queue)</code>, and a browser run that asks
+to detach (<code>forwardedProps.detach</code>) is queued rather than run in the serving process:</p>
+<ol>
+<li>The POST is checked as before (authentication, throttle, identifiers, and a resume's
+   <code>404</code> or <code>409</code>), then claims the thread. A busy thread or a reused run id answers <code>409</code>,
+   and nothing is enqueued. A resume of a parked run claims the thread only while it is
+   still parked on that run, so of two resumes of one park (a double click, two tabs) one
+   is enqueued; the other answers <code>409</code> naming the run that holds the thread, or <code>404</code>
+   once that run has ended. The queue checks the spec's permissions at enqueue, after the
+   claim, so a refusal (<code>NotPermitted</code>, or Django's <code>PermissionDenied</code>) answers <code>403</code> and
+   the claim is given back: the thread keeps the state it had before, a park included, so
+   the parked run can still be resumed, and the refused run's log is deleted. A run store
+   that cannot give a claim back (one that is not a django-spec-agents
+   <code>ResumableRunStore</code>) finishes the refused run as an error instead.</li>
+<li>The run's whole <code>RunAgentInput</code> as the client sent it (client tools, state, context,
+   <code>forwardedProps</code>, an A2UI catalog) is kept as the first entry of the run's log, with
+   the run it resumes, if any, and the thread's inbox mark. A resume of a parked run
+   records that it was parked while the thread still says so.</li>
+<li>The start enqueues a <code>HeadlessFiring</code> with the claimed <code>run_id</code> and answers
+   <code>200 {"thread_id", "run_id"}</code>. The client reads the run from
+   <a href="../detached-runs/#read-a-runs-events"><code>events?after=0</code></a>, which waits for its first
+   event; the replay never sends the kept input.</li>
+<li>The worker takes the claim up, reads the input back by <code>run_id</code>, and starts it as the
+   POST would have, detached, so the browser's own client tools park the run. A firing
+   whose input is gone finishes its claim as an error rather than run with no prompt.</li>
+</ol>
+<p>The mount needs what a headless run needs (<code>id=</code>, <code>run_store=</code>, <code>step_store=</code>, and a
+conversation store that keeps conversations without a browser session) and
+<code>RUN_TIMEOUT_SECONDS</code>, which is the queued run's <code>timeout</code>; it refuses at construction
+otherwise. A connected browser run on that mount still streams in-process.</p>
+<p>On the worker every per-request hook (<code>model_for_request</code>, <code>instructions_for_request</code>,
+<code>deps_factory</code>, the MCP bridge, the attachment store, <code>step_store</code>) is handed
+<code>headless_request(principal)</code>, not the browser's request: the worker never sees its
+headers, session or middleware state. Override <code>headless_request</code> when a hook reads them.</p>
 <h2 id="from-sync-code">From sync code<a class="headerlink" href="#from-sync-code" title="Permanent link">&para;</a></h2>
 <p><a class="autorefs autorefs-internal" title="start_from_sync" href="../api/#django_ag_ui.agent.queued_start.start_from_sync"><code>start_from_sync</code></a> claims and enqueues on
 a queued runner. With no queue it runs the start to its first stop and returns once it
