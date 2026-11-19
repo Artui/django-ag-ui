@@ -286,6 +286,13 @@ def test_unstated_csrf_is_exempt_across_the_whole_mount() -> None:
         assert pattern.callback.csrf_exempt is True, pattern.name
 
 
+def test_the_editor_default_leaves_the_threads_view_exempt() -> None:
+    with pytest.warns(RuntimeWarning, match="CSRF-exempt"):
+        server = _server(conversation_store=_DummyStore())
+    patterns, _, _ = server.urls
+    assert {p.name: p.callback.csrf_exempt for p in patterns}["threads"] is True
+
+
 @override_settings(
     ROOT_URLCONF="tests.agent.agui_server_csrf_urls",
     MIDDLEWARE=["django.middleware.csrf.CsrfViewMiddleware"],

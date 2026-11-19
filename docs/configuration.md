@@ -1153,7 +1153,7 @@ urlpatterns = [
   gives **403** (JSON, never an HTML login redirect). Use it for a staff gate.
 - **`get_user=<hook>`** establishes `request.user` (sync or async — a sync ORM
   token lookup runs off the event loop).
-- **`csrf_exempt`** (default: unstated, which behaves as exempt) → see
+- **`csrf_exempt`** (default: unstated, which behaves as exempt, the skill editor excepted) → see
   [CSRF](#csrf) below.
 
 ### CSRF
@@ -1171,7 +1171,8 @@ default `SameSite=Lax` cookie.
 `AGUIServer` forwards the answer to **every** view it mounts, so the run
 endpoint and the write routes beside it — `POST`/`DELETE` on `attachments/`,
 `PATCH`/`DELETE` on `threads/<id>/`, `POST` on `transcribe/` — are always
-governed together.
+governed together. The skill editor alone treats an unstated `csrf_exempt` as `False`;
+only an explicit `csrf_exempt=True` exempts it (see [User skills](user-skills.md)).
 
 !!! warning "`csrf_exempt=True` exempts the write routes, not just the stream"
     Under `csrf_exempt=True` a cross-site page can `POST multipart/form-data` to

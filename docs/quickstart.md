@@ -144,7 +144,7 @@ a **deployment** — the settings read included — set `"MODEL": "test"` instea
 (see [step 1](#1-configure-the-model)).
 
 !!! warning "CSRF and cookie-authenticated deployments"
-    CSRF is exempt unless you say otherwise — right for header-token auth
+    CSRF is exempt unless you say otherwise (the skill editor excepted) — right for header-token auth
     (Bearer / API key), where CSRF doesn't apply. If your deployment
     authenticates with **session cookies**, pass `csrf_exempt=False` and send
     the token from the client: tools act as `request.user`, so a cookie-auth

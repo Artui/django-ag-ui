@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.83.0] — 2026-11-19
+
+### Changed
+
+- **The skill editor is CSRF-checked by default.** `SkillEditorView` no longer follows
+  the server-wide unstated `csrf_exempt=`, which resolved to exempt: a mount that left
+  it unset now answers a cross-site JSON write without a CSRF token with `403`, where
+  0.81.0 and 0.82.0 let it through (the `415` on a non-JSON write only stopped a form
+  post). Existing mounts that call the editor from a client sending no token must send
+  the CSRF token, or pass `csrf_exempt=True` to `AGUIServer` (or the view) to keep the
+  old behaviour; that also exempts every other endpoint of the mount, as it always did.
+  An explicit `csrf_exempt=True` exempts the editor and an explicit `False` checks it.
+  The threads, attachments and run endpoints are unchanged.
+
 ## [0.82.0] — 2026-11-18
 
 ### Added
@@ -4697,7 +4711,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.82.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.83.0...HEAD
+[0.83.0]: https://github.com/Artui/django-ag-ui/compare/v0.82.0...v0.83.0
 [0.82.0]: https://github.com/Artui/django-ag-ui/compare/v0.81.0...v0.82.0
 [0.81.0]: https://github.com/Artui/django-ag-ui/compare/v0.80.0...v0.81.0
 [0.80.0]: https://github.com/Artui/django-ag-ui/compare/v0.79.0...v0.80.0

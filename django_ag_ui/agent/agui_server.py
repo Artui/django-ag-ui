@@ -132,7 +132,8 @@ class AGUIServer:
     ``get_user`` / ``authorize`` / ``csrf_exempt`` are forwarded to **every**
     view this object builds, so one policy governs the whole mount — including
     the write endpoints (attachment upload / delete, thread rename / delete,
-    transcribe), which ``csrf_exempt=True`` exempts alongside the run endpoint.
+    transcribe), which ``csrf_exempt=True`` exempts alongside the run endpoint. The
+    skill editor alone treats an unstated ``csrf_exempt`` as ``False``.
     ``require_authenticated`` defaults to **True**, so a bare
     ``AGUIServer(registry)`` serves nobody who is not logged in; pass
     ``require_authenticated=False`` to serve anonymous runs deliberately. The
