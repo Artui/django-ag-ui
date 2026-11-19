@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Mapping
 from datetime import timedelta
 from typing import Any
@@ -29,10 +30,11 @@ from django_ag_ui.agent.claim_lapsed_error import ClaimLapsedError
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
 from django_ag_ui.agent.queued_start import start_from_sync
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
+from django_ag_ui.agent.utils import is_queued_input
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.constants import RUN_LEASE
 from tests.agent.worker_queue import WorkerQueue
-from tests.authed_request_factory import authenticated_user
+from tests.authed_request_factory import AuthedAsyncRequestFactory, authenticated_user
 
 _PARENT = ThreadRef("t-parent", "planner")
 _LINEAGE = ChildLineageRecord(root=_PARENT, depth=1, tools=["lookup"], gated=[])
@@ -89,7 +91,8 @@ async def _log(server: AGUIServer, thread_id: str) -> tuple[Any, list[str]]:
     state = await DefaultRunStore().get(thread_id, request=request)
     assert state is not None
     entries = await DefaultRunStore().read(state.last_run_id, request=request)
-    return state, [type(e.event).__name__ if hasattr(e, "event") else str(e) for e in entries]
+    kept = [e for e in entries if not is_queued_input(e.event)]
+    return state, [type(e.event).__name__ if hasattr(e, "event") else str(e) for e in kept]
 
 
 class _RefusingQueue(WorkerQueue):
@@ -126,6 +129,7 @@ async def test_a_queued_start_holds_its_thread_before_it_returns() -> None:
         },
         "run_id": started.run_id,
         "answers": None,
+        "inbox_mark": 0,
     }
     assert started == HeadlessStart(thread_id="t1", run_id=started.run_id)
 
@@ -374,3 +378,35 @@ def test_a_sync_start_enqueues_inside_the_callers_transaction() -> None:
         raise RuntimeError("the caller rolls back")
 
     assert async_to_sync(_state)(server, "t-tx") is None
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_queued_start_on_a_mount_with_no_inbox_keeps_no_mark() -> None:
+    server, runner, queue = _runner_and_queue(_server(inbound_queue=None))
+    user = authenticated_user()
+
+    started = await runner.start("helper", "hi", user, timeout=5)
+    request = server.headless_request(user)
+    log = await DefaultRunStore().read(started.run_id, request=request)
+    [result] = await queue.work()
+
+    [(_, params, _)] = queue.enqueued
+    assert (params["inbox_mark"], log) == (None, [])
+    assert result.service_result.outcome is RunOutcome.COMPLETED
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_queued_starts_kept_mark_is_never_replayed() -> None:
+    server, runner, queue = _runner_and_queue()
+    started = await runner.start("helper", "hi", authenticated_user(), timeout=5)
+    await queue.work()
+    patterns, _, _ = server.urls
+    events = next(p.callback for p in patterns if p.name == "thread_events")
+    request = AuthedAsyncRequestFactory().get(f"/agent/threads/{started.thread_id}/events/")
+
+    page = json.loads((await events(request, thread_id=started.thread_id)).content)
+    log = await DefaultRunStore().read(started.run_id, request=request)
+
+    assert is_queued_input(log[0].event)
+    assert log[0].event["value"] == {"inbox_mark": 0}
+    assert [e["seq"] for e in page["events"]] == [entry.seq for entry in log[1:]]

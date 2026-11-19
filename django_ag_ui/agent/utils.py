@@ -2,12 +2,21 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Callable
+from datetime import timedelta
 from typing import Any
 
 from ag_ui.core import Message, ToolMessage
-from django_spec_agents import IdentifierTooLongError
+from django.core.exceptions import PermissionDenied
+from django.http import HttpRequest
+from django_spec_agents import IdentifierTooLongError, ResumableRunStore, RunNotParkedError
+from django_spec_agents.persistence.types.run_claim import RunClaim
+from django_spec_agents.persistence.types.run_outcome import RunOutcome
+from django_spec_agents.persistence.types.run_store import RunStore
+from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 
 from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD
+from django_ag_ui.agent.thread_busy_error import ThreadBusyError
+from django_ag_ui.constants import QUEUED_INPUT_EVENT
 
 ERROR_CODE = "error"
 TIMED_OUT_CODE = "timed_out"
@@ -80,7 +89,106 @@ def without_answered_by(message: Message) -> Message:
     return message.model_copy(update={"metadata": metadata or None})
 
 
+def is_queued_input(event: Any) -> bool:
+    """Whether a run log event is what a queued start kept for its worker, never sent out."""
+    return (
+        isinstance(event, dict)
+        and event.get("type") == "CUSTOM"
+        and event.get("name") == QUEUED_INPUT_EVENT
+    )
+
+
+def is_permission_refusal(error: BaseException) -> bool:
+    """Whether ``error`` refuses the principal: ``PermissionDenied`` or ``NotPermitted``."""
+    if isinstance(error, PermissionDenied):
+        return True
+    try:
+        from django_service_specs.authorization.not_permitted import NotPermitted
+    except ImportError:
+        return False
+    return isinstance(error, NotPermitted)
+
+
+def queued_record(value: dict[str, Any]) -> dict[str, Any]:
+    """The run log entry a queued start keeps for its worker; no client is sent it."""
+    return {"type": "CUSTOM", "name": QUEUED_INPUT_EVENT, "value": value}
+
+
+async def kept_for_worker(
+    runs: RunStore, run_id: str, request: HttpRequest
+) -> dict[str, Any] | None:
+    """What a queued start kept as ``run_id``'s first log entry; ``None`` if it kept nothing."""
+    entries = await runs.read(run_id, request=request, limit=1)
+    if not entries or not is_queued_input(entries[0].event):
+        return None
+    return entries[0].event["value"]
+
+
+async def claim_thread(
+    store: RunStore,
+    thread_id: str,
+    run_id: str,
+    *,
+    request: HttpRequest,
+    lease: timedelta,
+    resumes: str | None = None,
+) -> RunClaim:
+    """Claim the thread; ``resumes`` a parked run only once, where the store can say so."""
+    if isinstance(store, ResumableRunStore):
+        return await store.claim(thread_id, run_id, request=request, lease=lease, resumes=resumes)
+    return await store.claim(thread_id, run_id, request=request, lease=lease)
+
+
+async def parked_run(store: RunStore, thread_id: str, *, request: HttpRequest) -> str | None:
+    """The run ``thread_id`` is parked on, read before a claim makes the thread running."""
+    state = await store.get(thread_id, request=request)
+    if state is None or state.status is not ThreadRunStatus.WAITING:
+        return None
+    return state.last_run_id
+
+
+async def claim_headless(
+    store: RunStore,
+    thread_id: str,
+    run_id: str,
+    *,
+    request: HttpRequest,
+    lease: timedelta,
+    answering: bool,
+) -> bool:
+    """Claim for a headless start, ``True`` if it resumed a park, which it does only once."""
+    resumes = await parked_run(store, thread_id, request=request) if answering else None
+    try:
+        claim = await claim_thread(
+            store, thread_id, run_id, request=request, lease=lease, resumes=resumes
+        )
+    except RunNotParkedError as error:
+        if error.active_run_id is None:
+            raise
+        raise ThreadBusyError(thread_id, error.active_run_id) from error
+    if not claim.claimed:
+        raise ThreadBusyError(thread_id, claim.active_run_id)
+    return resumes is not None
+
+
+async def give_back(store: RunStore, thread_id: str, run_id: str, *, request: HttpRequest) -> None:
+    """Release a claim the store can, so the thread keeps its state, a park too; else fail it."""
+    if isinstance(store, ResumableRunStore) and await store.release(
+        thread_id, run_id, request=request
+    ):
+        return
+    await store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
+
+
 __all__ = [
+    "claim_headless",
+    "claim_thread",
+    "give_back",
+    "parked_run",
+    "is_permission_refusal",
+    "is_queued_input",
+    "kept_for_worker",
+    "queued_record",
     "ERROR_CODE",
     "IDENTIFIER_TOO_LONG_CODE",
     "INTERRUPTED_CODE",

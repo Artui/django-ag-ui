@@ -130,20 +130,37 @@ class AGUIHeadlessRunner:
         thread, run = run_input.thread_id, run_input.run_id
         if run_id is not None and not await server.take_up_queued(request, thread, run):
             return RunStop(thread_id=thread, run_id=run, outcome=RunOutcome.CANCELLED)
-        owner = await server.start_headless(
-            request,
-            run_input,
-            timeout=timeout,
-            capabilities=capabilities,
-            parent=parent,
-            lineage=lineage,
-            adopt=run_id is not None,
-            answers=answers,
-            after_finish=await self._waker(
-                server, request, thread, timeout, _RunsToFirstStop(self)
-            ),
-        )
-        return RunStop(thread_id=thread, run_id=run, outcome=await owner.wait())
+        try:
+            kept = None if run_id is None else await server.queued_mark(request, run)
+            waker = await self._waker(
+                server, request, thread, timeout, _RunsToFirstStop(self), kept
+            )
+            stored = None if run_id is None else await server.queued_input(request, run)
+            if stored is not None:
+                owner = await server.start_queued(
+                    request, stored, timeout=timeout, after_finish=waker
+                )
+            elif not prompt and not answers:
+                raise LookupError(
+                    f"run {run!r} has no prompt, no answers and no kept browser input"
+                )
+            else:
+                owner = await server.start_headless(
+                    request,
+                    run_input,
+                    timeout=timeout,
+                    capabilities=capabilities,
+                    parent=parent,
+                    lineage=lineage,
+                    adopt=run_id is not None,
+                    answers=answers,
+                    after_finish=waker,
+                )
+        except BaseException:
+            await server.abandon_queued(request, thread, run)
+            raise
+        outcome = await owner.wait()
+        return RunStop(thread_id=thread, run_id=run, outcome=outcome, waiting=owner.waiting)
 
     async def cancel(self, thread_id: str, principal: Any) -> bool:
         """Record a cancel for the thread's live run; ``False`` if no run holds it."""
@@ -173,8 +190,15 @@ class AGUIHeadlessRunner:
         server, request, run_input = self._prepare(
             agent_id, prompt, principal, timeout, thread_id, answers=answers
         )
-        await server.claim_queued(
-            request, run_input, lease=self._queued_lease, parent=parent, lineage=lineage
+        mark = await server.inbox_mark(request, run_input.thread_id)
+        parked = await server.claim_queued(
+            request,
+            run_input,
+            lease=self._queued_lease,
+            parent=parent,
+            lineage=lineage,
+            inbox_mark=mark,
+            answering=answers is not None,
         )
         firing = HeadlessFiring(
             agent_id,
@@ -185,12 +209,15 @@ class AGUIHeadlessRunner:
             lineage,
             run_input.run_id,
             None if answers is None else dict(answers),
+            mark,
         )
         params = dataclasses.asdict(firing)
         try:
             await sync_to_async(queue.enqueue)(self._spec_name, params, actor=principal)
         except BaseException:
-            await server.abandon_queued(request, run_input.thread_id, run_input.run_id)
+            await server.abandon_queued(
+                request, run_input.thread_id, run_input.run_id, release=parked
+            )
             raise
         return HeadlessStart(thread_id=run_input.thread_id, run_id=run_input.run_id)
 
@@ -224,16 +251,22 @@ class AGUIHeadlessRunner:
 
     @staticmethod
     async def _waker(
-        server: AGUIServer, request: Any, thread_id: str, timeout: float, runner: Any
+        server: AGUIServer,
+        request: Any,
+        thread_id: str,
+        timeout: float,
+        runner: Any,
+        kept: int | None = None,
     ) -> Callable[[RunOutcome], Awaitable[None]] | None:
-        """What wakes the thread after the run's end is recorded; ``None`` with no inbound queue."""
+        """What wakes the thread after the run; mail is new past ``kept``, the enqueue's mark."""
         mark = await server.inbox_mark(request, thread_id)
         if mark is None:
             return None
+        after = mark if kept is None else kept
 
         async def wake(outcome: RunOutcome) -> None:
             if outcome is not RunOutcome.ERROR:
-                await server.wake(request, thread_id, after=mark, runner=runner, timeout=timeout)
+                await server.wake(request, thread_id, after=after, runner=runner, timeout=timeout)
 
         return wake
 

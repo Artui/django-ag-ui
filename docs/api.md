@@ -45,6 +45,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.AgentSession
 
+::: django_ag_ui.ParkRun
+
 ::: django_ag_ui.agent.headless_runner.AGUIHeadlessRunner
 
 ::: django_ag_ui.agent.queued_start.start_from_sync

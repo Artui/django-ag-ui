@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.82.0] — 2026-11-18
+
+### Added
+
+- **A detached browser start runs on a worker.** `AGUIServer(firing_queue=)` queues a
+  browser run that asks to detach: the POST claims the thread, keeps the whole
+  `RunAgentInput` (client tools, state, context, `forwardedProps`, the A2UI catalog) and
+  the run it resumes as the first entry of the run's log, enqueues an unchanged
+  `HeadlessFiring` and answers `200 {"thread_id", "run_id"}`. The worker reads the input
+  back by `run_id` and starts it as the POST would have; the events replay skips the kept
+  entry, so `events?after=0` is the run's first view. The mount needs what a headless run
+  needs and `RUN_TIMEOUT_SECONDS`, and refuses at construction otherwise.
+  The spec's permissions are checked when the start is enqueued, after the claim: a
+  refusal (`NotPermitted`, or Django's `PermissionDenied`) answers `403` and gives the
+  claim back through django-spec-agents' `ResumableRunStore.release`, so the thread keeps
+  the state it had, a park included, and the parked run can still be resumed. A run store
+  that cannot release finishes the claim as an error. A headless `answers=` start of a
+  parked question takes the same two guards: it claims the thread only while it is still
+  parked on the run it read, so of two answers to one park the model runs once (the other
+  raises `ThreadBusyError`, or `RunNotParkedError` once that run has ended), and a start
+  that fails after its claim, a refused queued enqueue included, gives it back and keeps
+  the park.
+- **`threads/<id>/events/` reads a run's log, from any process.** On a mount with a run
+  store, `GET ...?after=<seq>` with `Accept: text/event-stream` replays the thread's
+  current or last run and follows it to its end: its `RUN_STARTED`, a
+  `MESSAGES_SNAPSHOT` of the stored conversation plus the run's messages at `after`, the
+  start of each item still open there, then each later event with an SSE `id:`. The
+  replay passes `@ag-ui/client`'s `verifyEvents` from any `after`, checked against
+  `@ag-ui/client` 1.0.4, and `after=0` waits for a queued run's first event. A run whose
+  log holds no `RUN_FINISHED` or `RUN_ERROR` closes on a `RUN_ERROR`. Without that
+  header the route answers JSON pages of raw entries with the next `after`, a `done`
+  flag and an `ETag` that answers `If-None-Match` with a `304`.
+- **`threads/<id>/cancel/` records a cancel** for the thread's live run through
+  `AGUIServer.request_cancel` (`202`, or `404` with no run in progress); the run's owner
+  acts on it when it next renews its lease.
+- **A run that ends on deferred calls parks.** On a mount with a run store it finishes
+  `waiting` with a `RunWaiting` (`kind`, `summary`, `tool_call_id`, `destructive`) for the
+  first deferred call, approvals first, built with django-spec-agents'
+  `build_run_waiting`; the thread reads `waiting`, and a headless `RunStop` carries the
+  record. Gated calls and questions park every run; a browser run's own client tools park
+  only a detached run, since a connected client answers them. With parks recorded,
+  `wake_thread` resumes a child parked on a question when its answer arrives, which 0.81.0
+  could not.
+  A parked run's answer resumes it through `resume/<run_id>/`: on park the session saves
+  one interrupted snapshot of the run's messages, since pydantic-ai-harness'
+  `StepPersistence` skips a history ending on an unanswered deferred call, and the route
+  loads it only while the run store shows that run as the `waiting` run of the thread the
+  request names; a resume or a fork of it onto another thread answers `404`, so an approval
+  runs once. On a `ResumableRunStore` the resume claims the thread with `resumes=`, won only
+  while the thread is still parked on that run, so of two resumes of one park (a double
+  click, two tabs), connected or queued, one runs the approved call; the other answers
+  `409` naming the live run, or `404` once it has ended.
+
+### Changed
+
+- **django-spec-agents floors at 0.23.0**, for the base requirement, the `[mcp]` and
+  `[specs]` extras and the dev group: `ResumableRunStore` (`claim(..., resumes=)` and
+  `release`) and `HeadlessFiring.inbox_mark` first ship there.
+
+### Fixed
+
+- **Mail that arrives while a queued headless start waits for a worker wakes its
+  thread.** The worker took the thread's inbox mark when it picked the run up, so a
+  message enqueued between `start` and the pickup was below the mark and never woke the
+  thread. The start now takes the mark at enqueue, sends it as the firing's `inbox_mark`
+  and, on a mount with an inbound queue, keeps it as the run log's first entry (an
+  `ag_ui.queued_input` the events replay skips), which the worker reads back, since
+  `run_headless` does not pass it on. A detached browser start does the same.
+
 ## [0.81.0] — 2026-11-18
 
 ### Added
@@ -4628,7 +4697,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.81.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.82.0...HEAD
+[0.82.0]: https://github.com/Artui/django-ag-ui/compare/v0.81.0...v0.82.0
 [0.81.0]: https://github.com/Artui/django-ag-ui/compare/v0.80.0...v0.81.0
 [0.80.0]: https://github.com/Artui/django-ag-ui/compare/v0.79.0...v0.80.0
 [0.79.0]: https://github.com/Artui/django-ag-ui/compare/v0.78.0...v0.79.0

@@ -63,10 +63,15 @@ subscription closes: the run finishes, its transcript is stored, and no cancel i
 audited. A run that did not ask to detach is still cancelled when its client
 disconnects.
 
-A browser run detaches only on a mount with `RUN_TIMEOUT_SECONDS` set, because nothing
-else can stop a detached run: there is no cancel endpoint yet. On a mount without it, a
+A browser run detaches only on a mount with `RUN_TIMEOUT_SECONDS` set, because a run
+that nobody returns to needs an end of its own: the
+[cancel route](#reattach-and-cancel) stops a run only when a client asks. On a mount without it, a
 run that asks to detach is cancelled on disconnect as before. The headless runner
 requires `timeout=` for the same reason.
+
+On a mount with a `firing_queue=`, a detached browser run is enqueued for a worker
+instead and its POST answers `200 {"thread_id", "run_id"}`; see
+[Queued runs](queued-runs.md#a-detached-browser-start).
 
 The owner task runs on the event loop that served the request. To outlive the request
 it needs a loop that outlives it, which means ASGI. Under WSGI the run starts on the
@@ -74,6 +79,69 @@ loop that drains the buffered response and finishes there, so the response carri
 whole run and `detach` has nothing to outlive. A restart loses any run in flight:
 its lease lapses, and the store then reports the thread as `failed` with the reason
 `interrupted`.
+
+## Reattach and cancel
+
+A mount with a run store serves two more routes per thread. Both answer only the
+thread's owner, with the same authentication as the endpoint, and a `404` for a thread
+that is not theirs.
+
+### Read a run's events
+
+`GET <mount>threads/<id>/events/?after=<seq>` reads the log of the thread's current run,
+or its last one once it has ended. `after` is a sequence number within that run, `0` to
+read from the start. Any process can answer, since it reads only the run store.
+
+With `Accept: text/event-stream` the answer is an AG-UI stream that replays the run and
+then follows it to its end:
+
+1. The run's `RUN_STARTED`.
+2. A `MESSAGES_SNAPSHOT`: the stored conversation, without the messages this run
+   streams, followed by the run's messages as they stood at `after`.
+3. The start event of each item still open at `after`: a text message, a tool call with
+   its arguments so far in one `TOOL_CALL_ARGS`, a reasoning span or message, a step, or
+   a subagent.
+4. Every logged event after `after`, each with an SSE `id:` holding its sequence number,
+   until `RUN_FINISHED` or `RUN_ERROR`.
+
+The replay passes `@ag-ui/client`'s `verifyEvents` from any `after`, and leaves a fresh
+client with the messages a client that watched the whole run holds. A client that
+reconnects can send the last `id:` it received. The items are re-opened after the
+snapshot, not before, because the client's reducer would otherwise mark a tool call
+it already holds for argument replacement. AG-UI 1.0 has no resumption, so this route is
+an extension of the protocol.
+
+`after=0` is also the first view of a run queued for a worker. The stream waits for the
+run's first event. If a run ends with no `RUN_FINISHED` or `RUN_ERROR` in its log, the
+stream closes on a `RUN_ERROR` with the message `the run ended without finishing` and a
+`code` that is the thread's end reason, or its status. A lapsed lease, for example,
+gives `interrupted`.
+
+Without that `Accept` header the answer is one JSON page of raw entries:
+
+```json
+{
+  "thread_id": "t1",
+  "run_id": "r1",
+  "status": "running",
+  "events": [{"seq": 1, "event": {"type": "RUN_STARTED", "...": "..."}}],
+  "after": 1,
+  "done": false
+}
+```
+
+Pass `after` back to read the next page. `limit` caps a page at 100 entries by default,
+and at 500 at most. `done` is `true` on the last page of a run that has ended. Each page
+carries an `ETag`, and a request that sends it back in `If-None-Match` gets a `304` while
+nothing has changed. An `after` or `limit` that is not a whole number in range gets a `400`.
+
+### Cancel a run
+
+`POST <mount>threads/<id>/cancel/` records a cancel for the thread's live run and answers
+`202` with `{"thread_id": ..., "cancel_requested": true}`. The run's owner acts on it the
+next time it renews its lease, about every ten seconds. A thread
+with no run in progress gets a `404`. The route is checked by CSRF unless the mount
+says otherwise.
 
 ## Start a headless run
 
@@ -108,6 +176,31 @@ stop = await runner.run_to_first_stop("assistant", "Summarise today's tickets", 
 - **Cancelling.** `cancel(thread_id, principal)` records a cancel. The run acts on it
   the next time it renews its lease.
 
+## A run that parks
+
+A run on a mount with a run store that ends on deferred calls finishes `waiting`, not
+`completed`, and its thread reads `waiting` until a run takes it up. The thread's
+`RunWaiting` names the first such call, approvals first:
+
+| Field | Value |
+| --- | --- |
+| `kind` | `approval` for a gated call, `question` for a tool that raised `CallDeferred(kind="question")`, `external` for any other deferred call |
+| `summary` | the call's `APPROVAL_PROMPTS` entry, or its tool's name |
+| `tool_call_id` | the call's id; the run's `RUN_FINISHED` interrupt for it is `int-<tool_call_id>` |
+| `destructive` | `ToolGuard.requires_approval` for the call's tool, whether the guard is on or not |
+
+A browser run's own client tools count only when the run is detached: a connected client
+answers their calls itself, so a run that ends on them alone finishes `completed`, as
+before. A headless run's `RunStop` carries the same `waiting`.
+
+An answer to a parked run resumes it through `resume/<run_id>/`, with `resume` naming the
+call's interrupt. The mount saves the parked run's messages when it parks, and the route
+loads them only while the run store shows that run as its thread's `waiting` run; any
+other run id answers 404. On a django-spec-agents `ResumableRunStore` (`DefaultRunStore`
+is one) the resume claims the thread only while it is still parked on that run, in the
+claim's one conditional update, so of two resumes of one park the approved call runs once:
+the other answers `409` naming the run that holds the thread, or `404` once it has ended.
+
 ## Child sessions
 
 A child session is a thread with a parent: django-spec-agents' child-session tools start
@@ -138,15 +231,20 @@ agent = AGUIServer(
 ```
 
 A thread parked on a question is resumed with `start(..., answers={tool_call_id: text})`:
-the run continues the stored history with those answers and sends no new prompt.
-`wake_thread` resumes a parked thread this way only when the park is recorded as waiting
-on a question, which this mount does not record yet: a run that parks is recorded as
-completed, so an answer reaches a parked child only through a caller that passes
-`answers=` itself.
+the run continues the stored history with those answers and sends no new prompt. The
+start claims the thread only while it is still parked on the run it read, so of two
+answers to one park the model runs once: the other raises `ThreadBusyError` naming the run
+that holds the thread, or django-spec-agents' `RunNotParkedError` once that run has ended.
+A start that fails after its claim, or a queued one whose enqueue is refused, gives the
+claim back where the store can, so the thread stays parked and the answer can be sent again.
+`wake_thread` resumes a parked thread this way when the park is recorded as waiting on a
+question ([a run that parks](#a-run-that-parks)): an `ANSWER` on the child's inbound
+queue resumes the parked call with its text.
 
 After a headless run's end is recorded, the runner calls django-spec-agents'
 `wake_thread` for its thread when mail arrived during the run, so a message that landed
-after the run's last read starts the thread again. A run whose caller waits for its
+after the run's last read starts the thread again; a queued run counts mail from when it
+was enqueued, not from when a worker took it up. A run whose caller waits for its
 result, as a queued worker or `start_from_sync` does, runs the woken run to its first
 stop before it returns, since its event loop may end with it. Mail that was already
 pending when the run started does not wake it again, since a mount that does not read
