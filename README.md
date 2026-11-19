@@ -211,7 +211,8 @@ does not apply — so the view is CSRF-exempt by default.
 
 Whatever you answer covers the **whole mount**: the run endpoint, the catalogs,
 and the write routes (attachment upload / delete, thread rename / delete,
-transcribe) all resolve the same flag.
+transcribe) all resolve the same flag. The one exception is the skill editor, which is
+CSRF-checked unless you state `csrf_exempt=True`.
 
 **If your deployment authenticates with session cookies, that default is
 wrong for you.** Tools act as `request.user`, so a cookie-authenticated endpoint
