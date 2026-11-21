@@ -48,6 +48,7 @@ from django_ag_ui.agent.fixed_window_throttle import FixedWindowThrottle
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
 from django_ag_ui.agent.inject_compaction_events import COMPACTION_ACTIVITY_TYPE
 from django_ag_ui.agent.park_run import ParkRun
+from django_ag_ui.agent.partial_answer_error import PartialAnswerError
 from django_ag_ui.agent.publish_invalidation import (
     INVALIDATION_SINK,
     publish_invalidation,
@@ -153,6 +154,7 @@ __all__ = [
     "NullConversationStore",
     "NullTranscriptionBackend",
     "OpenedAttachment",
+    "PartialAnswerError",
     "ContextDelivery",
     "RunContextConfig",
     "SkillEditorView",

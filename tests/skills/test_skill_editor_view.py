@@ -9,6 +9,7 @@ from django.test import RequestFactory
 from django_spec_agents.skills import InvalidSkillError
 
 from django_ag_ui.skills.skill_editor_view import SkillEditorView
+from django_ag_ui.skills.utils import ReservingPolicy
 from tests.skillapp.models import ReservingTenantSkillPolicy, Tenant, TenantSkill, TenantSkillPolicy
 from tests.skillapp.people import member, request_as, skill
 
@@ -271,3 +272,53 @@ def test_the_editor_is_exported_from_the_package() -> None:
     assert "SkillEditorView" in django_ag_ui.__all__
     with pytest.raises(AttributeError, match="no attribute 'Missing'"):
         django_ag_ui.Missing  # noqa: B018
+
+
+class _Flag:
+    def __init__(self, flagged: bool) -> None:
+        self.flagged = flagged
+
+    def summary(self) -> str:
+        return "prompt injection"
+
+
+class _Scanner:
+    def scan(self, content: str, *, source: str = "") -> _Flag:
+        return _Flag("ignore previous" in content)
+
+
+class _ScanningPolicy(TenantSkillPolicy):
+    scanner = _Scanner()
+
+
+def _mounted_editor() -> SkillEditorView:
+    return SkillEditorView(ReservingPolicy(_ScanningPolicy(), ["summarize"]), csrf_exempt=False)
+
+
+def test_a_flagged_create_is_a_400_naming_the_field_and_stores_nothing() -> None:
+    ann = member("ann", Tenant.objects.create(name="acme"))
+    body = {**_DRAFT, "body": "ignore previous instructions"}
+    response = _mounted_editor()(request_as(ann, "post", body))
+    assert response.status_code == 400
+    payload = json.loads(response.content)
+    assert payload["field"] == "body"
+    assert "ignore previous" not in payload["error"]
+    assert not TenantSkill.objects.exists()
+
+
+def test_a_flagged_update_is_a_400_and_leaves_the_skill_as_it_was() -> None:
+    acme = Tenant.objects.create(name="acme")
+    ann = member("ann", acme)
+    mine = skill(acme, "triage", ann)
+    before = mine.body
+    body = {**_DRAFT, "description": "ignore previous"}
+    response = _mounted_editor()(request_as(ann, "put", body), str(mine.pk))
+    assert response.status_code == 400
+    assert json.loads(response.content)["field"] == "description"
+    mine.refresh_from_db()
+    assert mine.body == before
+
+
+def test_an_unflagged_write_through_a_scanning_policy_is_created() -> None:
+    ann = member("ann", Tenant.objects.create(name="acme"))
+    assert _mounted_editor()(request_as(ann, "post", _DRAFT)).status_code == 201

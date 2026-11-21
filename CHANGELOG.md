@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.85.0] — 2026-11-21
+
+### Fixed
+
+- **A run finishes against django-spec-agents 0.24.0.** 0.84.0 recorded a park as one
+  `RunWaiting`, which 0.24.0's `RunStore.finish(waiting=...)` refuses with a `TypeError`,
+  so every run finish failed on a fresh install. The floor is now `django-spec-agents>=0.24.0`.
+
+- **A replay of a first run still in flight shows the user's turn.** The conversation row
+  is saved only when a run ends, so `threads/<id>/events/` opened mid-run on a new thread
+  sent a `MESSAGES_SNAPSHOT` without the question. The logged `RUN_STARTED` now carries
+  the run's new turn in `input`, and the snapshot includes it. A finished run's replay is
+  unchanged.
+
+- **A skill policy's `scanner` now reaches the editor and the run.** The mount wrapped the
+  policy in a `ReservingPolicy` that dropped `scanner`, so django-spec-agents 0.24.0's scan
+  never ran. A flagged create or update through the editor is a `400` with `"field"`, and
+  `docs/user-skills.md` shows passing `scanner=` through the policy.
+
+- **A refused edit leaves the thread's status as it was.** An edit or regenerate of a
+  turn compaction dropped is now refused before the run is claimed, and a detached one is
+  never queued, so the thread keeps the status its last run left instead of reading
+  `failed` / `error` until the next turn. A queued fork the worker refuses, its source
+  thread having moved on since it was queued, gives its claim back the same way. The
+  stream still ends in `RUN_ERROR`.
+
+- **An answer that leaves a parked call open is refused, and the park stands.** Against a
+  thread parked on several calls, a resume naming only some of them completed the run
+  and dropped the rest. The resume route and the plain route now answer `400` with the
+  calls left `unanswered`, and a headless or queued `answers=` raises the new
+  `PartialAnswerError`, both before the claim.
+
+### Changed
+
+- **`AGUIServer.claim_queued` takes `answers=` in place of `answering=`**, the answers'
+  call ids, so a queued answer is checked against the park before it is enqueued.
+
+- **A parked run keeps every call it waits on.** A run that defers several calls records
+  a `RunWaiting` for each, approvals first, instead of the first only; a thread row's
+  `interrupts` lists one per call and a headless `RunStop.waiting` is the same tuple.
+
 ## [0.84.0] — 2026-11-21
 
 ### Added
@@ -4746,7 +4787,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.84.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.85.0...HEAD
+[0.85.0]: https://github.com/Artui/django-ag-ui/compare/v0.84.0...v0.85.0
 [0.84.0]: https://github.com/Artui/django-ag-ui/compare/v0.83.0...v0.84.0
 [0.83.0]: https://github.com/Artui/django-ag-ui/compare/v0.82.0...v0.83.0
 [0.82.0]: https://github.com/Artui/django-ag-ui/compare/v0.81.0...v0.82.0

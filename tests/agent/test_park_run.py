@@ -4,6 +4,7 @@ import asyncio
 import json
 import sys
 from collections.abc import Mapping
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -33,6 +34,7 @@ from django_ag_ui import ToolRegistry, tool
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
+from django_ag_ui.agent.partial_answer_error import PartialAnswerError
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.constants import RUN_LEASE
@@ -107,13 +109,15 @@ async def test_a_gated_headless_run_parks_on_the_call_its_interrupt_names() -> N
 
     assert stop.outcome is RunOutcome.WAITING
     assert (state.status, state.active_run_id) == (ThreadRunStatus.WAITING, None)
-    assert state.waiting == RunWaiting(
-        kind="approval", summary="delete_thing", tool_call_id="call-1", destructive=True
+    assert state.waiting == (
+        RunWaiting(
+            kind="approval", summary="delete_thing", tool_call_id="call-1", destructive=True
+        ),
     )
     request = server.headless_request(authenticated_user())
     finished = (await DefaultRunStore().read(stop.run_id, request=request))[-1].event
     [interrupt] = finished["outcome"]["interrupts"]
-    assert interrupt["id"] == f"int-{state.waiting.tool_call_id}"
+    assert interrupt["id"] == f"int-{state.waiting[0].tool_call_id}"
     assert stop.waiting == state.waiting
 
 
@@ -125,7 +129,7 @@ async def test_a_parked_approval_carries_its_configured_prompt() -> None:
 
     _, state = await _parked(_server(options))
 
-    assert state.waiting.summary == "Delete it?"
+    assert state.waiting[0].summary == "Delete it?"
 
 
 class _CallsBoth(_Calls):
@@ -144,18 +148,47 @@ class _CallsBoth(_Calls):
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_run_deferring_several_calls_parks_on_its_approval_first() -> None:
+async def test_a_run_deferring_several_calls_parks_on_every_call_approvals_first() -> None:
     _, state = await _parked(_server(_guarded(_CallsBoth("ask"))))
 
-    assert (state.waiting.kind, state.waiting.tool_call_id) == ("approval", "call-1")
+    assert [(w.kind, w.tool_call_id) for w in state.waiting] == [
+        ("approval", "call-1"),
+        ("question", "call-0"),
+    ]
+
+
+class _DeletesTwice(_Calls):
+    """Calls the gated tool twice in one response."""
+
+    def model(self) -> FunctionModel:
+        async def stream_fn(messages: list, info: AgentInfo) -> Any:
+            yield {
+                i: DeltaToolCall(name="delete_thing", json_args=args, tool_call_id=f"call-{i}")
+                for i, args in enumerate(('{"target": "a"}', '{"target": "b"}'))
+            }
+
+        return FunctionModel(stream_function=stream_fn)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_thread_parked_on_two_approvals_reads_back_both_interrupts() -> None:
+    server = _server(_guarded(_DeletesTwice("delete_thing")))
+    stop, _ = await _parked(server)
+    patterns, _, _ = server.urls
+    threads = next(p for p in patterns if p.name == "threads").callback
+
+    response = await threads(AuthedAsyncRequestFactory().get("/agent/threads/"))
+
+    [row] = [r for r in json.loads(response.content)["threads"] if r["thread_id"] == stop.thread_id]
+    assert [i["toolCallId"] for i in row["interrupts"]] == ["call-0", "call-1"]
 
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_question_parks_as_a_question_that_is_not_destructive() -> None:
     _, state = await _parked(_server(_guarded(_Calls("ask", '{"topic": "colour"}'))))
 
-    assert (state.waiting.kind, state.waiting.destructive) == ("question", False)
-    assert state.waiting.summary == "ask"
+    [waiting] = state.waiting
+    assert (waiting.kind, waiting.destructive, waiting.summary) == ("question", False, "ask")
 
 
 @pytest.mark.django_db(transaction=True)
@@ -172,7 +205,7 @@ async def test_destructive_is_read_from_the_tools_own_definition() -> None:
 
     _, state = await _parked(_server(options))
 
-    assert (state.waiting.kind, state.waiting.destructive) == ("approval", True)
+    assert [(w.kind, w.destructive) for w in state.waiting] == [("approval", True)]
 
 
 @pytest.mark.django_db(transaction=True)
@@ -187,7 +220,7 @@ async def test_an_approval_the_guard_does_not_ask_for_is_not_destructive() -> No
 
     _, state = await _parked(_server(options))
 
-    assert (state.waiting.kind, state.waiting.destructive) == ("approval", False)
+    assert [(w.kind, w.destructive) for w in state.waiting] == [("approval", False)]
 
 
 _PICK = {
@@ -265,8 +298,10 @@ async def test_a_detached_browser_run_parks_on_a_client_tool_as_external() -> No
     state = await _browser_run(_browser_view(_Calls("pick_colour")), body)
 
     assert state.status is ThreadRunStatus.WAITING
-    assert state.waiting == RunWaiting(
-        kind="external", summary="pick_colour", tool_call_id="call-1", destructive=False
+    assert state.waiting == (
+        RunWaiting(
+            kind="external", summary="pick_colour", tool_call_id="call-1", destructive=False
+        ),
     )
 
 
@@ -277,7 +312,7 @@ async def test_a_client_tool_stamped_destructive_parks_as_destructive() -> None:
 
     state = await _browser_run(_browser_view(_Calls("pick_colour")), body)
 
-    assert (state.waiting.kind, state.waiting.destructive) == ("external", True)
+    assert [(w.kind, w.destructive) for w in state.waiting] == [("external", True)]
 
 
 @pytest.mark.django_db(transaction=True)
@@ -286,7 +321,7 @@ async def test_a_connected_browser_run_ending_on_a_client_tool_does_not_park() -
 
     state = await _browser_run(_browser_view(_Calls("pick_colour")), body)
 
-    assert (state.status, state.waiting) == (ThreadRunStatus.IDLE, None)
+    assert (state.status, state.waiting) == (ThreadRunStatus.IDLE, ())
 
 
 @pytest.mark.django_db(transaction=True)
@@ -298,8 +333,8 @@ async def test_a_connected_browser_approval_parks_then_its_answer_completes() ->
 
     state = await _browser_run(view, _browser_body("r2", messages=_ASKED_TO_DELETE, resume=answer))
 
-    assert (parked.status, parked.waiting.kind) == (ThreadRunStatus.WAITING, "approval")
-    assert (state.status, state.waiting, state.last_run_id) == (ThreadRunStatus.IDLE, None, "r2")
+    assert (parked.status, parked.waiting[0].kind) == (ThreadRunStatus.WAITING, "approval")
+    assert (state.status, state.waiting, state.last_run_id) == (ThreadRunStatus.IDLE, (), "r2")
     assert calls.ran == ["widget-1"]
 
 
@@ -385,7 +420,7 @@ async def test_answering_a_parked_run_through_its_resume_route_completes_it() ->
     assert calls.ran == ["widget-1"]
     assert (state.status, state.waiting, state.last_run_id) == (
         ThreadRunStatus.IDLE,
-        None,
+        (),
         "r-answer",
     )
 
@@ -439,7 +474,7 @@ async def test_a_run_parks_without_the_harness_installed(monkeypatch: pytest.Mon
         DjangoAGUIView(options.pop("registry"), **options), _browser_body("r1")
     )
 
-    assert (state.status, state.waiting.kind) == (ThreadRunStatus.WAITING, "approval")
+    assert (state.status, state.waiting[0].kind) == (ThreadRunStatus.WAITING, "approval")
 
 
 @pytest.mark.django_db(transaction=True)
@@ -468,7 +503,7 @@ async def test_a_run_with_no_conversation_store_still_parks() -> None:
         DjangoAGUIView(options.pop("registry"), **options), _browser_body("r1")
     )
 
-    assert (state.status, state.waiting.kind) == (ThreadRunStatus.WAITING, "approval")
+    assert (state.status, state.waiting[0].kind) == (ThreadRunStatus.WAITING, "approval")
 
 
 @pytest.mark.django_db(transaction=True)
@@ -733,3 +768,168 @@ async def test_an_answer_to_a_thread_that_is_not_waiting_takes_a_plain_claim() -
 
     state = await DefaultRunStore().get(stop.thread_id, request=request)
     assert state.last_run_id == again.run_id
+
+
+class _AsksTwice(_Calls):
+    """Asks two questions in one response, then answers ``done`` once a tool has returned."""
+
+    def model(self) -> FunctionModel:
+        async def stream_fn(messages: list, info: AgentInfo) -> Any:
+            parts = [p for m in messages for p in getattr(m, "parts", [])]
+            self.ran.append("model")
+            if any(getattr(p, "part_kind", "") == "tool-return" for p in parts):
+                yield "done"
+                return
+            yield {
+                i: DeltaToolCall(name="ask", json_args='{"topic": "x"}', tool_call_id=f"call-{i}")
+                for i in range(2)
+            }
+
+        return FunctionModel(stream_function=stream_fn)
+
+
+@pytest.mark.parametrize("queued", [False, True])
+@pytest.mark.django_db(transaction=True)
+async def test_a_headless_answer_leaving_a_parked_call_open_is_refused_before_its_claim(
+    queued: bool,
+) -> None:
+    calls = _AsksTwice("ask")
+    server, stop, request = await _asked(_guarded(calls))
+    worker = WorkerQueue(AGUIHeadlessRunner(server))
+    runner = AGUIHeadlessRunner(server, **({"queue": worker} if queued else {}))
+    kwargs = {"timeout": 5, "thread_id": stop.thread_id, "answers": {"call-0": "blue"}}
+
+    with pytest.raises(PartialAnswerError) as refused:
+        await runner.start("helper", "", authenticated_user(), **kwargs)
+
+    assert (refused.value.thread_id, refused.value.unanswered) == (stop.thread_id, ("call-1",))
+    state = await DefaultRunStore().get(stop.thread_id, request=request)
+    assert (state.status, state.last_run_id) == (ThreadRunStatus.WAITING, stop.run_id)
+    assert [w.tool_call_id for w in state.waiting] == ["call-0", "call-1"]
+    assert (calls.ran, worker.enqueued) == (["model"], [])
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_headless_answer_to_every_parked_call_resumes_the_run() -> None:
+    server, stop, request = await _asked(_guarded(_AsksTwice("ask")))
+    kwargs = {"timeout": 5, "thread_id": stop.thread_id, "answers": {"call-0": "a", "call-1": "b"}}
+
+    done = await AGUIHeadlessRunner(server).run_to_first_stop(
+        "helper", "", authenticated_user(), **kwargs
+    )
+
+    assert done.outcome is RunOutcome.COMPLETED
+
+
+_ONE = [{"interruptId": "int-call-0", "status": "resolved", "payload": {"approved": True}}]
+
+
+@pytest.mark.parametrize(
+    ("resume_route", "resume", "unanswered"),
+    [(True, _ONE, ["call-1"]), (True, [], ["call-0", "call-1"]), (False, _ONE, ["call-1"])],
+)
+@pytest.mark.django_db(transaction=True)
+async def test_a_browser_answer_leaving_a_parked_call_open_is_a_400_and_the_park_stands(
+    resume_route: bool, resume: list[dict[str, Any]], unanswered: list[str]
+) -> None:
+    calls = _DeletesTwice("delete_thing")
+    options = _guarded(calls)
+    stop, _ = await _parked(_server(dict(options)))
+
+    if resume_route:
+        response, _ = await _resume(options, stop, "r-answer", resume=resume)
+    else:
+        view = DjangoAGUIView(options.pop("registry"), **options)
+        body = {**json.loads(_browser_body("r-answer", resume=resume)), "threadId": stop.thread_id}
+        response = await view(
+            AuthedAsyncRequestFactory().post(
+                "/agent/", data=json.dumps(body), content_type="application/json"
+            )
+        )
+
+    assert response.status_code == 400
+    assert json.loads(response.content)["unanswered"] == unanswered
+    state = await DefaultRunStore().get(
+        stop.thread_id, request=_server(_guarded(calls)).headless_request(authenticated_user())
+    )
+    assert (state.status, state.last_run_id) == (ThreadRunStatus.WAITING, stop.run_id)
+    assert (len(state.waiting), calls.ran) == (2, [])
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_client_tool_answered_by_its_tool_message_resumes_its_park() -> None:
+    options = _guarded(_Calls("pick_colour"), run_timeout_seconds=300)
+    view = DjangoAGUIView(
+        options["registry"], **{k: v for k, v in options.items() if k != "registry"}
+    )
+    await _browser_run(view, _browser_body("r1", detach=True, tools=[_PICK]))
+    picked = [
+        {"id": "u1", "role": "user", "content": "go"},
+        {
+            "id": "a1",
+            "role": "assistant",
+            "toolCalls": [
+                {
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {"name": "pick_colour", "arguments": "{}"},
+                }
+            ],
+        },
+        {"id": "t1", "role": "tool", "toolCallId": "call-1", "content": "blue"},
+    ]
+    parked = SimpleNamespace(thread_id="t-browser", run_id="r1")
+
+    streamed, state = await _resume(options, parked, "r2", resume=[], messages=picked)
+
+    assert "done" in streamed
+    assert (state.status, state.last_run_id) == (ThreadRunStatus.IDLE, "r2")
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_turn_carrying_an_old_tool_message_on_a_parked_thread_is_not_an_answer() -> None:
+    calls = _DeletesTwice("delete_thing")
+    options = _guarded(calls)
+    stop, _ = await _parked(_server(dict(options)))
+    view = DjangoAGUIView(options.pop("registry"), **options)
+    old = [
+        {"id": "u0", "role": "user", "content": "go"},
+        {
+            "id": "a0",
+            "role": "assistant",
+            "toolCalls": [
+                {
+                    "id": "call-old",
+                    "type": "function",
+                    "function": {"name": "ask", "arguments": "{}"},
+                }
+            ],
+        },
+        {"id": "t0", "role": "tool", "toolCallId": "call-old", "content": "x"},
+        {"id": "u2", "role": "user", "content": "go on"},
+    ]
+    body = {**json.loads(_browser_body("r-next", messages=old)), "threadId": stop.thread_id}
+
+    request = AuthedAsyncRequestFactory().post(
+        "/agent/", data=json.dumps(body), content_type="application/json"
+    )
+
+    response = await view(request)
+
+    assert isinstance(response, StreamingHttpResponse)
+    async for _ in response:  # ty: ignore[not-iterable]
+        pass
+    state = await _settled(stop.thread_id, request)
+    assert state.last_run_id == "r-next"
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_headless_prompt_on_a_parked_thread_without_answers_takes_a_plain_claim() -> None:
+    server, stop, request = await _asked(_guarded(_AsksTwice("ask")))
+
+    again = await AGUIHeadlessRunner(server).run_to_first_stop(
+        "helper", "something else", authenticated_user(), timeout=5, thread_id=stop.thread_id
+    )
+
+    state = await DefaultRunStore().get(stop.thread_id, request=request)
+    assert state.last_run_id == again.run_id != stop.run_id

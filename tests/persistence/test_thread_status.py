@@ -81,8 +81,10 @@ async def test_a_waiting_row_serves_the_protocols_interrupt_list() -> None:
     run_store = DefaultRunStore()
     request = await _thread("t1")
     await run_store.claim("t1", "r1", request=request, lease=_LEASE)
-    waiting = RunWaiting(
-        kind="approval", summary="Delete the invoice?", tool_call_id="call-9", destructive=True
+    waiting = (
+        RunWaiting(
+            kind="approval", summary="Delete the invoice?", tool_call_id="call-9", destructive=True
+        ),
     )
     await run_store.finish("t1", "r1", RunOutcome.WAITING, request=request, waiting=waiting)
 

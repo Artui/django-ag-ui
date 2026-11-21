@@ -32,6 +32,10 @@ class ReservingPolicy:
         self.policy = policy
         self.names = frozenset(names)
 
+    @property
+    def scanner(self) -> Any:
+        return getattr(self.policy, "scanner", None)
+
     def visible(self, request: HttpRequest) -> Iterable[Any]:
         return self.policy.visible(request)
 

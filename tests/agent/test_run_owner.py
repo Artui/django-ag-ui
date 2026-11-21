@@ -8,11 +8,14 @@ from typing import Any
 
 import pytest
 from ag_ui.core import (
+    AssistantMessage,
     BaseEvent,
+    RunAgentInput,
     RunErrorEvent,
     RunFinishedEvent,
     RunStartedEvent,
     TextMessageContentEvent,
+    UserMessage,
 )
 from django_spec_agents.persistence.types.run_claim import RunClaim
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
@@ -85,6 +88,7 @@ def _owner(
     token: CancellationToken | None = None,
     ended: RunOutcome | None = None,
     racing: AsyncIterator[Any] | None = None,
+    run_input: RunAgentInput | None = None,
 ) -> RunOwner:
     closed = closed if closed is not None else []
 
@@ -109,6 +113,7 @@ def _owner(
         request=SimpleNamespace(),  # ty: ignore[invalid-argument-type]
         thread_id="t1",
         run_id="r1",
+        run_input=run_input,
     )
 
 
@@ -170,6 +175,70 @@ async def test_consecutive_deltas_of_one_message_log_as_one() -> None:
         ("RUN_FINISHED", None),
     ]
     assert store.finished == [RunOutcome.COMPLETED]
+
+
+async def test_an_owner_given_no_run_input_logs_a_run_started_as_it_came() -> None:
+    store = _Store()
+    echoed = RunAgentInput(
+        thread_id="t1", run_id="r1", state=None, messages=[], tools=[], context=[]
+    )
+    started = RunStartedEvent(thread_id="t1", run_id="r1", input=echoed)
+
+    await _owner(_events(started), store=store).wait()
+
+    assert store.logged[0]["input"] == {
+        "threadId": "t1",
+        "runId": "r1",
+        "messages": [],
+        "tools": [],
+        "context": [],
+    }
+
+
+async def test_only_the_logged_run_start_carries_the_new_turn() -> None:
+    store = _Store()
+    posted = [
+        UserMessage(id="u1", content="before"),
+        AssistantMessage(id="a1", content="answered"),
+        UserMessage(id="u2", content="now"),
+    ]
+    run_input = RunAgentInput(
+        thread_id="t1", run_id="r1", state={"x": 1}, messages=posted, tools=[], context=[]
+    )
+    started = RunStartedEvent(thread_id="t1", run_id="r1")
+
+    await _owner(_events(started, _text("a")), store=store, run_input=run_input).wait()
+
+    assert [m["id"] for m in store.logged[0]["input"]["messages"]] == ["u2"]
+    assert "state" not in store.logged[0]["input"]
+    assert "input" not in store.logged[1]
+    assert RunStartedEvent.model_validate(store.logged[0]).input is not None
+
+
+async def test_the_logged_run_start_drops_bytes_tools_context_and_forwarded_props() -> None:
+    store = _Store()
+    image = {"type": "image", "source": {"type": "data", "value": "aGk=", "mimeType": "image/png"}}
+    run_input = RunAgentInput.model_validate(
+        {
+            "threadId": "t1",
+            "runId": "r1",
+            "state": {},
+            "messages": [
+                {"id": "u1", "role": "user", "content": [{"type": "text", "text": "look"}, image]}
+            ],
+            "tools": [{"name": "pick", "description": "Pick.", "parameters": {}}],
+            "context": [{"description": "page", "value": "settings"}],
+            "forwardedProps": {"detach": True},
+        }
+    )
+    started = RunStartedEvent(thread_id="t1", run_id="r1")
+
+    await _owner(_events(started), store=store, run_input=run_input).wait()
+
+    echoed = store.logged[0]["input"]
+    assert echoed["messages"][0]["content"] == [{"type": "text", "text": "look"}]
+    assert (echoed["tools"], echoed["context"]) == ([], [])
+    assert "forwardedProps" not in echoed
 
 
 async def test_a_delta_held_past_the_window_is_flushed(monkeypatch: pytest.MonkeyPatch) -> None:

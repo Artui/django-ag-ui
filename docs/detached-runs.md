@@ -95,9 +95,13 @@ read from the start. Any process can answer, since it reads only the run store.
 With `Accept: text/event-stream` the answer is an AG-UI stream that replays the run and
 then follows it to its end:
 
-1. The run's `RUN_STARTED`.
-2. A `MESSAGES_SNAPSHOT`: the stored conversation, without the messages this run
-   streams, followed by the run's messages as they stood at `after`.
+1. The run's `RUN_STARTED`. Its `input` carries the run's new turn (the messages after
+   the last answer the client posted, without inline file bytes, tools, context or
+   state), so a run still in flight can show the question it is answering before the
+   conversation row is saved.
+2. A `MESSAGES_SNAPSHOT`: the stored conversation, then the new turn where the row does
+   not hold it yet, without the messages this run streams, followed by the run's
+   messages as they stood at `after`.
 3. The start event of each item still open at `after`: a text message, a tool call with
    its arguments so far in one `TOOL_CALL_ARGS`, a reasoning span or message, a step, or
    a subagent.
@@ -180,7 +184,7 @@ stop = await runner.run_to_first_stop("assistant", "Summarise today's tickets", 
 
 A run on a mount with a run store that ends on deferred calls finishes `waiting`, not
 `completed`, and its thread reads `waiting` until a run takes it up. The thread's
-`RunWaiting` names the first such call, approvals first:
+`waiting` holds a `RunWaiting` for every such call, approvals first, each with:
 
 | Field | Value |
 | --- | --- |
@@ -191,10 +195,14 @@ A run on a mount with a run store that ends on deferred calls finishes `waiting`
 
 A browser run's own client tools count only when the run is detached: a connected client
 answers their calls itself, so a run that ends on them alone finishes `completed`, as
-before. A headless run's `RunStop` carries the same `waiting`.
+before. A headless run's `RunStop` carries the same `waiting` tuple.
 
-An answer to a parked run resumes it through `resume/<run_id>/`, with `resume` naming the
-call's interrupt. The mount saves the parked run's messages when it parks, and the route
+An answer to a parked run resumes it through `resume/<run_id>/`, with `resume` naming
+every interrupt the thread lists (a client tool's call is answered by its tool message).
+A resume that leaves a call unanswered is a `400` naming those calls in `unanswered`,
+before the thread is claimed, so the park stands and a full answer can follow; so is an
+answer to some of a parked thread's calls on the plain route.
+The mount saves the parked run's messages when it parks, and the route
 loads them only while the run store shows that run as its thread's `waiting` run; any
 other run id answers 404. On a django-spec-agents `ResumableRunStore` (`DefaultRunStore`
 is one) the resume claims the thread only while it is still parked on that run, in the
@@ -211,8 +219,8 @@ client ignores them; without a run store the rows keep their old shape.
 | --- | --- |
 | `status` | `idle`, `running`, `waiting` or `failed`; a thread no run claimed reads `idle`, and a run whose lease lapsed reads `failed` |
 | `last_read_at` | when the caller last marked the thread read (ISO 8601), or `null` |
-| `reason` | with `failed` only: `error` (the run raised, or an edit or regenerate of a turn compaction dropped was refused before it ran; the next turn runs as usual) or `interrupted` (its lease lapsed); a timeout reads `idle` and keeps its reason server-side |
-| `interrupts` | with `waiting` only: the protocol's interrupt list for the parked call |
+| `reason` | with `failed` only: `error` (the run raised) or `interrupted` (its lease lapsed); a timeout reads `idle` and keeps its reason server-side |
+| `interrupts` | with `waiting` only: the protocol's interrupt list, one per call the run parked on |
 | `agent_id` | the mount's `id=`, when it has one |
 
 An interrupt is an AG-UI `Interrupt` sharing its `id` and `toolCallId` with the one the
@@ -232,8 +240,8 @@ protocol uses for the call, so a client answers a parked approval with `@ag-ui/c
 `message` is the `RunWaiting` summary, `reason` is `tool_call` for every kind (each is a
 deferred tool call) and `metadata.kind` keeps `approval`, `question` or `external`, which is
 how a client tells them apart: a resume entry answers an approval only. No
-deadline is stored, so there is no `expiresAt`. The run store records one call per park,
-so the list holds at most one interrupt.
+deadline is stored, so there is no `expiresAt`. A run parked on several calls lists one
+interrupt for each, approvals first.
 
 `AGUIServer(name=, description=)` says who the mount is: when it or `id=` is set, the
 list body carries `"agent": {"id", "name", "description"}` beside `threads`.
@@ -300,11 +308,14 @@ the run continues the stored history with those answers and sends no new prompt.
 start claims the thread only while it is still parked on the run it read, so of two
 answers to one park the model runs once: the other raises `ThreadBusyError` naming the run
 that holds the thread, or django-spec-agents' `RunNotParkedError` once that run has ended.
+`answers` must cover every call the thread is parked on: one that leaves a call open
+raises [`PartialAnswerError`][django_ag_ui.agent.partial_answer_error.PartialAnswerError]
+naming those calls before the claim, queued or not, and the park stands.
 A start that fails after its claim, or a queued one whose enqueue is refused, gives the
 claim back where the store can, so the thread stays parked and the answer can be sent again.
-`wake_thread` resumes a parked thread this way when the park is recorded as waiting on a
-question ([a run that parks](#a-run-that-parks)): an `ANSWER` on the child's inbound
-queue resumes the parked call with its text.
+`wake_thread` resumes a parked thread this way when every call the park waits on is a
+question ([a run that parks](#a-run-that-parks)) and an `ANSWER` is pending on the
+child's inbound queue for each: each answer resumes its call with its text.
 
 After a headless run's end is recorded, the runner calls django-spec-agents'
 `wake_thread` for its thread when mail arrived during the run, so a message that landed

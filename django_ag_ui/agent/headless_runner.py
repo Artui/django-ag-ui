@@ -198,7 +198,7 @@ class AGUIHeadlessRunner:
             parent=parent,
             lineage=lineage,
             inbox_mark=mark,
-            answering=answers is not None,
+            answers=answers,
         )
         firing = HeadlessFiring(
             agent_id,

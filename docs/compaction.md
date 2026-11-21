@@ -102,7 +102,11 @@ is the transcript, and the summary is the model's view of it.
 
 An edit or regenerate of a turn the compaction dropped is refused. When the new turn
 resubmits a prompt the row holds but the snapshot no longer does, the run ends in
-`RUN_ERROR` before the model is called, and the stored conversation is left as it was.
+`RUN_ERROR` before the model is called. The refused turn claims no run and is never
+queued, so the stored conversation and the thread's run status are left as they were.
+A queued fork the worker refuses, because its source thread moved on after it was
+queued, gives its claim back the same way: where the store can release a claim (a
+django-spec-agents `ResumableRunStore`), the thread keeps the status it had before.
 Edit a turn the snapshot still holds, or resume from an earlier run.
 
 That is the whole adoption. The rest of this page is about the one thing that

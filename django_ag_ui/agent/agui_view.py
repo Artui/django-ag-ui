@@ -56,6 +56,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
 from django_ag_ui.agent.build_mcp_bridge import build_mcp_bridge
+from django_ag_ui.agent.compacted_away_turn import compacted_away_turn
 from django_ag_ui.agent.lend_answered_by import lend_answered_by
 from django_ag_ui.agent.park_run import ParkRun
 from django_ag_ui.agent.queued_browser_start import QueuedBrowserStart
@@ -67,9 +68,11 @@ from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.agent.utils import (
     IDENTIFIER_TOO_LONG_CODE,
     a2ui_validator,
+    answered_calls,
     claim_headless,
     give_back,
     is_permission_refusal,
+    left_open,
     without_answered_by,
 )
 from django_ag_ui.agent.with_a2ui_action import with_a2ui_action
@@ -230,16 +233,21 @@ class DjangoAGUIView:
             return JsonResponse({"error": str(error), "code": IDENTIFIER_TOO_LONG_CODE}, status=400)
         if isinstance(ready, HttpResponseBase):
             return ready
-        detached = self._detaches(request, ready.run_input)
+        unanswered = await self._left_open(request, run_input, parked=parked)
+        if unanswered is not None:
+            return unanswered
+        refuses = ready.refusal is not None
+        detached = not refuses and self._detaches(request, ready.run_input)
         if detached and self._queued is not None:
             body = json.loads(request.body)
             stored = StoredBrowserInput(body=body, resume_from=resume_from, resume_parked=parked)
             return await self._enqueue(request, run_input, stored)
         session = self._session(request, ready.run_input, detached=detached, **ready.options)
-        owner = session.own(self._owning_store(request))
-        refused = await self._claim(owner, request, run_input, resume_from if parked else None)
-        if refused is not None:
-            return refused
+        owner = session.own(None if refuses else self._owning_store(request))
+        if not refuses:
+            refused = await self._claim(owner, request, run_input, resume_from if parked else None)
+            if refused is not None:
+                return refused
         response = StreamingHttpResponse(
             session.stream(owner, detached=detached),
             content_type="text/event-stream",
@@ -269,7 +277,10 @@ class DjangoAGUIView:
             session = self._session(
                 request, ready.run_input, timeout=timeout, detached=True, **ready.options
             )
-            owner = session.own(store)
+            refuses = ready.refusal is not None
+            owner = session.own(None if refuses else store)
+            if refuses:
+                await give_back(store, run_input.thread_id, run_input.run_id, request=request)
             if after_finish is not None:
                 owner.after_finish(after_finish)
             await owner.detach()
@@ -354,7 +365,7 @@ class DjangoAGUIView:
                 run_id,
                 request=request,
                 lease=RUN_LEASE,
-                answering=answers is not None,
+                answers=answers,
             )
         try:
             run_input, prepared = await prepare(run_input)
@@ -686,6 +697,20 @@ class DjangoAGUIView:
             return None
         return history, await self._source_thread_id(store, resume_from)
 
+    async def _left_open(
+        self, request: HttpRequest, run_input: Any, *, parked: bool
+    ) -> HttpResponseBase | None:
+        """A ``400`` for an answer leaving some of the thread's parked calls open."""
+        runs, answered = self._owning_store(request), answered_calls(run_input)
+        if runs is None or not (parked or answered):
+            return None
+        state = await runs.get(run_input.thread_id, request=request)
+        unanswered = left_open(state, answered, answering=parked)
+        if not unanswered:
+            return None
+        body = {"error": "the answer leaves parked calls open", "unanswered": list(unanswered)}
+        return JsonResponse({**body, "thread_id": run_input.thread_id}, status=400)
+
     async def _resume_parked(
         self, request: HttpRequest, resume_from: str | None, thread_id: str
     ) -> bool:
@@ -816,6 +841,12 @@ class DjangoAGUIView:
 class _Ready:
     run_input: Any
     options: dict[str, Any]
+
+    @property
+    def refusal(self) -> str | None:
+        options = self.options
+        history, source = options["message_history"], options["source_messages"]
+        return compacted_away_turn(history, source, self.run_input.messages)
 
 
 def _reused(run_id: str) -> HttpResponseBase:
