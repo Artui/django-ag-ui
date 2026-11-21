@@ -31,7 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   strategy had shortened, so a reloaded thread lost the turns the model no longer saw
   (a 26-message thread reloaded as 7). The row now keeps the full transcript under its
   stored ids, while the model still gets only the compacted history. A run that
-  compacts its own earlier steps stores every tool call and result it streamed. The
+  compacts its own earlier steps stores every reasoning, tool call and result it streamed,
+  in streamed order and under the ids it streamed them with. The
   harness summary stays out of the row. An edit or regenerate of a turn the compaction
   dropped now ends in `RUN_ERROR` before the run starts, with the row unchanged.
 

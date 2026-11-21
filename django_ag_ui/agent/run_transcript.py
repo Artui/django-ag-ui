@@ -68,6 +68,7 @@ class RunTranscript:
         # Kept apart from the drafts, whose keys are not ids the stream announced.
         self._call_parents: list[tuple[str, str | None]] = []
         self._reasoning: dict[str, list[str]] = {}
+        self._reasoning_slots: dict[str, int] = {}
         self._activities: dict[str, _Activity] = {}
 
     async def observe(self, stream: AsyncIterator[BaseEvent]) -> AsyncIterator[BaseEvent]:
@@ -103,9 +104,9 @@ class RunTranscript:
         elif isinstance(event, ToolCallResultEvent):
             self._items.append(_tool_message(event))
         elif isinstance(event, ReasoningStartEvent):
-            self._reasoning.setdefault(event.message_id, [])
+            self._reasoning_for(event.message_id)
         elif isinstance(event, ReasoningMessageContentEvent):
-            self._reasoning.setdefault(event.message_id, []).append(event.delta)
+            self._reasoning_for(event.message_id).append(event.delta)
         elif isinstance(event, ActivitySnapshotEvent):
             self._snapshot(event)
         elif isinstance(event, ActivityDeltaEvent):
@@ -115,24 +116,7 @@ class RunTranscript:
 
     def messages(self) -> list[Message]:
         """The reconstructed messages, in stream order."""
-        out: list[Message] = []
-        for item in self._items:
-            if isinstance(item, ToolMessage):
-                out.append(item)
-                continue
-            content = "".join(item.text) or None
-            tool_calls = list(item.tool_calls) or None
-            if content is None and tool_calls is None:
-                continue
-            out.append(
-                AssistantMessage(
-                    id=item.message_id,
-                    role="assistant",
-                    content=content,
-                    tool_calls=tool_calls,
-                ),
-            )
-        return out
+        return [message for item in self._items if (message := _message(item)) is not None]
 
     def with_streamed_ids(self, messages: Sequence[Message]) -> list[Message]:
         """``messages``, each under the id the stream announced for it."""
@@ -185,9 +169,9 @@ class RunTranscript:
     def with_streamed_steps(self, messages: Sequence[Message]) -> list[Message]:
         """``messages`` under streamed ids, with the streamed steps a compaction cut from them."""
         lent = self.with_streamed_ids(messages)
-        streamed = [message for message in self.messages() if _step_key(message) is not None]
+        streamed = [message for message in self._steps() if _step_key(message) is not None]
         keys = {_step_key(message) for message in lent}
-        if all(_step_key(message) in keys for message in streamed):
+        if all(_step_key(message) in keys for message in streamed if _is_call_step(message)):
             return lent
         out: list[Message] = []
         start = 0
@@ -203,6 +187,27 @@ class RunTranscript:
             out.append(message.model_copy(update={"id": streamed[found].id}))
             start = found + 1
         return [*out, *streamed[start:]]
+
+    def _steps(self) -> list[Message]:
+        """The streamed reasoning, tool calls and results, in the order they streamed."""
+        thoughts: dict[int, list[Message]] = {}
+        for message_id, deltas in self._reasoning.items():
+            if content := "".join(deltas):
+                thoughts.setdefault(self._reasoning_slots[message_id], []).append(
+                    ReasoningMessage(id=message_id, role="reasoning", content=content)
+                )
+        out: list[Message] = []
+        for slot in range(len(self._items) + 1):
+            out.extend(thoughts.get(slot, []))
+            if slot < len(self._items) and (message := _message(self._items[slot])) is not None:
+                out.append(message)
+        return out
+
+    def _reasoning_for(self, message_id: str) -> list[str]:
+        if message_id not in self._reasoning:
+            self._reasoning_slots[message_id] = len(self._items)
+            self._reasoning[message_id] = []
+        return self._reasoning[message_id]
 
     def _snapshot(self, event: ActivitySnapshotEvent) -> None:
         """Record an ``ACTIVITY_SNAPSHOT``, the way the client applies one."""
@@ -240,8 +245,28 @@ class RunTranscript:
         return draft
 
 
+def _message(item: _Draft | ToolMessage) -> Message | None:
+    """The message ``item`` has streamed so far, or ``None`` while it holds nothing."""
+    if isinstance(item, ToolMessage):
+        return item
+    content = "".join(item.text) or None
+    tool_calls = list(item.tool_calls) or None
+    if content is None and tool_calls is None:
+        return None
+    return AssistantMessage(
+        id=item.message_id, role="assistant", content=content, tool_calls=tool_calls
+    )
+
+
+def _is_call_step(message: Message) -> bool:
+    """Whether ``message`` is a tool call or its result, which a compaction can cut."""
+    return not isinstance(message, ReasoningMessage)
+
+
 def _step_key(message: Message) -> tuple[str, object] | None:
-    """The call ids a tool step and its dumped copy share; text has no key a split keeps."""
+    """What a streamed step and its dumped copy share; text has no key a split keeps."""
+    if isinstance(message, ReasoningMessage):
+        return "reasoning", message.content.replace("\n", "")
     if isinstance(message, ToolMessage):
         return "tool", message.tool_call_id
     if isinstance(message, AssistantMessage) and message.tool_calls:
