@@ -68,7 +68,6 @@ class RunTranscript:
         # Kept apart from the drafts, whose keys are not ids the stream announced.
         self._call_parents: list[tuple[str, str | None]] = []
         self._reasoning: dict[str, list[str]] = {}
-        # Where in ``_items`` each reasoning began, so a step can be put back in order.
         self._reasoning_slots: dict[str, int] = {}
         self._activities: dict[str, _Activity] = {}
 
