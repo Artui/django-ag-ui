@@ -95,9 +95,13 @@ read from the start. Any process can answer, since it reads only the run store.
 With `Accept: text/event-stream` the answer is an AG-UI stream that replays the run and
 then follows it to its end:
 
-1. The run's `RUN_STARTED`.
-2. A `MESSAGES_SNAPSHOT`: the stored conversation, without the messages this run
-   streams, followed by the run's messages as they stood at `after`.
+1. The run's `RUN_STARTED`. Its `input` carries the run's new turn (the messages after
+   the last answer the client posted, without inline file bytes, tools, context or
+   state), so a run still in flight can show the question it is answering before the
+   conversation row is saved.
+2. A `MESSAGES_SNAPSHOT`: the stored conversation, then the new turn where the row does
+   not hold it yet, without the messages this run streams, followed by the run's
+   messages as they stood at `after`.
 3. The start event of each item still open at `after`: a text message, a tool call with
    its arguments so far in one `TOOL_CALL_ARGS`, a reasoning span or message, a step, or
    a subagent.

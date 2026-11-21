@@ -189,6 +189,7 @@ class AgentSession:
             request=self._request,
             thread_id=self._run_input.thread_id,
             run_id=self._run_input.run_id,
+            run_input=self._run_input,
         )
 
     def _refused_owner(self, transcript: RunTranscript, run_store: RunStore | None) -> RunOwner:

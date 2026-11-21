@@ -11,7 +11,7 @@ from django.http import StreamingHttpResponse
 from django.test import AsyncRequestFactory
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
-from django_spec_agents.contrib.store.models import StoredThreadRun
+from django_spec_agents.contrib.store.models import StoredConversation, StoredThreadRun
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.registry.tool_registry import ToolRegistry
@@ -134,6 +134,50 @@ async def test_a_finished_runs_replay_opens_with_run_started_and_ends_on_its_fin
     assert types[-1] == "RUN_FINISHED"
     assert [m["id"] for m in events[1]["messages"]] == ["u-r1"]
     assert "hello there" in "".join(e.get("delta", "") for e in events)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_running_first_runs_replay_opens_with_the_users_turn() -> None:
+    gate, run_store = _Gate(), DefaultRunStore()
+    server = _server(gate.model(), run_store)
+    request = _factory().post("/agent/", data=_body("r1"), content_type="application/json")
+    stream = await _started(await _route(server, "endpoint")(request))
+    replay = asyncio.ensure_future(_drain(await _get(server, "?after=0", **_SSE)))
+    await asyncio.sleep(0.05)
+    gate.release.set()
+    async for _chunk in stream:
+        pass
+
+    events = _events(await replay)
+
+    assert events[1]["type"] == "MESSAGES_SNAPSHOT"
+    assert events[1]["messages"][0] == {"id": "u-r1", "role": "user", "content": "hi"}
+    assert events[0]["input"]["messages"] == [events[1]["messages"][0]]
+    assert events[0]["input"]["tools"] == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_finished_runs_replay_leaves_out_what_its_row_dropped() -> None:
+    run_store = DefaultRunStore()
+    server = _server(TestModel(custom_output_text="hello there"), run_store)
+    earlier = [
+        {"id": "u-old", "role": "user", "content": "before"},
+        {"id": "a-old", "role": "assistant", "content": "answered"},
+    ]
+    body = json.loads(_body("r1"))
+    body["messages"] = [*earlier, *body["messages"]]
+    request = _factory().post("/agent/", data=json.dumps(body), content_type="application/json")
+    await _drain(await _route(server, "endpoint")(request))
+    await _settled(run_store, request)
+    row = await StoredConversation.objects.aget(thread_id="t1")
+    row.messages = [m for m in row.messages if m["id"] not in {"u-old", "a-old"}]
+    await row.asave()
+
+    events = _events(await _drain(await _get(server, "?after=0", **_SSE)))
+
+    ids = [m["id"] for m in events[1]["messages"]]
+    assert ids[0] == "u-r1"
+    assert {"u-old", "a-old"}.isdisjoint(ids)
 
 
 @pytest.mark.django_db(transaction=True)

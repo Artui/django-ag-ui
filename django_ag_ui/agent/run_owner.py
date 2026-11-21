@@ -6,7 +6,14 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from typing import Any
 
-from ag_ui.core import BaseEvent, RunErrorEvent, RunFinishedEvent, TextMessageContentEvent
+from ag_ui.core import (
+    BaseEvent,
+    RunAgentInput,
+    RunErrorEvent,
+    RunFinishedEvent,
+    RunStartedEvent,
+    TextMessageContentEvent,
+)
 from django.http import HttpRequest
 from django_spec_agents.persistence.types.run_claim import RunClaim
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
@@ -14,6 +21,8 @@ from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from pydantic_ai import CancellationToken
 
+from django_ag_ui.agent.continued_history import continued_history
+from django_ag_ui.agent.strip_binary_content import strip_binary_content
 from django_ag_ui.agent.utils import STREAM_END, claim_thread, discard_tasks
 from django_ag_ui.constants import RUN_LEASE
 
@@ -41,6 +50,7 @@ class RunOwner:
         request: HttpRequest | None = None,
         thread_id: str = "",
         run_id: str = "",
+        run_input: RunAgentInput | None = None,
     ) -> None:
         self._events = events
         self._native = native_events
@@ -54,6 +64,7 @@ class RunOwner:
         self._request = request
         self._thread_id = thread_id
         self._run_id = run_id
+        self._echo = None if run_input is None else _echo(run_input)
         self._live: asyncio.Queue[Any] | None = asyncio.Queue()
         self._task: asyncio.Task[RunOutcome] | None = None
         self._pending: TextMessageContentEvent | None = None
@@ -188,11 +199,18 @@ class RunOwner:
 
     async def _append(self, events: list[BaseEvent]) -> None:
         assert self._store is not None and self._request is not None
-        dumped = [e.model_dump(mode="json", by_alias=True, exclude_none=True) for e in events]
+        echoed = [self._echoing(e) for e in events]
+        dumped = [e.model_dump(mode="json", by_alias=True, exclude_none=True) for e in echoed]
         appended = await self._store.append(self._run_id, dumped, request=self._request)
         if appended is None:
             _logger.warning("django-ag-ui: run %s lost its thread; cancelling it", self._run_id)
             self._token.cancel()
+
+    def _echoing(self, event: BaseEvent) -> BaseEvent:
+        """The logged copy of a run start carries the new turn, so a replay can show it."""
+        if isinstance(event, RunStartedEvent) and self._echo is not None:
+            return event.model_copy(update={"input": self._echo})
+        return event
 
     async def _watch(self) -> None:
         """Keep the lease, and trip the run's token on a recorded cancel or a lost claim."""
@@ -216,6 +234,13 @@ class RunOwner:
             self._thread_id, self._run_id, outcome, request=self._request, waiting=waiting
         )
         await _quietly(finish, "recording how a run ended")
+
+
+def _echo(run_input: RunAgentInput) -> RunAgentInput:
+    """``run_input`` cut to its new turn, without inline bytes, tools, context or state."""
+    _, new_turn = continued_history([], run_input.messages)
+    update = {"messages": strip_binary_content(new_turn), "tools": [], "context": []}
+    return run_input.model_copy(update={**update, "state": None, "forwarded_props": None})
 
 
 async def _close_quietly(iterator: AsyncIterator[Any], what: str) -> None:
