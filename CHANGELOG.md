@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Thread rows carry their run status.** With `run_store=`, each `threads/` row gains
+  `status`, `last_read_at`, `reason` when `failed`, the protocol's `interrupts` list when
+  `waiting` (ids `int-<tool_call_id>`, `destructive` and `kind` under `metadata`) and
+  `agent_id`, all read from the run store. The list answers `If-None-Match` with `304`,
+  and `Accept: text/event-stream` streams the same body on each change.
+  `POST threads/<id>/read/` marks a thread read, and `AGUIServer(name=, description=)`
+  adds an `agent` object to the list body.
+
 ## [0.83.0] — 2026-11-19
 
 ### Changed

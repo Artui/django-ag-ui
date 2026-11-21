@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from typing import Any, cast
 
 from ag_ui.core import ActivityMessage, ActivitySnapshotEvent, Message
@@ -11,16 +13,21 @@ from django.http import (
     HttpResponse,
     HttpResponseNotAllowed,
     JsonResponse,
+    StreamingHttpResponse,
 )
 from django.http.response import HttpResponseBase
 from django_spec_agents import IdentifierTooLongError
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
+from django_ag_ui.agent.heartbeat_stream import heartbeat_stream
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.persistence.thread_status_fields import thread_status_fields
+from django_ag_ui.persistence.types.mount_identity import MountIdentity
 from django_ag_ui.persistence.types.thread_activity import ThreadActivity
 from django_ag_ui.persistence.types.thread_activity_source import ThreadActivitySource
 from django_ag_ui.persistence.utils import messages_from_jsonable, messages_to_jsonable
@@ -31,6 +38,7 @@ from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 # rename here (truncate — a title is cosmetic) so an over-long PATCH is a clean
 # save on every backend rather than a ``DataError`` on a strict database.
 _MAX_TITLE_LEN = 255
+_STREAM_POLL_SECONDS = 2.0
 
 
 class ThreadsView:
@@ -58,6 +66,14 @@ class ThreadsView:
     thread — see
     [`ThreadActivitySource`][django_ag_ui.ThreadActivitySource] for why they are
     not in the stored history to begin with.
+
+    With ``run_store=``, each listed row also carries its run status
+    (``status``, ``last_read_at``, ``reason`` when failed, ``interrupts`` when
+    waiting, ``agent_id`` from ``mount``); a ``mount`` with any identity set adds
+    an ``agent`` object to the list body. The list answers ``If-None-Match`` with
+    ``304``, and ``Accept: text/event-stream`` streams the same body each time it
+    changes, its ETag as the frame id, ``Last-Event-ID`` skipping an unchanged
+    first frame.
     """
 
     def __init__(
@@ -70,8 +86,12 @@ class ThreadsView:
         csrf_exempt: bool | None = None,
         config: AGUIConfig | None = None,
         thread_activity_source: ThreadActivitySource | None = None,
+        run_store: RunStore | None = None,
+        mount: MountIdentity | None = None,
     ) -> None:
         self._store = store
+        self._run_store = run_store
+        self._mount = mount if mount is not None else MountIdentity()
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
         self._thread_activity_source = thread_activity_source
         self._require_authenticated = require_authenticated
@@ -107,8 +127,52 @@ class ThreadsView:
         if request.method != "GET":
             return HttpResponseNotAllowed(["GET"])
         limit = _effective_limit(request, self._config.thread_list_limit)
+        if "text/event-stream" in request.headers.get("Accept", ""):
+            return self._stream(request, limit)
+        body = await self._list_body(request, limit)
+        etag = _etag(body)
+        if request.headers.get("If-None-Match") == etag:
+            response: HttpResponseBase = HttpResponse(status=304)
+        else:
+            response = JsonResponse(body)
+        response["ETag"] = etag
+        response["Cache-Control"] = "private, no-cache"
+        return response
+
+    async def _list_body(self, request: HttpRequest, limit: int) -> dict[str, Any]:
         metas = await self._store.list(request=request, limit=limit)
-        return JsonResponse({"threads": [_meta_to_json(meta) for meta in metas]})
+        rows = [_meta_to_json(meta) for meta in metas]
+        if self._run_store is not None:
+            ids = [meta.thread_id for meta in metas]
+            states = await self._run_store.get_many(ids, request=request)
+            agent_id = {} if self._mount.id is None else {"agent_id": self._mount.id}
+            for row in rows:
+                row.update(agent_id, **thread_status_fields(states.get(row["thread_id"])))
+        body: dict[str, Any] = {"threads": rows}
+        mount = self._mount
+        if (mount.id, mount.name, mount.description) != (None, None, None):
+            body["agent"] = {"id": mount.id, "name": mount.name, "description": mount.description}
+        return body
+
+    def _stream(self, request: HttpRequest, limit: int) -> HttpResponseBase:
+        frames = self._frames(request, limit, request.headers.get("Last-Event-ID"))
+        if self._config.heartbeat_seconds > 0:
+            frames = heartbeat_stream(frames, interval=self._config.heartbeat_seconds)
+        response = StreamingHttpResponse(frames, content_type="text/event-stream")
+        response["Cache-Control"] = "no-cache"
+        response["X-Accel-Buffering"] = "no"
+        return response
+
+    async def _frames(
+        self, request: HttpRequest, limit: int, seen: str | None
+    ) -> AsyncIterator[str]:
+        while True:
+            body = await self._list_body(request, limit)
+            etag = _etag(body)
+            if etag != seen:
+                seen = etag
+                yield f"id: {etag}\ndata: {json.dumps(body, separators=(',', ':'))}\n\n"
+            await asyncio.sleep(_STREAM_POLL_SECONDS)
 
     async def _detail(self, request: HttpRequest, thread_id: str) -> HttpResponseBase:
         if request.method == "GET":
@@ -202,6 +266,12 @@ def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
         "updated_at": meta.updated_at.isoformat() if meta.updated_at is not None else None,
         "preview": meta.preview,
     }
+
+
+def _etag(body: dict[str, Any]) -> str:
+    """A strong ETag over the list body, so a poll and a stream frame agree on it."""
+    encoded = json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    return f'"{hashlib.sha256(encoded).hexdigest()[:32]}"'
 
 
 def _parse_title(request: HttpRequest) -> str | None:
