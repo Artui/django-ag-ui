@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A run finishes against django-spec-agents 0.24.0.** 0.84.0 recorded a park as one
   `RunWaiting`, which 0.24.0's `RunStore.finish(waiting=...)` refuses with a `TypeError`,
   so every run finish failed on a fresh install. The floor is now `django-spec-agents>=0.24.0`.
+- **A replay of a first run still in flight shows the user's turn.** The conversation row
+  is saved only when a run ends, so `threads/<id>/events/` opened mid-run on a new thread
+  sent a `MESSAGES_SNAPSHOT` without the question. The logged `RUN_STARTED` now carries
+  the run's new turn in `input`, and the snapshot includes it. A finished run's replay is
+  unchanged.
 
 ### Changed
 

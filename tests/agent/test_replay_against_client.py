@@ -139,7 +139,8 @@ async def test_a_replay_opened_mid_run_tails_it_to_the_end(tmp_path: Path) -> No
 
     for result in results.values():
         assert result["ok"], result.get("error")
-        assert [m.get("content") for m in result["messages"]] == ["partial answer and the rest"]
+        contents = [m.get("content") for m in result["messages"]]
+        assert contents == ["hi", "partial answer and the rest"]
 
 
 def _sse(events: list[dict[str, Any]]) -> str:
