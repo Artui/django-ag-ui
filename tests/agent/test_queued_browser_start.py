@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import dataclasses
 import json
 import sys
@@ -25,12 +26,13 @@ from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardCon
 from pydantic import ValidationError
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
-from django_ag_ui import ToolRegistry
+from django_ag_ui import CompactionObserver, ToolRegistry
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
 from django_ag_ui.agent.utils import is_permission_refusal
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.constants import QUEUED_INPUT_EVENT, QUEUED_RUN_LEASE
+from tests.agent.test_compaction_strategies import _long_thread, _Runs, _sliding
 from tests.agent.test_park_run import (
     _AGAIN,
     _APPROVED,
@@ -41,6 +43,7 @@ from tests.agent.test_park_run import (
     _parked,
     _PlainRunStore,
 )
+from tests.agent.test_resumed_history_through_the_view import _user
 from tests.agent.worker_queue import WorkerQueue
 from tests.authed_request_factory import AuthedAsyncRequestFactory, authenticated_user
 
@@ -749,3 +752,35 @@ async def test_a_queued_resume_of_a_run_that_did_not_park_is_no_park_resume() ->
 
     assert response.status_code == 200
     assert result.service_result.outcome is RunOutcome.COMPLETED
+
+
+def _turn(run_id: str, thread_id: str, messages: list[dict[str, Any]], *, detach: bool) -> bytes:
+    body = {**json.loads(_body(run_id, detach=detach)), "threadId": thread_id, "tools": []}
+    return json.dumps({**body, "messages": messages}).encode()
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_queued_fork_refused_on_the_worker_gives_its_claim_back() -> None:
+    holder: dict[str, WorkerQueue] = {}
+
+    class _Late:
+        def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
+            return holder["queue"].enqueue(spec_name, params, actor=actor)
+
+    model, runs = _Model(), _Runs()
+    server = _server(model, _Late(), run_store=runs, capabilities=[CompactionObserver(_sliding())])
+    holder["queue"] = WorkerQueue(AGUIHeadlessRunner(server))
+    agent, fork = _route(server, "endpoint"), _route(server, "fork")
+    await _drain(await agent(_post(_turn("r1", "t1", _long_thread(), detach=False))))
+    late = [_user("u-late", "late")]
+    queued = await fork(_post(_turn("r2", "t2", late, detach=True)), resume_from="r1")
+    claimed = await _state("t2")
+    await _drain(await agent(_post(_turn("r3", "t1", late, detach=False))))
+    model.prompts.clear()
+
+    with contextlib.suppress(Exception):
+        await holder["queue"].work()
+
+    assert (queued.status_code, claimed.status) == (200, ThreadRunStatus.RUNNING)
+    assert (model.prompts, await _state("t2")) == ([], None)
+    assert "r2" not in runs.finished

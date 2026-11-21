@@ -277,7 +277,10 @@ class DjangoAGUIView:
             session = self._session(
                 request, ready.run_input, timeout=timeout, detached=True, **ready.options
             )
-            owner = session.own(store)
+            refuses = ready.refusal is not None
+            owner = session.own(None if refuses else store)
+            if refuses:
+                await give_back(store, run_input.thread_id, run_input.run_id, request=request)
             if after_finish is not None:
                 owner.after_finish(after_finish)
             await owner.detach()

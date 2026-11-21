@@ -27,7 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A refused edit leaves the thread's status as it was.** An edit or regenerate of a
   turn compaction dropped is now refused before the run is claimed, and a detached one is
   never queued, so the thread keeps the status its last run left instead of reading
-  `failed` / `error` until the next turn. The stream still ends in `RUN_ERROR`.
+  `failed` / `error` until the next turn. A queued fork the worker refuses, its source
+  thread having moved on since it was queued, gives its claim back the same way. The
+  stream still ends in `RUN_ERROR`.
 
 - **An answer that leaves a parked call open is refused, and the park stands.** Against a
   thread parked on several calls, a resume naming only some of them completed the run
