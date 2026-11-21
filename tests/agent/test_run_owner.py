@@ -212,6 +212,7 @@ async def test_only_the_logged_run_start_carries_the_new_turn() -> None:
     assert [m["id"] for m in store.logged[0]["input"]["messages"]] == ["u2"]
     assert "state" not in store.logged[0]["input"]
     assert "input" not in store.logged[1]
+    assert RunStartedEvent.model_validate(store.logged[0]).input is not None
 
 
 async def test_a_delta_held_past_the_window_is_flushed(monkeypatch: pytest.MonkeyPatch) -> None:
