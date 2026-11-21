@@ -15,7 +15,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
-from pydantic_ai.models.function import DeltaToolCall, FunctionModel
+from pydantic_ai.models.function import DeltaThinkingPart, DeltaToolCall, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai_harness.compaction import (
     CompactOnRequest,
@@ -233,6 +233,39 @@ async def test_a_run_that_compacts_its_own_steps_stores_every_step_it_streamed()
     assert [m["id"] for m in row if m["role"] == "tool"] == streamed
     assert row[-1]["content"] == "done"
     _assert_no_id_twice(row)
+
+
+def _thinks_six_times() -> Any:
+    calls = [0]
+
+    def behaviour(messages: list[ModelMessage], info: Any) -> Any:
+        calls[0] += 1
+        if calls[0] > 6:
+            return _stream("done")
+        call = DeltaToolCall(name="double", json_args='{"n": 2}', tool_call_id=f"d{calls[0]}")
+        return _stream({0: DeltaThinkingPart(content=f"thought {calls[0]}"), 1: call})
+
+    return behaviour
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_that_compacts_its_own_steps_keeps_its_reasoning_in_streamed_order() -> None:
+    compacting = lambda: SlidingWindowCompaction(max_messages=6, keep_messages=2)  # noqa: E731
+    view, store = await _view("thinker", compacting, _thinks_six_times())
+    body = await _drain(await view(_post(_body([_user("u1", "loop")], run_id="r1"))))
+
+    frames = _frames(body)
+    thoughts = [f["messageId"] for f in frames if f["type"] == "REASONING_START"]
+    results = [f["messageId"] for f in frames if f["type"] == "TOOL_CALL_RESULT"]
+    run = _row(store)[1:-1]
+    assert [m["role"] for m in run] == ["reasoning", "assistant", "tool"] * 6
+    assert [(m["id"], m["content"]) for m in run if m["role"] == "reasoning"] == [
+        (thoughts[n], f"thought {n + 1}") for n in range(6)
+    ]
+    assert [call["id"] for m in run for call in m.get("toolCalls") or []] == [
+        f"d{n}" for n in range(1, 7)
+    ]
+    assert [m["id"] for m in run if m["role"] == "tool"] == results
 
 
 @_STRATEGIES

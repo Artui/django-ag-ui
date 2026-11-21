@@ -84,15 +84,16 @@ server = AGUIServer(
 )
 ```
 
-Compaction changes what the **model** sees, never what the **user** sees. With step
-persistence, the two live in two stores:
+Compaction changes what the **model** sees; the stored conversation keeps every turn and
+step the run streamed. With step persistence, the two live in two stores:
 
 - The step store's snapshot holds the compacted history. A resumed or forked run seeds
   the model from it, so the model's next request carries only what the strategy kept.
 - The stored conversation row holds the full transcript. A resume keeps every earlier
   turn under the id it was first stored under, then adds the new turn, so a reloaded
   thread shows the whole conversation. A run that compacts its own earlier steps still
-  stores every tool call and result it streamed.
+  stores every reasoning, tool call and result it streamed, in the order it streamed them,
+  under the ids it streamed them with.
 
 A strategy that summarizes (`SummarizingCompaction`, or `RelevanceCompaction` with a
 `summarizer`) writes its summary into the history as a `CompactionPart`. The summary
