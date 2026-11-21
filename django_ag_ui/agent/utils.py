@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Collection
 from datetime import timedelta
 from typing import Any
 
@@ -12,8 +12,10 @@ from django_spec_agents import IdentifierTooLongError, ResumableRunStore, RunNot
 from django_spec_agents.persistence.types.run_claim import RunClaim
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
+from django_spec_agents.persistence.types.thread_run_state import ThreadRunState
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 
+from django_ag_ui.agent.partial_answer_error import PartialAnswerError
 from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.constants import QUEUED_INPUT_EVENT
@@ -139,12 +141,28 @@ async def claim_thread(
     return await store.claim(thread_id, run_id, request=request, lease=lease)
 
 
-async def parked_run(store: RunStore, thread_id: str, *, request: HttpRequest) -> str | None:
-    """The run ``thread_id`` is parked on, read before a claim makes the thread running."""
-    state = await store.get(thread_id, request=request)
+def parked_run(state: ThreadRunState | None) -> str | None:
+    """The run ``state`` is parked on, read before a claim makes the thread running."""
     if state is None or state.status is not ThreadRunStatus.WAITING:
         return None
     return state.last_run_id
+
+
+def left_open(
+    state: ThreadRunState | None, answered: Collection[str], *, answering: bool
+) -> tuple[str, ...]:
+    """The parked calls an answer leaves open; none unless it answers, or names, one of them."""
+    waiting = [] if state is None else [call.tool_call_id for call in state.waiting]
+    if not answering and not set(answered) & set(waiting):
+        return ()
+    return tuple(call for call in waiting if call not in answered)
+
+
+def answered_calls(run_input: Any) -> set[str]:
+    """The calls a browser input answers: its ``resume`` entries and its tool messages."""
+    resumed = {entry.interrupt_id.removeprefix("int-") for entry in run_input.resume or ()}
+    told = {m.tool_call_id for m in run_input.messages if isinstance(m, ToolMessage)}
+    return resumed | told
 
 
 async def claim_headless(
@@ -154,10 +172,14 @@ async def claim_headless(
     *,
     request: HttpRequest,
     lease: timedelta,
-    answering: bool,
+    answers: Collection[str] | None,
 ) -> bool:
     """Claim for a headless start, ``True`` if it resumed a park, which it does only once."""
-    resumes = await parked_run(store, thread_id, request=request) if answering else None
+    state = None if answers is None else await store.get(thread_id, request=request)
+    unanswered = left_open(state, answers or (), answering=True)
+    if unanswered:
+        raise PartialAnswerError(thread_id, unanswered)
+    resumes = parked_run(state)
     try:
         claim = await claim_thread(
             store, thread_id, run_id, request=request, lease=lease, resumes=resumes
@@ -181,7 +203,9 @@ async def give_back(store: RunStore, thread_id: str, run_id: str, *, request: Ht
 
 
 __all__ = [
+    "answered_calls",
     "claim_headless",
+    "left_open",
     "claim_thread",
     "give_back",
     "parked_run",

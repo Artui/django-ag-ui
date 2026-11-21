@@ -29,7 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   never queued, so the thread keeps the status its last run left instead of reading
   `failed` / `error` until the next turn. The stream still ends in `RUN_ERROR`.
 
+- **An answer that leaves a parked call open is refused, and the park stands.** Against a
+  thread parked on several calls, a resume naming only some of them completed the run
+  and dropped the rest. The resume route and the plain route now answer `400` with the
+  calls left `unanswered`, and a headless or queued `answers=` raises the new
+  `PartialAnswerError`, both before the claim.
+
 ### Changed
+
+- **`AGUIServer.claim_queued` takes `answers=` in place of `answering=`**, the answers'
+  call ids, so a queued answer is checked against the park before it is enqueued.
 
 - **A parked run keeps every call it waits on.** A run that defers several calls records
   a `RunWaiting` for each, approvals first, instead of the first only; a thread row's

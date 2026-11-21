@@ -198,7 +198,10 @@ answers their calls itself, so a run that ends on them alone finishes `completed
 before. A headless run's `RunStop` carries the same `waiting` tuple.
 
 An answer to a parked run resumes it through `resume/<run_id>/`, with `resume` naming
-every interrupt the thread lists; a resume that leaves a call unanswered fails the run.
+every interrupt the thread lists (a client tool's call is answered by its tool message).
+A resume that leaves a call unanswered is a `400` naming those calls in `unanswered`,
+before the thread is claimed, so the park stands and a full answer can follow; so is an
+answer to some of a parked thread's calls on the plain route.
 The mount saves the parked run's messages when it parks, and the route
 loads them only while the run store shows that run as its thread's `waiting` run; any
 other run id answers 404. On a django-spec-agents `ResumableRunStore` (`DefaultRunStore`
@@ -305,6 +308,9 @@ the run continues the stored history with those answers and sends no new prompt.
 start claims the thread only while it is still parked on the run it read, so of two
 answers to one park the model runs once: the other raises `ThreadBusyError` naming the run
 that holds the thread, or django-spec-agents' `RunNotParkedError` once that run has ended.
+`answers` must cover every call the thread is parked on: one that leaves a call open
+raises [`PartialAnswerError`][django_ag_ui.agent.partial_answer_error.PartialAnswerError]
+naming those calls before the claim, queued or not, and the park stands.
 A start that fails after its claim, or a queued one whose enqueue is refused, gives the
 claim back where the store can, so the thread stays parked and the answer can be sent again.
 `wake_thread` resumes a parked thread this way when every call the park waits on is a

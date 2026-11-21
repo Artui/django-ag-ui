@@ -68,9 +68,11 @@ from django_ag_ui.agent.types.throttle import Throttle
 from django_ag_ui.agent.utils import (
     IDENTIFIER_TOO_LONG_CODE,
     a2ui_validator,
+    answered_calls,
     claim_headless,
     give_back,
     is_permission_refusal,
+    left_open,
     without_answered_by,
 )
 from django_ag_ui.agent.with_a2ui_action import with_a2ui_action
@@ -231,6 +233,9 @@ class DjangoAGUIView:
             return JsonResponse({"error": str(error), "code": IDENTIFIER_TOO_LONG_CODE}, status=400)
         if isinstance(ready, HttpResponseBase):
             return ready
+        unanswered = await self._left_open(request, run_input, parked=parked)
+        if unanswered is not None:
+            return unanswered
         refuses = ready.refusal is not None
         detached = not refuses and self._detaches(request, ready.run_input)
         if detached and self._queued is not None:
@@ -357,7 +362,7 @@ class DjangoAGUIView:
                 run_id,
                 request=request,
                 lease=RUN_LEASE,
-                answering=answers is not None,
+                answers=answers,
             )
         try:
             run_input, prepared = await prepare(run_input)
@@ -688,6 +693,20 @@ class DjangoAGUIView:
         except LookupError:
             return None
         return history, await self._source_thread_id(store, resume_from)
+
+    async def _left_open(
+        self, request: HttpRequest, run_input: Any, *, parked: bool
+    ) -> HttpResponseBase | None:
+        """A ``400`` for an answer leaving some of the thread's parked calls open."""
+        runs, answered = self._owning_store(request), answered_calls(run_input)
+        if runs is None or not (parked or answered):
+            return None
+        state = await runs.get(run_input.thread_id, request=request)
+        unanswered = left_open(state, answered, answering=parked)
+        if not unanswered:
+            return None
+        body = {"error": "the answer leaves parked calls open", "unanswered": list(unanswered)}
+        return JsonResponse({**body, "thread_id": run_input.thread_id}, status=400)
 
     async def _resume_parked(
         self, request: HttpRequest, resume_from: str | None, thread_id: str

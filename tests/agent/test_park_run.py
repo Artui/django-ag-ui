@@ -4,6 +4,7 @@ import asyncio
 import json
 import sys
 from collections.abc import Mapping
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -33,6 +34,7 @@ from django_ag_ui import ToolRegistry, tool
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
+from django_ag_ui.agent.partial_answer_error import PartialAnswerError
 from django_ag_ui.agent.thread_busy_error import ThreadBusyError
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.constants import RUN_LEASE
@@ -766,3 +768,152 @@ async def test_an_answer_to_a_thread_that_is_not_waiting_takes_a_plain_claim() -
 
     state = await DefaultRunStore().get(stop.thread_id, request=request)
     assert state.last_run_id == again.run_id
+
+
+class _AsksTwice(_Calls):
+    """Asks two questions in one response, then answers ``done`` once a tool has returned."""
+
+    def model(self) -> FunctionModel:
+        async def stream_fn(messages: list, info: AgentInfo) -> Any:
+            parts = [p for m in messages for p in getattr(m, "parts", [])]
+            self.ran.append("model")
+            if any(getattr(p, "part_kind", "") == "tool-return" for p in parts):
+                yield "done"
+                return
+            yield {
+                i: DeltaToolCall(name="ask", json_args='{"topic": "x"}', tool_call_id=f"call-{i}")
+                for i in range(2)
+            }
+
+        return FunctionModel(stream_function=stream_fn)
+
+
+@pytest.mark.parametrize("queued", [False, True])
+@pytest.mark.django_db(transaction=True)
+async def test_a_headless_answer_leaving_a_parked_call_open_is_refused_before_its_claim(
+    queued: bool,
+) -> None:
+    calls = _AsksTwice("ask")
+    server, stop, request = await _asked(_guarded(calls))
+    worker = WorkerQueue(AGUIHeadlessRunner(server))
+    runner = AGUIHeadlessRunner(server, **({"queue": worker} if queued else {}))
+    kwargs = {"timeout": 5, "thread_id": stop.thread_id, "answers": {"call-0": "blue"}}
+
+    with pytest.raises(PartialAnswerError) as refused:
+        await runner.start("helper", "", authenticated_user(), **kwargs)
+
+    assert (refused.value.thread_id, refused.value.unanswered) == (stop.thread_id, ("call-1",))
+    state = await DefaultRunStore().get(stop.thread_id, request=request)
+    assert (state.status, state.last_run_id) == (ThreadRunStatus.WAITING, stop.run_id)
+    assert [w.tool_call_id for w in state.waiting] == ["call-0", "call-1"]
+    assert (calls.ran, worker.enqueued) == (["model"], [])
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_headless_answer_to_every_parked_call_resumes_the_run() -> None:
+    server, stop, request = await _asked(_guarded(_AsksTwice("ask")))
+    kwargs = {"timeout": 5, "thread_id": stop.thread_id, "answers": {"call-0": "a", "call-1": "b"}}
+
+    done = await AGUIHeadlessRunner(server).run_to_first_stop(
+        "helper", "", authenticated_user(), **kwargs
+    )
+
+    assert done.outcome is RunOutcome.COMPLETED
+
+
+_ONE = [{"interruptId": "int-call-0", "status": "resolved", "payload": {"approved": True}}]
+
+
+@pytest.mark.parametrize(
+    ("resume_route", "resume", "unanswered"),
+    [(True, _ONE, ["call-1"]), (True, [], ["call-0", "call-1"]), (False, _ONE, ["call-1"])],
+)
+@pytest.mark.django_db(transaction=True)
+async def test_a_browser_answer_leaving_a_parked_call_open_is_a_400_and_the_park_stands(
+    resume_route: bool, resume: list[dict[str, Any]], unanswered: list[str]
+) -> None:
+    calls = _DeletesTwice("delete_thing")
+    options = _guarded(calls)
+    stop, _ = await _parked(_server(dict(options)))
+
+    if resume_route:
+        response, _ = await _resume(options, stop, "r-answer", resume=resume)
+    else:
+        view = DjangoAGUIView(options.pop("registry"), **options)
+        body = {**json.loads(_browser_body("r-answer", resume=resume)), "threadId": stop.thread_id}
+        response = await view(
+            AuthedAsyncRequestFactory().post(
+                "/agent/", data=json.dumps(body), content_type="application/json"
+            )
+        )
+
+    assert response.status_code == 400
+    assert json.loads(response.content)["unanswered"] == unanswered
+    state = await DefaultRunStore().get(
+        stop.thread_id, request=_server(_guarded(calls)).headless_request(authenticated_user())
+    )
+    assert (state.status, state.last_run_id) == (ThreadRunStatus.WAITING, stop.run_id)
+    assert (len(state.waiting), calls.ran) == (2, [])
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_client_tool_answered_by_its_tool_message_resumes_its_park() -> None:
+    options = _guarded(_Calls("pick_colour"), run_timeout_seconds=300)
+    view = DjangoAGUIView(
+        options["registry"], **{k: v for k, v in options.items() if k != "registry"}
+    )
+    await _browser_run(view, _browser_body("r1", detach=True, tools=[_PICK]))
+    picked = [
+        {"id": "u1", "role": "user", "content": "go"},
+        {
+            "id": "a1",
+            "role": "assistant",
+            "toolCalls": [
+                {
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {"name": "pick_colour", "arguments": "{}"},
+                }
+            ],
+        },
+        {"id": "t1", "role": "tool", "toolCallId": "call-1", "content": "blue"},
+    ]
+    parked = SimpleNamespace(thread_id="t-browser", run_id="r1")
+
+    streamed, state = await _resume(options, parked, "r2", resume=[], messages=picked)
+
+    assert "done" in streamed
+    assert (state.status, state.last_run_id) == (ThreadRunStatus.IDLE, "r2")
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_turn_carrying_an_old_tool_message_on_a_parked_thread_is_not_an_answer() -> None:
+    calls = _DeletesTwice("delete_thing")
+    options = _guarded(calls)
+    stop, _ = await _parked(_server(dict(options)))
+    view = DjangoAGUIView(options.pop("registry"), **options)
+    old = [
+        {"id": "u0", "role": "user", "content": "go"},
+        {
+            "id": "a0",
+            "role": "assistant",
+            "toolCalls": [
+                {
+                    "id": "call-old",
+                    "type": "function",
+                    "function": {"name": "ask", "arguments": "{}"},
+                }
+            ],
+        },
+        {"id": "t0", "role": "tool", "toolCallId": "call-old", "content": "x"},
+        {"id": "u2", "role": "user", "content": "go on"},
+    ]
+    body = {**json.loads(_browser_body("r-next", messages=old)), "threadId": stop.thread_id}
+
+    response = await view(
+        AuthedAsyncRequestFactory().post(
+            "/agent/", data=json.dumps(body), content_type="application/json"
+        )
+    )
+
+    assert isinstance(response, StreamingHttpResponse)

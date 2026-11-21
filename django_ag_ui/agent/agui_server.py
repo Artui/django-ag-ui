@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from datetime import timedelta
 from typing import Any
 
@@ -552,7 +552,7 @@ class AGUIServer:
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
         inbox_mark: int | None = None,
-        answering: bool = False,
+        answers: Collection[str] | None = None,
     ) -> bool:
         """Claim the thread for a worker's run, saving its links and mark; ``True`` if a park."""
         self._check_child(lineage)
@@ -560,7 +560,7 @@ class AGUIServer:
         assert store is not None
         thread_id, run_id = run_input.thread_id, run_input.run_id
         parked = await claim_headless(
-            store, thread_id, run_id, request=request, lease=lease, answering=answering
+            store, thread_id, run_id, request=request, lease=lease, answers=answers
         )
         try:
             await self._link(request, thread_id, parent, lineage)

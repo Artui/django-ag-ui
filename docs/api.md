@@ -53,6 +53,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.agent.thread_busy_error.ThreadBusyError
 
+::: django_ag_ui.agent.partial_answer_error.PartialAnswerError
+
 ::: django_ag_ui.agent.claim_lapsed_error.ClaimLapsedError
 
 ::: django_ag_ui.constants.RUN_LEASE
