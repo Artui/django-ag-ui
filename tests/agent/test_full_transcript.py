@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from ag_ui.core import AssistantMessage, Message, UserMessage
+import pytest
+from ag_ui.core import AssistantMessage, FunctionCall, Message, ToolCall, ToolMessage, UserMessage
 
 from django_ag_ui.agent.full_transcript import full_transcript
 from django_ag_ui.agent.lend_stored_ids import lend_stored_ids
@@ -81,3 +82,40 @@ def test_a_tail_message_the_row_already_holds_is_not_stored_twice() -> None:
     kept: list[Message] = [_user("u3", "three"), _answer("a1")]
 
     assert _ids(full_transcript(kept, _ROW)) == _ids(_ROW[:5])
+
+
+def test_a_resubmitted_prompt_ends_the_row_just_before_it() -> None:
+    # The kept history before an edited u3 may be only a pinned u1 and a summary.
+    kept: list[Message] = [_user("u1", "one")]
+
+    assert _ids(full_transcript(kept, _ROW, resubmitted={"u3"})) == ["u1", "a1", "u2", "a2"]
+
+
+def test_a_new_turn_reusing_an_answers_id_is_not_an_edit() -> None:
+    kept: list[Message] = [_user("u3", "three"), _answer("a3")]
+
+    assert _ids(full_transcript(kept, _ROW, resubmitted={"a2"})) == _ids(_ROW)
+
+
+_CALL = ToolCall(id="c1", type="function", function=FunctionCall(name="look", arguments="{}"))
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        AssistantMessage(id="fresh-call", role="assistant", tool_calls=[_CALL]),
+        ToolMessage(id="fresh-result", role="tool", content="ok", tool_call_id="c1"),
+    ],
+    ids=["call", "result"],
+)
+def test_identical_answers_bind_after_the_tool_step_the_dump_keeps(step: Message) -> None:
+    row: list[Message] = [
+        _user("u1", "one"),
+        _answer("a1"),
+        _user("u2", "two"),
+        AssistantMessage(id="k1", role="assistant", tool_calls=[_CALL]),
+        ToolMessage(id="t1", role="tool", content="ok", tool_call_id="c1"),
+        _answer("a2"),
+    ]
+
+    assert _ids(_resumed([step, _answer("fresh")], row))[-1] == "a2"

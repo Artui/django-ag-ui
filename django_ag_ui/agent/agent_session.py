@@ -257,8 +257,7 @@ class AgentSession:
         finalize = self._on_error(transcript)
         async for event in events:
             if isinstance(event, RunErrorEvent):
-                persist = event.code != IDENTIFIER_TOO_LONG_CODE and self._refusal is None
-                await finalize(event.message, persist=persist)
+                await finalize(event.message, persist=event.code != IDENTIFIER_TOO_LONG_CODE)
                 event = self._client_facing_error(event)
             yield event
 
@@ -289,7 +288,11 @@ class AgentSession:
                         self._source_messages,
                         reserved={message.id for message in new_turn},
                     )
-                    kept = full_transcript(kept, self._source_messages)
+                    kept = full_transcript(
+                        kept,
+                        self._source_messages,
+                        resubmitted={message.id for message in new_turn},
+                    )
                 self._prior = [*kept, *(without_answered_by(message) for message in new_turn)]
         return self._prior
 
@@ -386,7 +389,7 @@ class AgentSession:
 
         async def _finalize(error: str, *, persist: bool = True) -> None:
             # A refused id is never saved; a cancel reaches here unchecked, so suppress the refusal.
-            if save is not None and persist:
+            if save is not None and persist and self._refusal is None:
                 with contextlib.suppress(IdentifierTooLongError):
                     await save([*self._prior_messages(), *transcript.messages()])
             audit.record(

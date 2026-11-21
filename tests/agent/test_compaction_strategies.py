@@ -235,10 +235,13 @@ async def test_a_run_that_compacts_its_own_steps_stores_every_step_it_streamed()
     _assert_no_id_twice(row)
 
 
+@_STRATEGIES
 @pytest.mark.django_db(transaction=True)
-async def test_an_edit_of_a_compacted_away_turn_is_refused_before_the_run() -> None:
+async def test_an_edit_of_a_compacted_away_turn_is_refused_before_the_run(
+    strategy: Callable[[], AbstractCapability[Any]], behaviour: Any
+) -> None:
     seen: list[list[ModelMessage]] = []
-    view, store = await _view("editor", _sliding, _answers, seen)
+    view, store = await _view("editor", strategy, behaviour, seen)
     await _drain(await view(_post(_body(_long_thread(), run_id="r1"))))
     before = _row(store)
     seen.clear()
@@ -253,9 +256,12 @@ async def test_an_edit_of_a_compacted_away_turn_is_refused_before_the_run() -> N
     assert "t2" not in store.rows
 
 
+@_STRATEGIES
 @pytest.mark.django_db(transaction=True)
-async def test_an_edit_of_a_turn_the_compacted_history_keeps_runs() -> None:
-    view, store = await _view("keeper", _sliding, _answers)
+async def test_an_edit_of_a_turn_the_compacted_history_keeps_runs(
+    strategy: Callable[[], AbstractCapability[Any]], behaviour: Any
+) -> None:
+    view, store = await _view("keeper", strategy, behaviour)
     await _drain(await view(_post(_body(_long_thread(), run_id="r1"))))
     edited = [_user("last", "and now, edited?")]
     forked = _post(_body(edited, run_id="r2", thread_id="t2"))
@@ -263,5 +269,8 @@ async def test_an_edit_of_a_turn_the_compacted_history_keeps_runs() -> None:
 
     assert [frame for frame in _frames(body) if frame["type"] == "RUN_ERROR"] == []
     row = _row(store, "t2")
-    assert _ids(row)[:-2] == [m["id"] for m in _long_thread()][:-1]
-    assert row[-2] == {**row[-2], "id": "last", "content": "and now, edited?"}
+    earlier = [m["id"] for m in _long_thread()][:-1]
+    assert _ids(row)[: len(earlier)] == earlier
+    assert row[len(earlier)] == {**row[len(earlier)], "id": "last", "content": "and now, edited?"}
+    assert row[-1]["content"] == "done"
+    _assert_no_id_twice(row)
