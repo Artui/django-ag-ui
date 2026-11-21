@@ -78,6 +78,19 @@ skill can never take a name a `SkillRegistry` skill holds: the editor and the au
 tools refuse it, through the runtime's `ReservedSkillNames` check. A policy that defines
 its own `reserved_names` keeps them; the mount adds its names to yours.
 
+**A scanner is the policy's.** Give the policy a `scanner` attribute (anything with
+`scan(content, *, source="")` returning a result with `flagged` and `summary()`, such as
+`pydantic-ai-harness`'s `ArtifactScanner`) and the mount passes it through its own
+wrapper. A create or update whose description or body the scanner flags is refused
+(needs django-spec-agents 0.24.0), the editor answers `400` with `"field"` set to
+`description` or `body`, and a stored skill it flags is left out of a run:
+
+```python
+class SkillPolicy:
+    scanner = ArtifactScanner()
+    ...
+```
+
 ## The catalog
 
 `GET skills/` returns the registry's entries, then the caller's stored skills: the
@@ -132,7 +145,7 @@ and `enable_skill`, so the rules are the authoring tools' own:
 
 | Status | When |
 | --- | --- |
-| `400` `{"error": "..."}`, `"field"` when one key broke it | the body is not a JSON object, a field has the wrong type, or a runtime rule breaks: the name is not kebab-case or is reserved, a description or body is empty or too long |
+| `400` `{"error": "..."}`, `"field"` when one key broke it | the body is not a JSON object, a field has the wrong type, or a runtime rule breaks: the name is not kebab-case or is reserved, a description or body is empty, too long or flagged by the policy's `scanner` |
 | `403` `{"error": "..."}` | the policy's `can_write` refuses the write |
 | `404` `{"error": "not found"}` | the `<id>` is one the caller cannot see, or sees and may not write |
 | `409` `{"error": "..."}` | the caller already sees the most enabled skills the runtime allows |

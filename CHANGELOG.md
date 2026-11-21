@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A run finishes against django-spec-agents 0.24.0.** 0.84.0 recorded a park as one
   `RunWaiting`, which 0.24.0's `RunStore.finish(waiting=...)` refuses with a `TypeError`,
   so every run finish failed on a fresh install. The floor is now `django-spec-agents>=0.24.0`.
+- **A skill policy's `scanner` now reaches the editor and the run.** The mount wrapped the
+  policy in a `ReservingPolicy` that dropped `scanner`, so django-spec-agents 0.24.0's scan
+  never ran. A flagged create or update through the editor is a `400` with `"field"`, and
+  `docs/user-skills.md` shows passing `scanner=` through the policy.
 
 - **A refused edit leaves the thread's status as it was.** An edit or regenerate of a
   turn compaction dropped is now refused before the run is claimed, and a detached one is
