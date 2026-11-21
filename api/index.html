@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -2590,6 +2590,17 @@
     <span class="md-ellipsis">
       
         ThreadsView
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.MountIdentity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MountIdentity
       
     </span>
   </a>
@@ -5190,6 +5201,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#django_ag_ui.MountIdentity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MountIdentity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#django_ag_ui.ThreadActivitySource" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7236,7 +7258,8 @@ authoring tools apply:</p>
 <code>enabled</code>; the two flags default to <code>true</code>. An <code>&lt;id&gt;</code> the caller cannot
 see or write is a <code>404</code>, whichever it is. A broken rule is a <code>400</code>, the
 skill cap a <code>409</code> and a refused write a <code>403</code>, each <code>{"error": "..."}</code>
-with no body in it.</p>
+with no body in it. A <code>400</code> adds <code>"field"</code>, the write's key that broke the
+rule, when one did.</p>
 <p>The authentication seam and closed default are
 <a class="autorefs autorefs-internal" title="ThreadsView" href="#django_ag_ui.ThreadsView"><code>ThreadsView</code></a>'s. Like the threads endpoints it is
 CSRF-checked by default, unlike the threads endpoints: an unstated <code>csrf_exempt</code>
@@ -7363,6 +7386,10 @@ The rest mount only when their backend is <em>active</em>:</p>
 <li><code>thread_events</code> / <code>thread_cancel</code> — a <code>run_store</code> is configured
   (<code>threads/&lt;id&gt;/events/</code>, a run's log replayed and tailed, and
   <code>threads/&lt;id&gt;/cancel/</code>; see <a href="../detached-runs/">Detached runs</a>).</li>
+<li><code>thread_read</code> — a <code>run_store</code> and a live conversation store
+  (<code>threads/&lt;id&gt;/read/</code>, <code>POST</code> marks the thread read); with a run
+  store the <code>threads/</code> rows also carry each thread's run status, see
+  <a href="../detached-runs/#thread-status">Thread status</a>.</li>
 </ul>
 <p>Collaborators are <strong>passed here or absent</strong>: there is no settings fallback,
 and the keys that once held a dotted path are refused at startup by
@@ -7491,7 +7518,9 @@ as <code>ScopedConversationStore</code> does for thread history.</p>
 <a class="autorefs autorefs-internal" title="AGUIHeadlessRunner" href="#django_ag_ui.agent.headless_runner.AGUIHeadlessRunner"><code>AGUIHeadlessRunner</code></a>, which
 starts runs as <code>headless_request(principal)</code>. Without a run store nothing changes.
 See <a href="../detached-runs/">Detached and headless runs</a>. <code>firing_queue</code> queues a detached
-browser run for a worker; see <a href="../queued-runs/#a-detached-browser-start">Queued runs</a>.</p>
+browser run for a worker; see <a href="../queued-runs/#a-detached-browser-start">Queued runs</a>.
+<code>name</code> and <code>description</code> say who the mount is: when any of them or <code>id</code> is set,
+<code>threads/</code> serves the three as its <code>agent</code> object.</p>
 <p><strong>User skills.</strong> <code>skill_policy</code> takes a django-spec-agents <code>SkillPolicy</code>:
 the <code>skills/</code> catalog lists each caller's stored skills beside the
 registry's, and every run gets the caller's model-invocable ones through
@@ -11546,6 +11575,64 @@ every route is owner-scoped, so an anonymous caller has no history to reach.</p>
 thread — see
 <a class="autorefs autorefs-internal" title="ThreadActivitySource" href="#django_ag_ui.ThreadActivitySource"><code>ThreadActivitySource</code></a> for why they are
 not in the stored history to begin with.</p>
+<p>With <code>run_store=</code>, each listed row also carries its run status
+(<code>status</code>, <code>last_read_at</code>, <code>reason</code> when failed, <code>interrupts</code> when
+waiting, <code>agent_id</code> from <code>mount</code>); a <code>mount</code> with any identity set adds
+an <code>agent</code> object to the list body. The list answers <code>If-None-Match</code> with
+<code>304</code>, and <code>Accept: text/event-stream</code> streams the same body each time it
+changes, its ETag as the frame id, <code>Last-Event-ID</code> skipping an unchanged
+first frame. The stream ends after five minutes so the client reconnects and
+is authenticated again, and under WSGI the same request answers as a poll.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.MountIdentity" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">MountIdentity</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#django_ag_ui.MountIdentity" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Who a mount is, from <code>AGUIServer(id=, name=, description=)</code>, for the threads body.</p>
 
 
 
@@ -14344,7 +14431,7 @@ enforcement is authoritative either way.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

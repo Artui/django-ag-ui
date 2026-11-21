@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -1123,11 +1123,25 @@ save little, and <code>max_per_run</code> caps the requests in one run:</p>
 </span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="p">],</span>
 </span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="p">)</span>
 </span></code></pre></div>
+<p>Compaction changes what the <strong>model</strong> sees; the stored conversation keeps every turn and
+step the run streamed. With step persistence, the two live in two stores:</p>
+<ul>
+<li>The step store's snapshot holds the compacted history. A resumed or forked run seeds
+  the model from it, so the model's next request carries only what the strategy kept.</li>
+<li>The stored conversation row holds the full transcript. A resume keeps every earlier
+  turn under the id it was first stored under, then adds the new turn, so a reloaded
+  thread shows the whole conversation. A run that compacts its own earlier steps still
+  stores every reasoning, tool call and result it streamed, in the order it streamed them,
+  under the ids it streamed them with.</li>
+</ul>
 <p>A strategy that summarizes (<code>SummarizingCompaction</code>, or <code>RelevanceCompaction</code> with a
-<code>summarizer</code>) stores its summary in the history as a <code>CompactionPart</code>. On a resumed
-thread, the stored conversation shows it as a <code>pydantic_ai_compaction</code> activity, and the
-messages around it keep the ids they were first stored under. That holds even though
-pydantic-ai merges the summary with the prompt kept before it.</p>
+<code>summarizer</code>) writes its summary into the history as a <code>CompactionPart</code>. The summary
+lives only in the step store. It is never streamed and never stored in the row: the row
+is the transcript, and the summary is the model's view of it.</p>
+<p>An edit or regenerate of a turn the compaction dropped is refused. When the new turn
+resubmits a prompt the row holds but the snapshot no longer does, the run ends in
+<code>RUN_ERROR</code> before the model is called, and the stored conversation is left as it was.
+Edit a turn the snapshot still holds, or resume from an earlier run.</p>
 <p>That is the whole adoption. The rest of this page is about the one thing that
 composition alone cannot give you: <strong>telling the user it happened.</strong></p>
 <h2 id="why-an-indicator-needs-code-at-all">Why an indicator needs code at all<a class="headerlink" href="#why-an-indicator-needs-code-at-all" title="Permanent link">&para;</a></h2>
@@ -1244,7 +1258,7 @@ has no sink bound and records nothing.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -682,6 +682,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#thread-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread status
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Thread status">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#poll-or-stream-the-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Poll or stream the list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mark-a-thread-read" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mark a thread read
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#child-sessions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1053,6 +1092,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#thread-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread status
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Thread status">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#poll-or-stream-the-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Poll or stream the list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mark-a-thread-read" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mark a thread read
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#child-sessions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1276,6 +1354,82 @@ other run id answers 404. On a django-spec-agents <code>ResumableRunStore</code>
 is one) the resume claims the thread only while it is still parked on that run, in the
 claim's one conditional update, so of two resumes of one park the approved call runs once:
 the other answers <code>409</code> naming the run that holds the thread, or <code>404</code> once it has ended.</p>
+<h2 id="thread-status">Thread status<a class="headerlink" href="#thread-status" title="Permanent link">&para;</a></h2>
+<p>With a run store, each row of <code>GET &lt;mount&gt;threads/</code> also carries its thread's run status,
+read from the run store and never written by the list. Every key is additive, so an older
+client ignores them; without a run store the rows keep their old shape.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code></td>
+<td><code>idle</code>, <code>running</code>, <code>waiting</code> or <code>failed</code>; a thread no run claimed reads <code>idle</code>, and a run whose lease lapsed reads <code>failed</code></td>
+</tr>
+<tr>
+<td><code>last_read_at</code></td>
+<td>when the caller last marked the thread read (ISO 8601), or <code>null</code></td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>with <code>failed</code> only: <code>error</code> (the run raised, or an edit or regenerate of a turn compaction dropped was refused before it ran; the next turn runs as usual) or <code>interrupted</code> (its lease lapsed); a timeout reads <code>idle</code> and keeps its reason server-side</td>
+</tr>
+<tr>
+<td><code>interrupts</code></td>
+<td>with <code>waiting</code> only: the protocol's interrupt list for the parked call</td>
+</tr>
+<tr>
+<td><code>agent_id</code></td>
+<td>the mount's <code>id=</code>, when it has one</td>
+</tr>
+</tbody>
+</table>
+<p>An interrupt is an AG-UI <code>Interrupt</code> sharing its <code>id</code> and <code>toolCallId</code> with the one the
+protocol uses for the call, so a client answers a parked approval with <code>@ag-ui/client</code>'s
+<code>buildResumeArray</code> and the <code>resume/&lt;run_id&gt;/</code> route above:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"int-call-9"</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"tool_call"</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Delete the invoice?"</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">"toolCallId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"call-9"</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">"metadata"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"destructive"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"approval"</span><span class="p">}</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><code>message</code> is the <code>RunWaiting</code> summary, <code>reason</code> is <code>tool_call</code> for every kind (each is a
+deferred tool call) and <code>metadata.kind</code> keeps <code>approval</code>, <code>question</code> or <code>external</code>, which is
+how a client tells them apart: a resume entry answers an approval only. No
+deadline is stored, so there is no <code>expiresAt</code>. The run store records one call per park,
+so the list holds at most one interrupt.</p>
+<p><code>AGUIServer(name=, description=)</code> says who the mount is: when it or <code>id=</code> is set, the
+list body carries <code>"agent": {"id", "name", "description"}</code> beside <code>threads</code>.</p>
+<h3 id="poll-or-stream-the-list">Poll or stream the list<a class="headerlink" href="#poll-or-stream-the-list" title="Permanent link">&para;</a></h3>
+<p>Both transports carry the same body, so a client keeps one parser:</p>
+<ul>
+<li><strong>Poll.</strong> The list answers with an <code>ETag</code> over its body and <code>Cache-Control: private,
+  no-cache</code>; send it back as <code>If-None-Match</code> and an unchanged list answers <code>304</code>.</li>
+<li><strong>Stream.</strong> <code>Accept: text/event-stream</code> on the same URL streams a frame each time the
+  body changes, polling the stores every two seconds, with <code>id:</code> the body's ETag and
+  <code>data:</code> the body itself. A reconnect sending <code>Last-Event-ID</code> skips the first frame while
+  the list is unchanged. The stream lives five minutes, then ends; <code>EventSource</code> reconnects
+  on its own with <code>Last-Event-ID</code>, and the reconnect checks the caller's authentication
+  again, so a signed-out session is refused at most five minutes late. The stream needs
+  ASGI: under WSGI the same request is answered as a poll, with the JSON body and the
+  <code>ETag</code>. A browser <code>EventSource</code> treats that JSON answer as a fatal error and does not
+  reconnect, so a client that may meet a WSGI deployment falls back to polling on the
+  stream's <code>error</code>. Both answers carry <code>Vary: Accept</code>, since one URL serves either by that
+  header.</li>
+</ul>
+<p>An <code>If-None-Match</code> naming the list's current <code>ETag</code> answers <code>304</code> whether it is the exact
+tag, a weak <code>W/"..."</code> copy (what <code>GZipMiddleware</code> turns it into), one of a list, or <code>*</code>.</p>
+<h3 id="mark-a-thread-read">Mark a thread read<a class="headerlink" href="#mark-a-thread-read" title="Permanent link">&para;</a></h3>
+<p><code>POST &lt;mount&gt;threads/&lt;id&gt;/read/</code> sets the thread's <code>last_read_at</code> to now and answers <code>204</code>.
+A thread the caller does not own answers <code>404</code>. A thread no run ever claimed has no run
+state to mark, so it stays <code>null</code>. The route is mounted with a run store and a
+conversation store, and it follows the mount's <code>csrf_exempt=</code>, as <code>cancel/</code> does.</p>
 <h2 id="child-sessions">Child sessions<a class="headerlink" href="#child-sessions" title="Permanent link">&para;</a></h2>
 <p>A child session is a thread with a parent: django-spec-agents' child-session tools start
 one through <code>start(..., parent=, lineage=)</code>, which saves both on the child's conversation
@@ -1290,15 +1444,15 @@ tools its parent had, a tool its parent gated still asks for approval, and the r
 settle enqueues a report on the parent's inbound queue. A run that parks reports nothing.
 A mount that serves child sessions names its queue, and <code>id=</code> names the agent each report
 comes from:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">registry</span><span class="p">,</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="nb">id</span><span class="o">=</span><span class="s2">"helper"</span><span class="p">,</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">run_store</span><span class="o">=</span><span class="n">DefaultRunStore</span><span class="p">(),</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">step_store</span><span class="o">=</span><span class="n">DefaultStepStore</span><span class="p">,</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">conversation_store</span><span class="o">=</span><span class="n">DefaultConversationStore</span><span class="p">(),</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">inbound_queue</span><span class="o">=</span><span class="n">DefaultInboundQueue</span><span class="p">(),</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">child_spend</span><span class="o">=</span><span class="n">spend</span><span class="p">,</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="nb">id</span><span class="o">=</span><span class="s2">"helper"</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">run_store</span><span class="o">=</span><span class="n">DefaultRunStore</span><span class="p">(),</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">step_store</span><span class="o">=</span><span class="n">DefaultStepStore</span><span class="p">,</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">conversation_store</span><span class="o">=</span><span class="n">DefaultConversationStore</span><span class="p">(),</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">inbound_queue</span><span class="o">=</span><span class="n">DefaultInboundQueue</span><span class="p">(),</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="n">child_spend</span><span class="o">=</span><span class="n">spend</span><span class="p">,</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>A thread parked on a question is resumed with <code>start(..., answers={tool_call_id: text})</code>:
 the run continues the stored history with those answers and sends no new prompt. The
@@ -1384,7 +1538,7 @@ when one of your hooks reads state that your middleware sets.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -1244,7 +1244,9 @@ call answered twice. Tool results that answer no
 pending call, and a client's compaction parts, never reach the run but are
 stored as posted. The earlier messages keep the ids the source thread's stored
 conversation holds for them, a fork included; see
-<a href="../concepts/#conversation-persistence">Conversation persistence</a>.</p>
+<a href="../concepts/#conversation-persistence">Conversation persistence</a>. The snapshot is the
+model's view and the row is the user's: when a compaction has shortened the snapshot,
+the row still keeps every earlier turn (see <a href="../compaction/">Compaction</a>).</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>Send a <strong>fresh <code>run_id</code></strong> in the resumed request. Send only the new turn, or
@@ -1412,7 +1414,7 @@ exactly why wrapping does not happen by itself.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>
