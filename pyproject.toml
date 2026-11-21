@@ -110,6 +110,9 @@ dependencies = [
     # ``HeadlessFiring`` carries the inbox mark taken at enqueue. Held by
     # ``tests/agent/test_park_run.py``, ``tests/agent/test_queued_browser_start.py``
     # and ``tests/agent/test_child_first_run.py``.
+    # 0.24.0's ``RunStore.finish`` takes ``waiting`` as a tuple and iterates it, so
+    # 0.84.0's single ``RunWaiting`` failed every finish. Held by
+    # ``tests/agent/test_park_run.py`` and ``tests/persistence/test_thread_status.py``.
     "django-spec-agents>=0.24.0",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
@@ -194,12 +197,12 @@ openai = ["pydantic-ai-slim[openai]>=2,<3"]
 google = ["pydantic-ai-slim[google]>=2,<3"]
 # In-process bridge that exposes a django-spec-mcp server's tools as a
 # Pydantic-AI toolset (``mcp_server=``). Floored with the core dependency
-# above, at 0.23.0, for the reasons given there; its own ``[mcp]`` extra floors
+# above, at 0.24.0, for the reasons given there; its own ``[mcp]`` extra floors
 # django-spec-mcp.
 mcp = ["django-spec-agents[mcp]>=0.24.0"]
 # Expose django-service-specs specs directly as agent tools via django-spec-agents'
 # ``spec_tools.SpecCapability`` -- no MCP server in the path (service_specs=).
-# Floored with the core dependency above, at 0.23.0, for the reasons given there.
+# Floored with the core dependency above, at 0.24.0, for the reasons given there.
 specs = ["django-spec-agents[specs]>=0.24.0"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach

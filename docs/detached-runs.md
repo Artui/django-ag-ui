@@ -197,8 +197,9 @@ A browser run's own client tools count only when the run is detached: a connecte
 answers their calls itself, so a run that ends on them alone finishes `completed`, as
 before. A headless run's `RunStop` carries the same `waiting` tuple.
 
-An answer to a parked run resumes it through `resume/<run_id>/`, with `resume` naming the
-call's interrupt. The mount saves the parked run's messages when it parks, and the route
+An answer to a parked run resumes it through `resume/<run_id>/`, with `resume` naming
+every interrupt the thread lists; a resume that leaves a call unanswered fails the run.
+The mount saves the parked run's messages when it parks, and the route
 loads them only while the run store shows that run as its thread's `waiting` run; any
 other run id answers 404. On a django-spec-agents `ResumableRunStore` (`DefaultRunStore`
 is one) the resume claims the thread only while it is still parked on that run, in the
@@ -306,9 +307,9 @@ answers to one park the model runs once: the other raises `ThreadBusyError` nami
 that holds the thread, or django-spec-agents' `RunNotParkedError` once that run has ended.
 A start that fails after its claim, or a queued one whose enqueue is refused, gives the
 claim back where the store can, so the thread stays parked and the answer can be sent again.
-`wake_thread` resumes a parked thread this way when the park is recorded as waiting on a
-question ([a run that parks](#a-run-that-parks)): an `ANSWER` on the child's inbound
-queue resumes the parked call with its text.
+`wake_thread` resumes a parked thread this way when every call the park waits on is a
+question ([a run that parks](#a-run-that-parks)) and an `ANSWER` is pending on the
+child's inbound queue for each: each answer resumes its call with its text.
 
 After a headless run's end is recorded, the runner calls django-spec-agents'
 `wake_thread` for its thread when mail arrived during the run, so a message that landed

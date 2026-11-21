@@ -215,6 +215,32 @@ async def test_only_the_logged_run_start_carries_the_new_turn() -> None:
     assert RunStartedEvent.model_validate(store.logged[0]).input is not None
 
 
+async def test_the_logged_run_start_drops_bytes_tools_context_and_forwarded_props() -> None:
+    store = _Store()
+    image = {"type": "image", "source": {"type": "data", "value": "aGk=", "mimeType": "image/png"}}
+    run_input = RunAgentInput.model_validate(
+        {
+            "threadId": "t1",
+            "runId": "r1",
+            "state": {},
+            "messages": [
+                {"id": "u1", "role": "user", "content": [{"type": "text", "text": "look"}, image]}
+            ],
+            "tools": [{"name": "pick", "description": "Pick.", "parameters": {}}],
+            "context": [{"description": "page", "value": "settings"}],
+            "forwardedProps": {"detach": True},
+        }
+    )
+    started = RunStartedEvent(thread_id="t1", run_id="r1")
+
+    await _owner(_events(started), store=store, run_input=run_input).wait()
+
+    echoed = store.logged[0]["input"]
+    assert echoed["messages"][0]["content"] == [{"type": "text", "text": "look"}]
+    assert (echoed["tools"], echoed["context"]) == ([], [])
+    assert "forwardedProps" not in echoed
+
+
 async def test_a_delta_held_past_the_window_is_flushed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(run_owner_module, "_DELTA_FLUSH_SECONDS", 0.0)
     store = _Store()
