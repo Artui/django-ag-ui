@@ -201,6 +201,61 @@ is one) the resume claims the thread only while it is still parked on that run, 
 claim's one conditional update, so of two resumes of one park the approved call runs once:
 the other answers `409` naming the run that holds the thread, or `404` once it has ended.
 
+## Thread status
+
+With a run store, each row of `GET <mount>threads/` also carries its thread's run status,
+read from the run store and never written by the list. Every key is additive, so an older
+client ignores them; without a run store the rows keep their old shape.
+
+| Key | Value |
+| --- | --- |
+| `status` | `idle`, `running`, `waiting` or `failed`; a thread no run claimed reads `idle`, and a run whose lease lapsed reads `failed` |
+| `last_read_at` | when the caller last marked the thread read (ISO 8601), or `null` |
+| `reason` | with `failed` only: `error` (the run raised) or `interrupted` (its lease lapsed); a timeout reads `idle` and keeps its reason server-side |
+| `interrupts` | with `waiting` only: the protocol's interrupt list for the parked call |
+| `agent_id` | the mount's `id=`, when it has one |
+
+An interrupt is an AG-UI `Interrupt` sharing its `id` and `toolCallId` with the one the
+protocol uses for the call, so a client answers a parked approval with `@ag-ui/client`'s
+`buildResumeArray` and the `resume/<run_id>/` route above:
+
+```json
+{
+  "id": "int-call-9",
+  "reason": "tool_call",
+  "message": "Delete the invoice?",
+  "toolCallId": "call-9",
+  "metadata": {"destructive": true, "kind": "approval"}
+}
+```
+
+`message` is the `RunWaiting` summary, `reason` is `tool_call` for every kind (each is a
+deferred tool call) and `metadata.kind` keeps `approval`, `question` or `external`, which is
+how a client tells them apart: a resume entry answers an approval only. No
+deadline is stored, so there is no `expiresAt`. The run store records one call per park,
+so the list holds at most one interrupt.
+
+`AGUIServer(name=, description=)` says who the mount is: when it or `id=` is set, the
+list body carries `"agent": {"id", "name", "description"}` beside `threads`.
+
+### Poll or stream the list
+
+Both transports carry the same body, so a client keeps one parser:
+
+- **Poll.** The list answers with an `ETag` over its body and `Cache-Control: private,
+  no-cache`; send it back as `If-None-Match` and an unchanged list answers `304`.
+- **Stream.** `Accept: text/event-stream` on the same URL streams a frame each time the
+  body changes, polling the stores every two seconds, with `id:` the body's ETag and
+  `data:` the body itself. A reconnect sending `Last-Event-ID` skips the first frame while
+  the list is unchanged. The stream has no end; the client closes it.
+
+### Mark a thread read
+
+`POST <mount>threads/<id>/read/` sets the thread's `last_read_at` to now and answers `204`.
+A thread the caller does not own answers `404`. A thread no run ever claimed has no run
+state to mark, so it stays `null`. The route is mounted with a run store and a
+conversation store, and it follows the mount's `csrf_exempt=`, as `cancel/` does.
+
 ## Child sessions
 
 A child session is a thread with a parent: django-spec-agents' child-session tools start

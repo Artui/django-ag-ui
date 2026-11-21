@@ -56,8 +56,10 @@ from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.constants import RUN_LEASE
 from django_ag_ui.persistence.attachments_view import AttachmentsView
 from django_ag_ui.persistence.null_transcription_backend import NullTranscriptionBackend
+from django_ag_ui.persistence.thread_read_view import ThreadReadView
 from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.persistence.transcribe_view import TranscribeView
+from django_ag_ui.persistence.types.mount_identity import MountIdentity
 from django_ag_ui.persistence.types.thread_activity_source import ThreadActivitySource
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
 from django_ag_ui.persistence.utils import messages_from_jsonable
@@ -115,6 +117,10 @@ class AGUIServer:
     - ``thread_events`` / ``thread_cancel`` — a ``run_store`` is configured
       (``threads/<id>/events/``, a run's log replayed and tailed, and
       ``threads/<id>/cancel/``; see [Detached runs](detached-runs.md)).
+    - ``thread_read`` — a ``run_store`` and a live conversation store
+      (``threads/<id>/read/``, ``POST`` marks the thread read); with a run
+      store the ``threads/`` rows also carry each thread's run status, see
+      [Thread status](detached-runs.md#thread-status).
 
     Collaborators are **passed here or absent**: there is no settings fallback,
     and the keys that once held a dotted path are refused at startup by
@@ -258,6 +264,8 @@ class AGUIServer:
     starts runs as ``headless_request(principal)``. Without a run store nothing changes.
     See [Detached and headless runs](detached-runs.md). ``firing_queue`` queues a detached
     browser run for a worker; see [Queued runs](queued-runs.md#a-detached-browser-start).
+    ``name`` and ``description`` say who the mount is: when any of them or ``id`` is set,
+    ``threads/`` serves the three as its ``agent`` object.
 
     **User skills.** ``skill_policy`` takes a django-spec-agents ``SkillPolicy``:
     the ``skills/`` catalog lists each caller's stored skills beside the
@@ -315,6 +323,8 @@ class AGUIServer:
         namespace: str = DEFAULT_NAMESPACE,
         run_store: RunStore | None = None,
         id: str | None = None,
+        name: str | None = None,
+        description: str | None = None,
         inbound_queue: InboundQueue | None = None,
         child_spend: ChildSessionSpend | None = None,
         firing_queue: FiringQueue | None = None,
@@ -351,6 +361,8 @@ class AGUIServer:
         )
         self._registry = registry
         self.id = id
+        self.name = name
+        self.description = description
         if inbound_queue is not None and id is None:
             raise ImproperlyConfigured(
                 "AGUIServer(inbound_queue=) needs id=: a child's report names its agent"
@@ -742,6 +754,8 @@ class AGUIServer:
                 self._conversation_store,
                 config=self._config,
                 thread_activity_source=self._thread_activity_source,
+                run_store=self._run_store,
+                mount=MountIdentity(id=self.id, name=self.name, description=self.description),
                 **self._policy,
             )
             patterns.append(path("threads/", threads_view, name="threads"))
@@ -757,6 +771,13 @@ class AGUIServer:
             patterns.append(
                 path("threads/<str:thread_id>/cancel/", cancel_view, name="thread_cancel")
             )
+            if not isinstance(self._conversation_store, NullConversationStore):
+                read_view = ThreadReadView(
+                    self._run_store, self._conversation_store, **self._policy
+                )
+                patterns.append(
+                    path("threads/<str:thread_id>/read/", read_view, name="thread_read")
+                )
         if not isinstance(self._attachment_store, NullAttachmentStore):
             attachments_view = AttachmentsView(
                 self._attachment_store, config=self._config, **self._policy
