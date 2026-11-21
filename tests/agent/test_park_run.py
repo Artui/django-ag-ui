@@ -107,13 +107,15 @@ async def test_a_gated_headless_run_parks_on_the_call_its_interrupt_names() -> N
 
     assert stop.outcome is RunOutcome.WAITING
     assert (state.status, state.active_run_id) == (ThreadRunStatus.WAITING, None)
-    assert state.waiting == RunWaiting(
-        kind="approval", summary="delete_thing", tool_call_id="call-1", destructive=True
+    assert state.waiting == (
+        RunWaiting(
+            kind="approval", summary="delete_thing", tool_call_id="call-1", destructive=True
+        ),
     )
     request = server.headless_request(authenticated_user())
     finished = (await DefaultRunStore().read(stop.run_id, request=request))[-1].event
     [interrupt] = finished["outcome"]["interrupts"]
-    assert interrupt["id"] == f"int-{state.waiting.tool_call_id}"
+    assert interrupt["id"] == f"int-{state.waiting[0].tool_call_id}"
     assert stop.waiting == state.waiting
 
 
@@ -125,7 +127,7 @@ async def test_a_parked_approval_carries_its_configured_prompt() -> None:
 
     _, state = await _parked(_server(options))
 
-    assert state.waiting.summary == "Delete it?"
+    assert state.waiting[0].summary == "Delete it?"
 
 
 class _CallsBoth(_Calls):
@@ -144,18 +146,47 @@ class _CallsBoth(_Calls):
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_run_deferring_several_calls_parks_on_its_approval_first() -> None:
+async def test_a_run_deferring_several_calls_parks_on_every_call_approvals_first() -> None:
     _, state = await _parked(_server(_guarded(_CallsBoth("ask"))))
 
-    assert (state.waiting.kind, state.waiting.tool_call_id) == ("approval", "call-1")
+    assert [(w.kind, w.tool_call_id) for w in state.waiting] == [
+        ("approval", "call-1"),
+        ("question", "call-0"),
+    ]
+
+
+class _DeletesTwice(_Calls):
+    """Calls the gated tool twice in one response."""
+
+    def model(self) -> FunctionModel:
+        async def stream_fn(messages: list, info: AgentInfo) -> Any:
+            yield {
+                i: DeltaToolCall(name="delete_thing", json_args=args, tool_call_id=f"call-{i}")
+                for i, args in enumerate(('{"target": "a"}', '{"target": "b"}'))
+            }
+
+        return FunctionModel(stream_function=stream_fn)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_thread_parked_on_two_approvals_reads_back_both_interrupts() -> None:
+    server = _server(_guarded(_DeletesTwice("delete_thing")))
+    stop, _ = await _parked(server)
+    patterns, _, _ = server.urls
+    threads = next(p for p in patterns if p.name == "threads").callback
+
+    response = await threads(AuthedAsyncRequestFactory().get("/agent/threads/"))
+
+    [row] = [r for r in json.loads(response.content)["threads"] if r["thread_id"] == stop.thread_id]
+    assert [i["toolCallId"] for i in row["interrupts"]] == ["call-0", "call-1"]
 
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_question_parks_as_a_question_that_is_not_destructive() -> None:
     _, state = await _parked(_server(_guarded(_Calls("ask", '{"topic": "colour"}'))))
 
-    assert (state.waiting.kind, state.waiting.destructive) == ("question", False)
-    assert state.waiting.summary == "ask"
+    [waiting] = state.waiting
+    assert (waiting.kind, waiting.destructive, waiting.summary) == ("question", False, "ask")
 
 
 @pytest.mark.django_db(transaction=True)
@@ -172,7 +203,7 @@ async def test_destructive_is_read_from_the_tools_own_definition() -> None:
 
     _, state = await _parked(_server(options))
 
-    assert (state.waiting.kind, state.waiting.destructive) == ("approval", True)
+    assert [(w.kind, w.destructive) for w in state.waiting] == [("approval", True)]
 
 
 @pytest.mark.django_db(transaction=True)
@@ -187,7 +218,7 @@ async def test_an_approval_the_guard_does_not_ask_for_is_not_destructive() -> No
 
     _, state = await _parked(_server(options))
 
-    assert (state.waiting.kind, state.waiting.destructive) == ("approval", False)
+    assert [(w.kind, w.destructive) for w in state.waiting] == [("approval", False)]
 
 
 _PICK = {
@@ -265,8 +296,10 @@ async def test_a_detached_browser_run_parks_on_a_client_tool_as_external() -> No
     state = await _browser_run(_browser_view(_Calls("pick_colour")), body)
 
     assert state.status is ThreadRunStatus.WAITING
-    assert state.waiting == RunWaiting(
-        kind="external", summary="pick_colour", tool_call_id="call-1", destructive=False
+    assert state.waiting == (
+        RunWaiting(
+            kind="external", summary="pick_colour", tool_call_id="call-1", destructive=False
+        ),
     )
 
 
@@ -277,7 +310,7 @@ async def test_a_client_tool_stamped_destructive_parks_as_destructive() -> None:
 
     state = await _browser_run(_browser_view(_Calls("pick_colour")), body)
 
-    assert (state.waiting.kind, state.waiting.destructive) == ("external", True)
+    assert [(w.kind, w.destructive) for w in state.waiting] == [("external", True)]
 
 
 @pytest.mark.django_db(transaction=True)
@@ -286,7 +319,7 @@ async def test_a_connected_browser_run_ending_on_a_client_tool_does_not_park() -
 
     state = await _browser_run(_browser_view(_Calls("pick_colour")), body)
 
-    assert (state.status, state.waiting) == (ThreadRunStatus.IDLE, None)
+    assert (state.status, state.waiting) == (ThreadRunStatus.IDLE, ())
 
 
 @pytest.mark.django_db(transaction=True)
@@ -298,8 +331,8 @@ async def test_a_connected_browser_approval_parks_then_its_answer_completes() ->
 
     state = await _browser_run(view, _browser_body("r2", messages=_ASKED_TO_DELETE, resume=answer))
 
-    assert (parked.status, parked.waiting.kind) == (ThreadRunStatus.WAITING, "approval")
-    assert (state.status, state.waiting, state.last_run_id) == (ThreadRunStatus.IDLE, None, "r2")
+    assert (parked.status, parked.waiting[0].kind) == (ThreadRunStatus.WAITING, "approval")
+    assert (state.status, state.waiting, state.last_run_id) == (ThreadRunStatus.IDLE, (), "r2")
     assert calls.ran == ["widget-1"]
 
 
@@ -385,7 +418,7 @@ async def test_answering_a_parked_run_through_its_resume_route_completes_it() ->
     assert calls.ran == ["widget-1"]
     assert (state.status, state.waiting, state.last_run_id) == (
         ThreadRunStatus.IDLE,
-        None,
+        (),
         "r-answer",
     )
 
@@ -439,7 +472,7 @@ async def test_a_run_parks_without_the_harness_installed(monkeypatch: pytest.Mon
         DjangoAGUIView(options.pop("registry"), **options), _browser_body("r1")
     )
 
-    assert (state.status, state.waiting.kind) == (ThreadRunStatus.WAITING, "approval")
+    assert (state.status, state.waiting[0].kind) == (ThreadRunStatus.WAITING, "approval")
 
 
 @pytest.mark.django_db(transaction=True)
@@ -468,7 +501,7 @@ async def test_a_run_with_no_conversation_store_still_parks() -> None:
         DjangoAGUIView(options.pop("registry"), **options), _browser_body("r1")
     )
 
-    assert (state.status, state.waiting.kind) == (ThreadRunStatus.WAITING, "approval")
+    assert (state.status, state.waiting[0].kind) == (ThreadRunStatus.WAITING, "approval")
 
 
 @pytest.mark.django_db(transaction=True)

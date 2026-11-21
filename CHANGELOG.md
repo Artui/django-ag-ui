@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A run finishes against django-spec-agents 0.24.0.** 0.84.0 recorded a park as one
+  `RunWaiting`, which 0.24.0's `RunStore.finish(waiting=...)` refuses with a `TypeError`,
+  so every run finish failed on a fresh install. The floor is now `django-spec-agents>=0.24.0`.
+
+### Changed
+
+- **A parked run keeps every call it waits on.** A run that defers several calls records
+  a `RunWaiting` for each, approvals first, instead of the first only; a thread row's
+  `interrupts` lists one per call and a headless `RunStop.waiting` is the same tuple.
+
 ## [0.84.0] — 2026-11-21
 
 ### Added

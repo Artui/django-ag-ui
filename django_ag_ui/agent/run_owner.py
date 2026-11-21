@@ -35,7 +35,7 @@ class RunOwner:
         racing_stages: Sequence[AsyncIterator[Any]] = (),
         on_cancel: Callable[[], Awaitable[None]],
         ended: Callable[[], RunOutcome | None],
-        waiting: Callable[[], RunWaiting | None] = lambda: None,
+        waiting: Callable[[], tuple[RunWaiting, ...]] = tuple,
         token: CancellationToken,
         run_store: RunStore | None = None,
         request: HttpRequest | None = None,
@@ -48,7 +48,7 @@ class RunOwner:
         self._on_cancel = on_cancel
         self._ended = ended
         self._waiting = waiting
-        self._parked: RunWaiting | None = None
+        self._parked: tuple[RunWaiting, ...] = ()
         self._token = token
         self._store = run_store
         self._request = request
@@ -84,8 +84,8 @@ class RunOwner:
         return self._task
 
     @property
-    def waiting(self) -> RunWaiting | None:
-        """What the run parked on, once it has finished ``WAITING``; ``None`` otherwise."""
+    def waiting(self) -> tuple[RunWaiting, ...]:
+        """Every call the run parked on, once it has finished ``WAITING``; empty otherwise."""
         return self._parked
 
     async def wait(self) -> RunOutcome:
@@ -211,7 +211,7 @@ class RunOwner:
         if self._store is None:
             return
         assert self._request is not None
-        waiting = self._parked if outcome is RunOutcome.WAITING else None
+        waiting = self._parked if outcome is RunOutcome.WAITING else ()
         finish = self._store.finish(
             self._thread_id, self._run_id, outcome, request=self._request, waiting=waiting
         )

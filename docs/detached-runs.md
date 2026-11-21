@@ -180,7 +180,7 @@ stop = await runner.run_to_first_stop("assistant", "Summarise today's tickets", 
 
 A run on a mount with a run store that ends on deferred calls finishes `waiting`, not
 `completed`, and its thread reads `waiting` until a run takes it up. The thread's
-`RunWaiting` names the first such call, approvals first:
+`waiting` holds a `RunWaiting` for every such call, approvals first, each with:
 
 | Field | Value |
 | --- | --- |
@@ -191,7 +191,7 @@ A run on a mount with a run store that ends on deferred calls finishes `waiting`
 
 A browser run's own client tools count only when the run is detached: a connected client
 answers their calls itself, so a run that ends on them alone finishes `completed`, as
-before. A headless run's `RunStop` carries the same `waiting`.
+before. A headless run's `RunStop` carries the same `waiting` tuple.
 
 An answer to a parked run resumes it through `resume/<run_id>/`, with `resume` naming the
 call's interrupt. The mount saves the parked run's messages when it parks, and the route
@@ -212,7 +212,7 @@ client ignores them; without a run store the rows keep their old shape.
 | `status` | `idle`, `running`, `waiting` or `failed`; a thread no run claimed reads `idle`, and a run whose lease lapsed reads `failed` |
 | `last_read_at` | when the caller last marked the thread read (ISO 8601), or `null` |
 | `reason` | with `failed` only: `error` (the run raised, or an edit or regenerate of a turn compaction dropped was refused before it ran; the next turn runs as usual) or `interrupted` (its lease lapsed); a timeout reads `idle` and keeps its reason server-side |
-| `interrupts` | with `waiting` only: the protocol's interrupt list for the parked call |
+| `interrupts` | with `waiting` only: the protocol's interrupt list, one per call the run parked on |
 | `agent_id` | the mount's `id=`, when it has one |
 
 An interrupt is an AG-UI `Interrupt` sharing its `id` and `toolCallId` with the one the
@@ -232,8 +232,8 @@ protocol uses for the call, so a client answers a parked approval with `@ag-ui/c
 `message` is the `RunWaiting` summary, `reason` is `tool_call` for every kind (each is a
 deferred tool call) and `metadata.kind` keeps `approval`, `question` or `external`, which is
 how a client tells them apart: a resume entry answers an approval only. No
-deadline is stored, so there is no `expiresAt`. The run store records one call per park,
-so the list holds at most one interrupt.
+deadline is stored, so there is no `expiresAt`. A run parked on several calls lists one
+interrupt for each, approvals first.
 
 `AGUIServer(name=, description=)` says who the mount is: when it or `id=` is set, the
 list body carries `"agent": {"id", "name", "description"}` beside `threads`.

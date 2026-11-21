@@ -23,7 +23,7 @@ def thread_status_fields(state: ThreadRunState | None) -> dict[str, Any]:
     if state.status is ThreadRunStatus.FAILED:
         fields["reason"] = None if state.reason is None else str(state.reason)
     if state.status is ThreadRunStatus.WAITING:
-        fields["interrupts"] = [] if state.waiting is None else [_interrupt(state.waiting)]
+        fields["interrupts"] = [_interrupt(waiting) for waiting in state.waiting]
     return fields
 
 

@@ -272,8 +272,7 @@ async def test_a_queued_client_tool_call_parks_as_external() -> None:
     stop = result.service_result
 
     assert stop.outcome is RunOutcome.WAITING
-    assert stop.waiting is not None
-    assert (stop.waiting.kind, stop.waiting.tool_call_id) == ("external", "c1")
+    assert [(w.kind, w.tool_call_id) for w in stop.waiting] == [("external", "c1")]
 
 
 @pytest.mark.django_db(transaction=True)
@@ -705,7 +704,7 @@ async def test_a_refused_resume_keeps_its_park_for_a_later_resume() -> None:
 
     assert refused.status_code == 403
     assert (state.status, state.last_run_id) == (ThreadRunStatus.WAITING, stop.run_id)
-    assert state.waiting is not None
+    assert state.waiting
     assert "deleted widget-1" in streamed
     assert calls.ran == ["widget-1"]
     assert await DefaultRunStore().read("r-refused", request=_post(b"{}")) == []

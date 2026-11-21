@@ -102,7 +102,7 @@ class AgentSession:
         self._toolsets = toolsets
         self._capabilities = capabilities if park is None else [*(capabilities or []), park]
         self._park = park
-        self._waiting: RunWaiting | None = None
+        self._waiting: tuple[RunWaiting, ...] = ()
         self._deps = deps
         self._audit_logger = audit_logger
         self._config = config
@@ -305,7 +305,7 @@ class AgentSession:
         async def _on_complete(result: Any) -> None:
             if self._park is not None:
                 self._waiting = self._park.waiting(result.output)
-                if self._waiting is not None:
+                if self._waiting:
                     self._ended = RunOutcome.WAITING
                     await self._snapshot_park(result.all_messages())
             if save is None:
