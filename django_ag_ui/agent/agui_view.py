@@ -56,6 +56,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
 from django_ag_ui.agent.build_mcp_bridge import build_mcp_bridge
+from django_ag_ui.agent.compacted_away_turn import compacted_away_turn
 from django_ag_ui.agent.lend_answered_by import lend_answered_by
 from django_ag_ui.agent.park_run import ParkRun
 from django_ag_ui.agent.queued_browser_start import QueuedBrowserStart
@@ -230,16 +231,18 @@ class DjangoAGUIView:
             return JsonResponse({"error": str(error), "code": IDENTIFIER_TOO_LONG_CODE}, status=400)
         if isinstance(ready, HttpResponseBase):
             return ready
-        detached = self._detaches(request, ready.run_input)
+        refuses = ready.refusal is not None
+        detached = not refuses and self._detaches(request, ready.run_input)
         if detached and self._queued is not None:
             body = json.loads(request.body)
             stored = StoredBrowserInput(body=body, resume_from=resume_from, resume_parked=parked)
             return await self._enqueue(request, run_input, stored)
         session = self._session(request, ready.run_input, detached=detached, **ready.options)
-        owner = session.own(self._owning_store(request))
-        refused = await self._claim(owner, request, run_input, resume_from if parked else None)
-        if refused is not None:
-            return refused
+        owner = session.own(None if refuses else self._owning_store(request))
+        if not refuses:
+            refused = await self._claim(owner, request, run_input, resume_from if parked else None)
+            if refused is not None:
+                return refused
         response = StreamingHttpResponse(
             session.stream(owner, detached=detached),
             content_type="text/event-stream",
@@ -816,6 +819,12 @@ class DjangoAGUIView:
 class _Ready:
     run_input: Any
     options: dict[str, Any]
+
+    @property
+    def refusal(self) -> str | None:
+        options = self.options
+        history, source = options["message_history"], options["source_messages"]
+        return compacted_away_turn(history, source, self.run_input.messages)
 
 
 def _reused(run_id: str) -> HttpResponseBase:

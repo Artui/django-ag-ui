@@ -211,7 +211,7 @@ client ignores them; without a run store the rows keep their old shape.
 | --- | --- |
 | `status` | `idle`, `running`, `waiting` or `failed`; a thread no run claimed reads `idle`, and a run whose lease lapsed reads `failed` |
 | `last_read_at` | when the caller last marked the thread read (ISO 8601), or `null` |
-| `reason` | with `failed` only: `error` (the run raised, or an edit or regenerate of a turn compaction dropped was refused before it ran; the next turn runs as usual) or `interrupted` (its lease lapsed); a timeout reads `idle` and keeps its reason server-side |
+| `reason` | with `failed` only: `error` (the run raised) or `interrupted` (its lease lapsed); a timeout reads `idle` and keeps its reason server-side |
 | `interrupts` | with `waiting` only: the protocol's interrupt list, one per call the run parked on |
 | `agent_id` | the mount's `id=`, when it has one |
 

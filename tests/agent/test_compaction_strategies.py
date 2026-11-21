@@ -1,14 +1,13 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from django.test import AsyncRequestFactory
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
-from django_spec_agents.persistence.types.run_end_reason import RunEndReason
-from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import (
     CompactionPart,
@@ -30,6 +29,8 @@ from pydantic_ai_harness.compaction import (
 
 from django_ag_ui import COMPACTION_ACTIVITY_TYPE, CompactionObserver
 from django_ag_ui.agent.agui_view import DjangoAGUIView
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from django_ag_ui.constants import DETACH_PROP
 from tests.agent.test_agui_view import _drain, _post, _registry, _ThreadStore
 from tests.agent.test_resumed_history_through_the_view import (
     _activity_snapshots,
@@ -313,9 +314,35 @@ async def test_an_edit_of_a_turn_the_compacted_history_keeps_runs(
     _assert_no_id_twice(row)
 
 
+class _Queue:
+    """A queued-start seam that records what it was asked to queue."""
+
+    def __init__(self) -> None:
+        self.queued: list[str] = []
+
+    async def enqueue(self, request: Any, thread_id: str, run_id: str, stored: Any) -> None:
+        self.queued.append(run_id)
+
+
+class _Runs(DefaultRunStore):
+    """Records the run ids it is asked to finish."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.finished: list[str] = []
+
+    async def finish(self, thread_id: str, run_id: str, *args: Any, **kwargs: Any) -> Any:
+        self.finished.append(run_id)
+        return await super().finish(thread_id, run_id, *args, **kwargs)
+
+
+@pytest.mark.parametrize(("detach", "queued"), [(False, False), (True, False), (True, True)])
 @pytest.mark.django_db(transaction=True)
-async def test_a_refused_edit_reads_failed_error_and_the_next_turn_runs() -> None:
-    store, runs, user = _ThreadStore(), DefaultRunStore(), await _user_named("refused")
+async def test_a_refused_edit_leaves_the_threads_status_and_the_next_turn_runs(
+    detach: bool, queued: bool
+) -> None:
+    queue = _Queue()
+    store, runs, user = _ThreadStore(), _Runs(), await _user_named("refused")
     view = DjangoAGUIView(
         _registry(),
         model=FunctionModel(stream_function=_recorded(_answers, [])),
@@ -324,18 +351,22 @@ async def test_a_refused_edit_reads_failed_error_and_the_next_turn_runs() -> Non
         run_store=runs,
         get_user=lambda _request: user,
         capabilities=[CompactionObserver(_sliding())],
+        config=build_ag_ui_config(run_timeout_seconds=30),
+        queued=cast("Any", queue) if queued else None,
     )
     await _drain(await view(_post(_body(_long_thread(), run_id="r1"))))
     request = AsyncRequestFactory().get("/")
     request.user = user
-    edited = _post(_body([_user("u5", "edited")], run_id="r2"))
-    refused = await _drain(await view(edited, resume_from="r1"))
+    before = (await runs.get_many(["t1"], request=request))["t1"], _row(store)
+    edited = json.loads(_body([_user("u5", "edited")], run_id="r2"))
+    edited["forwardedProps"] = {DETACH_PROP: detach}
+    refused = await _drain(await view(_post(json.dumps(edited).encode()), resume_from="r1"))
     assert [frame["type"] for frame in _frames(refused)][-1] == "RUN_ERROR"
-    state = (await runs.get_many(["t1"], request=request))["t1"]
-    assert (state.status, state.reason) == (ThreadRunStatus.FAILED, RunEndReason.ERROR)
+    assert ((await runs.get_many(["t1"], request=request))["t1"], _row(store)) == before
+    assert (queue.queued, runs.finished) == ([], ["r1"])
 
     body = await _drain(
         await view(_post(_body([_user("u-3", "next")], run_id="r3")), resume_from="r1")
     )
     assert [frame for frame in _frames(body) if frame["type"] == "RUN_ERROR"] == []
-    assert (await runs.get_many(["t1"], request=request))["t1"].status is ThreadRunStatus.IDLE
+    assert (await runs.get_many(["t1"], request=request))["t1"].last_run_id == "r3"

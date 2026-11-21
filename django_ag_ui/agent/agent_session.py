@@ -6,7 +6,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, cast
 
-from ag_ui.core import BaseEvent, Message, RunErrorEvent, RunStartedEvent, UserMessage
+from ag_ui.core import BaseEvent, Message, RunErrorEvent, RunStartedEvent
 from django.http import HttpRequest
 from django_spec_agents import IdentifierTooLongError
 from django_spec_agents.agent.types.agent_deps import AgentDeps
@@ -26,6 +26,7 @@ from pydantic_ai.messages import ModelMessage, ModelResponse
 
 from django_ag_ui.agent.build_client_context_toolset import build_client_context_toolset
 from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
+from django_ag_ui.agent.compacted_away_turn import compacted_away_turn
 from django_ag_ui.agent.continued_history import continued_history
 from django_ag_ui.agent.full_transcript import full_transcript
 from django_ag_ui.agent.guarded_stream import guarded_stream
@@ -111,7 +112,7 @@ class AgentSession:
         self._source_messages = source_messages
         self._deferred_tool_results = deferred_tool_results
         self._prior: list[Message] | None = None
-        self._refusal = self._compacted_away_turn()
+        self._refusal = compacted_away_turn(message_history, source_messages, run_input.messages)
         self._timeout = timeout if timeout is not None else config.run_timeout_seconds
         self._token = CancellationToken()
         self._ended: RunOutcome | None = None
@@ -208,21 +209,6 @@ class AgentSession:
     async def _refused_events(self) -> AsyncIterator[BaseEvent]:
         yield RunStartedEvent(thread_id=self._run_input.thread_id, run_id=self._run_input.run_id)
         yield RunErrorEvent(message=self._refusal or "", code=ERROR_CODE)
-
-    def _compacted_away_turn(self) -> str | None:
-        """Why the new turn is refused: it edits a prompt the row holds and the snapshot lost."""
-        if self._message_history is None or not self._source_messages:
-            return None
-        held = {m.id for m in self._source_messages if isinstance(m, UserMessage)}
-        seen = {message.id for message in OutcomeAGUIAdapter.dump_messages(self._message_history)}
-        _, new_turn = continued_history(self._message_history, self._run_input.messages)
-        for message in new_turn:
-            if message.id in held and message.id not in seen:
-                return (
-                    f"Message {message.id} was compacted out of the history this run resumes,"
-                    " so it can no longer be edited or regenerated."
-                )
-        return None
 
     def _client_context_block(self) -> str | None:
         """This run's fenced client-supplied context, whichever channel takes it."""

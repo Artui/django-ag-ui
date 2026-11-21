@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `RunWaiting`, which 0.24.0's `RunStore.finish(waiting=...)` refuses with a `TypeError`,
   so every run finish failed on a fresh install. The floor is now `django-spec-agents>=0.24.0`.
 
+- **A refused edit leaves the thread's status as it was.** An edit or regenerate of a
+  turn compaction dropped is now refused before the run is claimed, and a detached one is
+  never queued, so the thread keeps the status its last run left instead of reading
+  `failed` / `error` until the next turn. The stream still ends in `RUN_ERROR`.
+
 ### Changed
 
 - **A parked run keeps every call it waits on.** A run that defers several calls records
