@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.85.0] — 2026-11-21
+
 ### Fixed
 
 - **A run finishes against django-spec-agents 0.24.0.** 0.84.0 recorded a park as one
@@ -4785,7 +4787,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.84.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.85.0...HEAD
+[0.85.0]: https://github.com/Artui/django-ag-ui/compare/v0.84.0...v0.85.0
 [0.84.0]: https://github.com/Artui/django-ag-ui/compare/v0.83.0...v0.84.0
 [0.83.0]: https://github.com/Artui/django-ag-ui/compare/v0.82.0...v0.83.0
 [0.82.0]: https://github.com/Artui/django-ag-ui/compare/v0.81.0...v0.82.0
