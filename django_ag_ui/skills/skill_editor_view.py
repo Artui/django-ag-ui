@@ -20,6 +20,7 @@ from django_spec_agents.utils import AuthorizePredicate, GetUser, auth_error_res
 
 _WRITES = frozenset({"POST", "PUT", "PATCH"})
 _FLAGS = (("userInvocable", "user_invocable"), ("modelInvocable", "model_invocable"))
+_WIRE_KEY = {field: key for key, field in _FLAGS}
 
 
 class SkillEditorView:
@@ -43,7 +44,8 @@ class SkillEditorView:
     ``enabled``; the two flags default to ``true``. An ``<id>`` the caller cannot
     see or write is a ``404``, whichever it is. A broken rule is a ``400``, the
     skill cap a ``409`` and a refused write a ``403``, each ``{"error": "..."}``
-    with no body in it.
+    with no body in it. A ``400`` adds ``"field"``, the write's key that broke the
+    rule, when one did.
 
     The authentication seam and closed default are
     [`ThreadsView`][django_ag_ui.ThreadsView]'s. Like the threads endpoints it is
@@ -85,7 +87,7 @@ class SkillEditorView:
         except SkillLimitError as error:
             return JsonResponse({"error": str(error)}, status=409)
         except InvalidSkillError as error:
-            return JsonResponse({"error": str(error)}, status=400)
+            return JsonResponse(_invalid(error), status=400)
         except SkillWriteRefusedError as error:
             return JsonResponse({"error": str(error)}, status=403)
 
@@ -130,6 +132,12 @@ def _editor_entry(skill: Any) -> dict[str, Any]:
     }
 
 
+def _invalid(error: InvalidSkillError) -> dict[str, str]:
+    if error.field is None:
+        return {"error": str(error)}
+    return {"error": str(error), "field": _WIRE_KEY.get(error.field, error.field)}
+
+
 def _body(request: HttpRequest) -> dict[str, Any]:
     try:
         body = json.loads(request.body)
@@ -145,12 +153,12 @@ def _draft(request: HttpRequest) -> SkillDraft:
     fields: dict[str, Any] = {}
     for key in ("name", "description", "body"):
         if not isinstance(body.get(key), str):
-            raise InvalidSkillError(f"A skill needs {key!r} as a string.")
+            raise InvalidSkillError(f"A skill needs {key!r} as a string.", field=key)
         fields[key] = body[key]
     for key, field in _FLAGS:
         value = body.get(key, True)
         if not isinstance(value, bool):
-            raise InvalidSkillError(f"{key!r} must be true or false.")
+            raise InvalidSkillError(f"{key!r} must be true or false.", field=key)
         fields[field] = value
     return SkillDraft(**fields)
 
@@ -158,7 +166,9 @@ def _draft(request: HttpRequest) -> SkillDraft:
 def _enabled(request: HttpRequest) -> bool:
     value = _body(request).get("enabled")
     if not isinstance(value, bool):
-        raise InvalidSkillError("PATCH takes {'enabled': true} or {'enabled': false}.")
+        raise InvalidSkillError(
+            "PATCH takes {'enabled': true} or {'enabled': false}.", field="enabled"
+        )
     return value
 
 

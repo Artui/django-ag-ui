@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The skill editor's `400` names its field.** A refused write answers
+  `{"error": ..., "field": "<key>"}` when one key of the write broke the rule (`name`,
+  `description`, `body`, `userInvocable`, `modelInvocable` or `enabled`), from
+  django-spec-agents' `InvalidSkillError.field` and the editor's own type checks, so a
+  client can put the message under that input. A refusal no one key caused (a body that
+  is not a JSON object) keeps `{"error": ...}` with no `field` key.
+
 ## [0.83.0] — 2026-11-19
 
 ### Changed

@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from django.test import RequestFactory
+from django_spec_agents.skills import InvalidSkillError
 
 from django_ag_ui.skills.skill_editor_view import SkillEditorView
 from tests.skillapp.models import ReservingTenantSkillPolicy, Tenant, TenantSkill, TenantSkillPolicy
@@ -165,12 +166,49 @@ def test_a_broken_create_is_a_400(body: bytes, error: str) -> None:
     assert error in json.loads(response.content)["error"]
 
 
+@pytest.mark.parametrize(
+    ("body", "field"),
+    [
+        ({**_DRAFT, "name": "Not Kebab"}, "name"),
+        ({**_DRAFT, "description": ""}, "description"),
+        ({**_DRAFT, "body": ""}, "body"),
+        ({**_DRAFT, "body": 3}, "body"),
+        ({**_DRAFT, "modelInvocable": "no"}, "modelInvocable"),
+    ],
+)
+def test_a_400_names_the_field_that_broke_the_rule(body: dict[str, Any], field: str) -> None:
+    ann = member("ann", Tenant.objects.create(name="acme"))
+    response = _call(ann, "post", body)
+    assert response.status_code == 400
+    assert json.loads(response.content)["field"] == field
+
+
+@pytest.mark.parametrize("body", [b"not json", b"[1]"])
+def test_a_400_with_no_field_has_no_field_key(body: bytes) -> None:
+    ann = member("ann", Tenant.objects.create(name="acme"))
+    request = RequestFactory().post("/s/", data=body, content_type="application/json")
+    request.user = ann
+    response = _editor()(request)
+    assert response.status_code == 400
+    assert set(json.loads(response.content)) == {"error"}
+
+
+def test_a_400_maps_a_draft_flag_field_to_its_wire_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    def refuse(*args: Any) -> None:
+        raise InvalidSkillError("no", field="user_invocable")
+
+    monkeypatch.setattr("django_ag_ui.skills.skill_editor_view.create_skill", refuse)
+    response = _call(member("ann", Tenant.objects.create(name="acme")), "post", _DRAFT)
+    assert json.loads(response.content) == {"error": "no", "field": "userInvocable"}
+
+
 def test_patch_needs_a_boolean_enabled() -> None:
     acme = Tenant.objects.create(name="acme")
     ann = member("ann", acme)
     mine = skill(acme, "triage", ann)
     response = _call(ann, "patch", {"enabled": "off"}, str(mine.pk))
     assert response.status_code == 400
+    assert json.loads(response.content)["field"] == "enabled"
 
 
 @pytest.mark.parametrize(("method", "skill_id"), [("delete", None), ("delete", "1"), ("get", "1")])
