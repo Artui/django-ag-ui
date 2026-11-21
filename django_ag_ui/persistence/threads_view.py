@@ -8,6 +8,7 @@ from typing import Any, cast
 
 from ag_ui.core import ActivityMessage, ActivitySnapshotEvent, Message
 from asgiref.sync import markcoroutinefunction
+from django.core.handlers.asgi import ASGIRequest
 from django.http import (
     HttpRequest,
     HttpResponse,
@@ -16,6 +17,8 @@ from django.http import (
     StreamingHttpResponse,
 )
 from django.http.response import HttpResponseBase
+from django.utils.cache import patch_vary_headers
+from django.utils.http import parse_etags
 from django_spec_agents import IdentifierTooLongError
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
@@ -39,6 +42,7 @@ from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 # save on every backend rather than a ``DataError`` on a strict database.
 _MAX_TITLE_LEN = 255
 _STREAM_POLL_SECONDS = 2.0
+_STREAM_MAX_SECONDS = 300.0
 
 
 class ThreadsView:
@@ -73,7 +77,8 @@ class ThreadsView:
     an ``agent`` object to the list body. The list answers ``If-None-Match`` with
     ``304``, and ``Accept: text/event-stream`` streams the same body each time it
     changes, its ETag as the frame id, ``Last-Event-ID`` skipping an unchanged
-    first frame.
+    first frame. The stream ends after five minutes so the client reconnects and
+    is authenticated again, and under WSGI the same request answers as a poll.
     """
 
     def __init__(
@@ -127,16 +132,20 @@ class ThreadsView:
         if request.method != "GET":
             return HttpResponseNotAllowed(["GET"])
         limit = _effective_limit(request, self._config.thread_list_limit)
-        if "text/event-stream" in request.headers.get("Accept", ""):
+        # WSGI answers a poll: its worker could never leave an endless stream.
+        if isinstance(request, ASGIRequest) and "text/event-stream" in request.headers.get(
+            "Accept", ""
+        ):
             return self._stream(request, limit)
         body = await self._list_body(request, limit)
         etag = _etag(body)
-        if request.headers.get("If-None-Match") == etag:
+        if _matches(request.headers.get("If-None-Match"), etag):
             response: HttpResponseBase = HttpResponse(status=304)
         else:
             response = JsonResponse(body)
         response["ETag"] = etag
         response["Cache-Control"] = "private, no-cache"
+        patch_vary_headers(response, ["Accept"])
         return response
 
     async def _list_body(self, request: HttpRequest, limit: int) -> dict[str, Any]:
@@ -161,12 +170,14 @@ class ThreadsView:
         response = StreamingHttpResponse(frames, content_type="text/event-stream")
         response["Cache-Control"] = "no-cache"
         response["X-Accel-Buffering"] = "no"
+        patch_vary_headers(response, ["Accept"])
         return response
 
     async def _frames(
         self, request: HttpRequest, limit: int, seen: str | None
     ) -> AsyncIterator[str]:
-        while True:
+        deadline = asyncio.get_running_loop().time() + _STREAM_MAX_SECONDS
+        while asyncio.get_running_loop().time() < deadline:
             body = await self._list_body(request, limit)
             etag = _etag(body)
             if etag != seen:
@@ -266,6 +277,13 @@ def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
         "updated_at": meta.updated_at.isoformat() if meta.updated_at is not None else None,
         "preview": meta.preview,
     }
+
+
+def _matches(header: str | None, etag: str) -> bool:
+    """Whether an ``If-None-Match`` value (a list, ``*`` or weakened by gzip) names ``etag``."""
+    if header is None:
+        return False
+    return any(tag == "*" or tag.removeprefix("W/") == etag for tag in parse_etags(header))
 
 
 def _etag(body: dict[str, Any]) -> str:

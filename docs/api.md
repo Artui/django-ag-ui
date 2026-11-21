@@ -123,6 +123,8 @@ The seam both spending routes take — the agent endpoint via `throttle=` and
 
 ::: django_ag_ui.ThreadsView
 
+::: django_ag_ui.MountIdentity
+
 ::: django_ag_ui.ThreadActivitySource
 
 ::: django_ag_ui.ThreadActivity

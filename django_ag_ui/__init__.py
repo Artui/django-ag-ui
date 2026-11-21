@@ -82,6 +82,7 @@ from django_ag_ui.persistence.null_transcription_backend import NullTranscriptio
 from django_ag_ui.persistence.scoped_step_store import ScopedStepStore
 from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.persistence.transcribe_view import TranscribeView
+from django_ag_ui.persistence.types.mount_identity import MountIdentity
 from django_ag_ui.persistence.types.thread_activity import ThreadActivity
 from django_ag_ui.persistence.types.thread_activity_source import ThreadActivitySource
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
@@ -147,6 +148,7 @@ __all__ = [
     "ModelAttachmentStore",
     "ModelConversationStore",
     "NullAttachmentStore",
+    "MountIdentity",
     "NullAuditLogger",
     "NullConversationStore",
     "NullTranscriptionBackend",

@@ -247,7 +247,14 @@ Both transports carry the same body, so a client keeps one parser:
 - **Stream.** `Accept: text/event-stream` on the same URL streams a frame each time the
   body changes, polling the stores every two seconds, with `id:` the body's ETag and
   `data:` the body itself. A reconnect sending `Last-Event-ID` skips the first frame while
-  the list is unchanged. The stream has no end; the client closes it.
+  the list is unchanged. The stream lives five minutes, then ends; `EventSource` reconnects
+  on its own with `Last-Event-ID`, and the reconnect checks the caller's authentication
+  again, so a signed-out session is refused at most five minutes late. The stream needs
+  ASGI: under WSGI the same request is answered as a poll, with the JSON body and the
+  `ETag`. Both answers carry `Vary: Accept`, since one URL serves either by that header.
+
+An `If-None-Match` naming the list's current `ETag` answers `304` whether it is the exact
+tag, a weak `W/"..."` copy (what `GZipMiddleware` turns it into), one of a list, or `*`.
 
 ### Mark a thread read
 

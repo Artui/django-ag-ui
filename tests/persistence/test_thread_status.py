@@ -28,14 +28,14 @@ _LEASE = timedelta(minutes=5)
 _SSE = {"Accept": "text/event-stream"}
 
 
-def _server(run_store: Any = None, **kwargs: Any) -> AGUIServer:
+def _server(run_store: Any = None, heartbeat: float = 0, **kwargs: Any) -> AGUIServer:
     return AGUIServer(
         ToolRegistry(),
         model=TestModel(),
         csrf_exempt=True,
         conversation_store=DefaultConversationStore(),
         run_store=run_store,
-        config=build_ag_ui_config(heartbeat_seconds=0),
+        config=build_ag_ui_config(heartbeat_seconds=heartbeat),
         **kwargs,
     )
 
@@ -300,10 +300,11 @@ async def test_the_stream_keeps_its_heartbeat() -> None:
         config=build_ag_ui_config(heartbeat_seconds=0.01),
     )
 
-    response = await _list(server, **_SSE)
-    stream = response.streaming_content
-    chunks = [await anext(stream), await anext(stream)]
-    await stream.aclose()
+    stream = (await _list(server, **_SSE)).streaming_content
+    try:
+        chunks = [await asyncio.wait_for(anext(stream), timeout=2) for _ in range(2)]
+    finally:
+        await stream.aclose()
 
     assert chunks[0].startswith(b"id: ")
     assert chunks[1].startswith(b":")
