@@ -274,11 +274,18 @@ async def test_an_anonymous_run_with_an_over_long_id_never_asks_the_run_store() 
     assert (await view(request)).status_code == 200
 
 
-async def _disconnects_still_cancel(view: DjangoAGUIView, request: Any, gate: _Gate) -> None:
+async def _disconnects_still_cancel(
+    view: DjangoAGUIView, request: Any, gate: _Gate, audit: _Audit
+) -> None:
     stream = await _first_chunk(await view(request))
 
     await stream.aclose()
     await _closed(gate)
+    for _ in range(200):
+        if _cancels(audit):
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError("the cancel was never audited")
 
 
 @pytest.mark.django_db(transaction=True)
@@ -297,7 +304,7 @@ async def test_an_anonymous_run_cannot_detach_and_cancels_on_disconnect() -> Non
         "/agent/", data=_body("r1", detach=True), content_type="application/json"
     )
 
-    await _disconnects_still_cancel(view, request, gate)
+    await _disconnects_still_cancel(view, request, gate, audit)
 
     assert _cancels(audit) == ["cancelled: client disconnected mid-run"]
 
@@ -307,7 +314,7 @@ async def test_a_run_with_no_run_store_cannot_detach_and_cancels_on_disconnect()
     gate, audit = _Gate(), _Audit()
     view = _view(gate, None, audit)
 
-    await _disconnects_still_cancel(view, _post(_body("r1", detach=True)), gate)
+    await _disconnects_still_cancel(view, _post(_body("r1", detach=True)), gate, audit)
 
     assert _cancels(audit) == ["cancelled: client disconnected mid-run"]
 
@@ -319,7 +326,7 @@ async def test_only_a_json_true_detaches_so_a_truthy_value_still_cancels(asked: 
     view = _view(gate, run_store, audit)
     request = _post(_body("r1", detach=asked))
 
-    await _disconnects_still_cancel(view, request, gate)
+    await _disconnects_still_cancel(view, request, gate, audit)
     await _settled(run_store, request)
 
     assert _cancels(audit) == ["cancelled: client disconnected mid-run"]
@@ -334,7 +341,7 @@ async def test_a_mount_without_a_run_timeout_cannot_detach_and_cancels_on_discon
     view = _view(gate, run_store, audit, timeout)
     request = _post(_body("r1", detach=True))
 
-    await _disconnects_still_cancel(view, request, gate)
+    await _disconnects_still_cancel(view, request, gate, audit)
     await _settled(run_store, request)
 
     assert _cancels(audit) == ["cancelled: client disconnected mid-run"]
