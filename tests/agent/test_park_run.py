@@ -917,3 +917,15 @@ async def test_a_turn_carrying_an_old_tool_message_on_a_parked_thread_is_not_an_
     )
 
     assert isinstance(response, StreamingHttpResponse)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_headless_prompt_on_a_parked_thread_without_answers_takes_a_plain_claim() -> None:
+    server, stop, request = await _asked(_guarded(_AsksTwice("ask")))
+
+    again = await AGUIHeadlessRunner(server).run_to_first_stop(
+        "helper", "something else", authenticated_user(), timeout=5, thread_id=stop.thread_id
+    )
+
+    state = await DefaultRunStore().get(stop.thread_id, request=request)
+    assert state.last_run_id == again.run_id != stop.run_id
