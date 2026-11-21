@@ -4,14 +4,27 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
+from django.test import AsyncRequestFactory
+from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
+from django_spec_agents.persistence.types.run_end_reason import RunEndReason
+from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from pydantic_ai.capabilities import AbstractCapability
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolReturnPart
-from pydantic_ai.models.function import DeltaToolCall, FunctionModel
+from pydantic_ai.messages import (
+    CompactionPart,
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
+from pydantic_ai.models.function import DeltaThinkingPart, DeltaToolCall, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai_harness.compaction import (
     CompactOnRequest,
     RelevanceCompaction,
+    SlidingWindowCompaction,
     SummarizingCompaction,
 )
 
@@ -22,6 +35,7 @@ from tests.agent.test_resumed_history_through_the_view import (
     _activity_snapshots,
     _assert_no_id_twice,
     _body,
+    _frames,
     _row,
     _user,
     _user_named,
@@ -57,11 +71,16 @@ def _asks_once(messages: list[ModelMessage], info: Any) -> Any:
     )
     if asked:
         return _stream("done")
-    return _stream({0: DeltaToolCall(name="compact_context", json_args="{}", tool_call_id="c1")})
+    call_id = f"c{len(messages)}"
+    return _stream({0: DeltaToolCall(name="compact_context", json_args="{}", tool_call_id=call_id)})
 
 
 async def _stream(chunk: Any) -> Any:
     yield chunk
+
+
+def _sliding() -> AbstractCapability[Any]:
+    return SlidingWindowCompaction(max_messages=10, keep_messages=4)
 
 
 def _relevance() -> AbstractCapability[Any]:
@@ -82,19 +101,30 @@ def _on_request() -> AbstractCapability[Any]:
 
 _STRATEGIES = pytest.mark.parametrize(
     ("strategy", "behaviour"),
-    [(_relevance, _answers), (_on_request, _asks_once)],
-    ids=["relevance", "on_request"],
+    [(_sliding, _answers), (_relevance, _answers), (_on_request, _asks_once)],
+    ids=["sliding", "relevance", "on_request"],
 )
 
 
+def _recorded(behaviour: Any, seen: list[list[ModelMessage]]) -> Any:
+    def stream(messages: list[ModelMessage], info: Any) -> Any:
+        seen.append(list(messages))
+        return behaviour(messages, info)
+
+    return stream
+
+
 async def _view(
-    name: str, strategy: Callable[[], AbstractCapability[Any]], behaviour: Any
+    name: str,
+    strategy: Callable[[], AbstractCapability[Any]],
+    behaviour: Any,
+    seen: list[list[ModelMessage]] | None = None,
 ) -> tuple[DjangoAGUIView, _ThreadStore]:
     store = _ThreadStore()
     user = await _user_named(name)
     view = DjangoAGUIView(
         _registry(),
-        model=FunctionModel(stream_function=behaviour),
+        model=FunctionModel(stream_function=_recorded(behaviour, [] if seen is None else seen)),
         step_store=DefaultStepStore,
         conversation_store=store,
         get_user=lambda _request: user,
@@ -116,20 +146,196 @@ async def test_each_strategy_compacts_a_long_thread_on_the_wire(
     assert snapshot["content"]["before"] > snapshot["content"]["after"]
 
 
+def _ids(row: list[dict[str, Any]]) -> list[str]:
+    return [message["id"] for message in row]
+
+
+def _prompts(messages: list[ModelMessage]) -> list[Any]:
+    return [
+        part.content
+        for message in messages
+        if isinstance(message, ModelRequest)
+        for part in message.parts
+        if isinstance(part, UserPromptPart)
+    ]
+
+
 @_STRATEGIES
 @pytest.mark.django_db(transaction=True)
-async def test_each_strategy_reloads_its_stored_transcript_under_stable_ids(
+async def test_each_strategy_reloads_every_earlier_turn_under_stable_ids(
     strategy: Callable[[], AbstractCapability[Any]], behaviour: Any
 ) -> None:
     view, store = await _view("reloader", strategy, behaviour)
     await _drain(await view(_post(_body(_long_thread(), run_id="r1"))))
+    first = _row(store)
     await _drain(await view(_post(_body([_user("u-2", "more")], run_id="r2")), resume_from="r1"))
-    compacted = _row(store)
+    second = _row(store)
     await _drain(await view(_post(_body([_user("u-3", "again")], run_id="r3")), resume_from="r2"))
-    reloaded = _row(store)
+    third = _row(store)
 
-    assert [m["id"] for m in reloaded][: len(compacted)] == [m["id"] for m in compacted]
-    assert compacted[0]["id"] == "u0"
-    _assert_no_id_twice(reloaded)
-    (summary,) = [m for m in reloaded if m["role"] == "activity"]
-    assert summary["content"]["metadata"][_SUMMARY_MARKER] is True
+    assert _ids(first)[:25] == [m["id"] for m in _long_thread()]
+    assert _ids(second)[: len(first)] == _ids(first)
+    assert second[len(first)]["id"] == "u-2"
+    assert _ids(third)[: len(second)] == _ids(second)
+    assert third[len(second)]["id"] == "u-3"
+    assert third[-1] == {**third[-1], "role": "assistant", "content": "done"}
+    _assert_no_id_twice(third)
+    assert not [m for m in third if m["role"] == "activity" and _SUMMARY_MARKER in str(m)]
+
+
+_SUMMARIZES = pytest.mark.parametrize(
+    ("strategy", "behaviour", "summarizes"),
+    [(_sliding, _answers, False), (_relevance, _answers, True), (_on_request, _asks_once, True)],
+    ids=["sliding", "relevance", "on_request"],
+)
+
+
+@_SUMMARIZES
+@pytest.mark.django_db(transaction=True)
+async def test_each_strategy_sends_the_model_only_the_compacted_history_on_a_resume(
+    strategy: Callable[[], AbstractCapability[Any]], behaviour: Any, summarizes: bool
+) -> None:
+    seen: list[list[ModelMessage]] = []
+    view, store = await _view("viewer", strategy, behaviour, seen)
+    await _drain(await view(_post(_body(_long_thread(), run_id="r1"))))
+    seen.clear()
+    await _drain(await view(_post(_body([_user("u-2", "more")], run_id="r2")), resume_from="r1"))
+
+    request = seen[0]
+    assert _prompts(request)[-1] == "more"
+    assert not any(str(prompt).startswith("question 5 ") for prompt in _prompts(request))
+    assert len(request) < len(_row(store))
+    compacted = any(
+        isinstance(part, CompactionPart) for message in request for part in message.parts
+    )
+    assert compacted is summarizes
+
+
+def _loops_six_times() -> Any:
+    calls = [0]
+
+    def behaviour(messages: list[ModelMessage], info: Any) -> Any:
+        calls[0] += 1
+        if calls[0] > 6:
+            return _stream("done")
+        call = DeltaToolCall(name="double", json_args='{"n": 2}', tool_call_id=f"d{calls[0]}")
+        return _stream({0: call})
+
+    return behaviour
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_that_compacts_its_own_steps_stores_every_step_it_streamed() -> None:
+    compacting = lambda: SlidingWindowCompaction(max_messages=6, keep_messages=2)  # noqa: E731
+    view, store = await _view("looper", compacting, _loops_six_times())
+    body = await _drain(await view(_post(_body([_user("u1", "loop")], run_id="r1"))))
+
+    streamed = [f["messageId"] for f in _frames(body) if f["type"] == "TOOL_CALL_RESULT"]
+    row = _row(store)
+    called = [call["id"] for m in row for call in m.get("toolCalls") or []]
+    assert called == [f"d{n}" for n in range(1, 7)]
+    assert [m["id"] for m in row if m["role"] == "tool"] == streamed
+    assert row[-1]["content"] == "done"
+    _assert_no_id_twice(row)
+
+
+def _thinks_six_times() -> Any:
+    calls = [0]
+
+    def behaviour(messages: list[ModelMessage], info: Any) -> Any:
+        calls[0] += 1
+        if calls[0] > 6:
+            return _stream("done")
+        call = DeltaToolCall(name="double", json_args='{"n": 2}', tool_call_id=f"d{calls[0]}")
+        return _stream({0: DeltaThinkingPart(content=f"thought {calls[0]}"), 1: call})
+
+    return behaviour
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_that_compacts_its_own_steps_keeps_its_reasoning_in_streamed_order() -> None:
+    compacting = lambda: SlidingWindowCompaction(max_messages=6, keep_messages=2)  # noqa: E731
+    view, store = await _view("thinker", compacting, _thinks_six_times())
+    body = await _drain(await view(_post(_body([_user("u1", "loop")], run_id="r1"))))
+
+    frames = _frames(body)
+    thoughts = [f["messageId"] for f in frames if f["type"] == "REASONING_START"]
+    results = [f["messageId"] for f in frames if f["type"] == "TOOL_CALL_RESULT"]
+    run = _row(store)[1:-1]
+    assert [m["role"] for m in run] == ["reasoning", "assistant", "tool"] * 6
+    assert [(m["id"], m["content"]) for m in run if m["role"] == "reasoning"] == [
+        (thoughts[n], f"thought {n + 1}") for n in range(6)
+    ]
+    assert [call["id"] for m in run for call in m.get("toolCalls") or []] == [
+        f"d{n}" for n in range(1, 7)
+    ]
+    assert [m["id"] for m in run if m["role"] == "tool"] == results
+
+
+@_STRATEGIES
+@pytest.mark.django_db(transaction=True)
+async def test_an_edit_of_a_compacted_away_turn_is_refused_before_the_run(
+    strategy: Callable[[], AbstractCapability[Any]], behaviour: Any
+) -> None:
+    seen: list[list[ModelMessage]] = []
+    view, store = await _view("editor", strategy, behaviour, seen)
+    await _drain(await view(_post(_body(_long_thread(), run_id="r1"))))
+    before = _row(store)
+    seen.clear()
+    edited = [_user("u5", "question 5, edited")]
+    forked = _post(_body(edited, run_id="r2", thread_id="t2"))
+    body = await _drain(await view(forked, resume_from="r1"))
+
+    (error,) = [frame for frame in _frames(body) if frame["type"] == "RUN_ERROR"]
+    assert "compacted" in error["message"]
+    assert seen == []
+    assert _row(store) == before
+    assert "t2" not in store.rows
+
+
+@_STRATEGIES
+@pytest.mark.django_db(transaction=True)
+async def test_an_edit_of_a_turn_the_compacted_history_keeps_runs(
+    strategy: Callable[[], AbstractCapability[Any]], behaviour: Any
+) -> None:
+    view, store = await _view("keeper", strategy, behaviour)
+    await _drain(await view(_post(_body(_long_thread(), run_id="r1"))))
+    edited = [_user("last", "and now, edited?")]
+    forked = _post(_body(edited, run_id="r2", thread_id="t2"))
+    body = await _drain(await view(forked, resume_from="r1"))
+
+    assert [frame for frame in _frames(body) if frame["type"] == "RUN_ERROR"] == []
+    row = _row(store, "t2")
+    earlier = [m["id"] for m in _long_thread()][:-1]
+    assert _ids(row)[: len(earlier)] == earlier
+    assert row[len(earlier)] == {**row[len(earlier)], "id": "last", "content": "and now, edited?"}
+    assert row[-1]["content"] == "done"
+    _assert_no_id_twice(row)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_refused_edit_reads_failed_error_and_the_next_turn_runs() -> None:
+    store, runs, user = _ThreadStore(), DefaultRunStore(), await _user_named("refused")
+    view = DjangoAGUIView(
+        _registry(),
+        model=FunctionModel(stream_function=_recorded(_answers, [])),
+        step_store=DefaultStepStore,
+        conversation_store=store,
+        run_store=runs,
+        get_user=lambda _request: user,
+        capabilities=[CompactionObserver(_sliding())],
+    )
+    await _drain(await view(_post(_body(_long_thread(), run_id="r1"))))
+    request = AsyncRequestFactory().get("/")
+    request.user = user
+    edited = _post(_body([_user("u5", "edited")], run_id="r2"))
+    refused = await _drain(await view(edited, resume_from="r1"))
+    assert [frame["type"] for frame in _frames(refused)][-1] == "RUN_ERROR"
+    state = (await runs.get_many(["t1"], request=request))["t1"]
+    assert (state.status, state.reason) == (ThreadRunStatus.FAILED, RunEndReason.ERROR)
+
+    body = await _drain(
+        await view(_post(_body([_user("u-3", "next")], run_id="r3")), resume_from="r1")
+    )
+    assert [frame for frame in _frames(body) if frame["type"] == "RUN_ERROR"] == []
+    assert (await runs.get_many(["t1"], request=request))["t1"].status is ThreadRunStatus.IDLE

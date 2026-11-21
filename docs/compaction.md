@@ -84,11 +84,26 @@ server = AGUIServer(
 )
 ```
 
+Compaction changes what the **model** sees; the stored conversation keeps every turn and
+step the run streamed. With step persistence, the two live in two stores:
+
+- The step store's snapshot holds the compacted history. A resumed or forked run seeds
+  the model from it, so the model's next request carries only what the strategy kept.
+- The stored conversation row holds the full transcript. A resume keeps every earlier
+  turn under the id it was first stored under, then adds the new turn, so a reloaded
+  thread shows the whole conversation. A run that compacts its own earlier steps still
+  stores every reasoning, tool call and result it streamed, in the order it streamed them,
+  under the ids it streamed them with.
+
 A strategy that summarizes (`SummarizingCompaction`, or `RelevanceCompaction` with a
-`summarizer`) stores its summary in the history as a `CompactionPart`. On a resumed
-thread, the stored conversation shows it as a `pydantic_ai_compaction` activity, and the
-messages around it keep the ids they were first stored under. That holds even though
-pydantic-ai merges the summary with the prompt kept before it.
+`summarizer`) writes its summary into the history as a `CompactionPart`. The summary
+lives only in the step store. It is never streamed and never stored in the row: the row
+is the transcript, and the summary is the model's view of it.
+
+An edit or regenerate of a turn the compaction dropped is refused. When the new turn
+resubmits a prompt the row holds but the snapshot no longer does, the run ends in
+`RUN_ERROR` before the model is called, and the stored conversation is left as it was.
+Edit a turn the snapshot still holds, or resume from an earlier run.
 
 That is the whole adoption. The rest of this page is about the one thing that
 composition alone cannot give you: **telling the user it happened.**

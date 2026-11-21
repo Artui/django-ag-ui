@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.84.0] — 2026-11-21
+
+### Added
+
+- **The skill editor's `400` names its field.** A refused write answers
+  `{"error": ..., "field": "<key>"}` when one key of the write broke the rule (`name`,
+  `description`, `body`, `userInvocable`, `modelInvocable` or `enabled`), from
+  django-spec-agents' `InvalidSkillError.field` and the editor's own type checks, so a
+  client can put the message under that input. A refusal no one key caused (a body that
+  is not a JSON object) keeps `{"error": ...}` with no `field` key.
+
+- **Thread rows carry their run status.** With `run_store=`, each `threads/` row gains
+  `status`, `last_read_at`, `reason` when `failed`, the protocol's `interrupts` list when
+  `waiting` (ids `int-<tool_call_id>`, `destructive` and `kind` under `metadata`) and
+  `agent_id`, all read from the run store. The list answers `If-None-Match` with `304`
+  (weak, listed and `*` tags match, so it survives `GZipMiddleware`), and under ASGI
+  `Accept: text/event-stream` streams the same body on each change for up to five
+  minutes, then ends so `EventSource` reconnects and re-authenticates; under WSGI that
+  request is answered as a poll. Both answers carry `Vary: Accept`.
+  `POST threads/<id>/read/` marks a thread read, and `AGUIServer(name=, description=)`
+  adds an `agent` object to the list body, described by the newly exported
+  `MountIdentity`.
+
+### Fixed
+
+- **A compacted thread reloads with every earlier turn.** A resumed or forked run
+  rebuilt its stored conversation from the source run's snapshot, which a compaction
+  strategy had shortened, so a reloaded thread lost the turns the model no longer saw
+  (a 26-message thread reloaded as 7). The row now keeps the full transcript under its
+  stored ids, while the model still gets only the compacted history. A run that
+  compacts its own earlier steps stores every reasoning, tool call and result it streamed,
+  in streamed order and under the ids it streamed them with. The harness summary stays
+  out of the row. An edit or regenerate of a turn the compaction
+  dropped now ends in `RUN_ERROR` before the run starts, with the row unchanged.
+
 ## [0.83.0] — 2026-11-19
 
 ### Changed
@@ -4711,7 +4746,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.83.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.84.0...HEAD
+[0.84.0]: https://github.com/Artui/django-ag-ui/compare/v0.83.0...v0.84.0
 [0.83.0]: https://github.com/Artui/django-ag-ui/compare/v0.82.0...v0.83.0
 [0.82.0]: https://github.com/Artui/django-ag-ui/compare/v0.81.0...v0.82.0
 [0.81.0]: https://github.com/Artui/django-ag-ui/compare/v0.80.0...v0.81.0

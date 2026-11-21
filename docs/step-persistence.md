@@ -202,7 +202,9 @@ call answered twice. Tool results that answer no
 pending call, and a client's compaction parts, never reach the run but are
 stored as posted. The earlier messages keep the ids the source thread's stored
 conversation holds for them, a fork included; see
-[Conversation persistence](concepts.md#conversation-persistence).
+[Conversation persistence](concepts.md#conversation-persistence). The snapshot is the
+model's view and the row is the user's: when a compaction has shortened the snapshot,
+the row still keeps every earlier turn (see [Compaction](compaction.md)).
 
 !!! warning
     Send a **fresh `run_id`** in the resumed request. Send only the new turn, or

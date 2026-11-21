@@ -604,3 +604,43 @@ def test_a_failed_or_cancelled_run_stores_no_activities() -> None:
 
     assert [type(message) for message in stored] == [AssistantMessage]
     assert not any(isinstance(message, ActivityMessage) for message in stored)
+
+
+def _streamed_thought(transcript: RunTranscript, message_id: str, text: str) -> None:
+    transcript.add(ReasoningStartEvent(message_id=message_id))
+    transcript.add(ReasoningMessageContentEvent(message_id=message_id, delta=text))
+
+
+def _streamed_step(transcript: RunTranscript, n: int, thought: str) -> None:
+    _streamed_thought(transcript, f"r{n}", thought)
+    _streamed_call(transcript, f"c{n}", f"a{n}")
+    transcript.add(ToolCallResultEvent(message_id=f"t{n}", tool_call_id=f"c{n}", content="ok"))
+
+
+def _tool(message_id: str, call_id: str) -> ToolMessage:
+    return ToolMessage(id=message_id, role="tool", tool_call_id=call_id, content="ok")
+
+
+def test_a_compaction_that_cut_steps_leaves_their_reasoning_in_streamed_order() -> None:
+    transcript = RunTranscript()
+    _streamed_step(transcript, 1, "one")
+    _streamed_thought(transcript, "empty", "")
+    _streamed_step(transcript, 2, "two\nlines")
+    dumped = [
+        ReasoningMessage(id="d2", role="reasoning", content="twolines"),
+        _calls_message("da2", "c2"),
+        _tool("dt2", "c2"),
+    ]
+
+    restamped = transcript.with_streamed_steps(dumped)
+
+    assert _ids(restamped) == ["r1", "a1", "t1", "r2", "a2", "t2"]
+    assert restamped[0].content == "one"
+
+
+def test_reasoning_a_dump_lacks_is_not_added_when_no_step_was_cut() -> None:
+    transcript = RunTranscript()
+    _streamed_step(transcript, 1, "one")
+    dumped = [_calls_message("da1", "c1"), _tool("dt1", "c1")]
+
+    assert _ids(transcript.with_streamed_steps(dumped)) == ["a1", "t1"]

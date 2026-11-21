@@ -132,14 +132,16 @@ and `enable_skill`, so the rules are the authoring tools' own:
 
 | Status | When |
 | --- | --- |
-| `400` `{"error": "..."}` | the body is not a JSON object, a field has the wrong type, or a runtime rule breaks: the name is not kebab-case or is reserved, a description or body is empty or too long |
+| `400` `{"error": "..."}`, `"field"` when one key broke it | the body is not a JSON object, a field has the wrong type, or a runtime rule breaks: the name is not kebab-case or is reserved, a description or body is empty or too long |
 | `403` `{"error": "..."}` | the policy's `can_write` refuses the write |
 | `404` `{"error": "not found"}` | the `<id>` is one the caller cannot see, or sees and may not write |
 | `409` `{"error": "..."}` | the caller already sees the most enabled skills the runtime allows |
 | `415` `{"error": "..."}` | a write whose content type is not `application/json` |
 
-No error carries a skill's body. The `error` text names the broken rule but not the
-field, so show it beside the form rather than under one field.
+No error carries a skill's body. A `400` names the write's key that broke the rule in
+`field` (`name`, `description`, `body`, `userInvocable`, `modelInvocable` or `enabled`),
+so the message can sit under that input; the key is absent when no one field broke it
+(the body is not a JSON object), and then the message belongs beside the form.
 
 Unlike the thread and attachment endpoints, the editor is CSRF-checked by default, so a
 cross-site write without a token is refused with `403` whatever its content type. Only
