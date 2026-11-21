@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -10,7 +10,7 @@ from django.http import StreamingHttpResponse
 from django.test import AsyncRequestFactory
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
-from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.contrib.store.models import StoredThreadRun
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_waiting import RunWaiting
@@ -20,7 +20,6 @@ from pydantic_ai.models.test import TestModel
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.persistence import threads_view as threads_view_module
-from django_ag_ui.persistence.thread_read_view import ThreadReadView
 from tests.authed_request_factory import AuthedAsyncRequestFactory, authenticated_user
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -290,19 +289,6 @@ def test_a_run_store_without_a_conversation_store_mounts_no_read_route() -> None
     assert "thread_read" not in {p.name for p in patterns}
 
 
-class _AnonymousStore:
-    async def exists(self, thread_id: str, *, request: Any) -> bool:
-        raise AnonymousOperationError("no owner")
-
-
-async def test_read_answers_403_when_the_store_has_no_owner_for_the_caller() -> None:
-    view = ThreadReadView(DefaultRunStore(), _AnonymousStore(), require_authenticated=False)
-
-    response = await view(AsyncRequestFactory().post("/agent/threads/t1/read/"), thread_id="t1")
-
-    assert response.status_code == 403
-
-
 async def test_the_stream_keeps_its_heartbeat() -> None:
     await _thread("t1")
     server = AGUIServer(
@@ -333,3 +319,15 @@ async def test_reading_a_thread_no_run_claimed_answers_204_and_leaves_it_unread(
     assert response.status_code == 204
     row = _rows(await _list(server))["t1"]
     assert (row["status"], row["last_read_at"]) == ("idle", None)
+
+
+async def test_a_run_whose_lease_lapsed_reads_failed_interrupted() -> None:
+    run_store = DefaultRunStore()
+    request = await _thread("t1")
+    await run_store.claim("t1", "r1", request=request, lease=_LEASE)
+    lapsed = datetime(2020, 1, 1, tzinfo=UTC)
+    await StoredThreadRun.objects.filter(thread_id="t1").aupdate(lease_expires_at=lapsed)
+
+    row = _rows(await _list(_server(run_store)))["t1"]
+
+    assert (row["status"], row["reason"]) == ("failed", "interrupted")

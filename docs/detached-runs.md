@@ -215,9 +215,9 @@ client ignores them; without a run store the rows keep their old shape.
 | `interrupts` | with `waiting` only: the protocol's interrupt list for the parked call |
 | `agent_id` | the mount's `id=`, when it has one |
 
-An interrupt is the AG-UI `Interrupt` the run's `RUN_FINISHED` carried for the call, so a
-client answers it with `@ag-ui/client`'s `buildResumeArray` and the `resume/<run_id>/`
-route above:
+An interrupt is an AG-UI `Interrupt` sharing its `id` and `toolCallId` with the one the
+protocol uses for the call, so a client answers a parked approval with `@ag-ui/client`'s
+`buildResumeArray` and the `resume/<run_id>/` route above:
 
 ```json
 {
@@ -230,7 +230,8 @@ route above:
 ```
 
 `message` is the `RunWaiting` summary, `reason` is `tool_call` for every kind (each is a
-deferred tool call) and `metadata.kind` keeps `approval`, `question` or `external`. No
+deferred tool call) and `metadata.kind` keeps `approval`, `question` or `external`, which is
+how a client tells them apart: a resume entry answers an approval only. No
 deadline is stored, so there is no `expiresAt`. The run store records one call per park,
 so the list holds at most one interrupt.
 
@@ -253,7 +254,7 @@ Both transports carry the same body, so a client keeps one parser:
 `POST <mount>threads/<id>/read/` sets the thread's `last_read_at` to now and answers `204`.
 A thread the caller does not own answers `404`. A thread no run ever claimed has no run
 state to mark, so it stays `null`. The route is mounted with a run store and a
-conversation store, and it is CSRF-checked like the mount's other writes.
+conversation store, and it follows the mount's `csrf_exempt=`, as `cancel/` does.
 
 ## Child sessions
 
