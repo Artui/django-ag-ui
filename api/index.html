@@ -1670,6 +1670,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#django_ag_ui.agent.partial_answer_error.PartialAnswerError" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PartialAnswerError
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#django_ag_ui.agent.claim_lapsed_error.ClaimLapsedError" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4267,6 +4278,17 @@
     <span class="md-ellipsis">
       
         ThreadBusyError
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.agent.partial_answer_error.PartialAnswerError" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PartialAnswerError
       
     </span>
   </a>
@@ -7687,7 +7709,7 @@ a hook reads state your middleware sets.</p>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">parent</span><span class="p">:</span> <span class="n">ThreadRef</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">inbox_mark</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">answering</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Collection</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
 </span></code></pre></div>
 
@@ -8242,12 +8264,12 @@ provider's streaming request, and to the sub-agent stage racing it.</p>
 
 
 <a href="#django_ag_ui.ParkRun.waiting" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">waiting</span><span class="p">(</span><span class="n">output</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunWaiting</span> <span class="o">|</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">waiting</span><span class="p">(</span><span class="n">output</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">RunWaiting</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>The first deferred call the run parks on, approvals first; <code>None</code> if it does not.</p>
+        <p>Every deferred call the run parks on, approvals first; empty if it does not park.</p>
 
 
     </div>
@@ -8489,6 +8511,54 @@ is recorded, mail that arrived during a run that did not fail wakes its thread.<
 
 
         <p>A run was started on a thread another run still holds; <code>run_id</code> names that run.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.agent.partial_answer_error.PartialAnswerError" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">PartialAnswerError</span>
+
+
+<a href="#django_ag_ui.agent.partial_answer_error.PartialAnswerError" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="ValueError">ValueError</span></code></p>
+
+
+
+        <p>An answer to a parked thread left calls open; <code>unanswered</code> names them, the park stands.</p>
 
 
 

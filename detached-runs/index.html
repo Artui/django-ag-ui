@@ -1244,9 +1244,13 @@ read from the start. Any process can answer, since it reads only the run store.<
 <p>With <code>Accept: text/event-stream</code> the answer is an AG-UI stream that replays the run and
 then follows it to its end:</p>
 <ol>
-<li>The run's <code>RUN_STARTED</code>.</li>
-<li>A <code>MESSAGES_SNAPSHOT</code>: the stored conversation, without the messages this run
-   streams, followed by the run's messages as they stood at <code>after</code>.</li>
+<li>The run's <code>RUN_STARTED</code>. Its <code>input</code> carries the run's new turn (the messages after
+   the last answer the client posted, without inline file bytes, tools, context or
+   state), so a run still in flight can show the question it is answering before the
+   conversation row is saved.</li>
+<li>A <code>MESSAGES_SNAPSHOT</code>: the stored conversation, then the new turn where the row does
+   not hold it yet, without the messages this run streams, followed by the run's
+   messages as they stood at <code>after</code>.</li>
 <li>The start event of each item still open at <code>after</code>: a text message, a tool call with
    its arguments so far in one <code>TOOL_CALL_ARGS</code>, a reasoning span or message, a step, or
    a subagent.</li>
@@ -1317,7 +1321,7 @@ mount is keyed by its <code>id</code>:</p>
 <h2 id="a-run-that-parks">A run that parks<a class="headerlink" href="#a-run-that-parks" title="Permanent link">&para;</a></h2>
 <p>A run on a mount with a run store that ends on deferred calls finishes <code>waiting</code>, not
 <code>completed</code>, and its thread reads <code>waiting</code> until a run takes it up. The thread's
-<code>RunWaiting</code> names the first such call, approvals first:</p>
+<code>waiting</code> holds a <code>RunWaiting</code> for every such call, approvals first, each with:</p>
 <table>
 <thead>
 <tr>
@@ -1346,9 +1350,13 @@ mount is keyed by its <code>id</code>:</p>
 </table>
 <p>A browser run's own client tools count only when the run is detached: a connected client
 answers their calls itself, so a run that ends on them alone finishes <code>completed</code>, as
-before. A headless run's <code>RunStop</code> carries the same <code>waiting</code>.</p>
-<p>An answer to a parked run resumes it through <code>resume/&lt;run_id&gt;/</code>, with <code>resume</code> naming the
-call's interrupt. The mount saves the parked run's messages when it parks, and the route
+before. A headless run's <code>RunStop</code> carries the same <code>waiting</code> tuple.</p>
+<p>An answer to a parked run resumes it through <code>resume/&lt;run_id&gt;/</code>, with <code>resume</code> naming
+every interrupt the thread lists (a client tool's call is answered by its tool message).
+A resume that leaves a call unanswered is a <code>400</code> naming those calls in <code>unanswered</code>,
+before the thread is claimed, so the park stands and a full answer can follow; so is an
+answer to some of a parked thread's calls on the plain route.
+The mount saves the parked run's messages when it parks, and the route
 loads them only while the run store shows that run as its thread's <code>waiting</code> run; any
 other run id answers 404. On a django-spec-agents <code>ResumableRunStore</code> (<code>DefaultRunStore</code>
 is one) the resume claims the thread only while it is still parked on that run, in the
@@ -1376,11 +1384,11 @@ client ignores them; without a run store the rows keep their old shape.</p>
 </tr>
 <tr>
 <td><code>reason</code></td>
-<td>with <code>failed</code> only: <code>error</code> (the run raised, or an edit or regenerate of a turn compaction dropped was refused before it ran; the next turn runs as usual) or <code>interrupted</code> (its lease lapsed); a timeout reads <code>idle</code> and keeps its reason server-side</td>
+<td>with <code>failed</code> only: <code>error</code> (the run raised) or <code>interrupted</code> (its lease lapsed); a timeout reads <code>idle</code> and keeps its reason server-side</td>
 </tr>
 <tr>
 <td><code>interrupts</code></td>
-<td>with <code>waiting</code> only: the protocol's interrupt list for the parked call</td>
+<td>with <code>waiting</code> only: the protocol's interrupt list, one per call the run parked on</td>
 </tr>
 <tr>
 <td><code>agent_id</code></td>
@@ -1402,8 +1410,8 @@ protocol uses for the call, so a client answers a parked approval with <code>@ag
 <p><code>message</code> is the <code>RunWaiting</code> summary, <code>reason</code> is <code>tool_call</code> for every kind (each is a
 deferred tool call) and <code>metadata.kind</code> keeps <code>approval</code>, <code>question</code> or <code>external</code>, which is
 how a client tells them apart: a resume entry answers an approval only. No
-deadline is stored, so there is no <code>expiresAt</code>. The run store records one call per park,
-so the list holds at most one interrupt.</p>
+deadline is stored, so there is no <code>expiresAt</code>. A run parked on several calls lists one
+interrupt for each, approvals first.</p>
 <p><code>AGUIServer(name=, description=)</code> says who the mount is: when it or <code>id=</code> is set, the
 list body carries <code>"agent": {"id", "name", "description"}</code> beside <code>threads</code>.</p>
 <h3 id="poll-or-stream-the-list">Poll or stream the list<a class="headerlink" href="#poll-or-stream-the-list" title="Permanent link">&para;</a></h3>
@@ -1459,11 +1467,14 @@ the run continues the stored history with those answers and sends no new prompt.
 start claims the thread only while it is still parked on the run it read, so of two
 answers to one park the model runs once: the other raises <code>ThreadBusyError</code> naming the run
 that holds the thread, or django-spec-agents' <code>RunNotParkedError</code> once that run has ended.
+<code>answers</code> must cover every call the thread is parked on: one that leaves a call open
+raises <a class="autorefs autorefs-internal" title="PartialAnswerError" href="../api/#django_ag_ui.agent.partial_answer_error.PartialAnswerError"><code>PartialAnswerError</code></a>
+naming those calls before the claim, queued or not, and the park stands.
 A start that fails after its claim, or a queued one whose enqueue is refused, gives the
 claim back where the store can, so the thread stays parked and the answer can be sent again.
-<code>wake_thread</code> resumes a parked thread this way when the park is recorded as waiting on a
-question (<a href="#a-run-that-parks">a run that parks</a>): an <code>ANSWER</code> on the child's inbound
-queue resumes the parked call with its text.</p>
+<code>wake_thread</code> resumes a parked thread this way when every call the park waits on is a
+question (<a href="#a-run-that-parks">a run that parks</a>) and an <code>ANSWER</code> is pending on the
+child's inbound queue for each: each answer resumes its call with its text.</p>
 <p>After a headless run's end is recorded, the runner calls django-spec-agents'
 <code>wake_thread</code> for its thread when mail arrived during the run, so a message that landed
 after the run's last read starts the thread again; a queued run counts mail from when it
