@@ -19,10 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Thread rows carry their run status.** With `run_store=`, each `threads/` row gains
   `status`, `last_read_at`, `reason` when `failed`, the protocol's `interrupts` list when
   `waiting` (ids `int-<tool_call_id>`, `destructive` and `kind` under `metadata`) and
-  `agent_id`, all read from the run store. The list answers `If-None-Match` with `304`,
-  and `Accept: text/event-stream` streams the same body on each change.
+  `agent_id`, all read from the run store. The list answers `If-None-Match` with `304`
+  (weak, listed and `*` tags match, so it survives `GZipMiddleware`), and under ASGI
+  `Accept: text/event-stream` streams the same body on each change for up to five
+  minutes, then ends so `EventSource` reconnects and re-authenticates; under WSGI that
+  request is answered as a poll. Both answers carry `Vary: Accept`.
   `POST threads/<id>/read/` marks a thread read, and `AGUIServer(name=, description=)`
-  adds an `agent` object to the list body.
+  adds an `agent` object to the list body, described by the newly exported
+  `MountIdentity`.
 
 ### Fixed
 
@@ -32,8 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (a 26-message thread reloaded as 7). The row now keeps the full transcript under its
   stored ids, while the model still gets only the compacted history. A run that
   compacts its own earlier steps stores every reasoning, tool call and result it streamed,
-  in streamed order and under the ids it streamed them with. The
-  harness summary stays out of the row. An edit or regenerate of a turn the compaction
+  in streamed order and under the ids it streamed them with. The harness summary stays
+  out of the row. An edit or regenerate of a turn the compaction
   dropped now ends in `RUN_ERROR` before the run starts, with the row unchanged.
 
 ## [0.83.0] — 2026-11-19

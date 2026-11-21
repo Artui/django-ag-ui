@@ -329,7 +329,8 @@ async def test_a_refused_edit_reads_failed_error_and_the_next_turn_runs() -> Non
     request = AsyncRequestFactory().get("/")
     request.user = user
     edited = _post(_body([_user("u5", "edited")], run_id="r2"))
-    await _drain(await view(edited, resume_from="r1"))
+    refused = await _drain(await view(edited, resume_from="r1"))
+    assert [frame["type"] for frame in _frames(refused)][-1] == "RUN_ERROR"
     state = (await runs.get_many(["t1"], request=request))["t1"]
     assert (state.status, state.reason) == (ThreadRunStatus.FAILED, RunEndReason.ERROR)
 

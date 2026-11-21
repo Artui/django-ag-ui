@@ -251,7 +251,10 @@ Both transports carry the same body, so a client keeps one parser:
   on its own with `Last-Event-ID`, and the reconnect checks the caller's authentication
   again, so a signed-out session is refused at most five minutes late. The stream needs
   ASGI: under WSGI the same request is answered as a poll, with the JSON body and the
-  `ETag`. Both answers carry `Vary: Accept`, since one URL serves either by that header.
+  `ETag`. A browser `EventSource` treats that JSON answer as a fatal error and does not
+  reconnect, so a client that may meet a WSGI deployment falls back to polling on the
+  stream's `error`. Both answers carry `Vary: Accept`, since one URL serves either by that
+  header.
 
 An `If-None-Match` naming the list's current `ETag` answers `304` whether it is the exact
 tag, a weak `W/"..."` copy (what `GZipMiddleware` turns it into), one of a list, or `*`.
