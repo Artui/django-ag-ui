@@ -910,13 +910,17 @@ async def test_a_turn_carrying_an_old_tool_message_on_a_parked_thread_is_not_an_
     ]
     body = {**json.loads(_browser_body("r-next", messages=old)), "threadId": stop.thread_id}
 
-    response = await view(
-        AuthedAsyncRequestFactory().post(
-            "/agent/", data=json.dumps(body), content_type="application/json"
-        )
+    request = AuthedAsyncRequestFactory().post(
+        "/agent/", data=json.dumps(body), content_type="application/json"
     )
 
+    response = await view(request)
+
     assert isinstance(response, StreamingHttpResponse)
+    async for _ in response:  # ty: ignore[not-iterable]
+        pass
+    state = await _settled(stop.thread_id, request)
+    assert state.last_run_id == "r-next"
 
 
 @pytest.mark.django_db(transaction=True)
