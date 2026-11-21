@@ -4,7 +4,11 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
+from django.test import AsyncRequestFactory
+from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
+from django_spec_agents.persistence.types.run_end_reason import RunEndReason
+from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import (
     CompactionPart,
@@ -307,3 +311,30 @@ async def test_an_edit_of_a_turn_the_compacted_history_keeps_runs(
     assert row[len(earlier)] == {**row[len(earlier)], "id": "last", "content": "and now, edited?"}
     assert row[-1]["content"] == "done"
     _assert_no_id_twice(row)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_refused_edit_reads_failed_error_and_the_next_turn_runs() -> None:
+    store, runs, user = _ThreadStore(), DefaultRunStore(), await _user_named("refused")
+    view = DjangoAGUIView(
+        _registry(),
+        model=FunctionModel(stream_function=_recorded(_answers, [])),
+        step_store=DefaultStepStore,
+        conversation_store=store,
+        run_store=runs,
+        get_user=lambda _request: user,
+        capabilities=[CompactionObserver(_sliding())],
+    )
+    await _drain(await view(_post(_body(_long_thread(), run_id="r1"))))
+    request = AsyncRequestFactory().get("/")
+    request.user = user
+    edited = _post(_body([_user("u5", "edited")], run_id="r2"))
+    await _drain(await view(edited, resume_from="r1"))
+    state = (await runs.get_many(["t1"], request=request))["t1"]
+    assert (state.status, state.reason) == (ThreadRunStatus.FAILED, RunEndReason.ERROR)
+
+    body = await _drain(
+        await view(_post(_body([_user("u-3", "next")], run_id="r3")), resume_from="r1")
+    )
+    assert [frame for frame in _frames(body) if frame["type"] == "RUN_ERROR"] == []
+    assert (await runs.get_many(["t1"], request=request))["t1"].status is ThreadRunStatus.IDLE
