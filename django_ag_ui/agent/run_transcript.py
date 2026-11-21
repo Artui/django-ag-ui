@@ -182,6 +182,28 @@ class RunTranscript:
             out.append(message.model_copy(update={"id": streamed}))
         return out
 
+    def with_streamed_steps(self, messages: Sequence[Message]) -> list[Message]:
+        """``messages`` under streamed ids, with the streamed steps a compaction cut from them."""
+        lent = self.with_streamed_ids(messages)
+        streamed = [message for message in self.messages() if _step_key(message) is not None]
+        keys = {_step_key(message) for message in lent}
+        if all(_step_key(message) in keys for message in streamed):
+            return lent
+        out: list[Message] = []
+        start = 0
+        for message in lent:
+            key = _step_key(message)
+            found = next(
+                (i for i in range(start, len(streamed)) if _step_key(streamed[i]) == key), None
+            )
+            if found is None:
+                out.append(message)
+                continue
+            out.extend(streamed[start:found])
+            out.append(message.model_copy(update={"id": streamed[found].id}))
+            start = found + 1
+        return [*out, *streamed[start:]]
+
     def _snapshot(self, event: ActivitySnapshotEvent) -> None:
         """Record an ``ACTIVITY_SNAPSHOT``, the way the client applies one."""
         known = self._activities.get(event.message_id)
@@ -216,6 +238,15 @@ class RunTranscript:
         draft = _Draft(message_id=message_id)
         self._items.append(draft)
         return draft
+
+
+def _step_key(message: Message) -> tuple[str, object] | None:
+    """The call ids a tool step and its dumped copy share; text has no key a split keeps."""
+    if isinstance(message, ToolMessage):
+        return "tool", message.tool_call_id
+    if isinstance(message, AssistantMessage) and message.tool_calls:
+        return "calls", tuple(call.id for call in message.tool_calls)
+    return None
 
 
 def _is_text_draft(item: _Draft | ToolMessage) -> TypeGuard[_Draft]:

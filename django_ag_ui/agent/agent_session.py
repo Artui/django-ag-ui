@@ -6,7 +6,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, cast
 
-from ag_ui.core import BaseEvent, Message, RunErrorEvent
+from ag_ui.core import BaseEvent, Message, RunErrorEvent, RunStartedEvent, UserMessage
 from django.http import HttpRequest
 from django_spec_agents import IdentifierTooLongError
 from django_spec_agents.agent.types.agent_deps import AgentDeps
@@ -27,6 +27,7 @@ from pydantic_ai.messages import ModelMessage, ModelResponse
 from django_ag_ui.agent.build_client_context_toolset import build_client_context_toolset
 from django_ag_ui.agent.build_untrusted_context import build_untrusted_context
 from django_ag_ui.agent.continued_history import continued_history
+from django_ag_ui.agent.full_transcript import full_transcript
 from django_ag_ui.agent.guarded_stream import guarded_stream
 from django_ag_ui.agent.heartbeat_stream import heartbeat_stream
 from django_ag_ui.agent.inject_compaction_events import inject_compaction_events
@@ -41,7 +42,7 @@ from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
-from django_ag_ui.agent.utils import IDENTIFIER_TOO_LONG_CODE, without_answered_by
+from django_ag_ui.agent.utils import ERROR_CODE, IDENTIFIER_TOO_LONG_CODE, without_answered_by
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.utils import messages_to_jsonable
 
@@ -110,6 +111,7 @@ class AgentSession:
         self._source_messages = source_messages
         self._deferred_tool_results = deferred_tool_results
         self._prior: list[Message] | None = None
+        self._refusal = self._compacted_away_turn()
         self._timeout = timeout if timeout is not None else config.run_timeout_seconds
         self._token = CancellationToken()
         self._ended: RunOutcome | None = None
@@ -146,6 +148,8 @@ class AgentSession:
         provider's streaming request, and to the sub-agent stage racing it.
         """
         transcript = RunTranscript()
+        if self._refusal is not None:
+            return self._refused_owner(transcript, run_store)
         native = self._adapter.run_stream_native(
             message_history=self._message_history,
             deferred_tool_results=self._deferred_tool_results,
@@ -185,6 +189,40 @@ class AgentSession:
             thread_id=self._run_input.thread_id,
             run_id=self._run_input.run_id,
         )
+
+    def _refused_owner(self, transcript: RunTranscript, run_store: RunStore | None) -> RunOwner:
+        """An owner whose stream is only the refusal: the agent never runs, the row is untouched."""
+        refused = self._refused_events()
+        return RunOwner(
+            self._persist_on_error(refused, transcript),
+            native_events=refused,
+            on_cancel=self._on_cancel(transcript),
+            ended=lambda: self._ended,
+            token=self._token,
+            run_store=run_store,
+            request=self._request,
+            thread_id=self._run_input.thread_id,
+            run_id=self._run_input.run_id,
+        )
+
+    async def _refused_events(self) -> AsyncIterator[BaseEvent]:
+        yield RunStartedEvent(thread_id=self._run_input.thread_id, run_id=self._run_input.run_id)
+        yield RunErrorEvent(message=self._refusal or "", code=ERROR_CODE)
+
+    def _compacted_away_turn(self) -> str | None:
+        """Why the new turn is refused: it edits a prompt the row holds and the snapshot lost."""
+        if self._message_history is None or not self._source_messages:
+            return None
+        held = {m.id for m in self._source_messages if isinstance(m, UserMessage)}
+        seen = {message.id for message in OutcomeAGUIAdapter.dump_messages(self._message_history)}
+        _, new_turn = continued_history(self._message_history, self._run_input.messages)
+        for message in new_turn:
+            if message.id in held and message.id not in seen:
+                return (
+                    f"Message {message.id} was compacted out of the history this run resumes,"
+                    " so it can no longer be edited or regenerated."
+                )
+        return None
 
     def _client_context_block(self) -> str | None:
         """This run's fenced client-supplied context, whichever channel takes it."""
@@ -227,6 +265,8 @@ class AgentSession:
         """``event`` with its exception text withheld, unless detail is opted in."""
         if self._config.tool_failure.include_detail or event.code == IDENTIFIER_TOO_LONG_CODE:
             return event
+        if self._refusal is not None:
+            return event
         return event.model_copy(
             update={"message": "The run failed. The failure has been recorded."}
         )
@@ -248,6 +288,11 @@ class AgentSession:
                         self._source_messages,
                         reserved={message.id for message in new_turn},
                     )
+                    kept = full_transcript(
+                        kept,
+                        self._source_messages,
+                        resubmitted={message.id for message in new_turn},
+                    )
                 self._prior = [*kept, *(without_answered_by(message) for message in new_turn)]
         return self._prior
 
@@ -266,7 +311,7 @@ class AgentSession:
             if save is None:
                 return
             dumped = OutcomeAGUIAdapter.dump_messages(result.new_messages())
-            new = strip_binary_content(transcript.with_streamed_ids(dumped))
+            new = strip_binary_content(transcript.with_streamed_steps(dumped))
             await save([*self._prior_messages(), *new])
 
         return _on_complete
@@ -344,7 +389,7 @@ class AgentSession:
 
         async def _finalize(error: str, *, persist: bool = True) -> None:
             # A refused id is never saved; a cancel reaches here unchecked, so suppress the refusal.
-            if save is not None and persist:
+            if save is not None and persist and self._refusal is None:
                 with contextlib.suppress(IdentifierTooLongError):
                     await save([*self._prior_messages(), *transcript.messages()])
             audit.record(

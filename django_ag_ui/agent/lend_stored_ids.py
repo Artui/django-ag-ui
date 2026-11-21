@@ -17,11 +17,11 @@ def lend_stored_ids(
     messages: Sequence[Message], stored: Sequence[Message], *, reserved: Collection[str] = ()
 ) -> list[Message]:
     """``messages``, each under the id ``stored`` holds for the same message, where it holds one."""
-    rows: dict[str, list[tuple[object, str]]] = {}
-    for message in stored:
+    rows: dict[str, list[tuple[object, str, int]]] = {}
+    for position, message in enumerate(stored):
         keyed = _kind_and_key(message)
         if keyed is not None:
-            rows.setdefault(keyed[0], []).append((keyed[1], message.id))
+            rows.setdefault(keyed[0], []).append((keyed[1], message.id, position))
     cursors: Counter[str] = Counter()
     activities = _paired_activities(messages, stored)
     taken = set(reserved)
@@ -36,13 +36,16 @@ def lend_stored_ids(
         elif (keyed := _kind_and_key(message)) is None:
             lent = None
         else:
-            lent = _next_match(rows, cursors, *keyed)
+            lent = _next_match(rows, cursors, *keyed, anchors=keyed[0] in _ANCHORED)
         if lent is None or lent in taken or lent in carried:
             out.append(message)
             continue
         taken.add(lent)
         out.append(message.model_copy(update={"id": lent}))
     return out
+
+
+_ANCHORED = frozenset({"tool", "calls"})
 
 
 def _freed(messages: Sequence[Message], activities: dict[int, str], taken: set[str]) -> set[str]:
@@ -92,14 +95,14 @@ def _paired_activities(messages: Sequence[Message], stored: Sequence[Message]) -
 
 
 def _user_match(
-    rows: dict[str, list[tuple[object, str]]],
+    rows: dict[str, list[tuple[object, str, int]]],
     cursors: Counter[str],
     message: UserMessage,
     held: set[str],
 ) -> str | None:
     """A fresh-id prompt matched by content; one under a stored id keeps it and its place."""
     if message.id in held:
-        return _next_match(rows, cursors, "user", message.id, by_id=True)
+        return _next_match(rows, cursors, "user", message.id, by_id=True, anchors=True)
     return _next_match(rows, cursors, "user", _prompt_key(message))
 
 
@@ -108,20 +111,32 @@ def _prompt_key(message: UserMessage) -> str:
 
 
 def _next_match(
-    rows: dict[str, list[tuple[object, str]]],
+    rows: dict[str, list[tuple[object, str, int]]],
     cursors: Counter[str],
     kind: str,
     key: object,
     *,
     by_id: bool = False,
+    anchors: bool = False,
 ) -> str | None:
     """The id of the next row message of ``kind`` with ``key`` (or that id), consuming up to it."""
     row = rows.get(kind, [])
     for index in range(cursors[kind], len(row)):
         if row[index][1 if by_id else 0] == key:
             cursors[kind] = index + 1
+            if anchors:
+                _move_past(rows, cursors, row[index][2])
             return row[index][1]
     return None
+
+
+def _move_past(
+    rows: dict[str, list[tuple[object, str, int]]], cursors: Counter[str], position: int
+) -> None:
+    """Move every kind's cursor past row ``position``: an exact match fixes where the dump is."""
+    for kind, row in rows.items():
+        while cursors[kind] < len(row) and row[cursors[kind]][2] <= position:
+            cursors[kind] += 1
 
 
 def _flat(text: str | None) -> str:
