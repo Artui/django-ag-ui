@@ -5,12 +5,15 @@ import sys
 from typing import Any
 
 import pytest
+from asgiref.sync import async_to_sync
 from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 from django.test import RequestFactory
 from django_service_specs import NotPermitted
 from django_spec_agents import ToolGuardConfig
+from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.headless.types.firing_state import FiringState
+from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.routines import MAX_ROUTINES_PER_USER, RoutineSweep
@@ -390,6 +393,50 @@ def test_run_now_reports_what_the_queue_refuses(queue: FakeQueue) -> None:
     assert response.status_code == 403
     mine.refresh_from_db()
     assert mine.last_run_id is None
+
+
+def _fired(user: Any, *threads: tuple[str, str | None], **options: Any) -> dict[str, Any]:
+    store = DefaultConversationStore()
+    for thread_id, routine_id in threads:
+        conversation = Conversation(thread_id, [], routine_id=routine_id)
+        async_to_sync(store.save)(conversation, request=request_as(user))
+    return _routes(conversation_store=store, **options)
+
+
+def test_runs_list_each_firing_of_the_routine_newest_first() -> None:
+    ann = person("ann")
+    mine, other = routine(ann), routine(ann, "triage")
+    fired = (("t1", str(mine.pk)), ("chat", None), ("t-other", str(other.pk)))
+    routes = _fired(ann, *fired, ("t2", str(mine.pk)), ("t3", str(mine.pk)))
+    mine.last_run_id, mine.last_thread_id = "run-2", "t2"
+    mine.save()
+    view, defaults = routes["routine_runs"]
+    runs = _json(view(request_as(ann), **defaults, routine_id=str(mine.pk)))
+    assert runs == {
+        "runs": [
+            {"runId": "run-2", "threadId": "t2", "state": None},
+            {"runId": None, "threadId": "t3", "state": None},
+            {"runId": None, "threadId": "t1", "state": None},
+        ]
+    }
+
+
+def test_a_firing_whose_thread_has_not_started_leads_its_runs() -> None:
+    ann = person("ann")
+    mine = routine(ann, last_run_id="run-2", last_thread_id="t2")
+    view, defaults = _fired(ann, ("t1", str(mine.pk)))["routine_runs"]
+    runs = _json(view(request_as(ann), **defaults, routine_id=str(mine.pk)))
+    assert [run["threadId"] for run in runs["runs"]] == ["t2", "t1"]
+
+
+def test_runs_look_no_further_back_than_the_thread_list() -> None:
+    ann = person("ann")
+    mine = routine(ann)
+    threads = [(f"t{n}", str(mine.pk)) for n in range(3)]
+    config = build_ag_ui_config(thread_list_limit=2)
+    view, defaults = _fired(ann, *threads, config=config)["routine_runs"]
+    runs = _json(view(request_as(ann), **defaults, routine_id=str(mine.pk)))
+    assert [run["threadId"] for run in runs["runs"]] == ["t2", "t1"]
 
 
 def test_a_routine_never_fired_has_no_runs() -> None:

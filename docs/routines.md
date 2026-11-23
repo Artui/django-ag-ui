@@ -35,7 +35,7 @@ thread owned by the routine's principal, through the mount's
 | `routines/` | `routines` | `GET` the list, `POST` a new routine (`201`) |
 | `routines/<id>/` | `routine` | `PUT` replace it, `PATCH {"enabled": bool}` pause or resume |
 | `routines/<id>/run/` | `routine_run` | `POST` fire it now (`202 {"runId", "threadId"}`) |
-| `routines/<id>/runs/` | `routine_runs` | `GET` its recent firings |
+| `routines/<id>/runs/` | `routine_runs` | `GET` its firings, newest first |
 
 **Which routines it serves.** Those whose principal is the caller, whose `agent_id` is
 the mount's `id`, and that the policy's `can_write` admits. Any other id is a `404`,
@@ -82,8 +82,11 @@ waits on a person (`thread_waits`), or when the policy's `can_run` refuses; a re
 queue raises is a `403`. Two clicks at once cannot fire it twice: the checks run again
 on the row, locked for the write. `run/` does not look at `enabled`: **run now fires a
 paused routine once; it stays paused.** `runs/` lists `{"runId", "threadId", "state"}`, `state` being
-the queue's `pending`, `lapsed` or `finished`. A routine records only its last firing,
-so the list holds that one.
+the queue's `pending`, `lapsed` or `finished`, for each firing, newest first. The routine
+records only its last firing, so that one leads with its run id and state, even before
+its thread exists. The earlier ones come from the conversation store: each thread among
+the caller's newest `thread_list_limit` whose conversation names the routine, with
+`runId` and `state` `null`, since the queue's id is not kept past the next firing.
 
 ### Errors
 
@@ -107,10 +110,12 @@ is still named in `confirmDestructive`.
 ## A firing's thread names its routine
 
 On a mount with `routine_model=`, each row of `GET <mount>threads/` carries `routine`:
-`{"id", "name"}` when the thread is the newest firing of one of the caller's routines on
-this mount, else `null`. The routine keeps only its last firing, so only that thread is
-badged: when the routine fires again, the badge moves to the new thread and the earlier
-one reads `null`. A mount without routines sends `null` on every row.
+`{"id", "name"}` when a firing of one of the caller's routines on this mount started the
+thread, else `null`. A firing saves its routine's id on the thread's conversation
+(django-spec-agents' `ConversationMeta.routine_id`), and later runs of the thread keep it,
+so every firing's thread is named, not only the newest. The names come from one query on
+the routine model per page; a routine since deleted, or another user's, names nothing. A
+mount without routines sends `null` on every row.
 
 ## Refreshing an open panel
 

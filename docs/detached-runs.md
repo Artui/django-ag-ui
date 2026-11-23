@@ -281,6 +281,13 @@ one through `start(..., parent=, lineage=)`, which saves both on the child's con
 before it returns, so `DefaultChildSessionIndex` lists the child under its parent at once.
 `parent` is a `ThreadRef` in any scope, so the child may run on another agent.
 
+The start also names the parent run as `parent_run_id`, and the child's first
+`RUN_STARTED` carries it as `parentRunId`, so a client can tell which run of the parent
+thread started the child. It is the parent's AG-UI run id: the mount hands that id to
+pydantic-ai as the agent run's own, so `RunContext.run_id` is the id the client saw. A
+wake that resumes a child parked on a question names the parked run the same way. A
+queued start carries `parent_run_id`, and a routine firing's `routine_id`, to the worker.
+
 Each row of `GET <mount>threads/` carries that link as `parent`, with or without a run
 store: `{"thread_id": "...", "scope": "..."}` for a child, where `scope` is the parent's
 agent id or `ScopedConversationStore` scope (`null` in an unscoped store), and `null` for

@@ -39,6 +39,8 @@ class AGUIHeadlessRunner:
     and every run of the thread, the first included, composes the bounds they describe.
     ``answers`` resumes a thread parked on a question with no new prompt. After a run's end
     is recorded, mail that arrived during a run that did not fail wakes its thread.
+    ``parent_run_id`` is stamped on the run's ``RUN_STARTED`` as ``parentRunId``, and a
+    ``routine_id`` is saved on the thread's conversation as ``parent`` is.
 
     With a ``queue``, ``start`` claims the thread for ``queued_lease``, then enqueues
     ``spec_name`` for a worker, whose runner takes the claim up by its ``run_id``.
@@ -79,6 +81,8 @@ class AGUIHeadlessRunner:
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
         answers: Mapping[str, str] | None = None,
+        parent_run_id: str | None = None,
+        routine_id: str | None = None,
     ) -> HeadlessStart:
         """Start the run and return once it has claimed its thread; it goes on elsewhere."""
         if self._queue is not None:
@@ -93,6 +97,8 @@ class AGUIHeadlessRunner:
                 lineage,
                 capabilities,
                 answers,
+                parent_run_id,
+                routine_id,
             )
         server, request, run_input = self._prepare(
             agent_id, prompt, principal, timeout, thread_id, answers=answers
@@ -105,6 +111,8 @@ class AGUIHeadlessRunner:
             parent=parent,
             lineage=lineage,
             answers=answers,
+            parent_run_id=parent_run_id,
+            routine_id=routine_id,
             after_finish=await self._waker(server, request, run_input.thread_id, timeout, self),
         )
         return HeadlessStart(thread_id=run_input.thread_id, run_id=run_input.run_id)
@@ -122,6 +130,8 @@ class AGUIHeadlessRunner:
         capabilities: Sequence[AbstractCapability[Any]] = (),
         run_id: str | None = None,
         answers: Mapping[str, str] | None = None,
+        parent_run_id: str | None = None,
+        routine_id: str | None = None,
     ) -> RunStop:
         """Run until it ends; a ``run_id`` takes up the claim a queued ``start`` made."""
         server, request, run_input = self._prepare(
@@ -154,6 +164,8 @@ class AGUIHeadlessRunner:
                     lineage=lineage,
                     adopt=run_id is not None,
                     answers=answers,
+                    parent_run_id=parent_run_id,
+                    routine_id=routine_id,
                     after_finish=waker,
                 )
         except BaseException:
@@ -182,6 +194,8 @@ class AGUIHeadlessRunner:
         lineage: ChildLineageRecord | None,
         capabilities: Sequence[AbstractCapability[Any]],
         answers: Mapping[str, str] | None,
+        parent_run_id: str | None,
+        routine_id: str | None,
     ) -> HeadlessStart:
         if capabilities:
             raise ValueError(
@@ -197,6 +211,7 @@ class AGUIHeadlessRunner:
             lease=self._queued_lease,
             parent=parent,
             lineage=lineage,
+            routine_id=routine_id,
             inbox_mark=mark,
             answers=answers,
         )
@@ -210,6 +225,8 @@ class AGUIHeadlessRunner:
             run_input.run_id,
             None if answers is None else dict(answers),
             mark,
+            parent_run_id,
+            routine_id,
         )
         params = dataclasses.asdict(firing)
         try:

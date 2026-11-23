@@ -350,6 +350,7 @@ class DjangoAGUIView:
         capabilities: Sequence[Any] = (),
         adopt: bool = False,
         answers: Mapping[str, str] | None = None,
+        parent_run_id: str | None = None,
         after_finish: Callable[[RunOutcome], Awaitable[None]] | None = None,
     ) -> RunOwner:
         """Claim the thread (``adopt``: it is already held), ``prepare`` the input, then start."""
@@ -377,6 +378,7 @@ class DjangoAGUIView:
                 timeout=timeout,
                 capabilities=capabilities,
                 deferred_tool_results=deferred,
+                parent_run_id=parent_run_id,
             )
             owner = session.own(store)
             if after_finish is not None:
@@ -404,6 +406,7 @@ class DjangoAGUIView:
         capabilities: Sequence[Any] = (),
         deferred_tool_results: DeferredToolResults | None = None,
         detached: bool = True,
+        parent_run_id: str | None = None,
     ) -> AgentSession:
         return AgentSession(
             self._agent(),
@@ -425,7 +428,7 @@ class DjangoAGUIView:
             timeout=timeout,
             deferred_tool_results=deferred_tool_results,
             park=self._park_run(run_input, detached),
-            parent_run_id=resume_from,
+            parent_run_id=resume_from if parent_run_id is None else parent_run_id,
         )
 
     def _park_run(self, run_input: Any, detached: bool) -> ParkRun:

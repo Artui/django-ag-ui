@@ -5,6 +5,7 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
+from asgiref.sync import async_to_sync
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.http import HttpRequest, HttpResponseNotAllowed, JsonResponse
@@ -12,6 +13,8 @@ from django.http.response import HttpResponseBase
 from django_service_specs import NotPermitted
 from django_spec_agents import ToolGuard
 from django_spec_agents.headless.types.firing_state import FiringState
+from django_spec_agents.persistence.null_conversation_store import NullConversationStore
+from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.routines import (
     AbstractRoutine,
     InvalidRoutineError,
@@ -55,7 +58,7 @@ class RoutineEditorView:
     - ``PUT    routines/<id>/``       → replace it, ``enabled`` included;
     - ``PATCH  routines/<id>/``       → ``{"enabled": false}`` pauses it, ``true`` resumes it;
     - ``POST   routines/<id>/run/``   → fire it now on its sweep's queue (``202``);
-    - ``GET    routines/<id>/runs/``  → ``{"runs": [...]}``, its recent firings.
+    - ``GET    routines/<id>/runs/``  → ``{"runs": [...]}``, its firings, newest first.
 
     A write is ``{"name", "prompt", "schedule", "timezone", "preapprovedTools",
     "enabled", "confirmDestructive"}``; the agent is always the mount's. ``grantable`` lists
@@ -65,7 +68,12 @@ class RoutineEditorView:
 
     An ``<id>`` outside that set is a ``404``, whichever rule left it out. A broken rule is a
     ``400``, a refused write a ``403``, a firing that cannot start now a ``409``, each
-    ``{"error": "..."}``. CSRF and authentication are the skill editor's: an unstated
+    ``{"error": "..."}``.
+
+    ``runs/`` lists ``{"runId", "threadId", "state"}`` for each firing, newest first: the one
+    the routine records, with its id and its queue's ``state``, then each earlier thread among
+    the caller's newest ``thread_list_limit`` in ``conversation_store`` whose ``routine_id``
+    names this routine, both ``null``. CSRF and authentication are the skill editor's: an unstated
     ``csrf_exempt`` is ``False``, and a write must be ``application/json`` (else ``415``).
     """
 
@@ -80,6 +88,8 @@ class RoutineEditorView:
         get_user: GetUser | None = None,
         authorize: AuthorizePredicate | None = None,
         csrf_exempt: bool | None = None,
+        conversation_store: ConversationStore | None = None,
+        thread_list_limit: int | None = None,
     ) -> None:
         policy = model.routine_policy()
         assert policy is not None
@@ -92,6 +102,8 @@ class RoutineEditorView:
         self._get_user = get_user
         self._authorize_predicate = authorize
         self.csrf_exempt = csrf_exempt is True
+        self._conversations = conversation_store or NullConversationStore()
+        self._thread_list_limit = thread_list_limit
 
     def __call__(
         self, request: HttpRequest, routine_id: str | None = None, action: str | None = None
@@ -218,8 +230,22 @@ class RoutineEditorView:
     def _runs(self, request: HttpRequest, routine: AbstractRoutine) -> HttpResponseBase:
         if request.method != "GET":
             return HttpResponseNotAllowed(["GET"])
+        last = self._last_firing(routine)
+        shown = {run["threadId"] for run in last}
+        listed = async_to_sync(self._conversations.list)(
+            request=request, limit=self._thread_list_limit
+        )
+        earlier = [
+            {"runId": None, "threadId": meta.thread_id, "state": None}
+            for meta in listed
+            if meta.routine_id == str(routine.pk) and meta.thread_id not in shown
+        ]
+        return JsonResponse({"runs": [*last, *earlier]})
+
+    def _last_firing(self, routine: AbstractRoutine) -> list[dict[str, Any]]:
+        """The firing the routine records, with its queue state; it may have no thread yet."""
         if routine.last_run_id is None:
-            return JsonResponse({"runs": []})
+            return []
         sweep = self._model.routine_sweep()
         state = None if sweep is None else sweep.queue.state(routine.last_run_id)
         run = {
@@ -227,7 +253,7 @@ class RoutineEditorView:
             "threadId": routine.last_thread_id,
             "state": None if state is None else str(state),
         }
-        return JsonResponse({"runs": [run]})
+        return [run]
 
     def _writable(self, request: HttpRequest) -> list[AbstractRoutine]:
         """The caller's own routines on this mount that ``can_write`` admits: all it may touch."""

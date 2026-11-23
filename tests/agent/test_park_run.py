@@ -348,7 +348,7 @@ async def test_an_answered_question_resumes_a_parked_child_through_wake_thread()
     request = server.headless_request(user)
     parent = ThreadRef("t-parent", "planner")
     lineage = ChildLineageRecord(root=parent, depth=1, tools=["ask"], gated=[])
-    await runner.run_to_first_stop(
+    parked = await runner.run_to_first_stop(
         "helper", "go", user, timeout=5, thread_id="t-child", parent=parent, lineage=lineage
     )
     child = ThreadRef("t-child", "helper")
@@ -370,6 +370,9 @@ async def test_an_answered_question_resumes_a_parked_child_through_wake_thread()
     assert (state.status, state.last_run_id) == (ThreadRunStatus.IDLE, started.run_id)
     stored = await DefaultConversationStore().load("t-child", request=request)
     assert [m.get("content") for m in stored.messages][-2:] == ["blue", "done"]
+    log = await DefaultRunStore().read(started.run_id, request=request)
+    resumed = next(e.event for e in log if e.event.get("type") == "RUN_STARTED")
+    assert resumed["parentRunId"] == parked.run_id
 
 
 class _FailingStart(AGUIHeadlessRunner):

@@ -512,6 +512,8 @@ class AGUIServer:
             agent_id=self.id,
             guard=ToolGuard(self._registry, config=self._config.tool_guard),
             tool_defs=tool_defs,
+            conversation_store=self._conversation_store,
+            thread_list_limit=self._config.thread_list_limit,
             **self._policy,
         )
 
@@ -576,6 +578,8 @@ class AGUIServer:
         lineage: ChildLineageRecord | None = None,
         adopt: bool = False,
         answers: Mapping[str, str] | None = None,
+        parent_run_id: str | None = None,
+        routine_id: str | None = None,
         after_finish: Callable[[RunOutcome], Awaitable[None]] | None = None,
     ) -> RunOwner:
         """Start ``run_input`` with no response once it holds the thread, after its history."""
@@ -583,7 +587,7 @@ class AGUIServer:
         view = self._view
 
         async def prepare(claimed: Any) -> tuple[Any, list[Any]]:
-            conversation = await self._link(request, claimed.thread_id, parent, lineage)
+            conversation = await self._link(request, claimed.thread_id, parent, lineage, routine_id)
             stored_lineage = view.child_capabilities(conversation)
             stored = [] if conversation is None else conversation.messages
             history = messages_from_jsonable(stored)
@@ -598,6 +602,7 @@ class AGUIServer:
             prepare=prepare,
             adopt=adopt,
             answers=answers,
+            parent_run_id=parent_run_id,
             after_finish=after_finish,
         )
 
@@ -609,6 +614,7 @@ class AGUIServer:
         lease: timedelta,
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
+        routine_id: str | None = None,
         inbox_mark: int | None = None,
         answers: Collection[str] | None = None,
     ) -> bool:
@@ -621,7 +627,7 @@ class AGUIServer:
             store, thread_id, run_id, request=request, lease=lease, answers=answers
         )
         try:
-            await self._link(request, thread_id, parent, lineage)
+            await self._link(request, thread_id, parent, lineage, routine_id)
             if inbox_mark is not None:
                 kept = queued_record({"inbox_mark": inbox_mark})
                 await store.append(run_id, [kept], request=request)
@@ -727,10 +733,11 @@ class AGUIServer:
         thread_id: str,
         parent: ThreadRef | None,
         lineage: ChildLineageRecord | None,
+        routine_id: str | None,
     ) -> Conversation | None:
         store = self._conversation_store
         conversation = await store.load(thread_id, request=request)
-        if parent is None and lineage is None:
+        if parent is None and lineage is None and routine_id is None:
             return conversation
         linked = Conversation(
             thread_id=thread_id,
@@ -738,6 +745,7 @@ class AGUIServer:
             owner_id=owner_id_for(request),
             parent=parent,
             lineage=lineage,
+            routine_id=routine_id,
         )
         await store.save(linked, request=request)
         return linked

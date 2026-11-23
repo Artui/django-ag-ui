@@ -6,6 +6,8 @@ from typing import Any
 import pytest
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.http import HttpRequest
+from django_spec_agents.child_sessions.child_sessions_toolset import ChildSessionsToolset
+from django_spec_agents.child_sessions.types.child_session_limits import ChildSessionLimits
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.contrib.store.default_child_session_index import DefaultChildSessionIndex
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
@@ -21,7 +23,7 @@ from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.registry.tool_registry import ToolRegistry
-from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
 import django_ag_ui.agent.run_owner as run_owner_module
 from django_ag_ui.agent.agui_server import AGUIServer
@@ -368,3 +370,84 @@ async def test_a_lineage_named_without_a_parent_is_saved() -> None:
     request = server.headless_request(user)
     conversation = await DefaultConversationStore().load(stop.thread_id, request=request)
     assert (conversation.parent, conversation.lineage) == (None, _LINEAGE)
+
+
+async def _run_started(server: AGUIServer, user: Any, run_id: str) -> dict[str, Any]:
+    log = await DefaultRunStore().read(run_id, request=server.headless_request(user))
+    return next(entry.event for entry in log if entry.event.get("type") == "RUN_STARTED")
+
+
+class _LateRunner:
+    """Lets a mount's toolset name the runner that is built from the mount."""
+
+    runner: AGUIHeadlessRunner
+
+    async def start(self, *args: Any, **options: Any) -> Any:
+        return await self.runner.start(*args, **options)
+
+
+class _Delegates(_Model):
+    """Starts one child on ``helper``, then answers once the tool has returned."""
+
+    def build(self) -> FunctionModel:
+        async def stream_fn(messages: list, info: AgentInfo) -> Any:
+            parts = [p for m in messages for p in getattr(m, "parts", [])]
+            if any(getattr(p, "part_kind", "") == "tool-return" for p in parts):
+                yield "started"
+            else:
+                args = '{"agent": "helper", "prompt": "look it up"}'
+                yield {0: DeltaToolCall(name="start_session", json_args=args, tool_call_id="c1")}
+
+        return FunctionModel(stream_function=stream_fn)
+
+
+def _planner(late: _LateRunner, queue: DefaultInboundQueue) -> AGUIServer:
+    toolset = ChildSessionsToolset(
+        "planner",
+        agents={"helper": "Looks things up."},
+        runner=late,
+        index=DefaultChildSessionIndex(DefaultRunStore()),
+        queue=queue,
+        limits=ChildSessionLimits(timeout=5),
+    )
+    return _server(
+        _Delegates(),
+        id="planner",
+        toolsets=[toolset],
+        inbound_queue=queue,
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_child_started_by_a_parent_run_names_that_run_on_its_first_run_started() -> None:
+    queue, late = DefaultInboundQueue(), _LateRunner()
+    planner, helper = _planner(late, queue), _server(inbound_queue=queue)
+    late.runner = AGUIHeadlessRunner(planner, helper)
+    user = authenticated_user()
+
+    parent = await late.runner.run_to_first_stop("planner", "plan it", user, timeout=5)
+    index = DefaultChildSessionIndex(DefaultRunStore())
+    here = ThreadRef(parent.thread_id, "planner")
+    [child] = await index.children(here, request=planner.headless_request(user))
+    await _settled(helper, child.thread.thread_id)
+    state = await DefaultRunStore().get(
+        child.thread.thread_id, request=helper.headless_request(user)
+    )
+
+    started = await _run_started(helper, user, state.last_run_id)
+    assert started["parentRunId"] == parent.run_id
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_firing_names_its_routine_on_its_thread_and_later_runs_keep_it() -> None:
+    server = _server()
+    runner = AGUIHeadlessRunner(server)
+    user = authenticated_user()
+
+    first = await runner.run_to_first_stop("helper", "one", user, timeout=5, routine_id="7")
+    await runner.run_to_first_stop("helper", "two", user, timeout=5, thread_id=first.thread_id)
+
+    request = server.headless_request(user)
+    conversation = await DefaultConversationStore().load(first.thread_id, request=request)
+    assert [m["content"] for m in conversation.messages] == ["one", "answer 1", "two", "answer 2"]
+    assert (conversation.routine_id, conversation.parent) == ("7", None)
