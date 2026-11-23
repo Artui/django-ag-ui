@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A host declares the capabilities its mount cannot see by overriding
+  `AGUIServer.agent_capabilities()`.** The method was public in 0.88.0 and `AgentsDirectory`
+  already calls it on the mount, so a subclass that starts from `super()` and adds, for
+  example, `multiAgent.subagents` for sub-agents passed through `capabilities=`, is what that
+  entry serves. This release documents the seam, with its traps (`model_copy` does not
+  validate, so pass the SDK's models; an update replaces a sub-model whole; the field is
+  `subagents`), and pins it with a test. No API change. See
+  [Adding what the mount cannot see](docs/agents-directory.md#adding-what-the-mount-cannot-see).
+
 ## [0.88.0] — 2026-11-23
 
 ### Added

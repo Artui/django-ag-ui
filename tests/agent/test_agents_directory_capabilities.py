@@ -5,7 +5,7 @@ from types import ModuleType
 from typing import Any
 
 import pytest
-from ag_ui.core import AgentCapabilities
+from ag_ui.core import AgentCapabilities, MultiAgentCapabilities, SubagentInfo
 from django.test import override_settings
 from django.urls import path
 from django_spec_agents.contrib.store.default_attachment_store import DefaultAttachmentStore
@@ -32,8 +32,19 @@ def _factory(registry: ToolRegistry, config: Any) -> Agent[Any, Any]:
     return Agent(TestModel())
 
 
-async def _capabilities(**kwargs: Any) -> dict[str, Any]:
-    server = AGUIServer(
+class DelegatingServer(AGUIServer):
+    def agent_capabilities(self) -> AgentCapabilities:
+        declared = super().agent_capabilities()
+        multi_agent = declared.multi_agent or MultiAgentCapabilities()
+        researcher = SubagentInfo(name="researcher", description="Finds sources")
+        update = {"supported": True, "subagents": [researcher]}
+        return declared.model_copy(update={"multi_agent": multi_agent.model_copy(update=update)})
+
+
+async def _capabilities(
+    server_class: type[AGUIServer] = AGUIServer, **kwargs: Any
+) -> dict[str, Any]:
+    server = server_class(
         ToolRegistry(),
         model=TestModel(),
         csrf_exempt=True,
@@ -198,3 +209,21 @@ async def test_each_declaration_follows_its_mount_configuration(
 ) -> None:
     assert (await _capabilities(**base)).get(key) == before
     assert (await _capabilities(**(base | change))).get(key) == after
+
+
+@pytest.mark.parametrize(
+    "mount", [{}, {"inbound_queue": DefaultInboundQueue()}], ids=["bare", "inbound-queue"]
+)
+async def test_a_subclass_override_is_what_the_directory_serves(mount: dict[str, Any]) -> None:
+    capabilities = await _capabilities(DelegatingServer, name="Delegating", **mount)
+
+    assert capabilities == {
+        "identity": {"name": "Delegating"},
+        "transport": {"streaming": True, "resumable": False},
+        "tools": {"supported": True, "clientProvided": True},
+        "multiAgent": {
+            "supported": True,
+            "subagents": [{"name": "researcher", "description": "Finds sources"}],
+        },
+    }
+    assert _extras(AgentCapabilities.model_validate(capabilities)) == []
