@@ -14,14 +14,7 @@ METADATA = "metadata"
 
 @pytest.fixture(params=[TOP_LEVEL, METADATA])
 def carrier(request: pytest.FixtureRequest) -> str:
-    """Where a message's refs ride: every parse rule holds on either carrier.
-
-    ``metadata`` is what the web component sends from its adoption of
-    ``@ag-ui/client`` 1.0; the top-level field is what every earlier release
-    sends and what the server has to keep reading for them. The parse behind
-    the two is one function, so a rule asserted for one carrier and not the
-    other is the drift this parametrisation exists to catch.
-    """
+    """Where a message's refs ride; every parse rule holds on either carrier."""
     return request.param
 
 
