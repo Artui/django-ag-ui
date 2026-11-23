@@ -711,6 +711,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Capabilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adding-what-the-mount-cannot-see" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding what the mount cannot see
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -1022,6 +1039,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Capabilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adding-what-the-mount-cannot-see" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding what the mount cannot see
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -1202,10 +1236,46 @@ its request, so a mount with both still declares it while a dropped stream ends 
 <p>What a mount cannot know is left out, and the protocol reads an omitted field as "not
 declared", never as "unsupported". So a mount with the guard off declares nothing about
 approvals (a capability passed in <code>capabilities=</code> may still ask for one), one forwarding
-reasoning declares nothing about it (whether any arrives is the model's), and
-<code>multiAgent.subagents</code> is never listed. The declarations are informative: the event stream
-stays authoritative, and a client still handles an interrupt or a reasoning event it was
-not told to expect.</p>
+reasoning declares nothing about it (whether any arrives is the model's), and the mount never
+lists <code>multiAgent.subagents</code>. A host that knows more says so by
+<a href="#adding-what-the-mount-cannot-see">overriding the method</a>. The declarations are
+informative: the event stream stays authoritative, and a client still handles an interrupt
+or a reasoning event it was not told to expect.</p>
+<h4 id="adding-what-the-mount-cannot-see">Adding what the mount cannot see<a class="headerlink" href="#adding-what-the-mount-cannot-see" title="Permanent link">&para;</a></h4>
+<p>Some of a mount's capabilities come from what it is handed rather than from its
+configuration: <a href="../subagents/">sub-agents</a> passed through <code>capabilities=</code>, or a tool guard a
+host composes by hand. The mount declares none of them. A host that knows it has them
+subclasses <code>AGUIServer</code> and overrides <code>agent_capabilities()</code>, which the directory calls on
+the mount for every request. Start from <code>super()</code>, so the configuration's declarations
+stay, and add to them:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">ag_ui.core</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentCapabilities</span><span class="p">,</span> <span class="n">MultiAgentCapabilities</span><span class="p">,</span> <span class="n">SubagentInfo</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGUIServer</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">DelegatingServer</span><span class="p">(</span><span class="n">AGUIServer</span><span class="p">):</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">agent_capabilities</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AgentCapabilities</span><span class="p">:</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        <span class="n">declared</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">agent_capabilities</span><span class="p">()</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="n">multi_agent</span> <span class="o">=</span> <span class="n">declared</span><span class="o">.</span><span class="n">multi_agent</span> <span class="ow">or</span> <span class="n">MultiAgentCapabilities</span><span class="p">()</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="n">researcher</span> <span class="o">=</span> <span class="n">SubagentInfo</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"researcher"</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">"Finds sources"</span><span class="p">)</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>        <span class="n">update</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"supported"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"subagents"</span><span class="p">:</span> <span class="p">[</span><span class="n">researcher</span><span class="p">]}</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>        <span class="k">return</span> <span class="n">declared</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">update</span><span class="o">=</span><span class="p">{</span><span class="s2">"multi_agent"</span><span class="p">:</span> <span class="n">multi_agent</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">update</span><span class="o">=</span><span class="n">update</span><span class="p">)})</span>
+</span></code></pre></div>
+<p>Mounted as <code>DelegatingServer(...)</code> in place of <code>AGUIServer(...)</code>, its entry then carries
+<code>"multiAgent": {"supported": true, "subagents": [{"name": "researcher", "description":
+"Finds sources"}]}</code> beside what the configuration declared. A hand-composed guard is the
+same move on <code>human_in_the_loop</code> with <code>HumanInTheLoopCapabilities</code>.</p>
+<p>Three things the SDK will not catch for you:</p>
+<ul>
+<li><strong>Pass the SDK's models, never dicts.</strong> <code>model_copy(update=...)</code> does not validate, so a
+  dict value is stored as given and the entry fails to serialise: <code>agents/</code> answers <code>500</code>.</li>
+<li><strong>An update replaces a sub-model whole.</strong> Copy the declared one (<code>declared.multi_agent or
+  MultiAgentCapabilities()</code>) and update that, or a field the configuration set is lost.</li>
+<li><strong>The field is <code>subagents</code>.</strong> The SDK's models accept unknown fields, so <code>sub_agents=</code>
+  constructs without an error and is served under the wrong key.</li>
+</ul>
+<p>What the override declares is informative too: the stream stays authoritative, and the
+override is the host's word, not something the mount checks.</p>
 <h2 id="inbox"><code>inbox/</code><a class="headerlink" href="#inbox" title="Permanent link">&para;</a></h2>
 <p><code>{"threads": [...]}</code>, the body shape of a mount's <code>threads/</code>, so a client that reads one
 reads the other. It holds every admitted mount's rows, exactly as that mount's <code>threads/</code>

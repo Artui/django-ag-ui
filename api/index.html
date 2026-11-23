@@ -8654,6 +8654,9 @@ authoritative; what the mount cannot know is left out, which the protocol reads 
 <li><code>execution</code>: <code>maxExecutionTime</code>, <code>run_timeout_seconds</code> in milliseconds.</li>
 <li><code>identity</code>: <code>name</code> and <code>description</code>.</li>
 </ul>
+<p>A host that knows more (sub-agents passed in <code>capabilities=</code>, a guard it composed)
+overrides this in a subclass, starting from <code>super()</code>; see
+<a href="../agents-directory/#adding-what-the-mount-cannot-see">Adding what the mount cannot see</a>.</p>
 
 
     </div>
