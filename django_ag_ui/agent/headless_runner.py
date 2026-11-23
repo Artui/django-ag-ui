@@ -9,6 +9,8 @@ from typing import Any
 from ag_ui.core import RunAgentInput, UserMessage
 from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django_spec_agents.child_sessions.types.child_session import ChildSession
+from django_spec_agents.child_sessions.types.child_session_index import ChildSessionIndex
 from django_spec_agents.headless.types.firing_queue import FiringQueue
 from django_spec_agents.headless.types.headless_firing import HeadlessFiring
 from django_spec_agents.headless.types.headless_start import HeadlessStart
@@ -44,6 +46,10 @@ class AGUIHeadlessRunner:
 
     With a ``queue``, ``start`` claims the thread for ``queued_lease``, then enqueues
     ``spec_name`` for a worker, whose runner takes the claim up by its ``run_id``.
+
+    With an ``index``, it answers ``children`` and ``delete_thread`` across its mounts, and
+    every mount's conversation store must be an ``UnlinkableConversationStore``. A child is
+    found in the mount whose id is its scope, or, in an unscoped store, its parent's mount.
     """
 
     def __init__(
@@ -52,8 +58,10 @@ class AGUIHeadlessRunner:
         queue: FiringQueue | None = None,
         spec_name: str = RUN_HEADLESS_SPEC,
         queued_lease: timedelta = QUEUED_RUN_LEASE,
+        index: ChildSessionIndex | None = None,
     ) -> None:
         self._queue = queue
+        self._index = index
         self._spec_name = spec_name
         self._queued_lease = queued_lease
         self._servers: dict[str, AGUIServer] = {}
@@ -63,6 +71,11 @@ class AGUIHeadlessRunner:
             if server.id in self._servers:
                 raise ImproperlyConfigured(f"two mounts share the id {server.id!r}")
             self._servers[server.id] = server
+            if index is not None and not server.unlinks:
+                raise ImproperlyConfigured(
+                    f"mount {server.id!r} cannot unlink a child: index= needs a conversation "
+                    "store with unlink_parent"
+                )
 
     @property
     def queued(self) -> bool:
@@ -182,6 +195,63 @@ class AGUIHeadlessRunner:
             cancelled = await server.request_cancel(thread_id, request=request) or cancelled
         return cancelled
 
+    async def children(self, agent_id: str, thread_id: str, principal: Any) -> list[ChildSession]:
+        """The principal's child sessions the thread on the mount ``agent_id`` started."""
+        index = self._child_index()
+        server = self._mount(agent_id)
+        request = self._request(server, principal)
+        return await index.children(ThreadRef(thread_id, agent_id), request=request)
+
+    async def delete_thread(self, agent_id: str, thread_id: str, principal: Any) -> None:
+        """Delete the thread on the mount ``agent_id``, keeping its children.
+
+        Every live descendant gets a cancel recorded in its own mount, and each direct child
+        is unlinked there; an idle one is not cancelled. The tree is resolved before anything
+        changes, so a child in a scope no mount serves raises ``LookupError`` and changes nothing.
+        """
+        index = self._child_index()
+        server = self._mount(agent_id)
+        tree = await self._descendants(index, server, thread_id, principal, direct=True)
+        for mount, child, direct in tree:
+            request = self._request(mount, principal)
+            if child.live:
+                await mount.request_cancel(child.thread.thread_id, request=request)
+            if direct:
+                await mount.unlink_parent(child.thread.thread_id, request=request)
+        await server.delete_conversation(thread_id, request=self._request(server, principal))
+
+    async def _descendants(
+        self,
+        index: ChildSessionIndex,
+        server: AGUIServer,
+        thread_id: str,
+        principal: Any,
+        *,
+        direct: bool,
+    ) -> list[tuple[AGUIServer, ChildSession, bool]]:
+        assert server.id is not None
+        request = self._request(server, principal)
+        found: list[tuple[AGUIServer, ChildSession, bool]] = []
+        for child in await index.children(ThreadRef(thread_id, server.id), request=request):
+            scope = child.thread.scope
+            mount = server if scope is None else self._mount(scope)
+            found.append((mount, child, direct))
+            found += await self._descendants(
+                index, mount, child.thread.thread_id, principal, direct=False
+            )
+        return found
+
+    def _child_index(self) -> ChildSessionIndex:
+        if self._index is None:
+            raise ImproperlyConfigured("child sessions across mounts need the runner's index=")
+        return self._index
+
+    def _mount(self, agent_id: str) -> AGUIServer:
+        server = self._servers.get(agent_id)
+        if server is None:
+            raise LookupError(f"no headless mount has the id {agent_id!r}")
+        return server
+
     async def _enqueue(
         self,
         queue: FiringQueue,
@@ -251,9 +321,7 @@ class AGUIHeadlessRunner:
     ) -> tuple[AGUIServer, Any, RunAgentInput]:
         if not timeout > 0:
             raise ValueError(f"a headless run needs a positive timeout=, not {timeout!r}")
-        server = self._servers.get(agent_id)
-        if server is None:
-            raise LookupError(f"no headless mount has the id {agent_id!r}")
+        server = self._mount(agent_id)
         request = self._request(server, principal)
         run_input = RunAgentInput(
             thread_id=thread_id or uuid.uuid4().hex,

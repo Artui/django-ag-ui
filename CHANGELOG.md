@@ -25,6 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   copy of the request) and `thread_rows(request, limit=)` (its `threads/` rows with
   `agent_id`, or the deny status).
 
+- **Deleting a parent thread keeps its child sessions, across mounts.**
+  `AGUIServer(child_threads=)` takes a callable returning the `AGUIHeadlessRunner` built
+  from the mounts, which takes `index=` (a `ChildSessionIndex`). `DELETE threads/<id>/`
+  then records a cancel on every running or waiting descendant in its own mount, leaves an
+  idle one alone, clears each direct child's `parent` in the child's mount, and deletes
+  the thread last; a child in a scope no mount serves raises `LookupError` before anything
+  changes. `GET threads/<id>/children/` lists the thread's children in every scope with
+  `thread_id`, `agent_id` (the child's scope) and the status keys of a thread row. A runner
+  with `index=` refuses a mount whose conversation store has no `unlink_parent`. Without
+  `child_threads=`, `DELETE` deletes the one thread as before. See
+  [Delete a parent](docs/detached-runs.md#delete-a-parent).
+
 ### Changed
 
 - The `threads/` list's ETag, `304` and SSE handling moved into one helper the inbox

@@ -4,7 +4,7 @@ import copy
 import dataclasses
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from datetime import timedelta
-from typing import Any
+from typing import Any, cast
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models.signals import post_save
@@ -34,6 +34,9 @@ from django_spec_agents.persistence.types.conversation_store import Conversation
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
+from django_spec_agents.persistence.types.unlinkable_conversation_store import (
+    UnlinkableConversationStore,
+)
 from django_spec_agents.persistence.utils import owner_id_for
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from django_spec_agents.registry.tool_registry import ToolRegistry
@@ -63,6 +66,7 @@ from django_ag_ui.persistence.null_transcription_backend import NullTranscriptio
 from django_ag_ui.persistence.thread_read_view import ThreadReadView
 from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.persistence.transcribe_view import TranscribeView
+from django_ag_ui.persistence.types.child_threads import ChildThreads
 from django_ag_ui.persistence.types.mount_identity import MountIdentity
 from django_ag_ui.persistence.types.thread_activity_source import ThreadActivitySource
 from django_ag_ui.persistence.types.transcription_backend import TranscriptionBackend
@@ -343,6 +347,7 @@ class AGUIServer:
         child_spend: ChildSessionSpend | None = None,
         firing_queue: FiringQueue | None = None,
         routine_model: Any = None,
+        child_threads: Callable[[], ChildThreads] | None = None,
     ) -> None:
         check_removed_settings()
         # The same mistake in its constructor-shaped form: a name where an object belongs.
@@ -383,6 +388,11 @@ class AGUIServer:
             raise ImproperlyConfigured(
                 "AGUIServer(inbound_queue=) needs id=: a child's report names its agent"
             )
+        if child_threads is not None and id is None:
+            raise ImproperlyConfigured(
+                "AGUIServer(child_threads=) needs id=: a child names its parent by its mount"
+            )
+        self._child_threads = child_threads
         self._inbound_queue = inbound_queue
         self._run_store = run_store
         self._skills = skills
@@ -446,6 +456,7 @@ class AGUIServer:
                 run_store=run_store,
                 mount=MountIdentity(id=id, name=name, description=description),
                 routine_model=routine_model,
+                child_threads=child_threads,
                 **self._policy,
             )
         )
@@ -773,6 +784,20 @@ class AGUIServer:
         return await self._run_store.request_cancel(thread_id, request=request)
 
     @property
+    def unlinks(self) -> bool:
+        """Whether this mount's conversation store can clear a thread's parent link."""
+        return isinstance(self._conversation_store, UnlinkableConversationStore)
+
+    async def unlink_parent(self, thread_id: str, *, request: HttpRequest) -> None:
+        """Clear the thread's ``parent`` and ``lineage``, leaving an ordinary thread."""
+        store = cast("UnlinkableConversationStore", self._conversation_store)
+        await store.unlink_parent(thread_id, request=request)
+
+    async def delete_conversation(self, thread_id: str, *, request: HttpRequest) -> None:
+        """Delete the thread from this mount's conversation store."""
+        await self._conversation_store.delete(thread_id, request=request)
+
+    @property
     def namespace(self) -> str:
         """The URL namespace this mount's routes reverse in (``reverse(f"{ns}:threads")``)."""
         return self._namespace
@@ -898,6 +923,15 @@ class AGUIServer:
             threads_view = self._threads_view
             patterns.append(path("threads/", threads_view, name="threads"))
             patterns.append(path("threads/<str:thread_id>/", threads_view, name="thread"))
+            if self._child_threads is not None:
+                patterns.append(
+                    path(
+                        "threads/<str:thread_id>/children/",
+                        threads_view,
+                        {"action": "children"},
+                        name="thread_children",
+                    )
+                )
         if self._run_store is not None:
             events_view = EventsView(
                 self._run_store, self._conversation_store, config=self._config, **self._policy

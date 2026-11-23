@@ -530,3 +530,13 @@ async def test_an_over_long_id_on_the_default_store_is_404(method: str) -> None:
     request = _detail_request(method)
     response = await ThreadsView(DefaultConversationStore())(request, thread_id="t" * 300)
     assert response.status_code == 404
+
+
+async def test_the_children_action_without_child_threads_is_not_found() -> None:
+    store = _FakeStore(conversations={"t1": Conversation(thread_id="t1")})
+    response = await ThreadsView(store)(
+        AuthedRequestFactory().get("/agent/threads/t1/children/"),
+        thread_id="t1",
+        action="children",
+    )
+    assert response.status_code == 404
