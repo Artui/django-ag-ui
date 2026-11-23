@@ -567,6 +567,7 @@ component's `data-threads-url`:
 | `<prefix>threads/<id>/` | `PATCH` | rename (`{"title": "..."}`) |
 | `<prefix>threads/<id>/` | `DELETE` | delete the thread |
 | `<prefix>threads/<id>/read/` | `POST` | mark the thread read (with a run store; see [Thread status](detached-runs.md#thread-status)) |
+| `<prefix>threads/<id>/children/` | `GET` | the thread's child sessions (with `child_threads=`; see [Delete a parent](detached-runs.md#delete-a-parent)) |
 
 Every operation is scoped to the acting user — a thread owned by someone else
 reads as `404`, never another user's history — and the view carries the same

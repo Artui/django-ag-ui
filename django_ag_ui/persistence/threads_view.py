@@ -1,37 +1,34 @@
 from __future__ import annotations
 
-import asyncio
 import dataclasses
-import hashlib
 import json
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, cast
 
 from ag_ui.core import ActivityMessage, ActivitySnapshotEvent, Message
 from asgiref.sync import markcoroutinefunction
 from django.core.exceptions import ValidationError
-from django.core.handlers.asgi import ASGIRequest
 from django.http import (
     HttpRequest,
     HttpResponse,
     HttpResponseNotAllowed,
     JsonResponse,
-    StreamingHttpResponse,
 )
 from django.http.response import HttpResponseBase
-from django.utils.cache import patch_vary_headers
-from django.utils.http import parse_etags
 from django_spec_agents import IdentifierTooLongError
+from django_spec_agents.child_sessions.types.child_session import ChildSession
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.persistence.types.run_store import RunStore
+from django_spec_agents.persistence.types.thread_run_state import ThreadRunState
 from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
-from django_ag_ui.agent.heartbeat_stream import heartbeat_stream
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.persistence.fresh_list_response import fresh_list_response
 from django_ag_ui.persistence.thread_status_fields import thread_status_fields
+from django_ag_ui.persistence.types.child_threads import ChildThreads
 from django_ag_ui.persistence.types.mount_identity import MountIdentity
 from django_ag_ui.persistence.types.thread_activity import ThreadActivity
 from django_ag_ui.persistence.types.thread_activity_source import ThreadActivitySource
@@ -43,8 +40,6 @@ from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 # rename here (truncate — a title is cosmetic) so an over-long PATCH is a clean
 # save on every backend rather than a ``DataError`` on a strict database.
 _MAX_TITLE_LEN = 255
-_STREAM_POLL_SECONDS = 2.0
-_STREAM_MAX_SECONDS = 300.0
 
 
 def _valid_pks(model: Any, ids: set[str]) -> list[Any]:
@@ -97,6 +92,13 @@ class ThreadsView:
     thread that started it in that thread's own scope, or ``None`` for a thread of its own.
     Every row carries ``routine`` too: ``{"id", "name"}`` when a firing of one of the caller's
     routines on this mount (``routine_model=``) started the thread, else ``None``.
+
+    With ``child_threads=``, a callable returning the
+    [`AGUIHeadlessRunner`][django_ag_ui.AGUIHeadlessRunner] built from the mounts,
+    ``DELETE`` cancels the thread's live descendants and unlinks its children in their own
+    mounts before it deletes the thread, and ``GET <prefix>threads/<id>/children/`` lists
+    its children (``{"children": [...]}``), each with ``thread_id``, ``agent_id`` (the
+    child's scope) and its status keys.
     """
 
     def __init__(
@@ -112,9 +114,11 @@ class ThreadsView:
         run_store: RunStore | None = None,
         mount: MountIdentity | None = None,
         routine_model: Any = None,
+        child_threads: Callable[[], ChildThreads] | None = None,
     ) -> None:
         self._store = store
         self._routine_model = routine_model
+        self._child_threads = child_threads
         self._run_store = run_store
         self._mount = mount if mount is not None else MountIdentity()
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
@@ -128,7 +132,7 @@ class ThreadsView:
         markcoroutinefunction(cast("Any", self))
 
     async def __call__(
-        self, request: HttpRequest, thread_id: str | None = None
+        self, request: HttpRequest, thread_id: str | None = None, action: str | None = None
     ) -> HttpResponseBase:
         # First, so ``request.user`` is materialized before the store's loop-safe calls.
         deny = await aauthorize(
@@ -142,6 +146,8 @@ class ThreadsView:
         try:
             if thread_id is None:
                 return await self._list(request)
+            if action == "children":
+                return await self._children(request, thread_id)
             return await self._detail(request, thread_id)
         except AnonymousOperationError:
             return auth_error_response(403)
@@ -152,23 +158,14 @@ class ThreadsView:
         if request.method != "GET":
             return HttpResponseNotAllowed(["GET"])
         limit = _effective_limit(request, self._config.thread_list_limit)
-        # WSGI answers a poll: its worker could never leave an endless stream.
-        if isinstance(request, ASGIRequest) and "text/event-stream" in request.headers.get(
-            "Accept", ""
-        ):
-            return self._stream(request, limit)
-        body = await self._list_body(request, limit)
-        etag = _etag(body)
-        if _matches(request.headers.get("If-None-Match"), etag):
-            response: HttpResponseBase = HttpResponse(status=304)
-        else:
-            response = JsonResponse(body)
-        response["ETag"] = etag
-        response["Cache-Control"] = "private, no-cache"
-        patch_vary_headers(response, ["Accept"])
-        return response
+        return await fresh_list_response(
+            request,
+            lambda: self.list_body(request, limit),
+            heartbeat_seconds=self._config.heartbeat_seconds,
+        )
 
-    async def _list_body(self, request: HttpRequest, limit: int) -> dict[str, Any]:
+    async def list_body(self, request: HttpRequest, limit: int) -> dict[str, Any]:
+        """The ``threads/`` body for an already authorized ``request``, at most ``limit`` rows."""
         metas = await self._store.list(request=request, limit=limit)
         named = await self._routines({m.routine_id for m in metas if m.routine_id}, request)
         rows = [_meta_to_json(m) | {"routine": named.get(m.routine_id or "")} for m in metas]
@@ -195,28 +192,6 @@ class ThreadsView:
         )
         return {str(r.pk): {"id": str(r.pk), "name": r.name} async for r in fired}
 
-    def _stream(self, request: HttpRequest, limit: int) -> HttpResponseBase:
-        frames = self._frames(request, limit, request.headers.get("Last-Event-ID"))
-        if self._config.heartbeat_seconds > 0:
-            frames = heartbeat_stream(frames, interval=self._config.heartbeat_seconds)
-        response = StreamingHttpResponse(frames, content_type="text/event-stream")
-        response["Cache-Control"] = "no-cache"
-        response["X-Accel-Buffering"] = "no"
-        patch_vary_headers(response, ["Accept"])
-        return response
-
-    async def _frames(
-        self, request: HttpRequest, limit: int, seen: str | None
-    ) -> AsyncIterator[str]:
-        deadline = asyncio.get_running_loop().time() + _STREAM_MAX_SECONDS
-        while asyncio.get_running_loop().time() < deadline:
-            body = await self._list_body(request, limit)
-            etag = _etag(body)
-            if etag != seen:
-                seen = etag
-                yield f"id: {etag}\ndata: {json.dumps(body, separators=(',', ':'))}\n\n"
-            await asyncio.sleep(_STREAM_POLL_SECONDS)
-
     async def _detail(self, request: HttpRequest, thread_id: str) -> HttpResponseBase:
         if request.method == "GET":
             conversation = await self._store.load(thread_id, request=request)
@@ -234,9 +209,34 @@ class ThreadsView:
         if request.method == "PATCH":
             return await self._rename(request, thread_id)
         if request.method == "DELETE":
-            await self._store.delete(thread_id, request=request)
+            if self._child_threads is None:
+                await self._store.delete(thread_id, request=request)
+            else:
+                runner = self._child_threads()
+                try:
+                    await runner.delete_thread(self._agent_id(), thread_id, request.user)
+                except LookupError as error:
+                    return JsonResponse({"error": str(error)}, status=409)
             return HttpResponse(status=204)
         return HttpResponseNotAllowed(["GET", "PATCH", "DELETE"])
+
+    async def _children(self, request: HttpRequest, thread_id: str) -> HttpResponseBase:
+        if request.method != "GET":
+            return HttpResponseNotAllowed(["GET"])
+        # test_the_children_action_without_child_threads_is_not_found, ..._does_not_own_...
+        if self._child_threads is None or not await self._store.exists(thread_id, request=request):
+            return JsonResponse({"error": "not found"}, status=404)
+        children = await self._child_threads().children(self._agent_id(), thread_id, request.user)
+        rows = [
+            {"thread_id": child.thread.thread_id, "agent_id": child.thread.scope}
+            | _child_status(child)
+            for child in children
+        ]
+        return JsonResponse({"children": rows})
+
+    def _agent_id(self) -> str:
+        assert self._mount.id is not None
+        return self._mount.id
 
     async def _merge_activities(
         self, thread_id: str, messages: list[Message], request: HttpRequest
@@ -301,6 +301,14 @@ def _as_activity_message(event: ActivitySnapshotEvent) -> ActivityMessage:
     )
 
 
+def _child_status(child: ChildSession) -> dict[str, Any]:
+    """A thread row's status keys for a child; an index holds no read time, so none is sent."""
+    state = ThreadRunState(child.thread.thread_id, child.status, child.reason, child.waiting)
+    fields = thread_status_fields(state)
+    del fields["last_read_at"]
+    return fields
+
+
 def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
     """The wire shape for one thread row — owner_id stays server-side."""
     return {
@@ -310,19 +318,6 @@ def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
         "preview": meta.preview,
         "parent": None if meta.parent is None else dataclasses.asdict(meta.parent),
     }
-
-
-def _matches(header: str | None, etag: str) -> bool:
-    """Whether an ``If-None-Match`` value (a list, ``*`` or weakened by gzip) names ``etag``."""
-    if header is None:
-        return False
-    return any(tag == "*" or tag.removeprefix("W/") == etag for tag in parse_etags(header))
-
-
-def _etag(body: dict[str, Any]) -> str:
-    """A strong ETag over the list body, so a poll and a stream frame agree on it."""
-    encoded = json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
-    return f'"{hashlib.sha256(encoded).hexdigest()[:32]}"'
 
 
 def _parse_title(request: HttpRequest) -> str | None:

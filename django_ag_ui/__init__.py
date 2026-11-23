@@ -37,6 +37,7 @@ from django_spec_agents import (
 
 from django_ag_ui.agent.a2ui_activity import a2ui_activity
 from django_ag_ui.agent.agent_session import AgentSession
+from django_ag_ui.agent.agents_directory import AgentsDirectory
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.chart_activity import CHART_ACTIVITY_TYPE, chart_activity
@@ -84,6 +85,7 @@ from django_ag_ui.persistence.null_transcription_backend import NullTranscriptio
 from django_ag_ui.persistence.scoped_step_store import ScopedStepStore
 from django_ag_ui.persistence.threads_view import ThreadsView
 from django_ag_ui.persistence.transcribe_view import TranscribeView
+from django_ag_ui.persistence.types.child_threads import ChildThreads
 from django_ag_ui.persistence.types.mount_identity import MountIdentity
 from django_ag_ui.persistence.types.thread_activity import ThreadActivity
 from django_ag_ui.persistence.types.thread_activity_source import ThreadActivitySource
@@ -128,6 +130,7 @@ __all__ = [
     "AGUIConfig",
     "DEFAULT_SYSTEM_PROMPT",
     "AGUIServer",
+    "AgentsDirectory",
     "AGUIHeadlessRunner",
     "ClaimLapsedError",
     "start_from_sync",
@@ -165,6 +168,7 @@ __all__ = [
     "ThreadActivity",
     "ThreadBusyError",
     "ThreadActivitySource",
+    "ChildThreads",
     "ThreadsView",
     "Throttle",
     "ToolBinding",

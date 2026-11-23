@@ -348,3 +348,62 @@ Every seam a run reaches takes a request: the stores, `deps_factory`, the MCP br
 `step_store`. A headless run gets the mount's `headless_request(principal)`, an
 `HttpRequest` whose `user` is the principal, with no session. Override it in a subclass
 when one of your hooks reads state that your middleware sets.
+
+### Delete a parent
+
+A mount deletes a thread through its own conversation store, which knows nothing of the
+thread's children in other mounts. Give it `child_threads=`, a callable returning the
+`AGUIHeadlessRunner` that holds every mount, and give the runner the `index=` it walks:
+
+```python
+store, run_store = DefaultConversationStore(), DefaultRunStore()
+runner: AGUIHeadlessRunner | None = None
+planner = AGUIServer(
+    registry,
+    id="planner",
+    run_store=run_store,
+    step_store=DefaultStepStore,
+    conversation_store=ScopedConversationStore(store, scope="planner"),
+    child_threads=lambda: runner,
+)
+helper = AGUIServer(
+    registry,
+    id="helper",
+    run_store=run_store,
+    step_store=DefaultStepStore,
+    conversation_store=ScopedConversationStore(store, scope="helper"),
+)
+runner = AGUIHeadlessRunner(planner, helper, index=DefaultChildSessionIndex(run_store))
+```
+
+It is a callable because the runner is built from the mounts. `DELETE <mount>threads/<id>/`
+then keeps the thread's children: it records a cancel on every descendant whose run holds
+its thread, in that descendant's own mount, so a running grandchild stops too. An idle
+descendant is left alone, and one parked on a question keeps its park, since a cancel
+reaches only a run that holds the thread. It clears each direct child's `parent` and
+`lineage` in the child's own mount, so the child lists as a thread of its own there, and
+it deletes the thread last. A
+child is found in the mount whose `id` is its scope, so give each mount's
+`ScopedConversationStore` the mount's id as its scope; in an unscoped store it is found in
+its parent's mount. The whole tree is resolved first: a child in a scope no mount of the
+runner serves raises `LookupError`, and nothing has changed; through the route, that
+`DELETE` answers `409` with the error rather than `204`.
+
+With `index=`, every mount's conversation store must be an `UnlinkableConversationStore`
+(`DefaultConversationStore` is one, and so is a `ScopedConversationStore` over one), or
+the runner is refused at construction. `child_threads=` without `id=` is refused too.
+Without `child_threads=`, `DELETE` deletes the one thread, as before.
+
+`GET <mount>threads/<id>/children/`, mounted with `child_threads=`, lists the thread's
+children in every scope, oldest first:
+
+```json
+{"children": [
+  {"thread_id": "c1", "agent_id": "helper", "status": "running"}
+]}
+```
+
+`agent_id` is the child's scope (`null` in an unscoped store), and the status keys are a
+thread row's, without `last_read_at`: `reason` when failed and `interrupts` when waiting.
+Like every route it is the caller's: another owner's children are absent, and a thread the
+caller does not own answers `404`.

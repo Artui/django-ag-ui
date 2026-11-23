@@ -43,6 +43,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.AGUIServer
 
+::: django_ag_ui.AgentsDirectory
+
 ::: django_ag_ui.DjangoAGUIView
 
 ::: django_ag_ui.AgentSession
@@ -130,6 +132,8 @@ The seam both spending routes take — the agent endpoint via `throttle=` and
 ::: django_ag_ui.MountIdentity
 
 ::: django_ag_ui.ThreadActivitySource
+
+::: django_ag_ui.ChildThreads
 
 ::: django_ag_ui.ThreadActivity
 
