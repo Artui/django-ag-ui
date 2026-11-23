@@ -60,13 +60,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   client sees on `RUN_STARTED`, the run store and `runs/`. It was a fresh UUID7 the client
   never saw. An empty `runId` is not handed on, as pydantic-ai refuses one.
 
-- **This release needs django-spec-agents 0.25.0**, for `ConversationMeta.routine_id`
-  and the runner keywords above.
-
-- **The floor is `django-spec-agents>=0.24.1`**, in the core dependency and the `[mcp]`
-  and `[specs]` extras. From 0.24.1 `wake_thread` acks a parked child's answers only once
-  the run it resumes has started and never enqueues them again, so a wake whose start
-  fails leaves the answers pending under their own ids for the next wake.
+- **The floor is `django-spec-agents>=0.25.0`**, in the core dependency and the `[mcp]`
+  and `[specs]` extras, for `ConversationMeta.routine_id`, the `HeadlessFiring` fields and
+  the runner keywords above. It passes through 0.24.1, whose `wake_thread` acks a parked
+  child's answers only once the run it resumes has started and never enqueues them
+  again, so a wake whose start fails leaves the answers pending under their own ids.
 
 ## [0.85.0] — 2026-11-21
 
