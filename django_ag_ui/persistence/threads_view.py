@@ -9,6 +9,7 @@ from typing import Any, cast
 
 from ag_ui.core import ActivityMessage, ActivitySnapshotEvent, Message
 from asgiref.sync import markcoroutinefunction
+from django.core.exceptions import ValidationError
 from django.core.handlers.asgi import ASGIRequest
 from django.http import (
     HttpRequest,
@@ -44,6 +45,17 @@ from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 _MAX_TITLE_LEN = 255
 _STREAM_POLL_SECONDS = 2.0
 _STREAM_MAX_SECONDS = 300.0
+
+
+def _valid_pks(model: Any, ids: set[str]) -> list[Any]:
+    """The ids ``model``'s pk can hold; another mount's routine id in a shared store is not one."""
+    pks = []
+    for value in ids:
+        try:
+            pks.append(model._meta.pk.to_python(value))
+        except (ValueError, ValidationError):
+            continue
+    return pks
 
 
 class ThreadsView:
@@ -179,7 +191,7 @@ class ThreadsView:
         fired = self._routine_model._default_manager.filter(
             principal_id=getattr(getattr(request, "user", None), "pk", None),
             agent_id=self._mount.id,
-            pk__in=ids,
+            pk__in=_valid_pks(self._routine_model, ids),
         )
         return {str(r.pk): {"id": str(r.pk), "name": r.name} async for r in fired}
 

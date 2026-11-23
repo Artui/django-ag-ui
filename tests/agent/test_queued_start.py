@@ -115,7 +115,7 @@ async def test_a_queued_start_holds_its_thread_before_it_returns() -> None:
         parent=_PARENT,
         lineage=_LINEAGE,
         parent_run_id="r-parent",
-        routine_id=None,
+        routine_id="7",
     )
 
     assert len(asyncio.all_tasks()) == tasks_before
@@ -139,7 +139,7 @@ async def test_a_queued_start_holds_its_thread_before_it_returns() -> None:
         "answers": None,
         "inbox_mark": 0,
         "parent_run_id": "r-parent",
-        "routine_id": None,
+        "routine_id": "7",
     }
     assert started == HeadlessStart(thread_id="t1", run_id=started.run_id)
 

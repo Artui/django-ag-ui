@@ -57,6 +57,16 @@ async def test_a_routine_fired_twice_names_it_on_both_threads() -> None:
     assert rows == {"first": named, "second": named}
 
 
+async def test_a_routine_id_another_mounts_model_wrote_names_none_and_the_page_still_lists() -> (
+    None
+):
+    ann = await sync_to_async(person)("ann")
+    mine = await sync_to_async(routine)(ann, "standup")
+    threads = {"fired": mine, "foreign": "0b7d6c2e-uuid-from-another-mount"}
+    rows = await _rows(ann, threads, routine_model=TeamRoutine)
+    assert rows == {"fired": {"id": str(mine.pk), "name": "standup"}, "foreign": None}
+
+
 async def test_a_mount_without_routines_rows_name_none() -> None:
     ann = await sync_to_async(person)("ann")
     mine = await sync_to_async(routine)(ann, "standup", last_thread_id="fired")
