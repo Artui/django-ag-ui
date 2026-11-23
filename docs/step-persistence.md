@@ -163,6 +163,12 @@ mechanism — the harness's `continue_run` and `fork_run` are data-identical —
 pick the verb that matches your intent, and target a new `threadId` when you want
 the branch to live in its own conversation.
 
+The new run's `RUN_STARTED` names the source as `parentRunId`, the protocol's lineage
+field, so a client sees the branch on the stream itself without reading `runs/`.
+pydantic-ai's adapter never sets it, so the mount stamps it on every run started through
+the `resume/` and `fork/` routes, queued or not; a `parentRunId` already on the event is
+kept. A headless run resumed with `answers=` and a child session's first run carry none.
+
 !!! warning "A branch may not land on top of an existing conversation"
     A saved conversation is stored as a whole row, so seeding a thread from
     another thread's run **replaces** what that thread held. `runs/` indexes

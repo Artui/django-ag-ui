@@ -213,7 +213,7 @@ the other answers `409` naming the run that holds the thread, or `404` once it h
 
 With a run store, each row of `GET <mount>threads/` also carries its thread's run status,
 read from the run store and never written by the list. Every key is additive, so an older
-client ignores them; without a run store the rows keep their old shape.
+client ignores them; without a run store the rows carry none of them.
 
 | Key | Value |
 | --- | --- |
@@ -280,6 +280,12 @@ A child session is a thread with a parent: django-spec-agents' child-session too
 one through `start(..., parent=, lineage=)`, which saves both on the child's conversation
 before it returns, so `DefaultChildSessionIndex` lists the child under its parent at once.
 `parent` is a `ThreadRef` in any scope, so the child may run on another agent.
+
+Each row of `GET <mount>threads/` carries that link as `parent`, with or without a run
+store: `{"thread_id": "...", "scope": "..."}` for a child, where `scope` is the parent's
+agent id or `ScopedConversationStore` scope (`null` in an unscoped store), and `null` for
+a thread of its own. A child listed by another mount names its parent in the parent's
+scope, so a client opens the parent from the mount whose `agent_id` matches `scope`.
 
 Every run of that thread keeps its parent's bounds, the first included, whether a headless
 start, a browser turn into the child, a resume after an approval, or a headless wake: the
