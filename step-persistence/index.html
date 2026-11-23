@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://artui.github.io/django-ag-ui/step-persistence/">
       
       
-        <link rel="prev" href="../user-skills/">
+        <link rel="prev" href="../routines/">
       
       
         <link rel="next" href="../detached-runs/">
@@ -493,6 +493,33 @@
     
   
     User skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../routines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Routines
   
 
     
@@ -1208,6 +1235,11 @@ fork branches; a resume continues). <code>resume</code> and <code>fork</code> ar
 mechanism — the harness's <code>continue_run</code> and <code>fork_run</code> are data-identical — so
 pick the verb that matches your intent, and target a new <code>threadId</code> when you want
 the branch to live in its own conversation.</p>
+<p>The new run's <code>RUN_STARTED</code> names the source as <code>parentRunId</code>, the protocol's lineage
+field, so a client sees the branch on the stream itself without reading <code>runs/</code>.
+pydantic-ai's adapter never sets it, so the mount stamps it on every run started through
+the <code>resume/</code> and <code>fork/</code> routes, queued or not; a <code>parentRunId</code> already on the event is
+kept. A headless run resumed with <code>answers=</code> and a child session's first run carry none.</p>
 <div class="admonition warning">
 <p class="admonition-title">A branch may not land on top of an existing conversation</p>
 <p>A saved conversation is stored as a whole row, so seeding a thread from

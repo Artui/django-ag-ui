@@ -512,6 +512,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../routines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Routines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../step-persistence/" class="md-nav__link">
         
   
@@ -1133,6 +1160,13 @@ package guessing at a scheme it does not own, and it fails both ways:
 <p>Your <em>host</em> may match hierarchically — in your vocabulary the scheme is known
 and hierarchy is the point. That is yours to interpret, not this package's to
 guess.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">One key is the package's own: <code>routines</code></p>
+<p>A run that saves a routine on a mount with <code>routine_model=</code> announces <code>routines</code> and
+<code>routines/&lt;id&gt;</code> itself, with the reason <code>routine_saved</code> (see <a href="../routines/">Routines</a>).
+<code>ROUTINES_KEY</code> is the first of them, exported for a host that matches on it; name your
+own keys around it.</p>
 </div>
 <h2 id="announce-after-the-commit-not-during">Announce after the commit, not during<a class="headerlink" href="#announce-after-the-commit-not-during" title="Permanent link">&para;</a></h2>
 <div class="admonition danger">

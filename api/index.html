@@ -510,6 +510,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../routines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Routines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../step-persistence/" class="md-nav__link">
         
   
@@ -1288,6 +1315,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#django_ag_ui.routines.routine_editor_view.RoutineEditorView" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RoutineEditorView
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#django_ag_ui.SKILLS_CHANGED_EVENT_NAME" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3309,6 +3347,17 @@
     <span class="md-ellipsis">
       
         INVALIDATE_EVENT_NAME
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.ROUTINES_KEY" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ROUTINES_KEY
       
     </span>
   </a>
@@ -3903,6 +3952,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#django_ag_ui.routines.routine_editor_view.RoutineEditorView" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RoutineEditorView
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#django_ag_ui.SKILLS_CHANGED_EVENT_NAME" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5924,6 +5984,17 @@
     <span class="md-ellipsis">
       
         INVALIDATE_EVENT_NAME
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_ag_ui.ROUTINES_KEY" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ROUTINES_KEY
       
     </span>
   </a>
@@ -7317,6 +7388,78 @@ must also be <code>application/json</code> (else <code>415</code>).</p>
 
 </div>
 
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_ag_ui.routines.routine_editor_view.RoutineEditorView" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">RoutineEditorView</span>
+
+
+<a href="#django_ag_ui.routines.routine_editor_view.RoutineEditorView" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>The routines editor of one agent mount, over the routine model's <code>RoutinePolicy</code>.</p>
+<p>Mounted by <a class="autorefs autorefs-internal" title="AGUIServer" href="#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> with <code>routine_model=</code> at
+<code>routines/</code> and below. It serves the routines whose principal is the caller and whose
+<code>agent_id</code> is the mount's <code>id</code>, that <code>can_write</code> admits; every write goes through
+django-spec-agents' own functions, so the name, size, count, schedule and policy rules are
+the authoring tools' rules:</p>
+<ul>
+<li><code>GET    routines/</code>            → <code>{"routines": [...], "grantable": [...]}</code>;</li>
+<li><code>POST   routines/</code>            → create from a whole routine (<code>201</code>);</li>
+<li><code>PUT    routines/&lt;id&gt;/</code>       → replace it, <code>enabled</code> included;</li>
+<li><code>PATCH  routines/&lt;id&gt;/</code>       → <code>{"enabled": false}</code> pauses it, <code>true</code> resumes it;</li>
+<li><code>POST   routines/&lt;id&gt;/run/</code>   → fire it now on its sweep's queue (<code>202</code>);</li>
+<li><code>GET    routines/&lt;id&gt;/runs/</code>  → <code>{"runs": [...]}</code>, its firings, newest first.</li>
+</ul>
+<p>A write is <code>{"name", "prompt", "schedule", "timezone", "preapprovedTools",
+"enabled", "confirmDestructive"}</code>; the agent is always the mount's. <code>grantable</code> lists
+<code>{"name", "destructive"}</code> for each server tool a routine may be granted. A grant that
+holds a destructive tool is refused with a <code>409</code> naming it under <code>"destructive"</code> unless
+<code>confirmDestructive</code> names it too: the editor's form of the routine's approval card.</p>
+<p>An <code>&lt;id&gt;</code> outside that set is a <code>404</code>, whichever rule left it out. A broken rule is a
+<code>400</code>, a refused write a <code>403</code>, a firing that cannot start now a <code>409</code>, each
+<code>{"error": "..."}</code>.</p>
+<p><code>runs/</code> lists <code>{"runId", "threadId", "state"}</code> for each firing, newest first: the one
+the routine records, with its id and its queue's <code>state</code>, then each earlier thread among
+the caller's newest <code>thread_list_limit</code> in <code>conversation_store</code> whose <code>routine_id</code>
+names this routine, both <code>null</code>. CSRF and authentication are the skill editor's: an unstated
+<code>csrf_exempt</code> is <code>False</code>, and a write must be <code>application/json</code> (else <code>415</code>).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
 <div class="doc doc-object doc-attribute">
 
 
@@ -7392,6 +7535,10 @@ The rest mount only when their backend is <em>active</em>:</p>
 <li><code>skill_editor</code> / <code>skill_editor_item</code> — <code>skill_editor=True</code>
   (<code>skills/editor/</code> + <code>skills/editor/&lt;id&gt;/</code>, see
   <a class="autorefs autorefs-internal" title="SkillEditorView" href="#django_ag_ui.skills.skill_editor_view.SkillEditorView"><code>SkillEditorView</code></a>).</li>
+<li><code>routines</code> / <code>routine</code> / <code>routine_run</code> / <code>routine_runs</code> — a
+  <code>routine_model</code> was passed (<code>routines/</code>, <code>routines/&lt;id&gt;/</code>, <code>.../run/</code> and
+  <code>.../runs/</code>, see
+  <a class="autorefs autorefs-internal" title="RoutineEditorView" href="#django_ag_ui.routines.routine_editor_view.RoutineEditorView"><code>RoutineEditorView</code></a>).</li>
 <li><code>threads</code> / <code>thread</code> — the conversation store is not a
   <code>NullConversationStore</code> (<code>threads/</code> + <code>threads/&lt;id&gt;/</code>, the history
   drawer's <code>data-threads-url</code>). A <code>thread_activity_source=</code> puts pushed
@@ -7428,7 +7575,8 @@ on the first request instead.</p>
 view this object builds, so one policy governs the whole mount — including
 the write endpoints (attachment upload / delete, thread rename / delete,
 transcribe), which <code>csrf_exempt=True</code> exempts alongside the run endpoint. The
-skill editor alone treats an unstated <code>csrf_exempt</code> as <code>False</code>.
+skill and routines editors alone treat an unstated <code>csrf_exempt</code> as <code>False</code>; see
+<a href="../user-skills/">User skills</a> and <a href="../routines/">Routines</a>.
 <code>require_authenticated</code> defaults to <strong>True</strong>, so a bare
 <code>AGUIServer(registry)</code> serves nobody who is not logged in; pass
 <code>require_authenticated=False</code> to serve anonymous runs deliberately. The
@@ -7551,6 +7699,10 @@ run that saves a stored skill sends the <code>ag_ui.skills_changed</code> CUSTOM
 The policy is wrapped so the registry's skill names are reserved. An
 <code>agent_factory</code> builds its own agent and gets none of this. See
 <a href="../user-skills/">User skills</a>.</p>
+<p><strong>Routines.</strong> <code>routine_model</code> takes a django-spec-agents <code>AbstractRoutine</code>
+subclass: the <code>routines/</code> editor serves the caller's routines on this mount's <code>id</code>,
+and a run that saves one sends <code>ag_ui.invalidate</code> with the <code>routines</code> key. See
+<a href="../routines/">Routines</a>.</p>
 <p><strong>Namespacing.</strong> <a class="autorefs autorefs-internal" title="urls
 
 
@@ -7676,8 +7828,10 @@ a hook reads state your middleware sets.</p>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">adopt</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">after_finish</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">RunOutcome</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunOwner</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">parent_run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">routine_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">after_finish</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">RunOutcome</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunOwner</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -7708,9 +7862,10 @@ a hook reads state your middleware sets.</p>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">lease</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">parent</span><span class="p">:</span> <span class="n">ThreadRef</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">inbox_mark</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Collection</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">routine_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">inbox_mark</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Collection</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -8062,8 +8217,9 @@ silences it.</p>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">adopt</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">after_finish</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">RunOutcome</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunOwner</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">parent_run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">after_finish</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">RunOutcome</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunOwner</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -8311,7 +8467,9 @@ once the run holds the thread, is its history, and it carries no client tools. A
 <code>parent</code> and <code>lineage</code> are saved on the child's conversation before <code>start</code> returns,
 and every run of the thread, the first included, composes the bounds they describe.
 <code>answers</code> resumes a thread parked on a question with no new prompt. After a run's end
-is recorded, mail that arrived during a run that did not fail wakes its thread.</p>
+is recorded, mail that arrived during a run that did not fail wakes its thread.
+<code>parent_run_id</code> is stamped on the run's <code>RUN_STARTED</code> as <code>parentRunId</code>, and a
+<code>routine_id</code> is saved on the thread's conversation as <code>parent</code> is.</p>
 <p>With a <code>queue</code>, <code>start</code> claims the thread for <code>queued_lease</code>, then enqueues
 <code>spec_name</code> for a worker, whose runner takes the claim up by its <code>run_id</code>.</p>
 
@@ -8383,7 +8541,9 @@ is recorded, mail that arrived during a run that did not fail wakes its thread.<
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">parent_run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">routine_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -8419,7 +8579,9 @@ is recorded, mail that arrived during a run that did not fail wakes its thread.<
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">parent_run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">routine_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -11236,7 +11398,8 @@ survive a round trip untouched; another transport stores its own.</p>
 <p><code>owner_id</code> scopes the conversation to a user for authorization. <code>parent</code> is
 the thread that started this one as a child session, and <code>lineage</code> the bounds it
 runs under; a store that keeps either writes it when given and leaves it alone when
-it is <code>None</code>.</p>
+it is <code>None</code>. <code>routine_id</code> is the routine whose firing started the thread, kept
+the same way.</p>
 
 
 
@@ -11293,7 +11456,8 @@ of the first user message unless a store records a rename, <code>preview</code> 
 one-line excerpt of the latest message, and <code>updated_at</code> is <code>None</code> in a
 store that does not track it. <code>owner_id</code> scopes the conversation to a user
 and is not surfaced on the wire. <code>parent</code> is the thread that started this
-one as a child session, in any scope; <code>None</code> for a thread of its own.</p>
+one as a child session, in any scope; <code>None</code> for a thread of its own.
+<code>routine_id</code> is the routine whose firing started it, <code>None</code> for any other thread.</p>
 
 
 
@@ -11415,6 +11579,8 @@ namespace would silently orphan the whole thread history of an existing
 single-endpoint project the moment it set one.</p>
 <p><code>check_identifiers</code> is forwarded, with the prefix applied to <code>thread_id</code>,
 only when the inner store has it; <code>preflight_identifiers</code> skips one without.
+<code>unlink_parent</code> is offered the same way, only over an
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-spec-agents/reference/persistence/#django_spec_agents.UnlinkableConversationStore"><code>UnlinkableConversationStore</code></a>.
 A <code>thread_id</code> refused there or by <code>save</code> is reported at the length the
 client sent, against the room the prefix leaves.</p>
 <p>The scope is invisible on the wire. Thread ids are echoed back to the client
@@ -11568,6 +11734,12 @@ refuses them rather than collapsing every anonymous visitor into one shared
 owner bucket where they could read and delete each other's data. It is a
 <em>store</em> policy, so two endpoints sharing a store necessarily agree on it.
 Pass it explicitly: this substrate reads no Django settings.</p>
+<p><code>unlink_parent</code> (see
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-spec-agents/reference/persistence/#django_spec_agents.UnlinkableConversationStore"><code>UnlinkableConversationStore</code></a>)
+is offered only by a subclass that defines a synchronous
+<code>_unlink_parent(thread_id, owner_id)</code> hook, which clears that owner's
+thread's parent link and lineage. A subclass without one is not unlinkable, so
+a transport never believes a link it cannot clear was cleared.</p>
 <p>Example:</p>
 <div class="language-text highlight"><pre><span></span><code>class MyStore(ModelConversationStore):
     def _fetch(self, thread_id, owner_id):
@@ -11653,6 +11825,10 @@ an <code>agent</code> object to the list body. The list answers <code>If-None-Ma
 changes, its ETag as the frame id, <code>Last-Event-ID</code> skipping an unchanged
 first frame. The stream ends after five minutes so the client reconnects and
 is authenticated again, and under WSGI the same request answers as a poll.</p>
+<p>Every row carries <code>parent</code>: <code>{"thread_id", "scope"}</code> for a child session, the
+thread that started it in that thread's own scope, or <code>None</code> for a thread of its own.
+Every row carries <code>routine</code> too: <code>{"id", "name"}</code> when a firing of one of the caller's
+routines on this mount (<code>routine_model=</code>) started the thread, else <code>None</code>.</p>
 
 
 
@@ -11917,6 +12093,10 @@ it drops the ones nothing else refers to, so an attachment's lifetime is tied
 to the conversations quoting it. An upload that was never sent belongs to no
 conversation, and the <code>agent_store_prune_attachments</code> command collects
 those instead.</p>
+<p>It is an
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-spec-agents/reference/persistence/#django_spec_agents.UnlinkableConversationStore"><code>UnlinkableConversationStore</code></a>:
+<code>unlink_parent</code> writes NULL to the thread's parent columns and its lineage,
+and leaves its place in the list alone, as a rename does.</p>
 
 
 
@@ -13973,6 +14153,30 @@ thread load would be a refetch storm.</p>
 <p><code>STATE_SNAPSHOT</code> is out for a third reason: shared state round-trips into the
 next <code>RunAgentInput</code>, so an invalidation placed there would be echoed back to
 the model as though it were something the model had said.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="django_ag_ui.ROUTINES_KEY" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">ROUTINES_KEY</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.ROUTINES_KEY" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">ROUTINES_KEY</span> <span class="o">=</span> <span class="s1">'routines'</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>What a routine write invalidates, with <code>routines/&lt;id&gt;</code>, so an open routines panel refetches.</p>
 
     </div>
 

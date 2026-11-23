@@ -512,6 +512,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../routines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Routines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../step-persistence/" class="md-nav__link">
         
   
@@ -1365,7 +1392,7 @@ the other answers <code>409</code> naming the run that holds the thread, or <cod
 <h2 id="thread-status">Thread status<a class="headerlink" href="#thread-status" title="Permanent link">&para;</a></h2>
 <p>With a run store, each row of <code>GET &lt;mount&gt;threads/</code> also carries its thread's run status,
 read from the run store and never written by the list. Every key is additive, so an older
-client ignores them; without a run store the rows keep their old shape.</p>
+client ignores them; without a run store the rows carry none of them.</p>
 <table>
 <thead>
 <tr>
@@ -1443,6 +1470,17 @@ conversation store, and it follows the mount's <code>csrf_exempt=</code>, as <co
 one through <code>start(..., parent=, lineage=)</code>, which saves both on the child's conversation
 before it returns, so <code>DefaultChildSessionIndex</code> lists the child under its parent at once.
 <code>parent</code> is a <code>ThreadRef</code> in any scope, so the child may run on another agent.</p>
+<p>The start also names the parent run as <code>parent_run_id</code>, and the child's first
+<code>RUN_STARTED</code> carries it as <code>parentRunId</code>, so a client can tell which run of the parent
+thread started the child. It is the parent's AG-UI run id: the mount hands that id to
+pydantic-ai as the agent run's own, so <code>RunContext.run_id</code> is the id the client saw. A
+wake that resumes a child parked on a question names the parked run the same way. A
+queued start carries <code>parent_run_id</code>, and a routine firing's <code>routine_id</code>, to the worker.</p>
+<p>Each row of <code>GET &lt;mount&gt;threads/</code> carries that link as <code>parent</code>, with or without a run
+store: <code>{"thread_id": "...", "scope": "..."}</code> for a child, where <code>scope</code> is the parent's
+agent id or <code>ScopedConversationStore</code> scope (<code>null</code> in an unscoped store), and <code>null</code> for
+a thread of its own. A child listed by another mount names its parent in the parent's
+scope, so a client opens the parent from the mount whose <code>agent_id</code> matches <code>scope</code>.</p>
 <p>Every run of that thread keeps its parent's bounds, the first included, whether a headless
 start, a browser turn into the child, a resume after an approval, or a headless wake: the
 mount rebuilds the stored lineage with <code>child_lineage_for</code> and composes it into the run.
