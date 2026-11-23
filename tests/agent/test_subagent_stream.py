@@ -11,7 +11,7 @@ from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 from pydantic_ai.toolsets import FunctionToolset
-from pydantic_ai_harness.subagents import SubAgent, SubAgents
+from pydantic_ai_harness.sub_agents import SubAgent, SubAgents
 
 from django_ag_ui import SUBAGENT_EVENT_NAME, SubAgentObserver
 from django_ag_ui.agent.agui_view import DjangoAGUIView

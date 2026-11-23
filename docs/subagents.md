@@ -31,7 +31,7 @@ return one. Add one that returns a `SubAgents` with your child agents:
 ```python
 # myproject/agent.py
 from pydantic_ai import Agent
-from pydantic_ai_harness.subagents import SubAgent, SubAgents
+from pydantic_ai_harness.sub_agents import SubAgent, SubAgents
 
 researcher = Agent(
     "anthropic:claude-sonnet-4.6",
@@ -119,7 +119,7 @@ it goes:
 
 ```python
 from django_ag_ui import SubAgentObserver
-from pydantic_ai_harness.subagents import SubAgent, SubAgents
+from pydantic_ai_harness.sub_agents import SubAgent, SubAgents
 
 
 def subagents():

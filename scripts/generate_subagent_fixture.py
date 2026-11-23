@@ -78,7 +78,7 @@ from pydantic_ai.exceptions import UnexpectedModelBehavior  # noqa: E402
 from pydantic_ai.messages import ModelMessage  # noqa: E402
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel  # noqa: E402
 from pydantic_ai.toolsets import FunctionToolset  # noqa: E402
-from pydantic_ai_harness.subagents import SubAgent, SubAgents  # noqa: E402
+from pydantic_ai_harness.sub_agents import SubAgent, SubAgents  # noqa: E402
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView  # noqa: E402
 from django_ag_ui.agent.subagent_observer import SubAgentObserver  # noqa: E402
