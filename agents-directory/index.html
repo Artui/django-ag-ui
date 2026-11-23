@@ -699,6 +699,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="agents/">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -993,6 +1010,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="agents/">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1087,7 +1121,10 @@ mount admits the caller, the answer is <code>401</code>, or <code>403</code> whe
 <div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span><span class="nt">"agents"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"board"</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Board"</span><span class="p">,</span><span class="w"> </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"The board agent"</span><span class="p">,</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"endpoint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/agent/"</span><span class="p">,</span><span class="w"> </span><span class="nt">"tools_url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/agent/tools/"</span><span class="p">,</span><span class="w"> </span><span class="nt">"threads_url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/agent/threads/"</span><span class="p">,</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">"runs_url"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nt">"skills_url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/agent/skills/"</span><span class="p">,</span><span class="w"> </span><span class="nt">"skill_editor_url"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">"routines_url"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nt">"attachments_url"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nt">"transcribe_url"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">}]}</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">"routines_url"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nt">"attachments_url"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nt">"transcribe_url"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">"capabilities"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"identity"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Board"</span><span class="p">,</span><span class="w"> </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"The board agent"</span><span class="p">},</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">"transport"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"streaming"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"resumable"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">},</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">"tools"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"supported"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"clientProvided"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">}}}]}</span>
 </span></code></pre></div>
 <p>One entry per admitted mount, in the order the servers were given. The URL keys are named
 as django-admin-agent's sidebar context names them, each <code>null</code> for a route that mount does
@@ -1096,11 +1133,84 @@ Per-thread routes (<code>threads/&lt;id&gt;/events/</code>, <code>cancel/</code>
 <code>threads_url</code>, as the web component does. The answer carries an ETag and answers a matching
 <code>If-None-Match</code> with <code>304</code>; it does not stream, since the set changes only with a deploy or
 a permission.</p>
+<h3 id="capabilities">Capabilities<a class="headerlink" href="#capabilities" title="Permanent link">&para;</a></h3>
+<p>Each entry's <code>capabilities</code> is what that mount declares of the AG-UI protocol's
+<a href="https://github.com/ag-ui-protocol/ag-ui/blob/37b4da90/docs/spec/1.0/basic/capabilities.mdx"><code>AgentCapabilities</code></a>, so a host can adapt
+before a run: show an approval affordance, hide a reasoning panel, offer an upload button.
+The protocol has no route of its own for it, so the directory carries it. It is
+<a class="autorefs autorefs-internal" title="agent_capabilities" href="../api/#django_ag_ui.AGUIServer.agent_capabilities"><code>AGUIServer.agent_capabilities()</code></a>, the SDK's
+own <code>ag_ui.core.AgentCapabilities</code> model, dumped under its camelCase wire keys with unset
+fields left out.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Declared</th>
+<th>From</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>transport.streaming</code></td>
+<td><code>true</code></td>
+<td>always: the endpoint answers in SSE</td>
+</tr>
+<tr>
+<td><code>transport.resumable</code></td>
+<td><code>true</code> / <code>false</code></td>
+<td>a <code>run_store</code> and <code>RUN_TIMEOUT_SECONDS</code>: a run survives a dropped stream only when it detaches, which needs both, and <code>threads/&lt;id&gt;/events/?after=</code> then replays its log from a sequence number (an authenticated run's; an anonymous run is not logged)</td>
+</tr>
+<tr>
+<td><code>tools</code></td>
+<td><code>supported</code>, <code>clientProvided</code></td>
+<td>always: a browser run's posted tools reach the agent</td>
+</tr>
+<tr>
+<td><code>humanInTheLoop</code></td>
+<td><code>supported</code>, <code>approvals</code>, <code>interrupts</code></td>
+<td><code>TOOL_GUARD</code> enabled and no <code>agent_factory=</code> (a factory builds the agent the guard is composed into)</td>
+</tr>
+<tr>
+<td><code>reasoning</code></td>
+<td><code>{"supported": false}</code></td>
+<td><code>FORWARD_REASONING</code> off, which drops every reasoning event</td>
+</tr>
+<tr>
+<td><code>multimodal.input.file</code></td>
+<td><code>true</code></td>
+<td>an attachment store, which mounts <code>attachments/</code>, and an empty <code>ATTACHMENT_ALLOWED_TYPES</code>: <code>file</code> means arbitrary uploads, and a listed type makes <code>attachments/</code> refuse the rest with a <code>415</code></td>
+</tr>
+<tr>
+<td><code>multiAgent.supported</code></td>
+<td><code>true</code></td>
+<td><code>inbound_queue=</code> (its threads run as child sessions); <code>child_threads=</code> only lists children, so declares nothing</td>
+</tr>
+<tr>
+<td><code>execution.maxExecutionTime</code></td>
+<td>milliseconds</td>
+<td><code>RUN_TIMEOUT_SECONDS</code></td>
+</tr>
+<tr>
+<td><code>identity</code></td>
+<td><code>name</code>, <code>description</code></td>
+<td><code>name=</code>, <code>description=</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>transport.resumable</code> cannot see the deployment: under WSGI a response cannot outlive
+its request, so a mount with both still declares it while a dropped stream ends the run.</p>
+<p>What a mount cannot know is left out, and the protocol reads an omitted field as "not
+declared", never as "unsupported". So a mount with the guard off declares nothing about
+approvals (a capability passed in <code>capabilities=</code> may still ask for one), one forwarding
+reasoning declares nothing about it (whether any arrives is the model's), and
+<code>multiAgent.subagents</code> is never listed. The declarations are informative: the event stream
+stays authoritative, and a client still handles an interrupt or a reasoning event it was
+not told to expect.</p>
 <h2 id="inbox"><code>inbox/</code><a class="headerlink" href="#inbox" title="Permanent link">&para;</a></h2>
 <p><code>{"threads": [...]}</code>, the body shape of a mount's <code>threads/</code>, so a client that reads one
 reads the other. It holds every admitted mount's rows, exactly as that mount's <code>threads/</code>
-would list them (status, interrupts, parent and routine included), each with <code>agent_id</code>
-whether or not the mount has a run store. Rows are ordered newest first by <code>updated_at</code>,
+would list them (status, interrupts, <code>run_id</code> where that mount serves <code>resume/&lt;run_id&gt;/</code>,
+parent and routine included), each with <code>agent_id</code> whether or not the mount has a run store. Rows are ordered newest first by <code>updated_at</code>,
 rows without one last, ties in server order.</p>
 <p><code>?limit=</code> caps each mount's share, clamped to that mount's <code>thread_list_limit</code>; nothing is
 cut across mounts, so the inbox never hides a waiting thread its own mount would show.</p>

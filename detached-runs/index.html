@@ -1479,11 +1479,26 @@ client ignores them; without a run store the rows carry none of them.</p>
 <td>with <code>waiting</code> only: the protocol's interrupt list, one per call the run parked on</td>
 </tr>
 <tr>
+<td><code>run_id</code></td>
+<td>with <code>waiting</code> only, on a mount that serves <code>resume/&lt;run_id&gt;/</code> (one with a <code>step_store=</code>): the parked run's id, the one that route accepts; absent otherwise, so its presence means the row is answerable in place</td>
+</tr>
+<tr>
 <td><code>agent_id</code></td>
 <td>the mount's <code>id=</code>, when it has one</td>
 </tr>
 </tbody>
 </table>
+<p>The <code>run_id</code> assumes the mount's conversation, run and step stores are scoped alike
+(<a href="../configuration/#multiple-endpoints">Multiple endpoints</a>): two mounts sharing an unscoped
+conversation and run store, and only one a step store, list each thread on both: the mount
+with the step store names a <code>run_id</code> for the other mount's parked runs too, and answers
+their <code>resume/&lt;run_id&gt;/</code> with a <code>404</code>, having no snapshot of them. A <code>step_store=</code>
+added to a mount with threads already waiting likewise advertises run ids it has no
+snapshot for: the client's resume gets a <code>404</code> and the thread is answered in its
+conversation.</p>
+<p>A client answers a waiting row from the row alone: it POSTs the answer to <code>resume/&lt;run_id&gt;/</code>
+with the row's <code>run_id</code>. The <code>run_id</code> changes when the thread parks again on a new run, so
+it also changes the list's ETag.</p>
 <p>An interrupt is an AG-UI <code>Interrupt</code> sharing its <code>id</code> and <code>toolCallId</code> with the one the
 protocol uses for the call, so a client answers a parked approval with <code>@ag-ui/client</code>'s
 <code>buildResumeArray</code> and the <code>resume/&lt;run_id&gt;/</code> route above:</p>
@@ -1636,7 +1651,8 @@ children in every scope, oldest first:</p>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="p">]}</span>
 </span></code></pre></div>
 <p><code>agent_id</code> is the child's scope (<code>null</code> in an unscoped store), and the status keys are a
-thread row's, without <code>last_read_at</code>: <code>reason</code> when failed and <code>interrupts</code> when waiting.
+thread row's, without <code>last_read_at</code> and <code>run_id</code>: <code>reason</code> when failed and <code>interrupts</code> when
+waiting.
 Like every route it is the caller's: another owner's children are absent, and a thread the
 caller does not own answers <code>404</code>.</p>
 
