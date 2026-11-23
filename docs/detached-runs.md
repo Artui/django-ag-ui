@@ -226,8 +226,9 @@ client ignores them; without a run store the rows carry none of them.
 
 The `run_id` assumes the mount's conversation, run and step stores are scoped alike
 ([Multiple endpoints](configuration.md#multiple-endpoints)): two mounts sharing an unscoped
-conversation and run store, and only one a step store, list the thread on both, and the
-mount without the snapshot answers its `resume/<run_id>/` with a `404`. A `step_store=`
+conversation and run store, and only one a step store, list each thread on both: the mount
+with the step store names a `run_id` for the other mount's parked runs too, and answers
+their `resume/<run_id>/` with a `404`, having no snapshot of them. A `step_store=`
 added to a mount with threads already waiting likewise advertises run ids it has no
 snapshot for: the client's resume gets a `404` and the thread is answered in its
 conversation.
