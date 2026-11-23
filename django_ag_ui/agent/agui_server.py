@@ -838,7 +838,7 @@ class AGUIServer:
 
         - ``transport``: ``streaming`` always; ``resumable`` whether a ``run_store`` mounts
           ``threads/<id>/events/``, whose ``?after=`` replays a run's log from a sequence
-          number.
+          number (an authenticated run's: an anonymous run has no owner, so is not logged).
         - ``tools``: ``supported`` and ``clientProvided``, the tools a browser run posts.
         - ``humanInTheLoop``: ``supported``, ``approvals`` and ``interrupts`` when the tool
           guard is enabled and no ``agent_factory`` replaces the agent it is composed into.

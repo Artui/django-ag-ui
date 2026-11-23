@@ -80,7 +80,7 @@ fields left out.
 | Key | Declared | From |
 | --- | --- | --- |
 | `transport.streaming` | `true` | always: the endpoint answers in SSE |
-| `transport.resumable` | `true` / `false` | a `run_store`: `threads/<id>/events/?after=` replays a run's log from a sequence number |
+| `transport.resumable` | `true` / `false` | a `run_store`: `threads/<id>/events/?after=` replays a run's log from a sequence number (an authenticated run's; an anonymous run is not logged) |
 | `tools` | `supported`, `clientProvided` | always: a browser run's posted tools reach the agent |
 | `humanInTheLoop` | `supported`, `approvals`, `interrupts` | `TOOL_GUARD` enabled and no `agent_factory=` (a factory builds the agent the guard is composed into) |
 | `reasoning` | `{"supported": false}` | `FORWARD_REASONING` off, which drops every reasoning event |
