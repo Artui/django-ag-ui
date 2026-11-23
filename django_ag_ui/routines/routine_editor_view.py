@@ -17,6 +17,7 @@ from django_spec_agents.routines import (
     InvalidRoutineError,
     PreapprovedTool,
     RoutineDraft,
+    RoutineSweep,
     create_routine,
     list_routines,
     parse_schedule,
@@ -191,6 +192,20 @@ class RoutineEditorView:
         sweep = self._model.routine_sweep()
         if sweep is None:
             raise _Refused(409, {"error": "This routine model has no sweep to fire it on."})
+        thread_id = uuid.uuid4().hex
+        with transaction.atomic():
+            locked = self._model._default_manager.select_for_update().filter(pk=routine.pk).first()
+            if locked is None:
+                return JsonResponse({"error": "not found"}, status=404)
+            self._require_idle(sweep, locked)
+            params = {"routine_id": locked.pk, "thread_id": thread_id}
+            run_id = sweep.queue.enqueue(sweep.spec_name, params, actor=locked.principal)
+            locked.last_run_id, locked.last_thread_id = run_id, thread_id
+            locked.save(update_fields=_FIRED_FIELDS)
+        return JsonResponse({"runId": run_id, "threadId": thread_id}, status=202)
+
+    def _require_idle(self, sweep: RoutineSweep, routine: AbstractRoutine) -> None:
+        """Refuse a firing while the last one runs or waits on a person, or ``can_run`` says no."""
         last = routine.last_run_id
         if (last is not None and sweep.queue.state(last) is FiringState.PENDING) or (
             routine.last_thread_id is not None
@@ -199,13 +214,6 @@ class RoutineEditorView:
             raise _Refused(409, {"error": "Its last firing has not finished yet."})
         if not self._policy.can_run(routine.principal, routine):
             raise _Refused(409, {"error": "Its principal may not run it now."})
-        thread_id = uuid.uuid4().hex
-        with transaction.atomic():
-            params = {"routine_id": routine.pk, "thread_id": thread_id}
-            run_id = sweep.queue.enqueue(sweep.spec_name, params, actor=routine.principal)
-            routine.last_run_id, routine.last_thread_id = run_id, thread_id
-            routine.save(update_fields=_FIRED_FIELDS)
-        return JsonResponse({"runId": run_id, "threadId": thread_id}, status=202)
 
     def _runs(self, request: HttpRequest, routine: AbstractRoutine) -> HttpResponseBase:
         if request.method != "GET":

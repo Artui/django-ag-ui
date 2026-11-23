@@ -56,6 +56,7 @@ from django_ag_ui.agent.publish_invalidation import (
 from django_ag_ui.agent.queued_start import start_from_sync
 from django_ag_ui.agent.resource_invalidation import (
     INVALIDATE_EVENT_NAME,
+    ROUTINES_KEY,
     resource_invalidation,
 )
 from django_ag_ui.agent.subagent_observer import SubAgentObserver
@@ -106,6 +107,7 @@ __all__ = [
     "SUGGESTIONS_ACTIVITY_TYPE",
     "SUBAGENT_EVENT_NAME",
     "INVALIDATE_EVENT_NAME",
+    "ROUTINES_KEY",
     "SKILLS_CHANGED_EVENT_NAME",
     "INVALIDATION_SINK",
     "MAX_LABELS",

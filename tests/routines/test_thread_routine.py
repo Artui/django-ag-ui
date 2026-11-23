@@ -12,8 +12,8 @@ from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.function import FunctionModel
 
 from django_ag_ui import AGUIServer
-from tests.routineapp.models import TeamRoutine
-from tests.routineapp.people import person, routine
+from tests.routineapp.models import ShiftRoutine, TeamRoutine
+from tests.routineapp.people import WEEKDAYS_AT_8, person, routine
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -57,3 +57,20 @@ async def test_a_mount_without_routines_rows_name_none() -> None:
     ann = await sync_to_async(person)("ann")
     await sync_to_async(routine)(ann, "standup", last_thread_id="fired")
     assert await _rows(ann, ["fired"]) == {"fired": None}
+
+
+async def test_a_model_whose_manager_is_not_called_objects_names_its_routine() -> None:
+    ann = await sync_to_async(person)("ann")
+    mine = await ShiftRoutine.rows.acreate(
+        principal=ann,
+        created_by=ann,
+        agent_id="helper",
+        name="standup",
+        prompt="Run standup.",
+        schedule=WEEKDAYS_AT_8,
+        timezone="Europe/Paris",
+        last_thread_id="fired",
+    )
+    assert not hasattr(ShiftRoutine, "objects")
+    rows = await _rows(ann, ["fired"], routine_model=ShiftRoutine)
+    assert rows == {"fired": {"id": str(mine.pk), "name": "standup"}}

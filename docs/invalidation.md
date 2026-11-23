@@ -86,6 +86,13 @@ query keys.
     and hierarchy is the point. That is yours to interpret, not this package's to
     guess.
 
+!!! note "One key is the package's own: `routines`"
+
+    A run that saves a routine on a mount with `routine_model=` announces `routines` and
+    `routines/<id>` itself, with the reason `routine_saved` (see [Routines](routines.md)).
+    `ROUTINES_KEY` is the first of them, exported for a host that matches on it; name your
+    own keys around it.
+
 ## Announce after the commit, not during
 
 !!! danger "This is wrong by default, not in an edge case"

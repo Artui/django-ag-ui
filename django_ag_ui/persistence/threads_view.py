@@ -176,7 +176,7 @@ class ThreadsView:
         """Each id that is the newest firing of one of the caller's routines here, named."""
         if self._routine_model is None:
             return {}
-        fired = self._routine_model.objects.filter(
+        fired = self._routine_model._default_manager.filter(
             principal_id=getattr(getattr(request, "user", None), "pk", None),
             agent_id=self._mount.id,
             last_thread_id__in=ids,

@@ -145,7 +145,8 @@ class AGUIServer:
     view this object builds, so one policy governs the whole mount — including
     the write endpoints (attachment upload / delete, thread rename / delete,
     transcribe), which ``csrf_exempt=True`` exempts alongside the run endpoint. The
-    skill editor alone treats an unstated ``csrf_exempt`` as ``False``.
+    skill and routines editors alone treat an unstated ``csrf_exempt`` as ``False``; see
+    [User skills](user-skills.md) and [Routines](routines.md).
     ``require_authenticated`` defaults to **True**, so a bare
     ``AGUIServer(registry)`` serves nobody who is not logged in; pass
     ``require_authenticated=False`` to serve anonymous runs deliberately. The
@@ -475,9 +476,15 @@ class AGUIServer:
         return [stored, *(capabilities or [])]
 
     def _mount_routines(self, model: Any) -> Any:
-        # Imported late: django_spec_agents.routines defines a model, so needs the app registry.
-        from django_ag_ui.routines.routine_editor_view import RoutineEditorView
-        from django_ag_ui.routines.utils import announce_routine_saved, grantable_tool_defs
+        # Imported late: the routines define a model, so need the app registry.
+        try:
+            from django_ag_ui.routines.routine_editor_view import RoutineEditorView
+            from django_ag_ui.routines.utils import announce_routine_saved, grantable_tool_defs
+        except ImportError as error:
+            raise ImportError(
+                "AGUIServer(routine_model=...) requires django-service-specs: "
+                "install django-ag-ui[specs]"
+            ) from error
 
         if self.id is None:
             raise ImproperlyConfigured("AGUIServer(routine_model=) needs id=: a routine names it")

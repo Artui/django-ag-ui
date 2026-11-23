@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ag_ui.invalidate` with the keys `routines` and `routines/<id>` once the
   write commits. Each row of `threads/` carries `routine`, `{"id", "name"}` when the
   thread is that routine's newest firing, else `null`. See `docs/routines.md`.
+  `run/` locks the routine's row and re-checks that its last firing is done and that
+  `can_run` allows it, so two clicks at once fire it once, and it enqueues inside the
+  transaction that records the firing. It fires a paused routine once, which stays
+  paused. `routine_model=` without the `[specs]` extra raises an `ImportError` naming
+  it, and a `preapprovedTools` that is not a list of names is a `400` naming the field.
+  `ROUTINES_KEY`, the key a routine write invalidates, is exported.
 
 ### Changed
 

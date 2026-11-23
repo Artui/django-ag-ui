@@ -28,7 +28,8 @@ class FakeQueue:
         self.enqueued.append((spec_name, dict(params), actor))
         return f"run-{len(self.enqueued)}"
 
-    def state(self, run_id: str) -> FiringState | None:
+    def state(self, run_id: str | None) -> FiringState | None:
+        assert run_id is not None, "a guard must not ask for a firing that never happened"
         return self.states.get(run_id)
 
 

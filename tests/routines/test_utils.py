@@ -120,7 +120,7 @@ class _PagedServer:
             tool_a = {"name": "a", "inputSchema": {}, "annotations": {"readOnlyHint": False}}
             return {"tools": [tool_a], "nextCursor": "2"}
         tool_b = {"name": "b", "inputSchema": {}, "annotations": {"destructiveHint": False}}
-        return {"tools": [tool_b]}
+        return {"tools": [tool_b, {"name": "c", "inputSchema": {}}]}
 
 
 class _BrokenServer:
@@ -133,7 +133,9 @@ def test_every_page_of_the_mcp_listing_is_read() -> None:
     assert [(d.name, d.metadata) for d in defs] == [
         ("a", {DESTRUCTIVE_METADATA_KEY: True}),
         ("b", None),
+        ("c", None),
     ]
+    assert [_guard().requires_approval(d) for d in defs] == [True, False, False]
 
 
 def test_a_failed_mcp_listing_raises() -> None:

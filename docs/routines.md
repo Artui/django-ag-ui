@@ -7,13 +7,17 @@ policy, the sweep that fires it and the spec a firing runs. This package serves 
 **editor** for the routines of one agent mount, and announces a routine saved during a
 run so an open routines panel refreshes.
 
+Routines need the `[specs]` extra (`pip install "django-ag-ui[specs]"`): the editor
+speaks the kernel's `NotPermitted`, so a mount without the extra refuses `routine_model=`
+with an `ImportError` naming it.
+
 Hand `AGUIServer` the model and an `id`, which names the mount every routine it serves
 runs on:
 
 ```python
 from django_ag_ui import AGUIServer
 
-agent = AGUIServer(registry, id="helper", routine_model=Routine, run_store=..., ...)
+agent = AGUIServer(registry, id="helper", routine_model=Routine, run_store=...)
 ```
 
 `routine_model` takes an `AbstractRoutine` subclass whose `routine_policy()` returns a
@@ -75,7 +79,9 @@ so it needs no confirmation.
 does, into a fresh thread, and records it as the routine's last firing. It is a `409`
 when the model has no sweep, when the last firing is still pending or its thread still
 waits on a person (`thread_waits`), or when the policy's `can_run` refuses; a refusal the
-queue raises is a `403`. `runs/` lists `{"runId", "threadId", "state"}`, `state` being
+queue raises is a `403`. Two clicks at once cannot fire it twice: the checks run again
+on the row, locked for the write. `run/` does not look at `enabled`: **run now fires a
+paused routine once; it stays paused.** `runs/` lists `{"runId", "threadId", "state"}`, `state` being
 the queue's `pending`, `lapsed` or `finished`. A routine records only its last firing,
 so the list holds that one.
 
@@ -117,4 +123,5 @@ that made it already has the answer.
 
 ## Reference
 
-::: django_ag_ui.routines.routine_editor_view.RoutineEditorView
+[`RoutineEditorView`][django_ag_ui.routines.routine_editor_view.RoutineEditorView] is on the
+[API page](api.md).

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import sys
 from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from django.db import transaction
 from django.test import RequestFactory
 from django_service_specs import NotPermitted
 from django_spec_agents import ToolGuardConfig
@@ -22,6 +24,7 @@ from tests.routineapp.people import WEEKDAYS_AT_8, FakeQueue, person, request_as
 pytestmark = pytest.mark.django_db
 
 _IDLE = FunctionModel(lambda messages, info: None)
+_BUSY = "Its last firing has not finished yet."
 _DRAFT = {
     "name": "triage",
     "prompt": "Sort the inbox.",
@@ -245,6 +248,7 @@ def test_run_now_waits_for_a_pending_firing(queue: FakeQueue) -> None:
     queue.states["run-0"] = FiringState.PENDING
     response = _call("routine_run", ann, "post", {}, routine_id=str(mine.pk))
     assert response.status_code == 409
+    assert _json(response) == {"error": _BUSY}
     assert queue.enqueued == []
 
 
@@ -257,6 +261,7 @@ def test_run_now_waits_for_a_thread_still_waiting_on_a_person(
     monkeypatch.setattr(TeamRoutine, "waiting", frozenset({"t0"}))
     response = _call("routine_run", ann, "post", {}, routine_id=str(mine.pk))
     assert response.status_code == 409
+    assert _json(response) == {"error": _BUSY}
     assert queue.enqueued == []
 
 
@@ -268,18 +273,111 @@ def test_run_now_fires_after_a_finished_firing_whose_thread_is_done(queue: FakeQ
     assert response.status_code == 202
 
 
+def test_run_now_fires_a_paused_routine_once_and_it_stays_paused(queue: FakeQueue) -> None:
+    ann = person("ann")
+    mine = routine(ann, enabled=False)
+    response = _call("routine_run", ann, "post", {}, routine_id=str(mine.pk))
+    assert response.status_code == 202
+    assert len(queue.enqueued) == 1
+    mine.refresh_from_db()
+    assert mine.enabled is False
+
+
+def _change_after_listing(monkeypatch: pytest.MonkeyPatch, pk: int, **fields: Any) -> None:
+    """Make the row move after the editor read it and before it locks it, as a second click does."""
+    policy = type(TeamRoutine.routine_policy())
+    admits = policy.can_write
+
+    def can_write(self: Any, request: Any, row: Any) -> bool:
+        allowed = admits(self, request, row)
+        TeamRoutine.objects.filter(pk=pk).update(**fields)
+        return allowed
+
+    monkeypatch.setattr(policy, "can_write", can_write)
+
+
+@pytest.mark.parametrize(
+    ("moved", "error"),
+    [
+        ({"last_run_id": "run-0"}, _BUSY),
+        ({"last_run_id": "run-9", "last_thread_id": "t0"}, _BUSY),
+        ({"name": "grounded"}, "Its principal may not run it now."),
+    ],
+)
+def test_run_now_checks_again_on_the_row_it_locks(
+    queue: FakeQueue, monkeypatch: pytest.MonkeyPatch, moved: dict[str, str], error: str
+) -> None:
+    ann = person("ann")
+    mine = routine(ann)
+    queue.states.update({"run-0": FiringState.PENDING, "run-9": FiringState.FINISHED})
+    monkeypatch.setattr(TeamRoutine, "waiting", frozenset({"t0"}))
+    _change_after_listing(monkeypatch, mine.pk, **moved)
+    response = _call("routine_run", ann, "post", {}, routine_id=str(mine.pk))
+    assert response.status_code == 409
+    assert _json(response) == {"error": error}
+    assert queue.enqueued == []
+
+
+def test_run_now_on_a_routine_deleted_after_it_was_read_is_a_404(
+    queue: FakeQueue, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ann = person("ann")
+    mine = routine(ann)
+    policy = type(TeamRoutine.routine_policy())
+    admits = policy.can_write
+
+    def can_write(self: Any, request: Any, row: Any) -> bool:
+        allowed = admits(self, request, row)
+        TeamRoutine.objects.filter(pk=row.pk).delete()
+        return allowed
+
+    monkeypatch.setattr(policy, "can_write", can_write)
+    response = _call("routine_run", ann, "post", {}, routine_id=str(mine.pk))
+    assert response.status_code == 404
+    assert queue.enqueued == []
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_run_now_whose_save_fails_leaves_nothing_enqueued(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: list[None] = []
+
+    class _CommittingQueue(FakeQueue):
+        def enqueue(self, spec_name: str, params: Any, *, actor: Any) -> str:
+            transaction.on_commit(lambda: sent.append(None))
+            return super().enqueue(spec_name, params, actor=actor)
+
+    monkeypatch.setattr(
+        TeamRoutine, "sweep", RoutineSweep(queue=_CommittingQueue(), spec_name="fire")
+    )
+    ann = person("ann")
+    mine = routine(ann)
+
+    def refuse_to_save(self: Any, *args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(TeamRoutine, "save", refuse_to_save)
+    with pytest.raises(RuntimeError, match="disk full"):
+        _call("routine_run", ann, "post", {}, routine_id=str(mine.pk))
+    assert sent == []
+
+
 def test_run_now_refuses_a_routine_its_policy_may_not_run(queue: FakeQueue) -> None:
     ann = person("ann")
     mine = routine(ann, "grounded")
     response = _call("routine_run", ann, "post", {}, routine_id=str(mine.pk))
     assert response.status_code == 409
+    assert _json(response) == {"error": "Its principal may not run it now."}
     assert queue.enqueued == []
 
 
 def test_run_now_without_a_sweep_is_a_409_and_runs_list_the_last_firing() -> None:
     ann = person("ann")
     mine = routine(ann, last_run_id="run-0", last_thread_id="t0")
-    assert _call("routine_run", ann, "post", {}, routine_id=str(mine.pk)).status_code == 409
+    response = _call("routine_run", ann, "post", {}, routine_id=str(mine.pk))
+    assert response.status_code == 409
+    assert _json(response) == {"error": "This routine model has no sweep to fire it on."}
     runs = _json(_call("routine_runs", ann, routine_id=str(mine.pk)))
     assert runs == {"runs": [{"runId": "run-0", "threadId": "t0", "state": None}]}
 
@@ -307,6 +405,7 @@ def test_a_routine_never_fired_has_no_runs() -> None:
         ({**_DRAFT, "enabled": "yes"}, 400),
         ({**_DRAFT, "schedule": {"kind": "cron"}}, 400),
         ({**_DRAFT, "preapprovedTools": "look"}, 400),
+        ({**_DRAFT, "preapprovedTools": 5}, 400),
         ({**_DRAFT, "preapprovedTools": [1]}, 400),
         ({**_DRAFT, "preapprovedTools": ["nope"]}, 400),
         ({**_DRAFT, "timezone": "Mars/Base"}, 400),
@@ -317,6 +416,13 @@ def test_a_broken_create_is_a_400(body: Any, status: int) -> None:
     response = _call("routines", person("ann"), "post", body)
     assert response.status_code == status
     assert "error" in _json(response)
+
+
+@pytest.mark.parametrize("value", [5, "look"])
+def test_a_grant_that_is_not_a_list_is_a_400_naming_the_field(value: Any) -> None:
+    response = _call("routines", person("ann"), "post", {**_DRAFT, "preapprovedTools": value})
+    assert response.status_code == 400
+    assert "'preapprovedTools' must be a list" in _json(response)["error"]
 
 
 def test_a_body_that_is_not_json_is_a_400() -> None:
@@ -390,6 +496,16 @@ def test_routines_need_a_policy(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(TeamRoutine, "routine_policy", classmethod(lambda cls: None))
     with pytest.raises(ImproperlyConfigured, match="no routine_policy"):
         AGUIServer(_registry(), model=_IDLE, routine_model=TeamRoutine, id="helper")
+
+
+def test_routines_without_the_specs_extra_are_refused_naming_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "django_service_specs", None)
+    monkeypatch.delitem(sys.modules, "django_ag_ui.routines.routine_editor_view", raising=False)
+    with pytest.raises(ImportError, match=r"django-ag-ui\[specs\]") as excinfo:
+        AGUIServer(_registry(), model=_IDLE, routine_model=TeamRoutine, id="helper")
+    assert isinstance(excinfo.value.__cause__, ImportError)
 
 
 def test_a_dotted_path_for_the_model_is_refused() -> None:

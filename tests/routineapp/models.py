@@ -24,7 +24,8 @@ class TeamRoutine(AbstractRoutine):
         return cls.sweep
 
     @classmethod
-    def thread_waits(cls, thread_id: str, principal: Any) -> bool:
+    def thread_waits(cls, thread_id: str | None, principal: Any) -> bool:
+        assert thread_id is not None, "a guard must not ask after a thread that never was"
         return thread_id in cls.waiting
 
 
@@ -40,3 +41,27 @@ class TeamRoutinePolicy(RoutinePolicy[TeamRoutine]):
 
     def new_routine(self, request: HttpRequest) -> TeamRoutine:
         return TeamRoutine(team=request.user.last_name)
+
+
+class ShiftRoutine(AbstractRoutine):
+    """A routine whose only manager is ``rows``: the model has no ``objects``."""
+
+    rows = models.Manager()
+
+    @classmethod
+    def routine_policy(cls) -> ShiftRoutinePolicy:
+        return ShiftRoutinePolicy()
+
+
+class ShiftRoutinePolicy(RoutinePolicy[ShiftRoutine]):
+    def visible(self, request: HttpRequest) -> Iterable[ShiftRoutine]:
+        return ShiftRoutine.rows.all()
+
+    def can_write(self, request: HttpRequest, routine: ShiftRoutine) -> bool:
+        return True
+
+    def can_run(self, principal: Any, routine: ShiftRoutine) -> bool:
+        return True
+
+    def new_routine(self, request: HttpRequest) -> ShiftRoutine:
+        return ShiftRoutine()
