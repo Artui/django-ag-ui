@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **The sub-agents page imports `pydantic_ai_harness.sub_agents`.** pydantic-ai-harness renamed
+  the module from `subagents`, and the old path now warns on import. The new path exists at the
+  `[harness]` floor (0.69), so the snippet works on every supported harness. See
+  [Sub-agents](https://artui.github.io/django-ag-ui/subagents/).
+
 ## [0.88.1] — 2026-11-23
 
 ### Documentation

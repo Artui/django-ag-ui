@@ -24,7 +24,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 from pydantic_ai.models.function import FunctionModel
-from pydantic_ai_harness.subagents import SubAgent, SubAgents
+from pydantic_ai_harness.sub_agents import SubAgent, SubAgents
 
 from django_ag_ui import SubAgentObserver
 from django_ag_ui.agent.subagent_observer import SUBAGENT_SINK

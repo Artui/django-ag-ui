@@ -11,7 +11,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 async def _parent_tool_names_with_subagents(tool_name: str = "delegate_task") -> list[str]:
     """Builds build_agent with SubAgents, runs once, and returns the tool names the parent saw."""
-    subagents = pytest.importorskip("pydantic_ai_harness.subagents")
+    subagents = pytest.importorskip("pydantic_ai_harness.sub_agents")
 
     child = Agent(
         FunctionModel(lambda m, i: ModelResponse(parts=[TextPart(content="ok")])), name="researcher"
