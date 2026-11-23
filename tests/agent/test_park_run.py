@@ -429,7 +429,9 @@ async def _resume(
         "resume": resume,
     }
     request = AuthedAsyncRequestFactory().post(
-        f"/agent/resume/{stop.run_id}/", data=json.dumps(body), content_type="application/json"
+        f"/agent/resume/{stop.run_id}/",
+        data=json.dumps(body),
+        content_type="application/json",
     )
     response = await view(request, resume_from=stop.run_id)
     if isinstance(response, StreamingHttpResponse):
@@ -453,6 +455,52 @@ async def test_answering_a_parked_run_through_its_resume_route_completes_it() ->
         (),
         "r-answer",
     )
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_parked_approval_is_answered_on_the_run_id_its_threads_row_names() -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    server = _server(_guarded(calls))
+    stop, _ = await _parked(server)
+    patterns, _, _ = server.urls
+    threads = next(p for p in patterns if p.name == "threads").callback
+    resume = next(p for p in patterns if p.name == "resume").callback
+    listed = await threads(AuthedAsyncRequestFactory().get("/agent/threads/"))
+    [row] = json.loads(listed.content)["threads"]
+    body = {
+        "threadId": row["thread_id"],
+        "runId": "r-answer",
+        "messages": [],
+        "tools": [],
+        "context": [],
+        "state": None,
+        "forwardedProps": None,
+        "resume": [
+            {
+                "interruptId": row["interrupts"][0]["id"],
+                "status": "resolved",
+                "payload": {"approved": True},
+            }
+        ],
+    }
+    request = AuthedAsyncRequestFactory().post(
+        f"/agent/resume/{row['run_id']}/",
+        data=json.dumps(body),
+        content_type="application/json",
+    )
+
+    response = await resume(request, resume_from=row["run_id"])
+    streamed = "".join([c if isinstance(c, str) else c.decode() async for c in response])  # ty: ignore[not-iterable]
+    state = await _settled(row["thread_id"], request)
+
+    assert (row["status"], row["run_id"], row["thread_id"]) == (
+        "waiting",
+        stop.run_id,
+        stop.thread_id,
+    )
+    assert "deleted widget-1" in streamed
+    assert calls.ran == ["widget-1"]
+    assert (state.status, state.last_run_id) == (ThreadRunStatus.IDLE, "r-answer")
 
 
 @pytest.mark.django_db(transaction=True)

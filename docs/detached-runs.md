@@ -221,7 +221,21 @@ client ignores them; without a run store the rows carry none of them.
 | `last_read_at` | when the caller last marked the thread read (ISO 8601), or `null` |
 | `reason` | with `failed` only: `error` (the run raised) or `interrupted` (its lease lapsed); a timeout reads `idle` and keeps its reason server-side |
 | `interrupts` | with `waiting` only: the protocol's interrupt list, one per call the run parked on |
+| `run_id` | with `waiting` only, on a mount that serves `resume/<run_id>/` (one with a `step_store=`): the parked run's id, the one that route accepts; absent otherwise, so its presence means the row is answerable in place |
 | `agent_id` | the mount's `id=`, when it has one |
+
+The `run_id` assumes the mount's conversation, run and step stores are scoped alike
+([Multiple endpoints](configuration.md#multiple-endpoints)): two mounts sharing an unscoped
+conversation and run store, and only one a step store, list each thread on both: the mount
+with the step store names a `run_id` for the other mount's parked runs too, and answers
+their `resume/<run_id>/` with a `404`, having no snapshot of them. A `step_store=`
+added to a mount with threads already waiting likewise advertises run ids it has no
+snapshot for: the client's resume gets a `404` and the thread is answered in its
+conversation.
+
+A client answers a waiting row from the row alone: it POSTs the answer to `resume/<run_id>/`
+with the row's `run_id`. The `run_id` changes when the thread parks again on a new run, so
+it also changes the list's ETag.
 
 An interrupt is an AG-UI `Interrupt` sharing its `id` and `toolCallId` with the one the
 protocol uses for the call, so a client answers a parked approval with `@ag-ui/client`'s
@@ -404,6 +418,7 @@ children in every scope, oldest first:
 ```
 
 `agent_id` is the child's scope (`null` in an unscoped store), and the status keys are a
-thread row's, without `last_read_at`: `reason` when failed and `interrupts` when waiting.
+thread row's, without `last_read_at` and `run_id`: `reason` when failed and `interrupts` when
+waiting.
 Like every route it is the caller's: another owner's children are absent, and a thread the
 caller does not own answers `404`.

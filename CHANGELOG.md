@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.88.0] — 2026-11-23
+
+### Added
+
+- **A waiting thread row names the run that answers it.** On a mount that serves
+  `resume/<run_id>/` (one with a `step_store=`), a `waiting` row of `threads/`, and of the
+  `AgentsDirectory` `inbox/`, carries `run_id`, the parked run's id, so a client answers an
+  approval from the row alone. A row not waiting, and a mount without `step_store=`, carries
+  no `run_id`; child rows never do. The `run_id` assumes the mount's stores are scoped alike.
+  ETag and SSE are otherwise unchanged. See
+  [Thread status](docs/detached-runs.md#thread-status).
+
+- **Each `agents/` entry declares its mount's AG-UI capabilities.** `AgentsDirectory`
+  entries gain `capabilities`, the protocol's `AgentCapabilities` under its camelCase wire
+  keys, built by the new `AGUIServer.agent_capabilities()` as the SDK's own model from the
+  mount's configuration: `transport.resumable` from a run store and a run timeout (a run
+  detaches on both), `humanInTheLoop` approvals and interrupts from an enabled tool guard
+  (not under `agent_factory=`), `reasoning.supported: false` when reasoning is not
+  forwarded, `multimodal.input.file` from an attachment store with no
+  `ATTACHMENT_ALLOWED_TYPES`, `multiAgent.supported` from `inbound_queue=`,
+  `execution.maxExecutionTime` from the run timeout, and `identity` from `name=` and
+  `description=`; `transport.streaming` and client-provided `tools` always. What a mount
+  cannot know is left out, which the protocol reads as undeclared. See
+  [Agents directory](docs/agents-directory.md#capabilities).
+
 ## [0.87.0] — 2026-11-23
 
 ### Added
@@ -4891,7 +4916,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.87.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.88.0...HEAD
+[0.88.0]: https://github.com/Artui/django-ag-ui/compare/v0.87.0...v0.88.0
 [0.87.0]: https://github.com/Artui/django-ag-ui/compare/v0.86.0...v0.87.0
 [0.86.0]: https://github.com/Artui/django-ag-ui/compare/v0.85.0...v0.86.0
 [0.85.0]: https://github.com/Artui/django-ag-ui/compare/v0.84.0...v0.85.0

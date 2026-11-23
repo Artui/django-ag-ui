@@ -53,7 +53,10 @@ A mount's store can still refuse a caller its policy admits: a mount with
 {"agents": [{"id": "board", "name": "Board", "description": "The board agent",
   "endpoint": "/agent/", "tools_url": "/agent/tools/", "threads_url": "/agent/threads/",
   "runs_url": null, "skills_url": "/agent/skills/", "skill_editor_url": null,
-  "routines_url": null, "attachments_url": null, "transcribe_url": null}]}
+  "routines_url": null, "attachments_url": null, "transcribe_url": null,
+  "capabilities": {"identity": {"name": "Board", "description": "The board agent"},
+    "transport": {"streaming": true, "resumable": false},
+    "tools": {"supported": true, "clientProvided": true}}}]}
 ```
 
 One entry per admitted mount, in the order the servers were given. The URL keys are named
@@ -64,12 +67,45 @@ Per-thread routes (`threads/<id>/events/`, `cancel/`, `read/`) are derived from
 `If-None-Match` with `304`; it does not stream, since the set changes only with a deploy or
 a permission.
 
+### Capabilities
+
+Each entry's `capabilities` is what that mount declares of the AG-UI protocol's
+[`AgentCapabilities`](https://github.com/ag-ui-protocol/ag-ui/blob/37b4da90/docs/spec/1.0/basic/capabilities.mdx), so a host can adapt
+before a run: show an approval affordance, hide a reasoning panel, offer an upload button.
+The protocol has no route of its own for it, so the directory carries it. It is
+[`AGUIServer.agent_capabilities()`][django_ag_ui.AGUIServer.agent_capabilities], the SDK's
+own `ag_ui.core.AgentCapabilities` model, dumped under its camelCase wire keys with unset
+fields left out.
+
+| Key | Declared | From |
+| --- | --- | --- |
+| `transport.streaming` | `true` | always: the endpoint answers in SSE |
+| `transport.resumable` | `true` / `false` | a `run_store` and `RUN_TIMEOUT_SECONDS`: a run survives a dropped stream only when it detaches, which needs both, and `threads/<id>/events/?after=` then replays its log from a sequence number (an authenticated run's; an anonymous run is not logged) |
+| `tools` | `supported`, `clientProvided` | always: a browser run's posted tools reach the agent |
+| `humanInTheLoop` | `supported`, `approvals`, `interrupts` | `TOOL_GUARD` enabled and no `agent_factory=` (a factory builds the agent the guard is composed into) |
+| `reasoning` | `{"supported": false}` | `FORWARD_REASONING` off, which drops every reasoning event |
+| `multimodal.input.file` | `true` | an attachment store, which mounts `attachments/`, and an empty `ATTACHMENT_ALLOWED_TYPES`: `file` means arbitrary uploads, and a listed type makes `attachments/` refuse the rest with a `415` |
+| `multiAgent.supported` | `true` | `inbound_queue=` (its threads run as child sessions); `child_threads=` only lists children, so declares nothing |
+| `execution.maxExecutionTime` | milliseconds | `RUN_TIMEOUT_SECONDS` |
+| `identity` | `name`, `description` | `name=`, `description=` |
+
+`transport.resumable` cannot see the deployment: under WSGI a response cannot outlive
+its request, so a mount with both still declares it while a dropped stream ends the run.
+
+What a mount cannot know is left out, and the protocol reads an omitted field as "not
+declared", never as "unsupported". So a mount with the guard off declares nothing about
+approvals (a capability passed in `capabilities=` may still ask for one), one forwarding
+reasoning declares nothing about it (whether any arrives is the model's), and
+`multiAgent.subagents` is never listed. The declarations are informative: the event stream
+stays authoritative, and a client still handles an interrupt or a reasoning event it was
+not told to expect.
+
 ## `inbox/`
 
 `{"threads": [...]}`, the body shape of a mount's `threads/`, so a client that reads one
 reads the other. It holds every admitted mount's rows, exactly as that mount's `threads/`
-would list them (status, interrupts, parent and routine included), each with `agent_id`
-whether or not the mount has a run store. Rows are ordered newest first by `updated_at`,
+would list them (status, interrupts, `run_id` where that mount serves `resume/<run_id>/`,
+parent and routine included), each with `agent_id` whether or not the mount has a run store. Rows are ordered newest first by `updated_at`,
 rows without one last, ties in server order.
 
 `?limit=` caps each mount's share, clamped to that mount's `thread_list_limit`; nothing is

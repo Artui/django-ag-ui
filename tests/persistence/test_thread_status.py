@@ -10,6 +10,7 @@ from django.http import StreamingHttpResponse
 from django.test import AsyncRequestFactory
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
+from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 from django_spec_agents.contrib.store.models import StoredThreadRun
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
@@ -101,6 +102,61 @@ async def test_a_waiting_row_serves_the_protocols_interrupt_list() -> None:
         }
     ]
     assert "agent_id" not in row
+
+
+async def _park(run_store: Any, request: Any, run_id: str) -> None:
+    await run_store.claim("t1", run_id, request=request, lease=_LEASE)
+    waiting = (
+        RunWaiting(kind="approval", summary="Delete?", tool_call_id="call-9", destructive=True),
+    )
+    await run_store.finish("t1", run_id, RunOutcome.WAITING, request=request, waiting=waiting)
+
+
+async def test_a_waiting_row_on_a_mount_serving_resume_names_the_parked_run() -> None:
+    run_store = DefaultRunStore()
+    await _park(run_store, await _thread("t1"), "r-parked")
+
+    row = _rows(await _list(_server(run_store, step_store=DefaultStepStore)))["t1"]
+
+    assert (row["status"], row["run_id"]) == ("waiting", "r-parked")
+
+
+async def test_a_waiting_row_on_a_mount_without_a_step_store_carries_no_run_id() -> None:
+    run_store = DefaultRunStore()
+    await _park(run_store, await _thread("t1"), "r-parked")
+
+    row = _rows(await _list(_server(run_store)))["t1"]
+
+    assert row["status"] == "waiting"
+    assert "run_id" not in row
+
+
+async def test_a_row_that_is_not_waiting_carries_no_run_id() -> None:
+    run_store = DefaultRunStore()
+    request = await _thread("t1", "t2")
+    await _park(run_store, request, "r-parked")
+    await run_store.claim("t2", "r2", request=request, lease=_LEASE)
+    await run_store.finish("t2", "r2", RunOutcome.COMPLETED, request=request)
+
+    rows = _rows(await _list(_server(run_store, step_store=DefaultStepStore)))
+
+    assert rows["t2"]["status"] == "idle"
+    assert "run_id" not in rows["t2"]
+
+
+async def test_the_etag_changes_when_the_waiting_run_changes() -> None:
+    run_store = DefaultRunStore()
+    request = await _thread("t1")
+    server = _server(run_store, step_store=DefaultStepStore)
+    await _park(run_store, request, "r-first")
+    first = await _list(server)
+    await _park(run_store, request, "r-second")
+
+    again = await _list(server, **{"If-None-Match": first["ETag"]})
+
+    assert again.status_code == 200
+    assert again["ETag"] != first["ETag"]
+    assert _rows(again)["t1"]["run_id"] == "r-second"
 
 
 @pytest.mark.parametrize(
