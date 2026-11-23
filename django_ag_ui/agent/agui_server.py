@@ -837,17 +837,18 @@ class AGUIServer:
         authoritative; what the mount cannot know is left out, which the protocol reads as
         "not declared", never as "unsupported":
 
-        - ``transport``: ``streaming`` always; ``resumable`` whether a ``run_store`` mounts
-          ``threads/<id>/events/``, whose ``?after=`` replays a run's log from a sequence
-          number (an authenticated run's: an anonymous run has no owner, so is not logged).
+        - ``transport``: ``streaming`` always; ``resumable`` with a ``run_store`` (its
+          ``threads/<id>/events/?after=`` replays an authenticated run's log) and a run
+          timeout, without which a run that asks to detach is cancelled on disconnect.
         - ``tools``: ``supported`` and ``clientProvided``, the tools a browser run posts.
         - ``humanInTheLoop``: ``supported``, ``approvals`` and ``interrupts`` when the tool
           guard is enabled and no ``agent_factory`` replaces the agent it is composed into.
         - ``reasoning``: ``supported: false`` when ``forward_reasoning`` is off, since every
           reasoning event is dropped; with it on, whether any arrive is the model's.
-        - ``multimodal``: ``input.file`` when an attachment store mounts ``attachments/``.
-        - ``multiAgent``: ``supported`` with an ``inbound_queue`` (its threads run as child
-          sessions) or ``child_threads`` (its threads have them).
+        - ``multimodal``: ``input.file`` when ``attachments/`` is mounted and
+          ``attachment_allowed_types`` is empty, since a listed type refuses the rest.
+        - ``multiAgent``: ``supported`` with an ``inbound_queue``, its threads run as child
+          sessions; ``child_threads`` only lists children, so declares nothing.
         - ``execution``: ``maxExecutionTime``, ``run_timeout_seconds`` in milliseconds.
         - ``identity``: ``name`` and ``description``.
         """
@@ -857,17 +858,21 @@ class AGUIServer:
         guarded = config.tool_guard.enabled and self._agent_factory is None
         timeout = config.run_timeout_seconds
         known = self.name is not None or self.description is not None
-        children = self._inbound_queue is not None or self._child_threads is not None
+        any_file = "attachments" in routes and not config.attachment_allowed_types
         return AgentCapabilities(
             identity=IdentityCapabilities(name=self.name, description=self.description)
             if known
             else None,
-            transport=TransportCapabilities(streaming=True, resumable="thread_events" in routes),
+            transport=TransportCapabilities(
+                streaming=True, resumable="thread_events" in routes and bool(timeout)
+            ),
             tools=ToolsCapabilities(supported=True, client_provided=True),
-            multi_agent=MultiAgentCapabilities(supported=True) if children else None,
+            multi_agent=MultiAgentCapabilities(supported=True)
+            if self._inbound_queue is not None
+            else None,
             reasoning=None if config.forward_reasoning else ReasoningCapabilities(supported=False),
             multimodal=MultimodalCapabilities(input=MultimodalInputCapabilities(file=True))
-            if "attachments" in routes
+            if any_file
             else None,
             execution=ExecutionCapabilities(max_execution_time=math.ceil(timeout * 1000))
             if timeout

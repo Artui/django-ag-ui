@@ -55,7 +55,7 @@ A mount's store can still refuse a caller its policy admits: a mount with
   "runs_url": null, "skills_url": "/agent/skills/", "skill_editor_url": null,
   "routines_url": null, "attachments_url": null, "transcribe_url": null,
   "capabilities": {"identity": {"name": "Board", "description": "The board agent"},
-    "transport": {"streaming": true, "resumable": true},
+    "transport": {"streaming": true, "resumable": false},
     "tools": {"supported": true, "clientProvided": true}}}]}
 ```
 
@@ -80,14 +80,17 @@ fields left out.
 | Key | Declared | From |
 | --- | --- | --- |
 | `transport.streaming` | `true` | always: the endpoint answers in SSE |
-| `transport.resumable` | `true` / `false` | a `run_store`: `threads/<id>/events/?after=` replays a run's log from a sequence number (an authenticated run's; an anonymous run is not logged) |
+| `transport.resumable` | `true` / `false` | a `run_store` and `RUN_TIMEOUT_SECONDS`: a run survives a dropped stream only when it detaches, which needs both, and `threads/<id>/events/?after=` then replays its log from a sequence number (an authenticated run's; an anonymous run is not logged) |
 | `tools` | `supported`, `clientProvided` | always: a browser run's posted tools reach the agent |
 | `humanInTheLoop` | `supported`, `approvals`, `interrupts` | `TOOL_GUARD` enabled and no `agent_factory=` (a factory builds the agent the guard is composed into) |
 | `reasoning` | `{"supported": false}` | `FORWARD_REASONING` off, which drops every reasoning event |
-| `multimodal.input.file` | `true` | an attachment store, which mounts `attachments/` |
-| `multiAgent.supported` | `true` | `inbound_queue=` (its threads run as child sessions) or `child_threads=` (its threads have them) |
+| `multimodal.input.file` | `true` | an attachment store, which mounts `attachments/`, and an empty `ATTACHMENT_ALLOWED_TYPES`: `file` means arbitrary uploads, and a listed type makes `attachments/` refuse the rest with a `415` |
+| `multiAgent.supported` | `true` | `inbound_queue=` (its threads run as child sessions); `child_threads=` only lists children, so declares nothing |
 | `execution.maxExecutionTime` | milliseconds | `RUN_TIMEOUT_SECONDS` |
 | `identity` | `name`, `description` | `name=`, `description=` |
+
+`transport.resumable` cannot see the deployment: under WSGI a response cannot outlive
+its request, so a mount with both still declares it while a dropped stream ends the run.
 
 What a mount cannot know is left out, and the protocol reads an omitted field as "not
 declared", never as "unsupported". So a mount with the guard off declares nothing about

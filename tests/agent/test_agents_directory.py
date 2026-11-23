@@ -117,7 +117,7 @@ async def test_each_entry_carries_its_identity_and_the_mounted_routes_reversed()
         "transcribe_url": None,
         "capabilities": {
             "identity": {"name": "Board", "description": "The board agent"},
-            "transport": {"streaming": True, "resumable": True},
+            "transport": {"streaming": True, "resumable": False},
             "tools": {"supported": True, "clientProvided": True},
         },
     }

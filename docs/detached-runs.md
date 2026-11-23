@@ -224,6 +224,14 @@ client ignores them; without a run store the rows carry none of them.
 | `run_id` | with `waiting` only, on a mount that serves `resume/<run_id>/` (one with a `step_store=`): the parked run's id, the one that route accepts; absent otherwise, so its presence means the row is answerable in place |
 | `agent_id` | the mount's `id=`, when it has one |
 
+The `run_id` assumes the mount's conversation, run and step stores are scoped alike
+([Multiple endpoints](configuration.md#multiple-endpoints)): two mounts sharing an unscoped
+conversation and run store, and only one a step store, list the thread on both, and the
+mount without the snapshot answers its `resume/<run_id>/` with a `404`. A `step_store=`
+added to a mount with threads already waiting likewise advertises run ids it has no
+snapshot for: the client's resume gets a `404` and the thread is answered in its
+conversation.
+
 A client answers a waiting row from the row alone: it POSTs the answer to `resume/<run_id>/`
 with the row's `run_id`. The `run_id` changes when the thread parks again on a new run, so
 it also changes the list's ETag.
