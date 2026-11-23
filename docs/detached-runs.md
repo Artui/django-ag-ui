@@ -281,6 +281,12 @@ one through `start(..., parent=, lineage=)`, which saves both on the child's con
 before it returns, so `DefaultChildSessionIndex` lists the child under its parent at once.
 `parent` is a `ThreadRef` in any scope, so the child may run on another agent.
 
+Each row of `GET <mount>threads/` carries that link as `parent`, with or without a run
+store: `{"thread_id": "...", "scope": "..."}` for a child, where `scope` is the parent's
+agent id or `ScopedConversationStore` scope (`null` in an unscoped store), and `null` for
+a thread of its own. A child listed by another mount names its parent in the parent's
+scope, so a client opens the parent from the mount whose `agent_id` matches `scope`.
+
 Every run of that thread keeps its parent's bounds, the first included, whether a headless
 start, a browser turn into the child, a resume after an approval, or a headless wake: the
 mount rebuilds the stored lineage with `child_lineage_for` and composes it into the run.

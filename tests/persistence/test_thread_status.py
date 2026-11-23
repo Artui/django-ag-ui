@@ -126,7 +126,7 @@ async def test_without_a_run_store_rows_keep_their_old_shape() -> None:
 
     body = json.loads((await _list(_server(id="helper"))).content)
 
-    assert set(body["threads"][0]) == {"thread_id", "title", "updated_at", "preview"}
+    assert set(body["threads"][0]) == {"thread_id", "title", "updated_at", "preview", "parent"}
     assert body["agent"] == {"id": "helper", "name": None, "description": None}
 
 
