@@ -620,6 +620,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../agents-directory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents directory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../memory/" class="md-nav__link">
         
   
@@ -2085,6 +2112,11 @@ component's <code>data-threads-url</code>:</p>
 <td><code>&lt;prefix&gt;threads/&lt;id&gt;/read/</code></td>
 <td><code>POST</code></td>
 <td>mark the thread read (with a run store; see <a href="../detached-runs/#thread-status">Thread status</a>)</td>
+</tr>
+<tr>
+<td><code>&lt;prefix&gt;threads/&lt;id&gt;/children/</code></td>
+<td><code>GET</code></td>
+<td>the thread's child sessions (with <code>child_threads=</code>; see <a href="../detached-runs/#delete-a-parent">Delete a parent</a>)</td>
 </tr>
 </tbody>
 </table>

@@ -756,6 +756,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Child sessions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#delete-a-parent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delete a parent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -781,6 +798,33 @@
     
   
     Queued runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agents-directory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents directory
   
 
     
@@ -1166,6 +1210,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Child sessions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#delete-a-parent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delete a parent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -1529,6 +1590,55 @@ is optional; given, the run counts against the child-session budgets as well.</p
 <code>step_store</code>. A headless run gets the mount's <code>headless_request(principal)</code>, an
 <code>HttpRequest</code> whose <code>user</code> is the principal, with no session. Override it in a subclass
 when one of your hooks reads state that your middleware sets.</p>
+<h3 id="delete-a-parent">Delete a parent<a class="headerlink" href="#delete-a-parent" title="Permanent link">&para;</a></h3>
+<p>A mount deletes a thread through its own conversation store, which knows nothing of the
+thread's children in other mounts. Give it <code>child_threads=</code>, a callable returning the
+<code>AGUIHeadlessRunner</code> that holds every mount, and give the runner the <code>index=</code> it walks:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">store</span><span class="p">,</span> <span class="n">run_store</span> <span class="o">=</span> <span class="n">DefaultConversationStore</span><span class="p">(),</span> <span class="n">DefaultRunStore</span><span class="p">()</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">runner</span><span class="p">:</span> <span class="n">AGUIHeadlessRunner</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">planner</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="nb">id</span><span class="o">=</span><span class="s2">"planner"</span><span class="p">,</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="n">run_store</span><span class="o">=</span><span class="n">run_store</span><span class="p">,</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">step_store</span><span class="o">=</span><span class="n">DefaultStepStore</span><span class="p">,</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">conversation_store</span><span class="o">=</span><span class="n">ScopedConversationStore</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"planner"</span><span class="p">),</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">child_threads</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">runner</span><span class="p">,</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="p">)</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">helper</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>    <span class="nb">id</span><span class="o">=</span><span class="s2">"helper"</span><span class="p">,</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>    <span class="n">run_store</span><span class="o">=</span><span class="n">run_store</span><span class="p">,</span>
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>    <span class="n">step_store</span><span class="o">=</span><span class="n">DefaultStepStore</span><span class="p">,</span>
+</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>    <span class="n">conversation_store</span><span class="o">=</span><span class="n">ScopedConversationStore</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"helper"</span><span class="p">),</span>
+</span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="p">)</span>
+</span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="n">runner</span> <span class="o">=</span> <span class="n">AGUIHeadlessRunner</span><span class="p">(</span><span class="n">planner</span><span class="p">,</span> <span class="n">helper</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">DefaultChildSessionIndex</span><span class="p">(</span><span class="n">run_store</span><span class="p">))</span>
+</span></code></pre></div>
+<p>It is a callable because the runner is built from the mounts. <code>DELETE &lt;mount&gt;threads/&lt;id&gt;/</code>
+then keeps the thread's children: it records a cancel on every descendant whose run holds
+its thread, in that descendant's own mount, so a running grandchild stops too. An idle
+descendant is left alone, and one parked on a question keeps its park, since a cancel
+reaches only a run that holds the thread. It clears each direct child's <code>parent</code> and
+<code>lineage</code> in the child's own mount, so the child lists as a thread of its own there, and
+it deletes the thread last. A
+child is found in the mount whose <code>id</code> is its scope, so give each mount's
+<code>ScopedConversationStore</code> the mount's id as its scope; in an unscoped store it is found in
+its parent's mount. The whole tree is resolved first: a child in a scope no mount of the
+runner serves raises <code>LookupError</code>, and nothing has changed; through the route, that
+<code>DELETE</code> answers <code>409</code> with the error rather than <code>204</code>.</p>
+<p>With <code>index=</code>, every mount's conversation store must be an <code>UnlinkableConversationStore</code>
+(<code>DefaultConversationStore</code> is one, and so is a <code>ScopedConversationStore</code> over one), or
+the runner is refused at construction. <code>child_threads=</code> without <code>id=</code> is refused too.
+Without <code>child_threads=</code>, <code>DELETE</code> deletes the one thread, as before.</p>
+<p><code>GET &lt;mount&gt;threads/&lt;id&gt;/children/</code>, mounted with <code>child_threads=</code>, lists the thread's
+children in every scope, oldest first:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="nt">"children"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="p">{</span><span class="nt">"thread_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"c1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"agent_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"helper"</span><span class="p">,</span><span class="w"> </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"running"</span><span class="p">}</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="p">]}</span>
+</span></code></pre></div>
+<p><code>agent_id</code> is the child's scope (<code>null</code> in an unscoped store), and the status keys are a
+thread row's, without <code>last_read_at</code>: <code>reason</code> when failed and <code>interrupts</code> when waiting.
+Like every route it is the caller's: another owner's children are absent, and a thread the
+caller does not own answers <code>404</code>.</p>
 
 
 
