@@ -851,6 +851,10 @@ class AGUIServer:
           sessions; ``child_threads`` only lists children, so declares nothing.
         - ``execution``: ``maxExecutionTime``, ``run_timeout_seconds`` in milliseconds.
         - ``identity``: ``name`` and ``description``.
+
+        A host that knows more (sub-agents passed in ``capabilities=``, a guard it composed)
+        overrides this in a subclass, starting from ``super()``; see
+        [Adding what the mount cannot see](agents-directory.md#adding-what-the-mount-cannot-see).
         """
         config = self._config
         routes = self.routes()

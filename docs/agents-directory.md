@@ -95,10 +95,52 @@ its request, so a mount with both still declares it while a dropped stream ends 
 What a mount cannot know is left out, and the protocol reads an omitted field as "not
 declared", never as "unsupported". So a mount with the guard off declares nothing about
 approvals (a capability passed in `capabilities=` may still ask for one), one forwarding
-reasoning declares nothing about it (whether any arrives is the model's), and
-`multiAgent.subagents` is never listed. The declarations are informative: the event stream
-stays authoritative, and a client still handles an interrupt or a reasoning event it was
-not told to expect.
+reasoning declares nothing about it (whether any arrives is the model's), and the mount never
+lists `multiAgent.subagents`. A host that knows more says so by
+[overriding the method](#adding-what-the-mount-cannot-see). The declarations are
+informative: the event stream stays authoritative, and a client still handles an interrupt
+or a reasoning event it was not told to expect.
+
+#### Adding what the mount cannot see
+
+Some of a mount's capabilities come from what it is handed rather than from its
+configuration: [sub-agents](subagents.md) passed through `capabilities=`, or a tool guard a
+host composes by hand. The mount declares none of them. A host that knows it has them
+subclasses `AGUIServer` and overrides `agent_capabilities()`, which the directory calls on
+the mount for every request. Start from `super()`, so the configuration's declarations
+stay, and add to them:
+
+```python
+from ag_ui.core import AgentCapabilities, MultiAgentCapabilities, SubagentInfo
+
+from django_ag_ui import AGUIServer
+
+
+class DelegatingServer(AGUIServer):
+    def agent_capabilities(self) -> AgentCapabilities:
+        declared = super().agent_capabilities()
+        multi_agent = declared.multi_agent or MultiAgentCapabilities()
+        researcher = SubagentInfo(name="researcher", description="Finds sources")
+        update = {"supported": True, "subagents": [researcher]}
+        return declared.model_copy(update={"multi_agent": multi_agent.model_copy(update=update)})
+```
+
+Mounted as `DelegatingServer(...)` in place of `AGUIServer(...)`, its entry then carries
+`"multiAgent": {"supported": true, "subagents": [{"name": "researcher", "description":
+"Finds sources"}]}` beside what the configuration declared. A hand-composed guard is the
+same move on `human_in_the_loop` with `HumanInTheLoopCapabilities`.
+
+Three things the SDK will not catch for you:
+
+- **Pass the SDK's models, never dicts.** `model_copy(update=...)` does not validate, so a
+  dict value is stored as given and the entry fails to serialise: `agents/` answers `500`.
+- **An update replaces a sub-model whole.** Copy the declared one (`declared.multi_agent or
+  MultiAgentCapabilities()`) and update that, or a field the configuration set is lost.
+- **The field is `subagents`.** The SDK's models accept unknown fields, so `sub_agents=`
+  constructs without an error and is served under the wrong key.
+
+What the override declares is informative too: the stream stays authoritative, and the
+override is the host's word, not something the mount checks.
 
 ## `inbox/`
 
