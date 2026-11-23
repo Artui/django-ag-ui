@@ -28,6 +28,9 @@ next ``RunAgentInput``, so an invalidation placed there would be echoed back to
 the model as though it were something the model had said.
 """
 
+ROUTINES_KEY = "routines"
+"""What a routine write invalidates, with ``routines/<id>``, so an open routines panel refetches."""
+
 
 def resource_invalidation(*keys: str, reason: str | None = None) -> CustomEvent:
     """An event naming the resources a write has just moved.
@@ -71,4 +74,4 @@ def resource_invalidation(*keys: str, reason: str | None = None) -> CustomEvent:
     )
 
 
-__all__ = ["INVALIDATE_EVENT_NAME", "resource_invalidation"]
+__all__ = ["INVALIDATE_EVENT_NAME", "ROUTINES_KEY", "resource_invalidation"]

@@ -103,6 +103,7 @@ nav:
   - Delegating to sub-agents: subagents.md
   - Compaction & skills: compaction.md
   - User skills: user-skills.md
+  - Routines: routines.md
   - Durable step persistence: step-persistence.md
   - Detached and headless runs: detached-runs.md
   - Queued runs: queued-runs.md

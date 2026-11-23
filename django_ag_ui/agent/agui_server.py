@@ -101,6 +101,10 @@ class AGUIServer:
     - ``skill_editor`` / ``skill_editor_item`` — ``skill_editor=True``
       (``skills/editor/`` + ``skills/editor/<id>/``, see
       [`SkillEditorView`][django_ag_ui.skills.skill_editor_view.SkillEditorView]).
+    - ``routines`` / ``routine`` / ``routine_run`` / ``routine_runs`` — a
+      ``routine_model`` was passed (``routines/``, ``routines/<id>/``, ``.../run/`` and
+      ``.../runs/``, see
+      [`RoutineEditorView`][django_ag_ui.routines.routine_editor_view.RoutineEditorView]).
     - ``threads`` / ``thread`` — the conversation store is not a
       ``NullConversationStore`` (``threads/`` + ``threads/<id>/``, the history
       drawer's ``data-threads-url``). A ``thread_activity_source=`` puts pushed
@@ -276,6 +280,11 @@ class AGUIServer:
     ``agent_factory`` builds its own agent and gets none of this. See
     [User skills](user-skills.md).
 
+    **Routines.** ``routine_model`` takes a django-spec-agents ``AbstractRoutine``
+    subclass: the ``routines/`` editor serves the caller's routines on this mount's ``id``,
+    and a run that saves one sends ``ag_ui.invalidate`` with the ``routines`` key. See
+    [Routines](routines.md).
+
     **Namespacing.** [`urls`][django_ag_ui.AGUIServer.urls] returns the
     ``(patterns, app_name, namespace)``
     triple ``path()`` mounts directly (like ``admin.site.urls`` — no
@@ -328,6 +337,7 @@ class AGUIServer:
         inbound_queue: InboundQueue | None = None,
         child_spend: ChildSessionSpend | None = None,
         firing_queue: FiringQueue | None = None,
+        routine_model: Any = None,
     ) -> None:
         check_removed_settings()
         # The same mistake in its constructor-shaped form: a name where an object belongs.
@@ -348,6 +358,7 @@ class AGUIServer:
             inbound_queue=inbound_queue,
             child_spend=child_spend,
             firing_queue=firing_queue,
+            routine_model=routine_model,
             service_specs=service_specs,
             skills=skills,
             skill_policy=skill_policy,
@@ -414,6 +425,9 @@ class AGUIServer:
             _reject_spec_name_collisions(self._service_specs or {}, registry, self._mcp_server)
         self._step_store = step_store
         self._deps_factory = deps_factory
+        self._routine_editor = (
+            None if routine_model is None else self._mount_routines(routine_model)
+        )
         self._queued = self._queued_start(firing_queue)
         self._view = DjangoAGUIView(
             registry,
@@ -456,6 +470,43 @@ class AGUIServer:
             self._skill_editor = SkillEditorView(self._skill_policy, **self._policy)
         stored = StoredSkillsForRun(self._skill_policy, authoring=authoring)
         return [stored, *(capabilities or [])]
+
+    def _mount_routines(self, model: Any) -> Any:
+        # Imported late: django_spec_agents.routines defines a model, so needs the app registry.
+        from django.db.models.signals import post_save
+        from django_spec_agents import ToolGuard
+
+        from django_ag_ui.routines.routine_editor_view import RoutineEditorView
+        from django_ag_ui.routines.utils import announce_routine_saved, grantable_tool_defs
+
+        if self.id is None:
+            raise ImproperlyConfigured("AGUIServer(routine_model=) needs id=: a routine names it")
+        if model.routine_policy() is None:
+            raise ImproperlyConfigured(
+                f"AGUIServer(routine_model={model.__name__}) has no routine_policy()"
+            )
+        post_save.connect(
+            announce_routine_saved,
+            sender=model,
+            weak=False,
+            dispatch_uid=f"django_ag_ui.routines.{model._meta.label}",
+        )
+
+        def tool_defs(request: HttpRequest) -> list[Any]:
+            return grantable_tool_defs(
+                self._registry,
+                request,
+                mcp_server=self._mcp_server,
+                service_specs=self._service_specs,
+            )
+
+        return RoutineEditorView(
+            model,
+            agent_id=self.id,
+            guard=ToolGuard(self._registry, config=self._config.tool_guard),
+            tool_defs=tool_defs,
+            **self._policy,
+        )
 
     def _queued_start(self, queue: FiringQueue | None) -> QueuedBrowserStart | None:
         if queue is None:
@@ -749,6 +800,19 @@ class AGUIServer:
             editor = self._skill_editor
             patterns.append(path("skills/editor/", editor, name="skill_editor"))
             patterns.append(path("skills/editor/<str:skill_id>/", editor, name="skill_editor_item"))
+        if self._routine_editor is not None:
+            routines = self._routine_editor
+            patterns.append(path("routines/", routines, name="routines"))
+            patterns.append(path("routines/<str:routine_id>/", routines, name="routine"))
+            for action in ("run", "runs"):
+                patterns.append(
+                    path(
+                        f"routines/<str:routine_id>/{action}/",
+                        routines,
+                        {"action": action},
+                        name=f"routine_{action}",
+                    )
+                )
         if not isinstance(self._conversation_store, NullConversationStore):
             threads_view = ThreadsView(
                 self._conversation_store,

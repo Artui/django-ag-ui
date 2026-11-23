@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A routines editor on the agent mount.** `AGUIServer(routine_model=, id=)` takes a
+  django-spec-agents `AbstractRoutine` subclass and mounts `routines/` (list, create),
+  `routines/<id>/` (replace, pause or resume), `routines/<id>/run/` (fire it now on the
+  model's sweep queue, into a fresh thread) and `routines/<id>/runs/` (its last firing).
+  It serves the caller's own routines on the mount's `id` that the policy's `can_write`
+  admits; any other id is a `404`. A grant that holds a destructive tool is a `409`
+  naming it unless the write's `confirmDestructive` names it too, and the list's
+  `grantable` says which tools are destructive. A run that saves a routine sends
+  `ag_ui.invalidate` with the keys `routines` and `routines/<id>` (`ROUTINES_KEY`) once
+  the write commits. See `docs/routines.md`.
+
 ### Changed
 
 - **The floor is `django-spec-agents>=0.24.1`**, in the core dependency and the `[mcp]`
