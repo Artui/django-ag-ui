@@ -53,7 +53,10 @@ A mount's store can still refuse a caller its policy admits: a mount with
 {"agents": [{"id": "board", "name": "Board", "description": "The board agent",
   "endpoint": "/agent/", "tools_url": "/agent/tools/", "threads_url": "/agent/threads/",
   "runs_url": null, "skills_url": "/agent/skills/", "skill_editor_url": null,
-  "routines_url": null, "attachments_url": null, "transcribe_url": null}]}
+  "routines_url": null, "attachments_url": null, "transcribe_url": null,
+  "capabilities": {"identity": {"name": "Board", "description": "The board agent"},
+    "transport": {"streaming": true, "resumable": true},
+    "tools": {"supported": true, "clientProvided": true}}}]}
 ```
 
 One entry per admitted mount, in the order the servers were given. The URL keys are named
@@ -63,6 +66,36 @@ Per-thread routes (`threads/<id>/events/`, `cancel/`, `read/`) are derived from
 `threads_url`, as the web component does. The answer carries an ETag and answers a matching
 `If-None-Match` with `304`; it does not stream, since the set changes only with a deploy or
 a permission.
+
+### Capabilities
+
+Each entry's `capabilities` is what that mount declares of the AG-UI protocol's
+[`AgentCapabilities`](https://github.com/ag-ui-protocol/ag-ui/blob/37b4da90/docs/spec/1.0/basic/capabilities.mdx), so a host can adapt
+before a run: show an approval affordance, hide a reasoning panel, offer an upload button.
+The protocol has no route of its own for it, so the directory carries it. It is
+[`AGUIServer.agent_capabilities()`][django_ag_ui.AGUIServer.agent_capabilities], the SDK's
+own `ag_ui.core.AgentCapabilities` model, dumped under its camelCase wire keys with unset
+fields left out.
+
+| Key | Declared | From |
+| --- | --- | --- |
+| `transport.streaming` | `true` | always: the endpoint answers in SSE |
+| `transport.resumable` | `true` / `false` | a `run_store`: `threads/<id>/events/?after=` replays a run's log from a sequence number (an authenticated run's; an anonymous run is not logged) |
+| `tools` | `supported`, `clientProvided` | always: a browser run's posted tools reach the agent |
+| `humanInTheLoop` | `supported`, `approvals`, `interrupts` | `TOOL_GUARD` enabled and no `agent_factory=` (a factory builds the agent the guard is composed into) |
+| `reasoning` | `{"supported": false}` | `FORWARD_REASONING` off, which drops every reasoning event |
+| `multimodal.input.file` | `true` | an attachment store, which mounts `attachments/` |
+| `multiAgent.supported` | `true` | `inbound_queue=` (its threads run as child sessions) or `child_threads=` (its threads have them) |
+| `execution.maxExecutionTime` | milliseconds | `RUN_TIMEOUT_SECONDS` |
+| `identity` | `name`, `description` | `name=`, `description=` |
+
+What a mount cannot know is left out, and the protocol reads an omitted field as "not
+declared", never as "unsupported". So a mount with the guard off declares nothing about
+approvals (a capability passed in `capabilities=` may still ask for one), one forwarding
+reasoning declares nothing about it (whether any arrives is the model's), and
+`multiAgent.subagents` is never listed. The declarations are informative: the event stream
+stays authoritative, and a client still handles an interrupt or a reasoning event it was
+not told to expect.
 
 ## `inbox/`
 

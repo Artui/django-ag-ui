@@ -2,10 +2,23 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import math
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from datetime import timedelta
 from typing import Any, cast
 
+from ag_ui.core import (
+    AgentCapabilities,
+    ExecutionCapabilities,
+    HumanInTheLoopCapabilities,
+    IdentityCapabilities,
+    MultiAgentCapabilities,
+    MultimodalCapabilities,
+    MultimodalInputCapabilities,
+    ReasoningCapabilities,
+    ToolsCapabilities,
+    TransportCapabilities,
+)
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models.signals import post_save
 from django.http import HttpRequest
@@ -399,6 +412,7 @@ class AGUIServer:
             )
         self._child_threads = child_threads
         self._inbound_queue = inbound_queue
+        self._agent_factory = agent_factory
         self._run_store = run_store
         self._skills = skills
         self._namespace = namespace
@@ -814,6 +828,56 @@ class AGUIServer:
             names = (pattern.name for pattern in self._build_patterns())
             self._route_names = tuple(name for name in names if name is not None)
         return self._route_names
+
+    def agent_capabilities(self) -> AgentCapabilities:
+        """What this mount declares of AG-UI's ``AgentCapabilities``, each from its configuration.
+
+        [`AgentsDirectory`][django_ag_ui.AgentsDirectory] serves it as each entry's
+        ``capabilities``. A declaration is informative and the event stream stays
+        authoritative; what the mount cannot know is left out, which the protocol reads as
+        "not declared", never as "unsupported":
+
+        - ``transport``: ``streaming`` always; ``resumable`` whether a ``run_store`` mounts
+          ``threads/<id>/events/``, whose ``?after=`` replays a run's log from a sequence
+          number (an authenticated run's: an anonymous run has no owner, so is not logged).
+        - ``tools``: ``supported`` and ``clientProvided``, the tools a browser run posts.
+        - ``humanInTheLoop``: ``supported``, ``approvals`` and ``interrupts`` when the tool
+          guard is enabled and no ``agent_factory`` replaces the agent it is composed into.
+        - ``reasoning``: ``supported: false`` when ``forward_reasoning`` is off, since every
+          reasoning event is dropped; with it on, whether any arrive is the model's.
+        - ``multimodal``: ``input.file`` when an attachment store mounts ``attachments/``.
+        - ``multiAgent``: ``supported`` with an ``inbound_queue`` (its threads run as child
+          sessions) or ``child_threads`` (its threads have them).
+        - ``execution``: ``maxExecutionTime``, ``run_timeout_seconds`` in milliseconds.
+        - ``identity``: ``name`` and ``description``.
+        """
+        config = self._config
+        routes = self.routes()
+        # Every and/or side: its own id of test_each_declaration_follows_its_mount_configuration
+        guarded = config.tool_guard.enabled and self._agent_factory is None
+        timeout = config.run_timeout_seconds
+        known = self.name is not None or self.description is not None
+        children = self._inbound_queue is not None or self._child_threads is not None
+        return AgentCapabilities(
+            identity=IdentityCapabilities(name=self.name, description=self.description)
+            if known
+            else None,
+            transport=TransportCapabilities(streaming=True, resumable="thread_events" in routes),
+            tools=ToolsCapabilities(supported=True, client_provided=True),
+            multi_agent=MultiAgentCapabilities(supported=True) if children else None,
+            reasoning=None if config.forward_reasoning else ReasoningCapabilities(supported=False),
+            multimodal=MultimodalCapabilities(input=MultimodalInputCapabilities(file=True))
+            if "attachments" in routes
+            else None,
+            execution=ExecutionCapabilities(max_execution_time=math.ceil(timeout * 1000))
+            if timeout
+            else None,
+            human_in_the_loop=HumanInTheLoopCapabilities(
+                supported=True, approvals=True, interrupts=True
+            )
+            if guarded
+            else None,
+        )
 
     async def admits(self, request: HttpRequest) -> int | None:
         """The deny status this mount's own policy answers ``request`` with, or ``None``.

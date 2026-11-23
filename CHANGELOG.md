@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no `run_id`; child rows never do. ETag and SSE are otherwise unchanged. See
   [Thread status](docs/detached-runs.md#thread-status).
 
+- **Each `agents/` entry declares its mount's AG-UI capabilities.** `AgentsDirectory`
+  entries gain `capabilities`, the protocol's `AgentCapabilities` under its camelCase wire
+  keys, built by the new `AGUIServer.agent_capabilities()` as the SDK's own model from the
+  mount's configuration: `transport.resumable` from a run store, `humanInTheLoop`
+  approvals and interrupts from an enabled tool guard (not under `agent_factory=`),
+  `reasoning.supported: false` when reasoning is not forwarded, `multimodal.input.file`
+  from an attachment store, `multiAgent.supported` from `inbound_queue=` or
+  `child_threads=`, `execution.maxExecutionTime` from the run timeout, and `identity` from
+  `name=` and `description=`; `transport.streaming` and client-provided `tools` always.
+  What a mount cannot know is left out, which the protocol reads as undeclared. See
+  [Agents directory](docs/agents-directory.md#capabilities).
+
 ## [0.87.0] — 2026-11-23
 
 ### Added
