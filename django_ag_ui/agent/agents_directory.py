@@ -43,8 +43,10 @@ class AgentsDirectory:
       caller may use, in list order: ``id``, ``name``, ``description`` and one URL per
       list-level route (``endpoint``, ``tools_url``, ``threads_url``, ``runs_url``,
       ``skills_url``, ``skill_editor_url``, ``routines_url``, ``attachments_url``,
-      ``transcribe_url``), ``None`` for a route that mount does not serve. ETag and
-      ``304`` as on ``threads/``; no stream.
+      ``transcribe_url``), ``None`` for a route that mount does not serve, and
+      ``capabilities``, the mount's
+      [`agent_capabilities()`][django_ag_ui.AGUIServer.agent_capabilities] under AG-UI's
+      wire keys. ETag and ``304`` as on ``threads/``; no stream.
     - ``GET inbox/`` (name ``inbox``): ``{"threads": [...]}``, every admitted mount's own
       ``threads/`` rows, each with ``agent_id``, merged newest first by ``updated_at``
       (``None`` last, ties in list order). ``?limit`` caps each mount's share, clamped to
@@ -153,13 +155,17 @@ class AgentsDirectory:
 
 
 def _entry(server: AGUIServer) -> dict[str, Any]:
-    """One ``agents/`` entry: the mount's identity and the URL of each list-level route."""
+    """One ``agents/`` entry: the mount's identity, route URLs and declared capabilities."""
     mounted = set(server.routes())
     urls = {
         key: reverse(f"{server.namespace}:{name}") if name in mounted else None
         for name, key in _URL_KEYS
     }
-    return {"id": server.id, "name": server.name, "description": server.description} | urls
+    capabilities = server.agent_capabilities().model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    identity = {"id": server.id, "name": server.name, "description": server.description}
+    return identity | urls | {"capabilities": capabilities}
 
 
 def _newest_first(row: dict[str, Any]) -> tuple[bool, float]:
