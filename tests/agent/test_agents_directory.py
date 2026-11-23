@@ -170,9 +170,11 @@ async def test_a_denying_mount_is_absent_from_both_routes() -> None:
 async def test_no_admitting_mount_answers_401_unless_every_denial_was_403(name: str) -> None:
     anonymous = SimpleNamespace(is_authenticated=False, pk=None)
 
-    mixed = await _get(urls.forward, name, user=anonymous)
+    all_401 = await _get(urls.forward, name, user=anonymous)
+    mixed = await _get(AgentsDirectory([urls.denier, urls.spa]), name)
     forbidden = await _get(urls.only_denier, name)
 
+    assert all_401.status_code == 401
     assert mixed.status_code == 401
     assert forbidden.status_code == 403
 
