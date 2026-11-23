@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+### Documentation
 
 - **A host declares the capabilities its mount cannot see by overriding
   `AGUIServer.agent_capabilities()`.** The method was public in 0.88.0 and `AgentsDirectory`

@@ -5,7 +5,12 @@ from types import ModuleType
 from typing import Any
 
 import pytest
-from ag_ui.core import AgentCapabilities, MultiAgentCapabilities, SubagentInfo
+from ag_ui.core import (
+    AgentCapabilities,
+    HumanInTheLoopCapabilities,
+    MultiAgentCapabilities,
+    SubagentInfo,
+)
 from django.test import override_settings
 from django.urls import path
 from django_spec_agents.contrib.store.default_attachment_store import DefaultAttachmentStore
@@ -17,6 +22,7 @@ from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
+from pydantic_core import PydanticSerializationError
 
 from django_ag_ui import AgentsDirectory
 from django_ag_ui.agent.agui_server import AGUIServer
@@ -227,3 +233,62 @@ async def test_a_subclass_override_is_what_the_directory_serves(mount: dict[str,
         },
     }
     assert _extras(AgentCapabilities.model_validate(capabilities)) == []
+
+
+class _CopyingGuardServer(AGUIServer):
+    def agent_capabilities(self) -> AgentCapabilities:
+        declared = super().agent_capabilities()
+        hitl = declared.human_in_the_loop or HumanInTheLoopCapabilities()
+        update = {"human_in_the_loop": hitl.model_copy(update={"approve_with_edits": True})}
+        return declared.model_copy(update=update)
+
+
+class _ReplacingGuardServer(AGUIServer):
+    def agent_capabilities(self) -> AgentCapabilities:
+        hitl = HumanInTheLoopCapabilities(approve_with_edits=True)
+        return super().agent_capabilities().model_copy(update={"human_in_the_loop": hitl})
+
+
+class _DictServer(AGUIServer):
+    def agent_capabilities(self) -> AgentCapabilities:
+        update = {"multi_agent": {"supported": True}}
+        return super().agent_capabilities().model_copy(update=update)
+
+
+class _MisspeltServer(AGUIServer):
+    def agent_capabilities(self) -> AgentCapabilities:
+        multi_agent = MultiAgentCapabilities(supported=True, sub_agents=[{"name": "researcher"}])
+        return super().agent_capabilities().model_copy(update={"multi_agent": multi_agent})
+
+
+@pytest.mark.parametrize(
+    ("server_class", "served"),
+    [
+        (
+            _CopyingGuardServer,
+            {"supported": True, "approvals": True, "interrupts": True, "approveWithEdits": True},
+        ),
+        (_ReplacingGuardServer, {"approveWithEdits": True}),
+    ],
+    ids=["copied-keeps-the-guard", "replaced-loses-the-guard"],
+)
+async def test_an_override_update_replaces_a_sub_model_whole(
+    server_class: type[AGUIServer], served: dict[str, Any]
+) -> None:
+    config = build_ag_ui_config(tool_guard=_GUARDED)
+    capabilities = await _capabilities(server_class, config=config)
+
+    assert capabilities["humanInTheLoop"] == served
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+async def test_an_override_updating_with_a_dict_fails_to_serialise() -> None:
+    with pytest.raises(PydanticSerializationError):
+        await _capabilities(_DictServer)
+
+
+async def test_an_override_spelling_sub_agents_is_served_under_the_wrong_key() -> None:
+    capabilities = await _capabilities(_MisspeltServer)
+
+    assert capabilities["multiAgent"] == {"supported": True, "sub_agents": [{"name": "researcher"}]}
+    assert _extras(AgentCapabilities.model_validate(capabilities)) == ["sub_agents"]
