@@ -121,7 +121,7 @@ async def test_a_reason_is_served_only_with_failed(
     assert row.get("reason") == reason
 
 
-async def test_without_a_run_store_rows_keep_their_old_shape() -> None:
+async def test_without_a_run_store_rows_carry_no_status_keys() -> None:
     await _thread("t1")
 
     body = json.loads((await _list(_server(id="helper"))).content)

@@ -213,7 +213,7 @@ the other answers `409` naming the run that holds the thread, or `404` once it h
 
 With a run store, each row of `GET <mount>threads/` also carries its thread's run status,
 read from the run store and never written by the list. Every key is additive, so an older
-client ignores them; without a run store the rows keep their old shape.
+client ignores them; without a run store the rows carry none of them.
 
 | Key | Value |
 | --- | --- |

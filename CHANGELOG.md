@@ -16,8 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`RUN_STARTED` names a resumed or forked run's source as `parentRunId`.** pydantic-ai's
   adapter never sets the protocol's lineage field, so a client saw a branch only through
-  `runs/`. The mount now stamps the source run's id on every resume and fork, and keeps a
-  `parentRunId` the adapter sets itself.
+  `runs/`. The mount now stamps the source run's id on every run of the `resume/` and
+  `fork/` routes, and keeps a `parentRunId` the adapter sets itself.
 
 ### Changed
 
