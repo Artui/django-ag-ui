@@ -28,7 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   naming it unless the write's `confirmDestructive` names it too, and the list's
   `grantable` says which tools are destructive. A run that saves a routine sends
   `ag_ui.invalidate` with the keys `routines` and `routines/<id>` once the
-  write commits. See `docs/routines.md`.
+  write commits. Each row of `threads/` carries `routine`, `{"id", "name"}` when the
+  thread is that routine's newest firing, else `null`. See `docs/routines.md`.
 
 ### Changed
 

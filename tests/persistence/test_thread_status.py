@@ -126,7 +126,8 @@ async def test_without_a_run_store_rows_carry_no_status_keys() -> None:
 
     body = json.loads((await _list(_server(id="helper"))).content)
 
-    assert set(body["threads"][0]) == {"thread_id", "title", "updated_at", "preview", "parent"}
+    row_keys = {"thread_id", "title", "updated_at", "preview", "parent", "routine"}
+    assert set(body["threads"][0]) == row_keys
     assert body["agent"] == {"id": "helper", "name": None, "description": None}
 
 

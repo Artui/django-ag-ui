@@ -427,6 +427,7 @@ class AGUIServer:
             _reject_spec_name_collisions(self._service_specs or {}, registry, self._mcp_server)
         self._step_store = step_store
         self._deps_factory = deps_factory
+        self._routine_model = routine_model
         self._routine_editor = (
             None if routine_model is None else self._mount_routines(routine_model)
         )
@@ -819,6 +820,7 @@ class AGUIServer:
                 thread_activity_source=self._thread_activity_source,
                 run_store=self._run_store,
                 mount=MountIdentity(id=self.id, name=self.name, description=self.description),
+                routine_model=self._routine_model,
                 **self._policy,
             )
             patterns.append(path("threads/", threads_view, name="threads"))

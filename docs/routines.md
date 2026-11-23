@@ -98,6 +98,14 @@ run's tools, can grant it. A routine already holding such a grant keeps it throu
 editor: a resume or a replace naming it again keeps its pinned flag, and a destructive one
 is still named in `confirmDestructive`.
 
+## A firing's thread names its routine
+
+On a mount with `routine_model=`, each row of `GET <mount>threads/` carries `routine`:
+`{"id", "name"}` when the thread is the newest firing of one of the caller's routines on
+this mount, else `null`. The routine keeps only its last firing, so only that thread is
+badged: when the routine fires again, the badge moves to the new thread and the earlier
+one reads `null`. A mount without routines sends `null` on every row.
+
 ## Refreshing an open panel
 
 A run that saves a routine, through the agent's routine tools or any tool of yours,

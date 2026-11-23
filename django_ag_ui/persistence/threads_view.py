@@ -83,6 +83,8 @@ class ThreadsView:
 
     Every row carries ``parent``: ``{"thread_id", "scope"}`` for a child session, the
     thread that started it in that thread's own scope, or ``None`` for a thread of its own.
+    Every row carries ``routine`` too: ``{"id", "name"}`` when the thread is the newest firing
+    of one of the caller's routines on this mount (``routine_model=``), else ``None``.
     """
 
     def __init__(
@@ -97,8 +99,10 @@ class ThreadsView:
         thread_activity_source: ThreadActivitySource | None = None,
         run_store: RunStore | None = None,
         mount: MountIdentity | None = None,
+        routine_model: Any = None,
     ) -> None:
         self._store = store
+        self._routine_model = routine_model
         self._run_store = run_store
         self._mount = mount if mount is not None else MountIdentity()
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
@@ -154,7 +158,8 @@ class ThreadsView:
 
     async def _list_body(self, request: HttpRequest, limit: int) -> dict[str, Any]:
         metas = await self._store.list(request=request, limit=limit)
-        rows = [_meta_to_json(meta) for meta in metas]
+        named = await self._routines([meta.thread_id for meta in metas], request)
+        rows = [_meta_to_json(meta) | {"routine": named.get(meta.thread_id)} for meta in metas]
         if self._run_store is not None:
             ids = [meta.thread_id for meta in metas]
             states = await self._run_store.get_many(ids, request=request)
@@ -166,6 +171,17 @@ class ThreadsView:
         if (mount.id, mount.name, mount.description) != (None, None, None):
             body["agent"] = {"id": mount.id, "name": mount.name, "description": mount.description}
         return body
+
+    async def _routines(self, ids: list[str], request: HttpRequest) -> dict[str, dict[str, str]]:
+        """Each id that is the newest firing of one of the caller's routines here, named."""
+        if self._routine_model is None:
+            return {}
+        fired = self._routine_model.objects.filter(
+            principal_id=getattr(getattr(request, "user", None), "pk", None),
+            agent_id=self._mount.id,
+            last_thread_id__in=ids,
+        )
+        return {r.last_thread_id: {"id": str(r.pk), "name": r.name} async for r in fired}
 
     def _stream(self, request: HttpRequest, limit: int) -> HttpResponseBase:
         frames = self._frames(request, limit, request.headers.get("Last-Event-ID"))
