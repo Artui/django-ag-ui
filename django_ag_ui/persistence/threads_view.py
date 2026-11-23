@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, cast
 
 from ag_ui.core import ActivityMessage, ActivitySnapshotEvent, Message
@@ -16,16 +16,19 @@ from django.http import (
 )
 from django.http.response import HttpResponseBase
 from django_spec_agents import IdentifierTooLongError
+from django_spec_agents.child_sessions.types.child_session import ChildSession
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.persistence.types.run_store import RunStore
+from django_spec_agents.persistence.types.thread_run_state import ThreadRunState
 from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.fresh_list_response import fresh_list_response
 from django_ag_ui.persistence.thread_status_fields import thread_status_fields
+from django_ag_ui.persistence.types.child_threads import ChildThreads
 from django_ag_ui.persistence.types.mount_identity import MountIdentity
 from django_ag_ui.persistence.types.thread_activity import ThreadActivity
 from django_ag_ui.persistence.types.thread_activity_source import ThreadActivitySource
@@ -89,6 +92,13 @@ class ThreadsView:
     thread that started it in that thread's own scope, or ``None`` for a thread of its own.
     Every row carries ``routine`` too: ``{"id", "name"}`` when a firing of one of the caller's
     routines on this mount (``routine_model=``) started the thread, else ``None``.
+
+    With ``child_threads=``, a callable returning the
+    [`AGUIHeadlessRunner`][django_ag_ui.AGUIHeadlessRunner] built from the mounts,
+    ``DELETE`` cancels the thread's live descendants and unlinks its children in their own
+    mounts before it deletes the thread, and ``GET <prefix>threads/<id>/children/`` lists
+    its children (``{"children": [...]}``), each with ``thread_id``, ``agent_id`` (the
+    child's scope) and its status keys.
     """
 
     def __init__(
@@ -104,9 +114,11 @@ class ThreadsView:
         run_store: RunStore | None = None,
         mount: MountIdentity | None = None,
         routine_model: Any = None,
+        child_threads: Callable[[], ChildThreads] | None = None,
     ) -> None:
         self._store = store
         self._routine_model = routine_model
+        self._child_threads = child_threads
         self._run_store = run_store
         self._mount = mount if mount is not None else MountIdentity()
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
@@ -120,7 +132,7 @@ class ThreadsView:
         markcoroutinefunction(cast("Any", self))
 
     async def __call__(
-        self, request: HttpRequest, thread_id: str | None = None
+        self, request: HttpRequest, thread_id: str | None = None, action: str | None = None
     ) -> HttpResponseBase:
         # First, so ``request.user`` is materialized before the store's loop-safe calls.
         deny = await aauthorize(
@@ -134,6 +146,8 @@ class ThreadsView:
         try:
             if thread_id is None:
                 return await self._list(request)
+            if action == "children":
+                return await self._children(request, thread_id)
             return await self._detail(request, thread_id)
         except AnonymousOperationError:
             return auth_error_response(403)
@@ -195,9 +209,30 @@ class ThreadsView:
         if request.method == "PATCH":
             return await self._rename(request, thread_id)
         if request.method == "DELETE":
-            await self._store.delete(thread_id, request=request)
+            if self._child_threads is None:
+                await self._store.delete(thread_id, request=request)
+            else:
+                await self._child_threads().delete_thread(self._agent_id(), thread_id, request.user)
             return HttpResponse(status=204)
         return HttpResponseNotAllowed(["GET", "PATCH", "DELETE"])
+
+    async def _children(self, request: HttpRequest, thread_id: str) -> HttpResponseBase:
+        if request.method != "GET":
+            return HttpResponseNotAllowed(["GET"])
+        # test_the_children_action_without_child_threads_is_not_found, ..._does_not_own_...
+        if self._child_threads is None or not await self._store.exists(thread_id, request=request):
+            return JsonResponse({"error": "not found"}, status=404)
+        children = await self._child_threads().children(self._agent_id(), thread_id, request.user)
+        rows = [
+            {"thread_id": child.thread.thread_id, "agent_id": child.thread.scope}
+            | _child_status(child)
+            for child in children
+        ]
+        return JsonResponse({"children": rows})
+
+    def _agent_id(self) -> str:
+        assert self._mount.id is not None
+        return self._mount.id
 
     async def _merge_activities(
         self, thread_id: str, messages: list[Message], request: HttpRequest
@@ -260,6 +295,14 @@ def _as_activity_message(event: ActivitySnapshotEvent) -> ActivityMessage:
         activity_type=event.activity_type,
         content=event.content,
     )
+
+
+def _child_status(child: ChildSession) -> dict[str, Any]:
+    """A thread row's status keys for a child; an index holds no read time, so none is sent."""
+    state = ThreadRunState(child.thread.thread_id, child.status, child.reason, child.waiting)
+    fields = thread_status_fields(state)
+    del fields["last_read_at"]
+    return fields
 
 
 def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
