@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The floor is `django-spec-agents>=0.24.1`**, in the core dependency and the `[mcp]`
+  and `[specs]` extras. From 0.24.1 `wake_thread` acks a parked child's answers only once
+  the run it resumes has started and never enqueues them again, so a wake whose start
+  fails leaves the answers pending under their own ids for the next wake.
+
 ## [0.85.0] — 2026-11-21
 
 ### Fixed

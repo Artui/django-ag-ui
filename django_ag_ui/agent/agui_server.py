@@ -653,7 +653,7 @@ class AGUIServer:
         )
 
     def _inner_queue(self) -> InboundQueue | None:
-        # The inner queue: an answer whose start fails is enqueued again, which must not wake.
+        # Unwrapped: wake_thread holds its claim until start returns, acks after, enqueues nothing.
         queue = self._inbound_queue
         return queue.queue if isinstance(queue, WakingInboundQueue) else queue
 
