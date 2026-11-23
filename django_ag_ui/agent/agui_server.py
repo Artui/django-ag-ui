@@ -737,6 +737,7 @@ class AGUIServer:
     ) -> Conversation | None:
         store = self._conversation_store
         conversation = await store.load(thread_id, request=request)
+        # routine_id: test_a_firing_names_its_routine_on_its_thread_and_later_runs_keep_it
         if parent is None and lineage is None and routine_id is None:
             return conversation
         linked = Conversation(

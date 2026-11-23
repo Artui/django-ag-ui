@@ -58,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the adapter, so `RunContext.run_id`, which a tool or a spec reads and which
   django-spec-agents' `start_session` reports as a child's `parent_run_id`, is the id the
   client sees on `RUN_STARTED`, the run store and `runs/`. It was a fresh UUID7 the client
-  never saw.
+  never saw. An empty `runId` is not handed on, as pydantic-ai refuses one.
 
 - **This release needs django-spec-agents 0.25.0**, for `ConversationMeta.routine_id`
   and the runner keywords above.

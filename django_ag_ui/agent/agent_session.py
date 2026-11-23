@@ -164,7 +164,7 @@ class AgentSession:
             capabilities=self._capabilities,
             cancellation_token=self._token,
             timeout=self._timeout,
-            run_id=self._run_input.run_id,
+            run_id=self._run_input.run_id or None,
         )
         events = self._adapter.transform_stream(
             native,

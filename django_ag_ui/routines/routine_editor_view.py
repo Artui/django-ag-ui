@@ -235,6 +235,7 @@ class RoutineEditorView:
         listed = async_to_sync(self._conversations.list)(
             request=request, limit=self._thread_list_limit
         )
+        # Each conjunct: test_runs_list_each_firing_of_the_routine_newest_first.
         earlier = [
             {"runId": None, "threadId": meta.thread_id, "state": None}
             for meta in listed
