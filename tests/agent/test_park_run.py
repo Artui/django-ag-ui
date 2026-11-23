@@ -414,6 +414,7 @@ async def _resume(
     thread_id: str | None = None,
     resume: Any = _APPROVED,
     messages: Any = (),
+    route_run_id: str | None = None,
 ) -> Any:
     view = DjangoAGUIView(
         options["registry"], **{k: v for k, v in options.items() if k != "registry"}
@@ -429,9 +430,11 @@ async def _resume(
         "resume": resume,
     }
     request = AuthedAsyncRequestFactory().post(
-        f"/agent/resume/{stop.run_id}/", data=json.dumps(body), content_type="application/json"
+        f"/agent/resume/{route_run_id or stop.run_id}/",
+        data=json.dumps(body),
+        content_type="application/json",
     )
-    response = await view(request, resume_from=stop.run_id)
+    response = await view(request, resume_from=route_run_id or stop.run_id)
     if isinstance(response, StreamingHttpResponse):
         chunks = [c if isinstance(c, str) else c.decode() async for c in response]  # ty: ignore[not-iterable]
         return "".join(chunks), await _settled(stop.thread_id, request)
@@ -453,6 +456,25 @@ async def test_answering_a_parked_run_through_its_resume_route_completes_it() ->
         (),
         "r-answer",
     )
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_parked_approval_is_answered_on_the_run_id_its_threads_row_names() -> None:
+    calls = _Calls("delete_thing", _DELETE_ARGS)
+    options = _guarded(calls)
+    server = _server(dict(options))
+    stop, _ = await _parked(server)
+    patterns, _, _ = server.urls
+    threads = next(p for p in patterns if p.name == "threads").callback
+    listed = await threads(AuthedAsyncRequestFactory().get("/agent/threads/"))
+    [row] = json.loads(listed.content)["threads"]
+
+    streamed, state = await _resume(options, stop, "r-answer", route_run_id=row["run_id"])
+
+    assert (row["status"], row["run_id"]) == ("waiting", stop.run_id)
+    assert "deleted widget-1" in streamed
+    assert calls.ran == ["widget-1"]
+    assert (state.status, state.last_run_id) == (ThreadRunStatus.IDLE, "r-answer")
 
 
 @pytest.mark.django_db(transaction=True)

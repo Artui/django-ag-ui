@@ -24,3 +24,19 @@ def test_a_failed_state_with_no_reason_serves_a_null_reason() -> None:
 
 def test_no_state_reads_idle() -> None:
     assert thread_status_fields(None) == {"status": "idle", "last_read_at": None}
+
+
+def test_resumable_adds_the_waiting_runs_id_only_while_waiting() -> None:
+    waiting = ThreadRunState(thread_id="t1", status=ThreadRunStatus.WAITING, last_run_id="r1")
+    idle = ThreadRunState(thread_id="t1", status=ThreadRunStatus.IDLE, last_run_id="r1")
+
+    assert thread_status_fields(waiting, resumable=True)["run_id"] == "r1"
+    assert "run_id" not in thread_status_fields(waiting)
+    assert "run_id" not in thread_status_fields(idle, resumable=True)
+    assert "run_id" not in thread_status_fields(None, resumable=True)
+
+
+def test_a_waiting_state_with_no_run_id_serves_no_run_id_key() -> None:
+    state = ThreadRunState(thread_id="t1", status=ThreadRunStatus.WAITING)
+
+    assert "run_id" not in thread_status_fields(state, resumable=True)

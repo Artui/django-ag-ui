@@ -12,8 +12,10 @@ _INTERRUPT_ID_PREFIX = "int-"
 _INTERRUPT_REASON = "tool_call"
 
 
-def thread_status_fields(state: ThreadRunState | None) -> dict[str, Any]:
-    """The status keys a thread row gains from its run state; no state reads ``idle``."""
+def thread_status_fields(
+    state: ThreadRunState | None, *, resumable: bool = False
+) -> dict[str, Any]:
+    """A row's status keys from its run state, ``idle`` if none; ``run_id`` where resumable."""
     if state is None:
         return {"status": str(ThreadRunStatus.IDLE), "last_read_at": None}
     fields: dict[str, Any] = {
@@ -24,6 +26,8 @@ def thread_status_fields(state: ThreadRunState | None) -> dict[str, Any]:
         fields["reason"] = None if state.reason is None else str(state.reason)
     if state.status is ThreadRunStatus.WAITING:
         fields["interrupts"] = [_interrupt(waiting) for waiting in state.waiting]
+        if resumable and state.last_run_id is not None:
+            fields["run_id"] = state.last_run_id
     return fields
 
 

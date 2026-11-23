@@ -259,6 +259,27 @@ async def test_a_waiting_row_equals_its_mounts_own_threads_row() -> None:
     assert inbox_row == own_row
     assert inbox_row["status"] == "waiting"
     assert inbox_row["interrupts"][0]["toolCallId"] == "c-1"
+    assert "run_id" not in inbox_row
+
+
+async def test_a_waiting_inbox_row_carries_the_run_id_of_a_mount_that_serves_resume() -> None:
+    owner = _request(user=authenticated_user(pk=2, username="token"))
+    await _save("token-2", owner.user)
+    run_store = urls.resumer._run_store
+    await run_store.claim("token-2", "r-parked", request=owner, lease=_LEASE)
+    waiting = (
+        RunWaiting(kind="approval", summary="Delete?", tool_call_id="c-1", destructive=True),
+    )
+    await run_store.finish(
+        "token-2", "r-parked", RunOutcome.WAITING, request=owner, waiting=waiting
+    )
+
+    (inbox_row,) = _body(await _get(urls.resuming, "inbox", **_TOKEN))["threads"]
+    threads = await _route_of(urls.resumer, "threads")(_request(**_TOKEN))
+    (own_row,) = _body(threads)["threads"]
+
+    assert inbox_row == own_row
+    assert inbox_row["run_id"] == "r-parked"
 
 
 def _route_of(server: AGUIServer, name: str) -> Any:

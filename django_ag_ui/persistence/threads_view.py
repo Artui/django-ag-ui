@@ -79,14 +79,14 @@ class ThreadsView:
     [`ThreadActivitySource`][django_ag_ui.ThreadActivitySource] for why they are
     not in the stored history to begin with.
 
-    With ``run_store=``, each listed row also carries its run status
-    (``status``, ``last_read_at``, ``reason`` when failed, ``interrupts`` when
-    waiting, ``agent_id`` from ``mount``); a ``mount`` with any identity set adds
-    an ``agent`` object to the list body. The list answers ``If-None-Match`` with
-    ``304``, and ``Accept: text/event-stream`` streams the same body each time it
-    changes, its ETag as the frame id, ``Last-Event-ID`` skipping an unchanged
-    first frame. The stream ends after five minutes so the client reconnects and
-    is authenticated again, and under WSGI the same request answers as a poll.
+    With ``run_store=``, each listed row also carries its run status (``status``,
+    ``last_read_at``, ``reason`` when failed, ``interrupts`` when waiting, plus ``run_id`` with
+    ``resumable=True``, ``agent_id`` from ``mount``); a ``mount`` with any identity set adds an
+    ``agent`` object to the list body. The list answers ``If-None-Match`` with ``304``, and
+    ``Accept: text/event-stream`` streams the same body each time it changes, its ETag as the
+    frame id, ``Last-Event-ID`` skipping an unchanged first frame. The stream ends after five
+    minutes so the client reconnects and is authenticated again, and under WSGI the same request
+    answers as a poll.
 
     Every row carries ``parent``: ``{"thread_id", "scope"}`` for a child session, the
     thread that started it in that thread's own scope, or ``None`` for a thread of its own.
@@ -115,8 +115,10 @@ class ThreadsView:
         mount: MountIdentity | None = None,
         routine_model: Any = None,
         child_threads: Callable[[], ChildThreads] | None = None,
+        resumable: bool = False,
     ) -> None:
         self._store = store
+        self._resumable = resumable
         self._routine_model = routine_model
         self._child_threads = child_threads
         self._run_store = run_store
@@ -174,7 +176,8 @@ class ThreadsView:
             states = await self._run_store.get_many(ids, request=request)
             agent_id = {} if self._mount.id is None else {"agent_id": self._mount.id}
             for row in rows:
-                row.update(agent_id, **thread_status_fields(states.get(row["thread_id"])))
+                state = states.get(row["thread_id"])
+                row.update(agent_id, **thread_status_fields(state, resumable=self._resumable))
         body: dict[str, Any] = {"threads": rows}
         mount = self._mount
         if (mount.id, mount.name, mount.description) != (None, None, None):

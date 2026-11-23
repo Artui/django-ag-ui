@@ -462,6 +462,7 @@ class AGUIServer:
                 mount=MountIdentity(id=id, name=name, description=description),
                 routine_model=routine_model,
                 child_threads=child_threads,
+                resumable=step_store is not None,
                 **self._policy,
             )
         )

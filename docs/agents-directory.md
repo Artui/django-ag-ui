@@ -68,8 +68,8 @@ a permission.
 
 `{"threads": [...]}`, the body shape of a mount's `threads/`, so a client that reads one
 reads the other. It holds every admitted mount's rows, exactly as that mount's `threads/`
-would list them (status, interrupts, parent and routine included), each with `agent_id`
-whether or not the mount has a run store. Rows are ordered newest first by `updated_at`,
+would list them (status, interrupts, `run_id` where that mount serves `resume/<run_id>/`,
+parent and routine included), each with `agent_id` whether or not the mount has a run store. Rows are ordered newest first by `updated_at`,
 rows without one last, ties in server order.
 
 `?limit=` caps each mount's share, clamped to that mount's `thread_list_limit`; nothing is

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A waiting thread row names the run that answers it.** On a mount that serves
+  `resume/<run_id>/` (one with a `step_store=`), a `waiting` row of `threads/`, and of the
+  `AgentsDirectory` `inbox/`, carries `run_id`, the parked run's id, so a client answers an
+  approval from the row alone. A row not waiting, and a mount without `step_store=`, carries
+  no `run_id`; child rows never do. ETag and SSE are otherwise unchanged. See
+  [Thread status](docs/detached-runs.md#thread-status).
+
 ## [0.87.0] — 2026-11-23
 
 ### Added
