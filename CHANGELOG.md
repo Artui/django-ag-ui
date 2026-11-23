@@ -33,8 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the seams it calls. `DELETE threads/<id>/` then records a cancel on every descendant
   whose run holds its thread, in its own mount, leaves an idle or parked one as it is,
   clears each direct child's `parent` in the child's mount, and deletes the thread last; a
-  child in a scope no mount serves raises `LookupError` before anything changes. `GET
-  threads/<id>/children/` lists the thread's children in every scope with `thread_id`,
+  child in a scope no mount serves raises `LookupError` before anything changes, which the
+  route answers `409`. `GET threads/<id>/children/` lists the thread's children in every scope with `thread_id`,
   `agent_id` (the child's scope) and the status keys of a thread row, without
   `last_read_at`. A runner with `index=` refuses a mount whose conversation store has no
   `unlink_parent`. Without `child_threads=`, `DELETE` deletes the one thread as before.

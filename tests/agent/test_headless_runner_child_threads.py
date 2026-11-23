@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -15,6 +16,7 @@ from django_spec_agents.persistence.scoped_conversation_store import ScopedConve
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
+from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from pydantic_ai.models.function import AgentInfo, FunctionModel
@@ -155,6 +157,28 @@ async def test_deleting_a_parent_cancels_its_running_tree_unlinks_its_children_a
 
 
 @pytest.mark.django_db(transaction=True)
+async def test_a_parked_child_keeps_its_park_and_loses_only_its_parent() -> None:
+    late, model = _Late(), _Parks()
+    a, b = _scoped(late, model)
+    await _seed(a, "p", None)
+    await _seed(b, "w", ThreadRef("p", "a"))
+    request = b.headless_request(authenticated_user())
+    await b._run_store.claim("w", "r1", request=request, lease=timedelta(minutes=5))
+    waiting = (
+        RunWaiting(kind="question", summary="Which one?", tool_call_id="q-1", destructive=False),
+    )
+    await b._run_store.finish("w", "r1", RunOutcome.WAITING, request=request, waiting=waiting)
+    before = (await _rows(b))["w"]
+
+    response = await _call(a, "delete", "/threads/p/", thread_id="p")
+
+    after = (await _rows(b))["w"]
+    assert response.status_code == 204
+    assert after == before | {"parent": None}
+    assert after["status"] == "waiting"
+
+
+@pytest.mark.django_db(transaction=True)
 async def test_the_children_route_lists_the_callers_children_in_every_scope() -> None:
     late, model = _Late(), _Parks()
     a, b = _scoped(late, model)
@@ -226,6 +250,22 @@ async def test_a_child_in_a_scope_no_mount_serves_stops_the_delete_before_it_cha
         await late.runner.delete_thread("a", "p", authenticated_user())
 
     assert (await _rows(b))["c"]["parent"] == {"thread_id": "p", "scope": "a"}
+    assert "p" in await _rows(a)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_delete_through_the_view_answers_409_when_a_child_scope_has_no_mount() -> None:
+    late, model = _Late(), _Parks()
+    a, b = _scoped(late, model)
+    await _seed(a, "p", None)
+    elsewhere = _mount("z", ScopedConversationStore(DefaultConversationStore(), scope="z"), model)
+    await _seed(elsewhere, "lost", ThreadRef("p", "a"))
+    request = AuthedAsyncRequestFactory().delete("/a/threads/p/")
+
+    response = await a._threads_view(request, thread_id="p")
+
+    assert response.status_code == 409
+    assert "'z'" in json.loads(response.content)["error"]
     assert "p" in await _rows(a)
 
 

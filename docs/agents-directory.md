@@ -42,6 +42,11 @@ principal's threads whatever the order.
 A mount that denies the caller is left out of both routes, as if it were not there. When no
 mount admits the caller, the answer is `401`, or `403` when every denial was `403`.
 
+A mount's store can still refuse a caller its policy admits: a mount with
+`require_authenticated=False` over an owner-scoped store lists an anonymous caller in
+`agents/` but counts as a `403` denial in `inbox/`, just as its own `threads/` answers
+`403`.
+
 ## `agents/`
 
 ```json

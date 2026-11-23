@@ -133,6 +133,11 @@ class AGUIServer:
       (``threads/<id>/read/``, ``POST`` marks the thread read); with a run
       store the ``threads/`` rows also carry each thread's run status, see
       [Thread status](detached-runs.md#thread-status).
+    - ``thread_children`` — ``child_threads=`` was passed, a callable returning the
+      [`AGUIHeadlessRunner`][django_ag_ui.agent.headless_runner.AGUIHeadlessRunner]
+      that holds every mount (``threads/<id>/children/``; ``DELETE threads/<id>/`` then
+      keeps the thread's children, see
+      [Delete a parent](detached-runs.md#delete-a-parent)).
 
     Collaborators are **passed here or absent**: there is no settings fallback,
     and the keys that once held a dotted path are refused at startup by

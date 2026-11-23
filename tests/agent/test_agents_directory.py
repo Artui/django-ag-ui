@@ -22,6 +22,7 @@ from pydantic_ai.models.test import TestModel
 
 from django_ag_ui import AgentsDirectory
 from django_ag_ui.agent.agui_server import AGUIServer
+from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.persistence import fresh_list_response as fresh_list_response_module
 from tests.agent import agents_directory_urls as urls
 from tests.authed_request_factory import AuthedAsyncRequestFactory, authenticated_user
@@ -328,3 +329,44 @@ async def test_only_get_is_allowed(name: str) -> None:
     response = await _route(urls.forward, name)(request)
 
     assert response.status_code == 405
+
+
+async def test_a_get_user_on_one_mount_never_admits_the_caller_to_another() -> None:
+    anonymous = SimpleNamespace(is_authenticated=False, pk=None)
+
+    agents = _body(await _get(urls.forward, "agents", user=anonymous, **_TOKEN))["agents"]
+
+    assert [entry["id"] for entry in agents] == ["spa"]
+
+
+async def test_limit_is_clamped_to_each_mounts_own_thread_list_limit() -> None:
+    metas = [_meta(f"t{n}", n) for n in range(5)]
+    small = _server(
+        id="small",
+        namespace="small",
+        conversation_store=_StubStore(*metas),
+        config=build_ag_ui_config(thread_list_limit=2),
+    )
+    large = _server(id="large", namespace="large", conversation_store=_StubStore(*metas))
+
+    response = await _route(AgentsDirectory([small, large]), "inbox")(_request("/?limit=50"))
+
+    rows = _body(response)["threads"]
+    assert sum(row["agent_id"] == "small" for row in rows) == 2
+    assert sum(row["agent_id"] == "large" for row in rows) == 5
+
+
+async def test_the_inbox_stream_beats_at_the_directorys_heartbeat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(fresh_list_response_module, "_STREAM_POLL_SECONDS", 1.0)
+    directory = AgentsDirectory([urls.admin], config=build_ag_ui_config(heartbeat_seconds=0.01))
+
+    response = await _get(directory, "inbox", Accept="text/event-stream")
+    stream = response.streaming_content
+    chunks = [await asyncio.wait_for(anext(stream), timeout=5) for _ in range(2)]
+    await stream.aclose()
+
+    first, second = (c if isinstance(c, str) else c.decode() for c in chunks)
+    assert first.startswith("id: ")
+    assert second.startswith(":")

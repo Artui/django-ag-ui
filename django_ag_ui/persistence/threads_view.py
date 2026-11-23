@@ -212,7 +212,11 @@ class ThreadsView:
             if self._child_threads is None:
                 await self._store.delete(thread_id, request=request)
             else:
-                await self._child_threads().delete_thread(self._agent_id(), thread_id, request.user)
+                runner = self._child_threads()
+                try:
+                    await runner.delete_thread(self._agent_id(), thread_id, request.user)
+                except LookupError as error:
+                    return JsonResponse({"error": str(error)}, status=409)
             return HttpResponse(status=204)
         return HttpResponseNotAllowed(["GET", "PATCH", "DELETE"])
 
