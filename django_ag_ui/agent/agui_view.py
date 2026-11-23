@@ -425,6 +425,7 @@ class DjangoAGUIView:
             timeout=timeout,
             deferred_tool_results=deferred_tool_results,
             park=self._park_run(run_input, detached),
+            parent_run_id=resume_from,
         )
 
     def _park_run(self, run_input: Any, detached: bool) -> ParkRun:

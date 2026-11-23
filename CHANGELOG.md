@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A thread row names its parent.** Each row of `GET <mount>threads/` carries `parent`,
+  `{"thread_id", "scope"}` for a child session (the scope being the parent's agent id or
+  store scope, `null` in an unscoped store) and `null` for a thread of its own, read from
+  the conversation's `ConversationMeta.parent` with or without a run store.
+
+- **`RUN_STARTED` names a resumed or forked run's source as `parentRunId`.** pydantic-ai's
+  adapter never sets the protocol's lineage field, so a client saw a branch only through
+  `runs/`. The mount now stamps the source run's id on every resume and fork, and keeps a
+  `parentRunId` the adapter sets itself.
+
 ### Changed
 
 - **The floor is `django-spec-agents>=0.24.1`**, in the core dependency and the `[mcp]`
