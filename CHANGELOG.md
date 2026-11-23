@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`AgentsDirectory`: one host-mounted view over several mounts.** Built from the host's
+  `AGUIServer` instances and mounted once, it serves `GET agents/`, each mount the caller
+  may use with its `id`, `name`, `description` and the URL of each list-level route
+  (`endpoint`, `tools_url`, `threads_url`, `runs_url`, `skills_url`, `skill_editor_url`,
+  `routines_url`, `attachments_url`, `transcribe_url`, `null` when unmounted), and
+  `GET inbox/`, every admitted mount's own `threads/` rows, each with `agent_id`, merged
+  newest first, with the same ETag polling and SSE as `threads/`. Which mounts a caller sees
+  is each mount's own policy, run on its own copy of the request, so a token mount and a
+  session mount each list under their own principal; when none admits, `401` (or `403`
+  when every denial was `403`). See [Agents directory](docs/agents-directory.md).
+
+- **`AGUIServer` seams the directory reads**, public for a host too: `namespace`,
+  `routes()` (the route names it mounts), `admits(request)` (its policy's deny status, on a
+  copy of the request) and `thread_rows(request, limit=)` (its `threads/` rows with
+  `agent_id`, or the deny status).
+
+### Changed
+
+- The `threads/` list's ETag, `304` and SSE handling moved into one helper the inbox
+  shares; `threads/` answers exactly as before. `ThreadsView` is built once per server
+  rather than on every `urls` read.
+
 ## [0.86.0] — 2026-11-23
 
 ### Added

@@ -10,7 +10,7 @@ from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 
 import django_ag_ui
 from django_ag_ui import persistence
-from django_ag_ui.persistence import threads_view as threads_view_module
+from django_ag_ui.persistence import fresh_list_response as fresh_list_response_module
 from django_ag_ui.persistence.types.mount_identity import MountIdentity
 from tests.authed_request_factory import AuthedRequestFactory
 from tests.persistence.test_thread_status import _SSE, _list, _route, _server, _thread
@@ -38,8 +38,8 @@ async def test_a_wsgi_request_asking_for_a_stream_is_answered_as_a_poll() -> Non
 async def test_the_stream_ends_at_its_lifetime_cap(
     monkeypatch: pytest.MonkeyPatch, heartbeat: float
 ) -> None:
-    monkeypatch.setattr(threads_view_module, "_STREAM_POLL_SECONDS", 0.01, raising=False)
-    monkeypatch.setattr(threads_view_module, "_STREAM_MAX_SECONDS", 0.1, raising=False)
+    monkeypatch.setattr(fresh_list_response_module, "_STREAM_POLL_SECONDS", 0.01)
+    monkeypatch.setattr(fresh_list_response_module, "_STREAM_MAX_SECONDS", 0.1)
     await _thread("t1")
     server = _server(DefaultRunStore(), heartbeat)
 

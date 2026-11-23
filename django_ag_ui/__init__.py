@@ -37,6 +37,7 @@ from django_spec_agents import (
 
 from django_ag_ui.agent.a2ui_activity import a2ui_activity
 from django_ag_ui.agent.agent_session import AgentSession
+from django_ag_ui.agent.agents_directory import AgentsDirectory
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.chart_activity import CHART_ACTIVITY_TYPE, chart_activity
@@ -128,6 +129,7 @@ __all__ = [
     "AGUIConfig",
     "DEFAULT_SYSTEM_PROMPT",
     "AGUIServer",
+    "AgentsDirectory",
     "AGUIHeadlessRunner",
     "ClaimLapsedError",
     "start_from_sync",

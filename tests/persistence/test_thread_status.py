@@ -19,7 +19,7 @@ from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
-from django_ag_ui.persistence import threads_view as threads_view_module
+from django_ag_ui.persistence import fresh_list_response as fresh_list_response_module
 from tests.authed_request_factory import AuthedAsyncRequestFactory, authenticated_user
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -239,7 +239,7 @@ async def _frames(stream: Any, count: int) -> list[tuple[str, dict[str, Any]]]:
 async def test_the_stream_sends_the_polled_body_again_on_each_change(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(threads_view_module, "_STREAM_POLL_SECONDS", 0.01, raising=False)
+    monkeypatch.setattr(fresh_list_response_module, "_STREAM_POLL_SECONDS", 0.01)
     run_store = DefaultRunStore()
     request = await _thread("t1")
     server = _server(run_store)
@@ -262,7 +262,7 @@ async def test_the_stream_sends_the_polled_body_again_on_each_change(
 async def test_a_stream_resumed_at_the_current_etag_skips_the_unchanged_body(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(threads_view_module, "_STREAM_POLL_SECONDS", 0.01, raising=False)
+    monkeypatch.setattr(fresh_list_response_module, "_STREAM_POLL_SECONDS", 0.01)
     run_store = DefaultRunStore()
     request = await _thread("t1")
     server = _server(run_store)

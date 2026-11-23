@@ -1,26 +1,20 @@
 from __future__ import annotations
 
-import asyncio
 import dataclasses
-import hashlib
 import json
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import Sequence
 from typing import Any, cast
 
 from ag_ui.core import ActivityMessage, ActivitySnapshotEvent, Message
 from asgiref.sync import markcoroutinefunction
 from django.core.exceptions import ValidationError
-from django.core.handlers.asgi import ASGIRequest
 from django.http import (
     HttpRequest,
     HttpResponse,
     HttpResponseNotAllowed,
     JsonResponse,
-    StreamingHttpResponse,
 )
 from django.http.response import HttpResponseBase
-from django.utils.cache import patch_vary_headers
-from django.utils.http import parse_etags
 from django_spec_agents import IdentifierTooLongError
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
@@ -28,9 +22,9 @@ from django_spec_agents.persistence.types.conversation_store import Conversation
 from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
-from django_ag_ui.agent.heartbeat_stream import heartbeat_stream
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
+from django_ag_ui.persistence.fresh_list_response import fresh_list_response
 from django_ag_ui.persistence.thread_status_fields import thread_status_fields
 from django_ag_ui.persistence.types.mount_identity import MountIdentity
 from django_ag_ui.persistence.types.thread_activity import ThreadActivity
@@ -43,8 +37,6 @@ from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 # rename here (truncate — a title is cosmetic) so an over-long PATCH is a clean
 # save on every backend rather than a ``DataError`` on a strict database.
 _MAX_TITLE_LEN = 255
-_STREAM_POLL_SECONDS = 2.0
-_STREAM_MAX_SECONDS = 300.0
 
 
 def _valid_pks(model: Any, ids: set[str]) -> list[Any]:
@@ -152,23 +144,14 @@ class ThreadsView:
         if request.method != "GET":
             return HttpResponseNotAllowed(["GET"])
         limit = _effective_limit(request, self._config.thread_list_limit)
-        # WSGI answers a poll: its worker could never leave an endless stream.
-        if isinstance(request, ASGIRequest) and "text/event-stream" in request.headers.get(
-            "Accept", ""
-        ):
-            return self._stream(request, limit)
-        body = await self._list_body(request, limit)
-        etag = _etag(body)
-        if _matches(request.headers.get("If-None-Match"), etag):
-            response: HttpResponseBase = HttpResponse(status=304)
-        else:
-            response = JsonResponse(body)
-        response["ETag"] = etag
-        response["Cache-Control"] = "private, no-cache"
-        patch_vary_headers(response, ["Accept"])
-        return response
+        return await fresh_list_response(
+            request,
+            lambda: self.list_body(request, limit),
+            heartbeat_seconds=self._config.heartbeat_seconds,
+        )
 
-    async def _list_body(self, request: HttpRequest, limit: int) -> dict[str, Any]:
+    async def list_body(self, request: HttpRequest, limit: int) -> dict[str, Any]:
+        """The ``threads/`` body for an already authorized ``request``, at most ``limit`` rows."""
         metas = await self._store.list(request=request, limit=limit)
         named = await self._routines({m.routine_id for m in metas if m.routine_id}, request)
         rows = [_meta_to_json(m) | {"routine": named.get(m.routine_id or "")} for m in metas]
@@ -194,28 +177,6 @@ class ThreadsView:
             pk__in=_valid_pks(self._routine_model, ids),
         )
         return {str(r.pk): {"id": str(r.pk), "name": r.name} async for r in fired}
-
-    def _stream(self, request: HttpRequest, limit: int) -> HttpResponseBase:
-        frames = self._frames(request, limit, request.headers.get("Last-Event-ID"))
-        if self._config.heartbeat_seconds > 0:
-            frames = heartbeat_stream(frames, interval=self._config.heartbeat_seconds)
-        response = StreamingHttpResponse(frames, content_type="text/event-stream")
-        response["Cache-Control"] = "no-cache"
-        response["X-Accel-Buffering"] = "no"
-        patch_vary_headers(response, ["Accept"])
-        return response
-
-    async def _frames(
-        self, request: HttpRequest, limit: int, seen: str | None
-    ) -> AsyncIterator[str]:
-        deadline = asyncio.get_running_loop().time() + _STREAM_MAX_SECONDS
-        while asyncio.get_running_loop().time() < deadline:
-            body = await self._list_body(request, limit)
-            etag = _etag(body)
-            if etag != seen:
-                seen = etag
-                yield f"id: {etag}\ndata: {json.dumps(body, separators=(',', ':'))}\n\n"
-            await asyncio.sleep(_STREAM_POLL_SECONDS)
 
     async def _detail(self, request: HttpRequest, thread_id: str) -> HttpResponseBase:
         if request.method == "GET":
@@ -310,19 +271,6 @@ def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
         "preview": meta.preview,
         "parent": None if meta.parent is None else dataclasses.asdict(meta.parent),
     }
-
-
-def _matches(header: str | None, etag: str) -> bool:
-    """Whether an ``If-None-Match`` value (a list, ``*`` or weakened by gzip) names ``etag``."""
-    if header is None:
-        return False
-    return any(tag == "*" or tag.removeprefix("W/") == etag for tag in parse_etags(header))
-
-
-def _etag(body: dict[str, Any]) -> str:
-    """A strong ETag over the list body, so a poll and a stream frame agree on it."""
-    encoded = json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
-    return f'"{hashlib.sha256(encoded).hexdigest()[:32]}"'
 
 
 def _parse_title(request: HttpRequest) -> str | None:

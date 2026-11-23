@@ -43,6 +43,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.AGUIServer
 
+::: django_ag_ui.AgentsDirectory
+
 ::: django_ag_ui.DjangoAGUIView
 
 ::: django_ag_ui.AgentSession

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import dataclasses
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from datetime import timedelta
@@ -20,6 +21,7 @@ from django_spec_agents.headless.types.firing_queue import FiringQueue
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
 from django_spec_agents.integrations.types.spec_source import SpecSource
+from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
 )
@@ -35,7 +37,7 @@ from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.utils import owner_id_for
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from django_spec_agents.registry.tool_registry import ToolRegistry
-from django_spec_agents.utils import AuthorizePredicate, GetUser
+from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize
 
 from django_ag_ui.agent.agui_view import DjangoAGUIView
 from django_ag_ui.agent.cancel_view import CancelView
@@ -433,6 +435,20 @@ class AGUIServer:
             None if routine_model is None else self._mount_routines(routine_model)
         )
         self._queued = self._queued_start(firing_queue)
+        self._route_names: tuple[str, ...] | None = None
+        self._threads_view = (
+            None
+            if isinstance(self._conversation_store, NullConversationStore)
+            else ThreadsView(
+                self._conversation_store,
+                config=self._config,
+                thread_activity_source=thread_activity_source,
+                run_store=run_store,
+                mount=MountIdentity(id=id, name=name, description=description),
+                routine_model=routine_model,
+                **self._policy,
+            )
+        )
         self._view = DjangoAGUIView(
             registry,
             model=model,
@@ -757,6 +773,55 @@ class AGUIServer:
         return await self._run_store.request_cancel(thread_id, request=request)
 
     @property
+    def namespace(self) -> str:
+        """The URL namespace this mount's routes reverse in (``reverse(f"{ns}:threads")``)."""
+        return self._namespace
+
+    def routes(self) -> tuple[str, ...]:
+        """The names of the routes this mount serves, in mount order (see "What gets mounted")."""
+        if self._route_names is None:
+            names = (pattern.name for pattern in self._build_patterns())
+            self._route_names = tuple(name for name in names if name is not None)
+        return self._route_names
+
+    async def admits(self, request: HttpRequest) -> int | None:
+        """The deny status this mount's own policy answers ``request`` with, or ``None``.
+
+        The policy runs on a shallow copy, so a ``get_user`` assigning ``request.user``
+        never leaks into another mount's check of the same request.
+        """
+        return await self._admitted(copy.copy(request))
+
+    async def thread_rows(
+        self, request: HttpRequest, *, limit: int | None = None
+    ) -> list[dict[str, Any]] | int:
+        """This mount's ``threads/`` rows for ``request``, each with ``agent_id``, or a deny status.
+
+        The policy and the list run on this mount's own copy of ``request``, as
+        [`admits`][django_ag_ui.AGUIServer.admits] does. ``limit`` is clamped to the
+        mount's ``thread_list_limit``, which is also the default. A mount without a live
+        conversation store admits the caller and lists nothing.
+        """
+        own = copy.copy(request)
+        deny = await self._admitted(own)
+        if deny is not None:
+            return deny
+        if self._threads_view is None:
+            return []
+        cap = self._config.thread_list_limit
+        try:
+            body = await self._threads_view.list_body(
+                own, cap if limit is None else min(limit, cap)
+            )
+        except AnonymousOperationError:
+            return 403
+        return [row | {"agent_id": self.id} for row in body["threads"]]
+
+    async def _admitted(self, request: HttpRequest) -> int | None:
+        policy = {key: value for key, value in self._policy.items() if key != "csrf_exempt"}
+        return await aauthorize(request, **policy)
+
+    @property
     def urls(self) -> tuple[list[URLPattern], str, str]:
         """The namespaced ``(patterns, app_name, namespace)`` triple ``path()`` mounts.
 
@@ -829,16 +894,8 @@ class AGUIServer:
                         name=f"routine_{action}",
                     )
                 )
-        if not isinstance(self._conversation_store, NullConversationStore):
-            threads_view = ThreadsView(
-                self._conversation_store,
-                config=self._config,
-                thread_activity_source=self._thread_activity_source,
-                run_store=self._run_store,
-                mount=MountIdentity(id=self.id, name=self.name, description=self.description),
-                routine_model=self._routine_model,
-                **self._policy,
-            )
+        if self._threads_view is not None:
+            threads_view = self._threads_view
             patterns.append(path("threads/", threads_view, name="threads"))
             patterns.append(path("threads/<str:thread_id>/", threads_view, name="thread"))
         if self._run_store is not None:
