@@ -348,7 +348,7 @@ async def test_an_answered_question_resumes_a_parked_child_through_wake_thread()
     request = server.headless_request(user)
     parent = ThreadRef("t-parent", "planner")
     lineage = ChildLineageRecord(root=parent, depth=1, tools=["ask"], gated=[])
-    await runner.run_to_first_stop(
+    parked = await runner.run_to_first_stop(
         "helper", "go", user, timeout=5, thread_id="t-child", parent=parent, lineage=lineage
     )
     child = ThreadRef("t-child", "helper")
@@ -370,6 +370,36 @@ async def test_an_answered_question_resumes_a_parked_child_through_wake_thread()
     assert (state.status, state.last_run_id) == (ThreadRunStatus.IDLE, started.run_id)
     stored = await DefaultConversationStore().load("t-child", request=request)
     assert [m.get("content") for m in stored.messages][-2:] == ["blue", "done"]
+    log = await DefaultRunStore().read(started.run_id, request=request)
+    resumed = next(e.event for e in log if e.event.get("type") == "RUN_STARTED")
+    assert resumed["parentRunId"] == parked.run_id
+
+
+class _FailingStart(AGUIHeadlessRunner):
+    async def start(self, *args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("start failed")
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_wake_whose_start_fails_leaves_the_answer_pending_under_its_id() -> None:
+    queue = DefaultInboundQueue()
+    options = _guarded(_Calls("ask", '{"topic": "colour"}'))
+    server = AGUIServer(options.pop("registry"), id="helper", inbound_queue=queue, **options)
+    user = authenticated_user()
+    request = server.headless_request(user)
+    parent = ThreadRef("t-parent", "planner")
+    lineage = ChildLineageRecord(root=parent, depth=1, tools=["ask"], gated=[])
+    await AGUIHeadlessRunner(server).run_to_first_stop(
+        "helper", "go", user, timeout=5, thread_id="t-child", parent=parent, lineage=lineage
+    )
+    child = ThreadRef("t-child", "helper")
+    await queue.enqueue(child, InboundKind.ANSWER, {"text": "blue"}, request=request, sender=parent)
+    before = [m.id for m in await queue.pending(child, request=request)]
+
+    with pytest.raises(RuntimeError, match="start failed"):
+        await server.wake(request, "t-child", after=0, runner=_FailingStart(server), timeout=5)
+
+    assert [m.id for m in await queue.pending(child, request=request)] == before
 
 
 _APPROVED = [{"interruptId": "int-call-1", "status": "resolved", "payload": {"approved": True}}]

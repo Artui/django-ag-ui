@@ -42,6 +42,7 @@ from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.run_transcript import RunTranscript
 from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
+from django_ag_ui.agent.stamp_parent_run_id import stamp_parent_run_id
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
 from django_ag_ui.agent.utils import ERROR_CODE, IDENTIFIER_TOO_LONG_CODE, without_answered_by
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
@@ -93,8 +94,10 @@ class AgentSession:
         timeout: float | None = None,
         deferred_tool_results: DeferredToolResults | None = None,
         park: ParkRun | None = None,
+        parent_run_id: str | None = None,
     ) -> None:
         self._agent = agent
+        self._parent_run_id = parent_run_id
         self._run_input = run_input
         self._request = request
         # Per-run overrides, kept off the agent so one built agent serves every run.
@@ -161,12 +164,14 @@ class AgentSession:
             capabilities=self._capabilities,
             cancellation_token=self._token,
             timeout=self._timeout,
+            run_id=self._run_input.run_id or None,
         )
         events = self._adapter.transform_stream(
             native,
             on_complete=self._on_complete(transcript),
             on_cancel=self._on_timeout(transcript),
         )
+        events = stamp_parent_run_id(events, self._parent_run_id)
         if not self._forward_reasoning:
             events = drop_reasoning_events(events)
         events = inject_compaction_events(events)

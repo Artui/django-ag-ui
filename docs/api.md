@@ -35,6 +35,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.skills.skill_editor_view.SkillEditorView
 
+::: django_ag_ui.routines.routine_editor_view.RoutineEditorView
+
 ::: django_ag_ui.SKILLS_CHANGED_EVENT_NAME
 
 ## Agent and view
@@ -247,6 +249,8 @@ subclass it to change the model or point at another OpenAI-compatible server.
 ::: django_ag_ui.resource_invalidation
 
 ::: django_ag_ui.INVALIDATE_EVENT_NAME
+
+::: django_ag_ui.ROUTINES_KEY
 
 ## Internal helpers
 

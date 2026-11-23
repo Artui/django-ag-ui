@@ -107,7 +107,15 @@ async def test_a_queued_start_holds_its_thread_before_it_returns() -> None:
     tasks_before = len(asyncio.all_tasks())
 
     started = await runner.start(
-        "helper", "hi", user, timeout=7, thread_id="t1", parent=_PARENT, lineage=_LINEAGE
+        "helper",
+        "hi",
+        user,
+        timeout=7,
+        thread_id="t1",
+        parent=_PARENT,
+        lineage=_LINEAGE,
+        parent_run_id="r-parent",
+        routine_id="7",
     )
 
     assert len(asyncio.all_tasks()) == tasks_before
@@ -130,6 +138,8 @@ async def test_a_queued_start_holds_its_thread_before_it_returns() -> None:
         "run_id": started.run_id,
         "answers": None,
         "inbox_mark": 0,
+        "parent_run_id": "r-parent",
+        "routine_id": "7",
     }
     assert started == HeadlessStart(thread_id="t1", run_id=started.run_id)
 
@@ -231,6 +241,25 @@ async def test_the_worker_takes_up_the_claimed_run_and_writes_what_in_process_do
     assert queued_state.last_run_id == queued.run_id
     assert queued_log == direct_log
     assert queued_log
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_queued_firing_names_its_parent_run_and_routine_on_the_worker() -> None:
+    server, runner, queue = _runner_and_queue()
+    user = authenticated_user()
+    request = server.headless_request(user)
+
+    queued = await runner.start(
+        "helper", "hi", user, timeout=5, parent_run_id="r-parent", routine_id="7"
+    )
+    claimed = await DefaultConversationStore().load(queued.thread_id, request=request)
+    await queue.work()
+
+    entries = await DefaultRunStore().read(queued.run_id, request=request)
+    started = next(e.event for e in entries if e.event.get("type") == "RUN_STARTED")
+    assert started["parentRunId"] == "r-parent"
+    stored = await DefaultConversationStore().load(queued.thread_id, request=request)
+    assert (claimed.routine_id, stored.routine_id) == ("7", "7")
 
 
 @pytest.mark.django_db(transaction=True)

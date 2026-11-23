@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.86.0] — 2026-11-23
+
+### Added
+
+- **A thread row names its parent.** Each row of `GET <mount>threads/` carries `parent`,
+  `{"thread_id", "scope"}` for a child session (the scope being the parent's agent id or
+  store scope, `null` in an unscoped store) and `null` for a thread of its own, read from
+  the conversation's `ConversationMeta.parent` with or without a run store.
+
+- **`RUN_STARTED` names a resumed or forked run's source as `parentRunId`.** pydantic-ai's
+  adapter never sets the protocol's lineage field, so a client saw a branch only through
+  `runs/`. The mount now stamps the source run's id on every run of the `resume/` and
+  `fork/` routes, and keeps a `parentRunId` the adapter sets itself. A headless run is
+  stamped with the runner's `parent_run_id`: a child session's first `RUN_STARTED` names
+  the parent run that started it, and a `wake_thread` resume that answers a parked
+  question names the parked run, whether the run starts in process or on a worker.
+
+- **`AGUIHeadlessRunner` takes `parent_run_id` and `routine_id`**, the keywords
+  django-spec-agents 0.25.0's `HeadlessRunner` passes on every child start, wake and
+  routine firing, on `start` and `run_to_first_stop`; without them each of those raised
+  `TypeError`. `routine_id` is saved on the thread's conversation before the run starts,
+  as `parent` is, and kept by later runs that name none. A queued start carries both to
+  the worker in its `HeadlessFiring`.
+
+- **A routines editor on the agent mount.** `AGUIServer(routine_model=, id=)` takes a
+  django-spec-agents `AbstractRoutine` subclass and mounts `routines/` (list, create),
+  `routines/<id>/` (replace, pause or resume), `routines/<id>/run/` (fire it now on the
+  model's sweep queue, into a fresh thread) and `routines/<id>/runs/` (its firings).
+  It serves the caller's own routines on the mount's `id` that the policy's `can_write`
+  admits; any other id is a `404`. A grant that holds a destructive tool is a `409`
+  naming it unless the write's `confirmDestructive` names it too, and the list's
+  `grantable` says which tools are destructive. A run that saves a routine sends
+  `ag_ui.invalidate` with the keys `routines` and `routines/<id>` once the
+  write commits. Each row of `threads/` carries `routine`, `{"id", "name"}` when a firing
+  of one of the caller's routines on the mount started the thread, read from the
+  conversation's `ConversationMeta.routine_id`, else `null`; every firing's row is named,
+  in one routine query per page. `runs/` lists each firing, newest first: the one the
+  routine records, with its run id and queue state, then the earlier threads among the
+  caller's newest `thread_list_limit` whose conversation names the routine, with `runId`
+  and `state` `null`. See `docs/routines.md`.
+  `run/` locks the routine's row and re-checks that its last firing is done and that
+  `can_run` allows it, so two clicks at once fire it once, and it enqueues inside the
+  transaction that records the firing. It fires a paused routine once, which stays
+  paused. `routine_model=` without the `[specs]` extra raises an `ImportError` naming
+  it, and a `preapprovedTools` that is not a list of names is a `400` naming the field.
+  `ROUTINES_KEY`, the key a routine write invalidates, is exported.
+
+### Changed
+
+- **A run's pydantic-ai run id is its AG-UI run id.** The mount hands `run_input.run_id`
+  to the adapter, so `RunContext.run_id`, which a tool or a spec reads and which
+  django-spec-agents' `start_session` reports as a child's `parent_run_id`, is the id the
+  client sees on `RUN_STARTED`, the run store and `runs/`. It was a fresh UUID7 the client
+  never saw. An empty `runId` is not handed on, as pydantic-ai refuses one. The id is the
+  client's choice: a capability that keys per-run state on `RunContext.run_id` sees it, unique
+  per owner only where a run store refuses a reused one.
+
+- **The floor is `django-spec-agents>=0.25.0`**, in the core dependency and the `[mcp]`
+  and `[specs]` extras, for `ConversationMeta.routine_id`, the `HeadlessFiring` fields and
+  the runner keywords above. It passes through 0.24.1, whose `wake_thread` acks a parked
+  child's answers only once the run it resumes has started and never enqueues them
+  again, so a wake whose start fails leaves the answers pending under their own ids.
+
 ## [0.85.0] — 2026-11-21
 
 ### Fixed
@@ -4787,7 +4850,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.85.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.86.0...HEAD
+[0.86.0]: https://github.com/Artui/django-ag-ui/compare/v0.85.0...v0.86.0
 [0.85.0]: https://github.com/Artui/django-ag-ui/compare/v0.84.0...v0.85.0
 [0.84.0]: https://github.com/Artui/django-ag-ui/compare/v0.83.0...v0.84.0
 [0.83.0]: https://github.com/Artui/django-ag-ui/compare/v0.82.0...v0.83.0

@@ -908,6 +908,14 @@ async def test_a_capability_passed_to_the_view_sees_the_tools_own_exception() ->
     assert str(seen[0]) == "ledger 7 is locked by another job"
 
 
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_whose_client_sent_an_empty_run_id_still_runs() -> None:
+    view = DjangoAGUIView(_registry(), model=TestModel())
+    body = await _drain(await view(_post(_run_input("double 5", run_id=""))))
+    assert "RUN_FINISHED" in body
+    assert "RUN_ERROR" not in body
+
+
 # --- Resume / fork ------------------------------------------------------------
 
 

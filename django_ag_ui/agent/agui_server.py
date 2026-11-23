@@ -6,8 +6,10 @@ from datetime import timedelta
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models.signals import post_save
 from django.http import HttpRequest
 from django.urls import URLPattern, path
+from django_spec_agents import ToolGuard
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
 from django_spec_agents.child_sessions.types.child_session_spend import ChildSessionSpend
@@ -101,6 +103,10 @@ class AGUIServer:
     - ``skill_editor`` / ``skill_editor_item`` — ``skill_editor=True``
       (``skills/editor/`` + ``skills/editor/<id>/``, see
       [`SkillEditorView`][django_ag_ui.skills.skill_editor_view.SkillEditorView]).
+    - ``routines`` / ``routine`` / ``routine_run`` / ``routine_runs`` — a
+      ``routine_model`` was passed (``routines/``, ``routines/<id>/``, ``.../run/`` and
+      ``.../runs/``, see
+      [`RoutineEditorView`][django_ag_ui.routines.routine_editor_view.RoutineEditorView]).
     - ``threads`` / ``thread`` — the conversation store is not a
       ``NullConversationStore`` (``threads/`` + ``threads/<id>/``, the history
       drawer's ``data-threads-url``). A ``thread_activity_source=`` puts pushed
@@ -139,7 +145,8 @@ class AGUIServer:
     view this object builds, so one policy governs the whole mount — including
     the write endpoints (attachment upload / delete, thread rename / delete,
     transcribe), which ``csrf_exempt=True`` exempts alongside the run endpoint. The
-    skill editor alone treats an unstated ``csrf_exempt`` as ``False``.
+    skill and routines editors alone treat an unstated ``csrf_exempt`` as ``False``; see
+    [User skills](user-skills.md) and [Routines](routines.md).
     ``require_authenticated`` defaults to **True**, so a bare
     ``AGUIServer(registry)`` serves nobody who is not logged in; pass
     ``require_authenticated=False`` to serve anonymous runs deliberately. The
@@ -276,6 +283,11 @@ class AGUIServer:
     ``agent_factory`` builds its own agent and gets none of this. See
     [User skills](user-skills.md).
 
+    **Routines.** ``routine_model`` takes a django-spec-agents ``AbstractRoutine``
+    subclass: the ``routines/`` editor serves the caller's routines on this mount's ``id``,
+    and a run that saves one sends ``ag_ui.invalidate`` with the ``routines`` key. See
+    [Routines](routines.md).
+
     **Namespacing.** [`urls`][django_ag_ui.AGUIServer.urls] returns the
     ``(patterns, app_name, namespace)``
     triple ``path()`` mounts directly (like ``admin.site.urls`` — no
@@ -328,6 +340,7 @@ class AGUIServer:
         inbound_queue: InboundQueue | None = None,
         child_spend: ChildSessionSpend | None = None,
         firing_queue: FiringQueue | None = None,
+        routine_model: Any = None,
     ) -> None:
         check_removed_settings()
         # The same mistake in its constructor-shaped form: a name where an object belongs.
@@ -348,6 +361,7 @@ class AGUIServer:
             inbound_queue=inbound_queue,
             child_spend=child_spend,
             firing_queue=firing_queue,
+            routine_model=routine_model,
             service_specs=service_specs,
             skills=skills,
             skill_policy=skill_policy,
@@ -414,6 +428,10 @@ class AGUIServer:
             _reject_spec_name_collisions(self._service_specs or {}, registry, self._mcp_server)
         self._step_store = step_store
         self._deps_factory = deps_factory
+        self._routine_model = routine_model
+        self._routine_editor = (
+            None if routine_model is None else self._mount_routines(routine_model)
+        )
         self._queued = self._queued_start(firing_queue)
         self._view = DjangoAGUIView(
             registry,
@@ -456,6 +474,48 @@ class AGUIServer:
             self._skill_editor = SkillEditorView(self._skill_policy, **self._policy)
         stored = StoredSkillsForRun(self._skill_policy, authoring=authoring)
         return [stored, *(capabilities or [])]
+
+    def _mount_routines(self, model: Any) -> Any:
+        # Imported late: the routines define a model, so need the app registry.
+        try:
+            from django_ag_ui.routines.routine_editor_view import RoutineEditorView
+            from django_ag_ui.routines.utils import announce_routine_saved, grantable_tool_defs
+        except ImportError as error:
+            raise ImportError(
+                "AGUIServer(routine_model=...) requires django-service-specs: "
+                "install django-ag-ui[specs]"
+            ) from error
+
+        if self.id is None:
+            raise ImproperlyConfigured("AGUIServer(routine_model=) needs id=: a routine names it")
+        if model.routine_policy() is None:
+            raise ImproperlyConfigured(
+                f"AGUIServer(routine_model={model.__name__}) has no routine_policy()"
+            )
+        post_save.connect(
+            announce_routine_saved,
+            sender=model,
+            weak=False,
+            dispatch_uid=f"django_ag_ui.routines.{model._meta.label}",
+        )
+
+        def tool_defs(request: HttpRequest) -> list[Any]:
+            return grantable_tool_defs(
+                self._registry,
+                request,
+                mcp_server=self._mcp_server,
+                service_specs=self._service_specs,
+            )
+
+        return RoutineEditorView(
+            model,
+            agent_id=self.id,
+            guard=ToolGuard(self._registry, config=self._config.tool_guard),
+            tool_defs=tool_defs,
+            conversation_store=self._conversation_store,
+            thread_list_limit=self._config.thread_list_limit,
+            **self._policy,
+        )
 
     def _queued_start(self, queue: FiringQueue | None) -> QueuedBrowserStart | None:
         if queue is None:
@@ -518,6 +578,8 @@ class AGUIServer:
         lineage: ChildLineageRecord | None = None,
         adopt: bool = False,
         answers: Mapping[str, str] | None = None,
+        parent_run_id: str | None = None,
+        routine_id: str | None = None,
         after_finish: Callable[[RunOutcome], Awaitable[None]] | None = None,
     ) -> RunOwner:
         """Start ``run_input`` with no response once it holds the thread, after its history."""
@@ -525,7 +587,7 @@ class AGUIServer:
         view = self._view
 
         async def prepare(claimed: Any) -> tuple[Any, list[Any]]:
-            conversation = await self._link(request, claimed.thread_id, parent, lineage)
+            conversation = await self._link(request, claimed.thread_id, parent, lineage, routine_id)
             stored_lineage = view.child_capabilities(conversation)
             stored = [] if conversation is None else conversation.messages
             history = messages_from_jsonable(stored)
@@ -540,6 +602,7 @@ class AGUIServer:
             prepare=prepare,
             adopt=adopt,
             answers=answers,
+            parent_run_id=parent_run_id,
             after_finish=after_finish,
         )
 
@@ -551,6 +614,7 @@ class AGUIServer:
         lease: timedelta,
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
+        routine_id: str | None = None,
         inbox_mark: int | None = None,
         answers: Collection[str] | None = None,
     ) -> bool:
@@ -563,7 +627,7 @@ class AGUIServer:
             store, thread_id, run_id, request=request, lease=lease, answers=answers
         )
         try:
-            await self._link(request, thread_id, parent, lineage)
+            await self._link(request, thread_id, parent, lineage, routine_id)
             if inbox_mark is not None:
                 kept = queued_record({"inbox_mark": inbox_mark})
                 await store.append(run_id, [kept], request=request)
@@ -653,7 +717,7 @@ class AGUIServer:
         )
 
     def _inner_queue(self) -> InboundQueue | None:
-        # The inner queue: an answer whose start fails is enqueued again, which must not wake.
+        # Unwrapped: wake_thread holds its claim until start returns, acks after, enqueues nothing.
         queue = self._inbound_queue
         return queue.queue if isinstance(queue, WakingInboundQueue) else queue
 
@@ -669,10 +733,12 @@ class AGUIServer:
         thread_id: str,
         parent: ThreadRef | None,
         lineage: ChildLineageRecord | None,
+        routine_id: str | None,
     ) -> Conversation | None:
         store = self._conversation_store
         conversation = await store.load(thread_id, request=request)
-        if parent is None and lineage is None:
+        # routine_id: test_a_firing_names_its_routine_on_its_thread_and_later_runs_keep_it
+        if parent is None and lineage is None and routine_id is None:
             return conversation
         linked = Conversation(
             thread_id=thread_id,
@@ -680,6 +746,7 @@ class AGUIServer:
             owner_id=owner_id_for(request),
             parent=parent,
             lineage=lineage,
+            routine_id=routine_id,
         )
         await store.save(linked, request=request)
         return linked
@@ -749,6 +816,19 @@ class AGUIServer:
             editor = self._skill_editor
             patterns.append(path("skills/editor/", editor, name="skill_editor"))
             patterns.append(path("skills/editor/<str:skill_id>/", editor, name="skill_editor_item"))
+        if self._routine_editor is not None:
+            routines = self._routine_editor
+            patterns.append(path("routines/", routines, name="routines"))
+            patterns.append(path("routines/<str:routine_id>/", routines, name="routine"))
+            for action in ("run", "runs"):
+                patterns.append(
+                    path(
+                        f"routines/<str:routine_id>/{action}/",
+                        routines,
+                        {"action": action},
+                        name=f"routine_{action}",
+                    )
+                )
         if not isinstance(self._conversation_store, NullConversationStore):
             threads_view = ThreadsView(
                 self._conversation_store,
@@ -756,6 +836,7 @@ class AGUIServer:
                 thread_activity_source=self._thread_activity_source,
                 run_store=self._run_store,
                 mount=MountIdentity(id=self.id, name=self.name, description=self.description),
+                routine_model=self._routine_model,
                 **self._policy,
             )
             patterns.append(path("threads/", threads_view, name="threads"))

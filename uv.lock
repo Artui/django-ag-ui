@@ -712,9 +712,9 @@ requires-dist = [
     { name = "ag-ui-a2ui-toolkit", marker = "extra == 'a2ui'", specifier = ">=0.0.6,<0.1" },
     { name = "ag-ui-protocol", specifier = ">=1.0" },
     { name = "django", specifier = ">=4.2" },
-    { name = "django-spec-agents", specifier = ">=0.24.0" },
-    { name = "django-spec-agents", extras = ["mcp"], marker = "extra == 'mcp'", specifier = ">=0.24.0" },
-    { name = "django-spec-agents", extras = ["specs"], marker = "extra == 'specs'", specifier = ">=0.24.0" },
+    { name = "django-spec-agents", specifier = ">=0.25.0" },
+    { name = "django-spec-agents", extras = ["mcp"], marker = "extra == 'mcp'", specifier = ">=0.25.0" },
+    { name = "django-spec-agents", extras = ["specs"], marker = "extra == 'specs'", specifier = ">=0.25.0" },
     { name = "pydantic-ai-harness", marker = "extra == 'harness'", specifier = ">=0.69" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'code-mode'", specifier = ">=0.69" },
     { name = "pydantic-ai-slim", extras = ["ag-ui"], specifier = ">=2.69,<3" },
@@ -727,7 +727,7 @@ provides-extras = ["a2ui", "anthropic", "code-mode", "google", "harness", "mcp",
 [package.metadata.requires-dev]
 dev = [
     { name = "ag-ui-a2ui-toolkit", specifier = ">=0.0.6,<0.1" },
-    { name = "django-spec-agents", extras = ["specs", "mcp"], specifier = ">=0.24.0" },
+    { name = "django-spec-agents", extras = ["specs", "mcp"], specifier = ">=0.25.0" },
     { name = "django-stubs", specifier = ">=5.0" },
     { name = "flake8-tidy-imports", specifier = ">=4.12.0" },
     { name = "httpx", specifier = ">=0.27" },
@@ -764,7 +764,7 @@ wheels = [
 
 [[package]]
 name = "django-spec-agents"
-version = "0.24.0"
+version = "0.25.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django", version = "5.2.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -773,9 +773,9 @@ dependencies = [
     { name = "pydantic-ai-slim" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f4/79/913e8e7993b3d44be4fe4ff0f42fdc9ee4d6f4f32efc599cad2bd201169d/django_spec_agents-0.24.0.tar.gz", hash = "sha256:f04dc34f453a024b3edcabf6246b0b0a0b1eb2090f8228caee1e6f5e7b0bba22", size = 819500, upload-time = "2026-11-21T19:15:49.319Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/47/4325ef3d4b3f406aae387667465f2ff00515992565ad6bd7d3bd83c7ab52/django_spec_agents-0.25.0.tar.gz", hash = "sha256:8283e2168b08d00052386fd5f399353f16bab97ad0bae55c900f14342123970a", size = 824827, upload-time = "2026-11-23T10:01:54.384Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c5/37/1770084f9cee41e4934c9868fd57bf3073f920bd135aaff2df61515012a4/django_spec_agents-0.24.0-py3-none-any.whl", hash = "sha256:11bd0e0d90bd210fff854a8945a05ca3668e1dd08f60fb009442e8b774ad9910", size = 273556, upload-time = "2026-11-21T19:15:47.982Z" },
+    { url = "https://files.pythonhosted.org/packages/81/84/1f625438d4378321ae3c7b1495a0a157270cf64d00ae64132d1d768f08b3/django_spec_agents-0.25.0-py3-none-any.whl", hash = "sha256:245b18d9e9e7279527a23e665fab1f8870fd926c29f8323dd4af85c32292ac21", size = 275916, upload-time = "2026-11-23T10:01:52.753Z" },
 ]
 
 [package.optional-dependencies]

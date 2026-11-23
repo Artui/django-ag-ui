@@ -213,7 +213,7 @@ the other answers `409` naming the run that holds the thread, or `404` once it h
 
 With a run store, each row of `GET <mount>threads/` also carries its thread's run status,
 read from the run store and never written by the list. Every key is additive, so an older
-client ignores them; without a run store the rows keep their old shape.
+client ignores them; without a run store the rows carry none of them.
 
 | Key | Value |
 | --- | --- |
@@ -280,6 +280,19 @@ A child session is a thread with a parent: django-spec-agents' child-session too
 one through `start(..., parent=, lineage=)`, which saves both on the child's conversation
 before it returns, so `DefaultChildSessionIndex` lists the child under its parent at once.
 `parent` is a `ThreadRef` in any scope, so the child may run on another agent.
+
+The start also names the parent run as `parent_run_id`, and the child's first
+`RUN_STARTED` carries it as `parentRunId`, so a client can tell which run of the parent
+thread started the child. It is the parent's AG-UI run id: the mount hands that id to
+pydantic-ai as the agent run's own, so `RunContext.run_id` is the id the client saw. A
+wake that resumes a child parked on a question names the parked run the same way. A
+queued start carries `parent_run_id`, and a routine firing's `routine_id`, to the worker.
+
+Each row of `GET <mount>threads/` carries that link as `parent`, with or without a run
+store: `{"thread_id": "...", "scope": "..."}` for a child, where `scope` is the parent's
+agent id or `ScopedConversationStore` scope (`null` in an unscoped store), and `null` for
+a thread of its own. A child listed by another mount names its parent in the parent's
+scope, so a client opens the parent from the mount whose `agent_id` matches `scope`.
 
 Every run of that thread keeps its parent's bounds, the first included, whether a headless
 start, a browser turn into the child, a resume after an approval, or a headless wake: the

@@ -11,6 +11,7 @@ INSTALLED_APPS = [
     # Opt-in reference store app — exercises the shipped model + migration.
     "django_spec_agents.contrib.store",
     "tests.skillapp",
+    "tests.routineapp",
 ]
 
 DATABASES = {
