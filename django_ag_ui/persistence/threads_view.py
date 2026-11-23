@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import hashlib
 import json
 from collections.abc import AsyncIterator, Sequence
@@ -79,6 +80,9 @@ class ThreadsView:
     changes, its ETag as the frame id, ``Last-Event-ID`` skipping an unchanged
     first frame. The stream ends after five minutes so the client reconnects and
     is authenticated again, and under WSGI the same request answers as a poll.
+
+    Every row carries ``parent``: ``{"thread_id", "scope"}`` for a child session, the
+    thread that started it in that thread's own scope, or ``None`` for a thread of its own.
     """
 
     def __init__(
@@ -276,6 +280,7 @@ def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
         "title": meta.title,
         "updated_at": meta.updated_at.isoformat() if meta.updated_at is not None else None,
         "preview": meta.preview,
+        "parent": None if meta.parent is None else dataclasses.asdict(meta.parent),
     }
 
 

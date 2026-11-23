@@ -88,8 +88,15 @@ async def test_list_returns_metadata_only() -> None:
                 "title": "Hi",
                 "updated_at": "2026-06-24T00:00:00+00:00",
                 "preview": "hello there",
+                "parent": None,
             },
-            {"thread_id": "t2", "title": "New conversation", "updated_at": None, "preview": ""},
+            {
+                "thread_id": "t2",
+                "title": "New conversation",
+                "updated_at": None,
+                "preview": "",
+                "parent": None,
+            },
         ]
     }
 
