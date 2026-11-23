@@ -9,6 +9,7 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.http import HttpRequest, HttpResponseNotAllowed, JsonResponse
 from django.http.response import HttpResponseBase
+from django_service_specs import NotPermitted
 from django_spec_agents import ToolGuard
 from django_spec_agents.headless.types.firing_state import FiringState
 from django_spec_agents.routines import (
@@ -25,8 +26,6 @@ from django_spec_agents.routines import (
 )
 from django_spec_agents.utils import AuthorizePredicate, GetUser, auth_error_response, authorize
 from pydantic_ai.tools import ToolDefinition
-
-from django_ag_ui.routines.utils import routine_entry
 
 _WRITES = frozenset({"POST", "PUT", "PATCH"})
 _FIRED_FIELDS = ["last_run_id", "last_thread_id"]
@@ -114,12 +113,12 @@ class RoutineEditorView:
             return JsonResponse(refused.body, status=refused.status)
         except InvalidRoutineError as error:
             return JsonResponse({"error": str(error)}, status=400)
-        except PermissionDenied as error:
+        except (PermissionDenied, NotPermitted) as error:
             return JsonResponse({"error": str(error)}, status=403)
 
     def _collection(self, request: HttpRequest) -> HttpResponseBase:
         if request.method == "GET":
-            routines = [routine_entry(routine) for routine in self._writable(request)]
+            routines = [_routine_entry(routine) for routine in self._writable(request)]
             grantable = [
                 {"name": tool_def.name, "destructive": self._guard.requires_approval(tool_def)}
                 for tool_def in self._tool_defs(request)
@@ -134,7 +133,7 @@ class RoutineEditorView:
             routine = create_routine(
                 self._policy, request, draft, guard=self._guard, tool_defs=defs
             )
-            return JsonResponse(routine_entry(routine), status=201)
+            return JsonResponse(_routine_entry(routine), status=201)
         return HttpResponseNotAllowed(["GET", "POST"])
 
     def _item(self, request: HttpRequest, routine_id: str, action: str | None) -> HttpResponseBase:
@@ -146,15 +145,15 @@ class RoutineEditorView:
         if action == "runs":
             return self._runs(request, routine)
         if request.method == "PUT":
-            return JsonResponse(routine_entry(self._replace(request, routine)))
+            return JsonResponse(_routine_entry(self._replace(request, routine)))
         if request.method == "PATCH":
-            return JsonResponse(routine_entry(self._toggle(request, routine)))
+            return JsonResponse(_routine_entry(self._toggle(request, routine)))
         return HttpResponseNotAllowed(["PUT", "PATCH"])
 
     def _replace(self, request: HttpRequest, routine: AbstractRoutine) -> AbstractRoutine:
         body = _body(request)
         draft = self._draft(body)
-        defs = self._tool_defs(request)
+        defs = _with_held(self._tool_defs(request), routine)
         fresh = pin_preapproved_tools(self._guard, defs, draft.preapproved_tools)
         held = {tool.name: tool for tool in routine.get_preapproved_tools()}
         _require_confirmed([held.get(tool.name, tool) for tool in fresh], body)
@@ -183,7 +182,7 @@ class RoutineEditorView:
             routine,
             draft,
             guard=self._guard,
-            tool_defs=self._tool_defs(request),
+            tool_defs=_with_held(self._tool_defs(request), routine),
         )
 
     def _run_now(self, request: HttpRequest, routine: AbstractRoutine) -> HttpResponseBase:
@@ -263,6 +262,34 @@ def _require_confirmed(
                 "destructive": missing,
             },
         )
+
+
+def _with_held(defs: list[ToolDefinition], routine: AbstractRoutine) -> list[ToolDefinition]:
+    """A held grant the editor cannot list stays grantable; ``pin_grant`` keeps its flag."""
+    offered = {tool_def.name for tool_def in defs}
+    held = [t.name for t in routine.get_preapproved_tools() if t.name not in offered]
+    return [*defs, *(ToolDefinition(name=name) for name in held)]
+
+
+def _routine_entry(routine: AbstractRoutine) -> dict[str, Any]:
+    """A routine as the editor sends it, its grant with each tool's pinned destructive flag."""
+    return {
+        "id": str(routine.pk),
+        "name": routine.name,
+        "agentId": routine.agent_id,
+        "prompt": routine.prompt,
+        "schedule": routine.schedule,
+        "timezone": routine.timezone,
+        "enabled": routine.enabled,
+        "pausedReason": routine.paused_reason,
+        "nextFireAt": routine.next_fire_at.isoformat() if routine.next_fire_at else None,
+        "preapprovedTools": [
+            {"name": tool.name, "destructive": tool.destructive}
+            for tool in routine.get_preapproved_tools()
+        ],
+        "lastRunId": routine.last_run_id,
+        "lastThreadId": routine.last_thread_id,
+    }
 
 
 def _names(body: dict[str, Any], key: str) -> tuple[str, ...]:

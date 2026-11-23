@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import contextlib
 import json
 from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
 from asgiref.sync import sync_to_async
+from django.db import transaction
 from django.http import StreamingHttpResponse
 from django.test import RequestFactory
 from django_service_specs import (
@@ -154,17 +156,7 @@ def _saving_model() -> FunctionModel:
     return FunctionModel(stream_function=stream)
 
 
-@pytest.mark.django_db(transaction=True)
-async def test_a_run_that_saves_a_routine_invalidates_the_routines_keys() -> None:
-    ann = await sync_to_async(person)("ann")
-    saved: list[int] = []
-    registry = ToolRegistry()
-
-    @tool(registry, name="save")
-    def save() -> str:
-        saved.append(routine(ann).pk)
-        return "saved"
-
+async def _invalidations(registry: ToolRegistry, ann: Any) -> list[Any]:
     server = AGUIServer(registry, model=_saving_model(), routine_model=TeamRoutine, id="helper")
     patterns, _, _ = server.urls
     endpoint = next(p.callback for p in patterns if p.name == "endpoint")
@@ -185,7 +177,36 @@ async def test_a_run_that_saves_a_routine_invalidates_the_routines_keys() -> Non
     async for chunk in response.streaming_content:
         text += chunk if isinstance(chunk, str) else chunk.decode()
     events = [json.loads(line[6:]) for line in text.splitlines() if line.startswith("data: ")]
-    invalidations = [e["value"] for e in events if e.get("name") == INVALIDATE_EVENT_NAME]
-    assert invalidations == [
+    return [e["value"] for e in events if e.get("name") == INVALIDATE_EVENT_NAME]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_that_saves_a_routine_invalidates_the_routines_keys() -> None:
+    ann = await sync_to_async(person)("ann")
+    saved: list[int] = []
+    registry = ToolRegistry()
+
+    @tool(registry, name="save")
+    def save() -> str:
+        saved.append(routine(ann).pk)
+        return "saved"
+
+    assert await _invalidations(registry, ann) == [
         {"keys": ["routines", f"routines/{saved[0]}"], "reason": "routine_saved"}
     ]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_routine_save_that_rolls_back_invalidates_nothing() -> None:
+    ann = await sync_to_async(person)("ann")
+    registry = ToolRegistry()
+
+    @tool(registry, name="save")
+    def save() -> str:
+        with contextlib.suppress(RuntimeError), transaction.atomic():
+            routine(ann)
+            raise RuntimeError("roll back")
+        return "rolled back"
+
+    assert await _invalidations(registry, ann) == []
+    assert not await TeamRoutine.objects.aexists()

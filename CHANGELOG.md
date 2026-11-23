@@ -17,8 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   admits; any other id is a `404`. A grant that holds a destructive tool is a `409`
   naming it unless the write's `confirmDestructive` names it too, and the list's
   `grantable` says which tools are destructive. A run that saves a routine sends
-  `ag_ui.invalidate` with the keys `routines` and `routines/<id>` (`ROUTINES_KEY`) once
-  the write commits. See `docs/routines.md`.
+  `ag_ui.invalidate` with the keys `routines` and `routines/<id>` once the
+  write commits. See `docs/routines.md`.
 
 ### Changed
 

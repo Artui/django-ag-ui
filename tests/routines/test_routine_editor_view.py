@@ -4,8 +4,9 @@ import json
 from typing import Any
 
 import pytest
-from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.core.exceptions import ImproperlyConfigured
 from django.test import RequestFactory
+from django_service_specs import NotPermitted
 from django_spec_agents import ToolGuardConfig
 from django_spec_agents.headless.types.firing_state import FiringState
 from django_spec_agents.registry.decorator import tool
@@ -185,6 +186,38 @@ def test_patch_pauses_and_resumes_keeping_the_grant() -> None:
     assert resumed["preapprovedTools"] == [{"name": "drop_table", "destructive": True}]
 
 
+_OFF_CATALOG = [{"name": "wipe_disk", "destructive": True}]
+
+
+def test_a_grant_held_from_a_tool_the_editor_cannot_list_still_resumes() -> None:
+    ann = person("ann")
+    mine = routine(ann, enabled=False, preapproved_tools=_OFF_CATALOG)
+    response = _call("routine", ann, "patch", {"enabled": True}, routine_id=str(mine.pk))
+    assert response.status_code == 200
+    assert _json(response)["preapprovedTools"] == _OFF_CATALOG
+
+
+def test_a_grant_held_from_a_tool_the_editor_cannot_list_is_kept_by_a_confirmed_put() -> None:
+    ann = person("ann")
+    mine = routine(ann, preapproved_tools=_OFF_CATALOG)
+    body = {**_DRAFT, "preapprovedTools": ["wipe_disk"]}
+    refused = _call("routine", ann, "put", body, routine_id=str(mine.pk))
+    assert _json(refused)["destructive"] == ["wipe_disk"]
+    confirmed = {**body, "confirmDestructive": ["wipe_disk"]}
+    response = _call("routine", ann, "put", confirmed, routine_id=str(mine.pk))
+    assert response.status_code == 200
+    assert _json(response)["preapprovedTools"] == _OFF_CATALOG
+
+
+def test_a_put_adding_a_tool_the_mount_does_not_offer_is_a_400() -> None:
+    ann = person("ann")
+    mine = routine(ann, preapproved_tools=_OFF_CATALOG)
+    body = {**_DRAFT, "preapprovedTools": ["wipe_disk", "format_disk"]}
+    response = _call("routine", ann, "put", body, routine_id=str(mine.pk))
+    assert response.status_code == 400
+    assert "format_disk" in _json(response)["error"]
+
+
 def test_run_now_enqueues_a_firing_into_a_fresh_thread(queue: FakeQueue) -> None:
     ann = person("ann")
     mine = routine(ann)
@@ -254,7 +287,7 @@ def test_run_now_without_a_sweep_is_a_409_and_runs_list_the_last_firing() -> Non
 def test_run_now_reports_what_the_queue_refuses(queue: FakeQueue) -> None:
     ann = person("ann")
     mine = routine(ann)
-    queue.refuse = PermissionDenied("This routine may not fire as this user.")
+    queue.refuse = NotPermitted("This routine may not fire as this user.")
     response = _call("routine_run", ann, "post", {}, routine_id=str(mine.pk))
     assert response.status_code == 403
     mine.refresh_from_db()

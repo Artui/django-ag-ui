@@ -94,7 +94,9 @@ The editor has no run, so it lists the tools the mount's own sources declare: th
 same `ToolGuard` the run uses, so `TOOL_GUARD`'s `EXEMPT` and `REQUIRE_APPROVAL` decide
 here too. A tool attached through `toolsets=`, `capabilities=` or an `agent_factory`
 cannot be granted from the editor; the agent's own `create_routine` tool, which sees the
-run's tools, can grant it.
+run's tools, can grant it. A routine already holding such a grant keeps it through the
+editor: a resume or a replace naming it again keeps its pinned flag, and a destructive one
+is still named in `confirmDestructive`.
 
 ## Refreshing an open panel
 

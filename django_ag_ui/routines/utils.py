@@ -91,24 +91,3 @@ def announce_routine_saved(sender: Any, instance: AbstractRoutine, **kwargs: Any
         ROUTINES_KEY, f"{ROUTINES_KEY}/{instance.pk}", reason="routine_saved"
     )
     transaction.on_commit(lambda: sink.append(event))
-
-
-def routine_entry(routine: AbstractRoutine) -> dict[str, Any]:
-    """A routine as the editor sends it, its grant with each tool's pinned destructive flag."""
-    return {
-        "id": str(routine.pk),
-        "name": routine.name,
-        "agentId": routine.agent_id,
-        "prompt": routine.prompt,
-        "schedule": routine.schedule,
-        "timezone": routine.timezone,
-        "enabled": routine.enabled,
-        "pausedReason": routine.paused_reason,
-        "nextFireAt": routine.next_fire_at.isoformat() if routine.next_fire_at else None,
-        "preapprovedTools": [
-            {"name": tool.name, "destructive": tool.destructive}
-            for tool in routine.get_preapproved_tools()
-        ],
-        "lastRunId": routine.last_run_id,
-        "lastThreadId": routine.last_thread_id,
-    }

@@ -6,8 +6,10 @@ from datetime import timedelta
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models.signals import post_save
 from django.http import HttpRequest
 from django.urls import URLPattern, path
+from django_spec_agents import ToolGuard
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
 from django_spec_agents.child_sessions.types.child_session_spend import ChildSessionSpend
@@ -473,9 +475,6 @@ class AGUIServer:
 
     def _mount_routines(self, model: Any) -> Any:
         # Imported late: django_spec_agents.routines defines a model, so needs the app registry.
-        from django.db.models.signals import post_save
-        from django_spec_agents import ToolGuard
-
         from django_ag_ui.routines.routine_editor_view import RoutineEditorView
         from django_ag_ui.routines.utils import announce_routine_saved, grantable_tool_defs
 
