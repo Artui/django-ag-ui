@@ -11,6 +11,7 @@ from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 import django_ag_ui
 from django_ag_ui import persistence
 from django_ag_ui.persistence import fresh_list_response as fresh_list_response_module
+from django_ag_ui.persistence.types.child_threads import ChildThreads
 from django_ag_ui.persistence.types.mount_identity import MountIdentity
 from tests.authed_request_factory import AuthedRequestFactory
 from tests.persistence.test_thread_status import _SSE, _list, _route, _server, _thread
@@ -110,3 +111,7 @@ def test_the_mount_identity_is_exported_where_the_views_argument_names_it() -> N
     assert persistence.MountIdentity is MountIdentity
     assert django_ag_ui.MountIdentity is MountIdentity
     assert "MountIdentity" in django_ag_ui.__all__
+
+
+def test_the_child_threads_protocol_is_exported_where_the_views_argument_names_it() -> None:
+    assert persistence.ChildThreads is ChildThreads

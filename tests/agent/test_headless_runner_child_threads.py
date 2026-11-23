@@ -168,8 +168,8 @@ async def test_the_children_route_lists_the_callers_children_in_every_scope() ->
     assert response.status_code == 200
     assert json.loads(response.content) == {
         "children": [
-            {"thread_id": "here", "agent_id": "a", "status": "idle", "last_read_at": None},
-            {"thread_id": "there", "agent_id": "b", "status": "idle", "last_read_at": None},
+            {"thread_id": "here", "agent_id": "a", "status": "idle"},
+            {"thread_id": "there", "agent_id": "b", "status": "idle"},
         ]
     }
 

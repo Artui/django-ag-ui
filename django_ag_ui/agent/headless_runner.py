@@ -71,6 +71,7 @@ class AGUIHeadlessRunner:
             if server.id in self._servers:
                 raise ImproperlyConfigured(f"two mounts share the id {server.id!r}")
             self._servers[server.id] = server
+            # ..._refuses_a_mount_that_cannot_unlink, ..._without_an_index_keeps_a_mount_...
             if index is not None and not server.unlinks:
                 raise ImproperlyConfigured(
                     f"mount {server.id!r} cannot unlink a child: index= needs a conversation "

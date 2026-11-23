@@ -16,6 +16,7 @@ from django.http import (
 )
 from django.http.response import HttpResponseBase
 from django_spec_agents import IdentifierTooLongError
+from django_spec_agents.child_sessions.types.child_session import ChildSession
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
@@ -224,9 +225,7 @@ class ThreadsView:
         children = await self._child_threads().children(self._agent_id(), thread_id, request.user)
         rows = [
             {"thread_id": child.thread.thread_id, "agent_id": child.thread.scope}
-            | thread_status_fields(
-                ThreadRunState(child.thread.thread_id, child.status, child.reason, child.waiting)
-            )
+            | _child_status(child)
             for child in children
         ]
         return JsonResponse({"children": rows})
@@ -296,6 +295,14 @@ def _as_activity_message(event: ActivitySnapshotEvent) -> ActivityMessage:
         activity_type=event.activity_type,
         content=event.content,
     )
+
+
+def _child_status(child: ChildSession) -> dict[str, Any]:
+    """A thread row's status keys for a child; an index holds no read time, so none is sent."""
+    state = ThreadRunState(child.thread.thread_id, child.status, child.reason, child.waiting)
+    fields = thread_status_fields(state)
+    del fields["last_read_at"]
+    return fields
 
 
 def _meta_to_json(meta: ConversationMeta) -> dict[str, Any]:
