@@ -43,7 +43,8 @@ A tool step carries the same five keys::
   something the client has never heard of. It is also the value the lifecycle
   events carry as ``parentToolCallId``, which is what joins the two carriers.
 - ``agent`` is the sub-agent's name, as the parent model asked for it.
-- ``phase`` is ``tool_call`` or ``tool_result``. Any number of the pair sit
+- ``phase`` is ``tool_call`` or ``tool_result`` on a tool step (the task phases
+  are below). Any number of the pair sit
   between the ``SUBAGENT_STARTED`` that opens the delegation and the
   ``SUBAGENT_FINISHED`` / ``SUBAGENT_ERROR`` that closes it.
 - ``status`` is a rendered one-line summary. **A client that never expands a row
@@ -51,15 +52,14 @@ A tool step carries the same five keys::
   costs no client-side assembly and no phase-to-wording table. A client that
   wants its own wording (a localised UI) builds it from the structured keys and
   ignores this one.
-- ``tool`` always has all three keys. ``ok`` is ``null`` on ``tool_call`` (the
-  call has not returned yet), ``true`` on a result the child accepted, and
-  ``false`` on one it did not -- which pydantic-ai surfaces to the child as a
-  retry, and which the ``status`` line calls *failed*, because that is what a
-  reader watching the row sees happen. A client rendering its own wording should
-  follow ``status``; ``ok`` is the machine-readable half of the same fact.
-  Sending the key as ``null`` rather than omitting it keeps the shape fixed, so
-  a client can create the row on ``tool_call`` and update it in place on
-  ``tool_result``.
+- ``tool`` has all three keys on a tool step and is ``null`` on a task step. ``ok`` is
+  ``null`` on ``tool_call`` (the call has not returned yet), ``true`` on a result the
+  child accepted, and ``false`` on one it did not -- which pydantic-ai surfaces to the
+  child as a retry, and which the ``status`` line calls *failed*, because that is what a
+  reader watching the row sees happen. A client rendering its own wording should follow
+  ``status``; ``ok`` is the machine-readable half of the same fact. Sending the key as
+  ``null`` rather than omitting it keeps the shape fixed, so a client can create the row
+  on ``tool_call`` and update it in place on ``tool_result``.
 
   Note that the ``null`` survives on the wire, and it is worth knowing why it
   is safe to rely on. From 0.1.21 the protocol omits an unset optional field
