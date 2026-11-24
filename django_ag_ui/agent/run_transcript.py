@@ -29,6 +29,8 @@ from ag_ui.core import (
 from django_ag_ui.agent.stamp_outcome import OUTCOME_FIELD, stamp_outcome
 from django_ag_ui.constants import ENQUEUED_MESSAGES_ACTIVITY_TYPE
 
+_TOOL_EVENTS = (ToolCallStartEvent, ToolCallArgsEvent, ToolCallEndEvent, ToolCallResultEvent)
+
 _T = TypeVar("_T")
 _S = TypeVar("_S")
 _D = TypeVar("_D")
@@ -79,7 +81,9 @@ class RunTranscript:
             yield event
 
     def add(self, event: BaseEvent) -> None:
-        """Record one AG-UI event; events that carry no message content are ignored."""
+        """Record one AG-UI event; content-free and sub-agent-tagged tool events are ignored."""
+        if isinstance(event, _TOOL_EVENTS) and event.subagent_run_id is not None:
+            return
         if isinstance(event, TextMessageStartEvent):
             self._draft_for(event.message_id)
         elif isinstance(event, TextMessageContentEvent):

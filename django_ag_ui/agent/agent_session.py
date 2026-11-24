@@ -46,6 +46,7 @@ from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
 from django_ag_ui.agent.stamp_parent_run_id import stamp_parent_run_id
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
 from django_ag_ui.agent.utils import ERROR_CODE, IDENTIFIER_TOO_LONG_CODE, without_answered_by
+from django_ag_ui.agent.without_subagent_messages import without_subagent_messages
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.utils import messages_to_jsonable
 
@@ -97,6 +98,7 @@ class AgentSession:
         park: ParkRun | None = None,
         parent_run_id: str | None = None,
     ) -> None:
+        run_input = without_subagent_messages(run_input)
         self._agent = agent
         self._parent_run_id = parent_run_id
         self._run_input = run_input

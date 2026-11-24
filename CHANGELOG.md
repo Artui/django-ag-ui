@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   never did. A client that does post the activity has it loaded once as the delivered messages.
   `ENQUEUED_MESSAGES_ACTIVITY_TYPE` in `django_ag_ui.constants` names the type.
 
+- **A sub-agent's tagged messages are never the parent's history.** A tool round tagged with
+  `subagentRunId` is left out of the run's stored conversation. A posted message carrying
+  `subagentRunId` (which `@ag-ui/client` sends back) is dropped before the run loads it, so it
+  never reaches the parent model as its own tool call.
+
 - **Checked on pydantic-ai 2.70 and recorded here.** An assistant message split at reasoning or
   at compaction is stored under each piece's streamed id. Citations on a `TextPart` reach neither
   the AG-UI stream nor the stored conversation: the adapter streams only the text, and its dump
