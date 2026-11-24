@@ -43,8 +43,9 @@ When an authenticated user starts a run, three things happen:
 - **The run is logged.** An owner task, separate from the response, writes each AG-UI
   event to the run's log as it happens. Consecutive deltas are merged into one entry
   when they belong to the same text message, the same reasoning message, or the same
-  tool call's arguments, and a merged entry is written at least every half second. A
-  long tool call therefore writes a few entries rather than one per token. The
+  tool call's arguments. While deltas keep arriving the merged entry is cut at least every
+  half second, and the last one is written with the next event, so a long tool call
+  writes a few entries rather than one per token. The
   transcript, partial output included, stays in the conversation store.
 - **The run keeps a lease.** It renews the lease while it runs. If a cancel has been
   recorded for the thread, the run ends as a cancel.

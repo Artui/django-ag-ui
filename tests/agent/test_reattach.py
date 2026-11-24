@@ -13,11 +13,14 @@ from django.test import AsyncRequestFactory
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.persistence.types.run_log_entry import RunLogEntry
 from pydantic_ai.models.function import DeltaThinkingPart, FunctionModel
+from pydantic_ai.models.test import TestModel
 
 from django_ag_ui.agent import events_view as events_view_module
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.agent.test_events_view import (
+    _START,
     _body,
+    _claimed,
     _drain,
     _factory,
     _route,
@@ -95,6 +98,44 @@ class _Steps:
             gate.set()
 
 
+class _HeldRead(DefaultRunStore):
+    """``DefaultRunStore`` whose next full read is taken, then held until the test lets it go."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.hold: asyncio.Event | None = None
+        self.taken = asyncio.Event()
+
+    async def read(
+        self, run_id: str, *, request: HttpRequest, after: int = 0, limit: int | None = None
+    ) -> list[RunLogEntry]:
+        read = await super().read(run_id, request=request, after=after, limit=limit)
+        hold, self.hold = self.hold, None
+        if hold is not None:
+            self.taken.set()
+            await hold.wait()
+        return read
+
+
+class _EagerWait(DefaultRunStore):
+    """A store whose ``wait`` answers at once, as ``wait`` does for a run with no log."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.reads = 0
+
+    async def read(
+        self, run_id: str, *, request: HttpRequest, after: int = 0, limit: int | None = None
+    ) -> list[RunLogEntry]:
+        self.reads += 1
+        return await super().read(run_id, request=request, after=after, limit=limit)
+
+    async def wait(
+        self, run_id: str, *, after: int, timeout: timedelta, request: HttpRequest
+    ) -> bool:
+        return True
+
+
 class _OtherUserFactory(AsyncRequestFactory):
     def request(self, **request: Any) -> Any:
         built = super().request(**request)
@@ -143,10 +184,11 @@ async def _finish(steps: _Steps, stream: Any, call: int = 0) -> None:
 
 
 def test_the_recording_doubles_have_the_stores_shape() -> None:
-    for name in ("read", "wait"):
-        assert inspect.signature(getattr(_Recording, name)) == inspect.signature(
+    for double, name in [(d, n) for d in (_Recording, _EagerWait) for n in ("read", "wait")]:
+        assert inspect.signature(getattr(double, name)) == inspect.signature(
             getattr(DefaultRunStore, name)
         )
+    assert inspect.signature(_HeldRead.read) == inspect.signature(DefaultRunStore.read)
     assert inspect.signature(_Unwatchable.read) == inspect.signature(DefaultRunStore.read)
     assert not hasattr(_Unwatchable(), "wait")
 
@@ -168,6 +210,8 @@ async def test_a_reattach_in_the_owning_process_reads_no_log_after_its_replay() 
     assert store.waits == []
     assert events[-1]["type"] == "RUN_FINISHED"
     assert "from call 0 and the rest" in "".join(e.get("delta", "") for e in events)
+    await _settled(store, request)
+    assert server._view.live_runs._feeds == {}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -283,3 +327,84 @@ async def test_a_reattach_to_a_finished_run_reads_the_store() -> None:
 
     assert events[0]["type"] == "RUN_STARTED"
     assert events[-1]["type"] == "RUN_FINISHED"
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_entries_logged_while_the_replay_reads_are_followed_not_lost() -> None:
+    steps, store = _Steps(), _HeldRead()
+    server = _server(steps.model(), store)
+    request, stream = await _start(server)
+    await _logged(store, request, 2)
+    hold = store.hold = asyncio.Event()
+
+    replay = _replay(server, 0)
+    await asyncio.wait_for(store.taken.wait(), timeout=5)
+    steps.gates[0][0].set()
+    await asyncio.sleep(0.1)
+    hold.set()
+    await _finish(steps, stream)
+    seqs = [seq for seq, _ in _frames(await replay) if seq is not None]
+
+    log = await DefaultRunStore().read("r1", request=request)
+    assert seqs == list(range(2, log[-1].seq + 1))
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_wake_that_answers_with_nothing_new_pauses_before_reading_again() -> None:
+    store = _EagerWait()
+    await _claimed(store, _START)
+    serving = _server(TestModel(), store)
+    store.reads = 0
+
+    replay = _replay(serving, 0)
+    await asyncio.sleep(0.5)
+    replay.cancel()
+
+    assert store.reads < 10
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_wake_that_brought_entries_waits_again_rather_than_pausing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(events_view_module, "_POLL_SECONDS", 30)
+    steps, store = _Steps(), _Recording()
+    owning = _server(steps.model(), store)
+    serving = _server(steps.model(), store)
+    request, stream = await _start(owning)
+    await _logged(store, request, 2)
+
+    replay = _replay(serving, 0)
+    first, second = steps.gates[0]
+    await _waited(store, 1)
+    first.set()
+    rewaited = await _waited(store, 2)
+    second.set()
+    async for _chunk in stream:
+        pass
+    events = [event for _, event in _frames(await asyncio.wait_for(replay, timeout=5))]
+
+    assert rewaited
+    assert events[-1]["type"] == "RUN_FINISHED"
+
+
+async def _waited(store: _Recording, times: int) -> bool:
+    for _ in range(300):
+        if len(store.waits) >= times:
+            return True
+        await asyncio.sleep(0.01)
+    return False
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_with_no_run_store_registers_no_feed() -> None:
+    steps = _Steps()
+    server = _server(steps.model())
+    request = _factory().post("/agent/", data=_body("r1"), content_type="application/json")
+    stream = (await _route(server, "endpoint")(request)).streaming_content
+    async for chunk in stream:
+        if "REASONING" in (chunk if isinstance(chunk, str) else chunk.decode()):
+            break
+
+    assert server._view.live_runs._feeds == {}
+    await _finish(steps, stream)

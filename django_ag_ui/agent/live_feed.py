@@ -5,8 +5,6 @@ from collections.abc import Callable
 
 from django_spec_agents.persistence.types.run_log_entry import RunLogEntry
 
-LiveBatch = list[RunLogEntry] | None
-
 
 class LiveFeed:
     """One live run's logged entries, handed to every reader following it in this process.
@@ -15,19 +13,19 @@ class LiveFeed:
 
     def __init__(self, loop: asyncio.AbstractEventLoop, *, on_close: Callable[[], object]) -> None:
         self.loop = loop
-        self._readers: set[asyncio.Queue[LiveBatch]] = set()
+        self._readers: set[asyncio.Queue[list[RunLogEntry] | None]] = set()
         self._on_close = on_close
         self._closed = False
 
-    def subscribe(self) -> asyncio.Queue[LiveBatch] | None:
+    def subscribe(self) -> asyncio.Queue[list[RunLogEntry] | None] | None:
         """A queue of every batch logged from now on, or ``None`` once the run has ended."""
         if self._closed:
             return None
-        queue: asyncio.Queue[LiveBatch] = asyncio.Queue()
+        queue: asyncio.Queue[list[RunLogEntry] | None] = asyncio.Queue()
         self._readers.add(queue)
         return queue
 
-    def unsubscribe(self, queue: asyncio.Queue[LiveBatch]) -> None:
+    def unsubscribe(self, queue: asyncio.Queue[list[RunLogEntry] | None]) -> None:
         self._readers.discard(queue)
 
     def publish(self, entries: list[RunLogEntry]) -> None:
@@ -42,4 +40,4 @@ class LiveFeed:
         self._readers.clear()
 
 
-__all__ = ["LiveBatch", "LiveFeed"]
+__all__ = ["LiveFeed"]

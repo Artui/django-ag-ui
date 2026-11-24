@@ -35,8 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   log and the list changes on events no run log records.
 - **Tool-call argument deltas and reasoning deltas are merged in the run log**, as text
   deltas already were: consecutive deltas of one tool call (by `toolCallId`) or one
-  reasoning message become one entry, written at least every half second. A long tool call
-  writes a few log entries instead of one per token. Text and reasoning deltas sharing a
+  reasoning message become one entry, cut at least every half second while deltas keep
+  arriving; the last one is written with the next event. A long tool call writes a few log
+  entries instead of one per token. Text and reasoning deltas sharing a
   `messageId` stay apart.
 - **Requires django-spec-agents 0.26.0** (base, `[mcp]` and `[specs]`), for
   `WatchableRunStore`. Its own floors (`pydantic-ai-slim>=2.69`, `django-spec-mcp>=0.14.0`)

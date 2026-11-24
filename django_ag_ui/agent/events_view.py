@@ -24,7 +24,7 @@ from django_spec_agents.persistence.types.watchable_run_store import WatchableRu
 from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 from django_ag_ui.agent.heartbeat_stream import heartbeat_stream
-from django_ag_ui.agent.live_feed import LiveBatch, LiveFeed
+from django_ag_ui.agent.live_feed import LiveFeed
 from django_ag_ui.agent.live_runs import LiveRuns
 from django_ag_ui.agent.replay_head import replay_head
 from django_ag_ui.agent.utils import is_queued_input
@@ -197,7 +197,7 @@ class EventsView:
             head, cursor = replay_head(log, stored, after=after)
             for event in head:
                 yield _frame(event)
-            batch: LiveBatch = log
+            batch: list[RunLogEntry] | None = log
             while batch is not None:
                 for entry in _kept(batch):
                     if entry.seq <= cursor:
