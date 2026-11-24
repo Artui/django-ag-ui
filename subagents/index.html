@@ -569,6 +569,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-same-tool-calls-also-ride-tagged-tool_call_-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same tool calls also ride tagged TOOL_CALL_* events
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -587,6 +598,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task control
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1108,6 +1130,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-same-tool-calls-also-ride-tagged-tool_call_-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same tool calls also ride tagged TOOL_CALL_* events
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1126,6 +1159,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task control
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1269,9 +1313,10 @@ you hand it — it needs <code>SubAgents.event_stream_handler</code>, which only
 capability that starts the child run can pass on — so wrapping one that already
 carries a handler is refused rather than replacing it.</p>
 <h3 id="what-reaches-the-client">What reaches the client<a class="headerlink" href="#what-reaches-the-client" title="Permanent link">&para;</a></h3>
-<p>Two kinds of event, interleaved into the run <strong>as they happen</strong> rather than at
+<p>Three kinds of event, interleaved into the run <strong>as they happen</strong> rather than at
 the end of the delegation. The delegation's own lifetime rides the protocol's
-events; each tool call the child makes rides a <code>CUSTOM</code> one.</p>
+events; each tool call the child makes rides a <code>CUSTOM</code> step and the protocol's
+<code>TOOL_CALL_*</code> events tagged with the delegation's <code>subagentRunId</code>.</p>
 <h4 id="the-delegation-opens-and-closes-on-the-protocols-own-events">The delegation opens and closes on the protocol's own events<a class="headerlink" href="#the-delegation-opens-and-closes-on-the-protocols-own-events" title="Permanent link">&para;</a></h4>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SUBAGENT_STARTED"</span><span class="p">,</span><span class="w"> </span><span class="nt">"subagentRunId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"subagent-call_abc123"</span><span class="p">,</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"researcher"</span><span class="p">,</span><span class="w"> </span><span class="nt">"parentToolCallId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"call_abc123"</span><span class="p">}</span>
@@ -1306,21 +1351,35 @@ events; each tool call the child makes rides a <code>CUSTOM</code> one.</p>
 <ul>
 <li><strong><code>delegationId</code></strong> is the same parent tool call id the lifecycle events carry
   as <code>parentToolCallId</code>. That is what joins the two carriers.</li>
-<li><strong><code>phase</code></strong> is <code>tool_call</code> or <code>tool_result</code>. Any number of the pair sit
-  between the delegation's open and its close.</li>
+<li><strong><code>phase</code></strong> is <code>tool_call</code> or <code>tool_result</code> on a tool step. Any number of the
+  pair sit between the delegation's open and its close; under task control the
+  task phases below join them.</li>
 <li><strong><code>status</code></strong> is a rendered one-line summary, so a client that draws a collapsed
   row and never expands it needs nothing else.</li>
-<li><strong><code>tool</code></strong> always has all three keys. <code>ok</code> is <code>null</code> on <code>tool_call</code>, <code>true</code> on
-  a result the child accepted and <code>false</code> on one that came back as a retry — a
-  fixed shape, so a client creates the row on <code>tool_call</code> and updates it in
-  place on <code>tool_result</code>.</li>
+<li><strong><code>tool</code></strong> has all three keys on a tool step, and is <code>null</code> on a task step.
+  <code>ok</code> is <code>null</code> on <code>tool_call</code>, <code>true</code> on a result the child accepted and
+  <code>false</code> on one that came back as a retry — a fixed shape, so a client creates
+  the row on <code>tool_call</code> and updates it in place on <code>tool_result</code>.</li>
 </ul>
+<h4 id="the-same-tool-calls-also-ride-tagged-tool_call_-events">The same tool calls also ride tagged <code>TOOL_CALL_*</code> events<a class="headerlink" href="#the-same-tool-calls-also-ride-tagged-tool_call_-events" title="Permanent link">&para;</a></h4>
+<p>Each child tool call is sent a second time on the protocol's own vocabulary:
+<code>TOOL_CALL_START</code>, <code>TOOL_CALL_ARGS</code> and <code>TOOL_CALL_END</code> as the child calls it, and
+<code>TOOL_CALL_RESULT</code> when the result comes back, every one carrying the
+delegation's <code>subagentRunId</code>:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TOOL_CALL_START"</span><span class="p">,</span><span class="w"> </span><span class="nt">"subagentRunId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"subagent-call_abc123"</span><span class="p">,</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w"> </span><span class="nt">"toolCallId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"call_def456"</span><span class="p">,</span><span class="w"> </span><span class="nt">"toolCallName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"search_docs"</span><span class="p">}</span>
+</span></code></pre></div>
+<p>They sit strictly between the delegation's <code>SUBAGENT_STARTED</code> and its close, carry
+no <code>parentMessageId</code> (the child's messages are never announced), and the result's
+<code>content</code> is the tool's return as the child's model read it. A client that renders
+sub-agent tool calls natively reads these; one that draws a status row reads the
+<code>CUSTOM</code> steps. Both describe the same calls, keyed by the same <code>toolCallId</code>.</p>
 <p>A client that does not know the <code>CUSTOM</code> name ignores those events and the run
 streams exactly as it did before: <code>name</code> is an open string the protocol leaves
 to conventions like this one. A client that speaks AG-UI at all understands the
 three lifecycle events without knowing anything about this package.</p>
 <p><code>tests/fixtures/subagent_progress_stream.json</code> in this repository is a full
-recorded run — both a successful delegation and a failing one, on both carriers
+recorded run — both a successful delegation and a failing one, on every carrier
 — generated by <code>scripts/generate_subagent_fixture.py</code> driving the real endpoint,
 and regenerated by the test suite on every run so it cannot drift from the
 server. It records the wire every supported pydantic-ai writes: a retried tool
@@ -1330,29 +1389,112 @@ call's <code>TOOL_CALL_RESULT</code> is followed by a <code>REASONING_ENCRYPTED_
 interleaving of the two carriers is the part neither contract states on its own.</p>
 <h3 id="what-it-deliberately-does-not-carry">What it deliberately does not carry<a class="headerlink" href="#what-it-deliberately-does-not-carry" title="Permanent link">&para;</a></h3>
 <p><strong>The child's failure text.</strong> A <code>SUBAGENT_ERROR</code> names the sub-agent and stops:
-its required <code>message</code> says only which one failed, and the optional <code>code</code> is
-left unset. An exception's own words are written for an operator, which is the
+its required <code>message</code> says only which one failed, and for a failure the optional
+<code>code</code> is left unset (a cancelled task carries <code>cancelled</code>, and a delegation still
+open when the run finishes <code>unfinished</code>, below). An exception's own words are written for an operator, which is the
 same reasoning <code>TOOL_FAILURE["INCLUDE_DETAIL"]</code> applies to <code>RUN_ERROR</code> — and
 nothing is lost, because whatever the delegation returns to the parent model
 travels the ordinary <code>TOOL_CALL_RESULT</code> and is rendered on the card this
 progress belongs to.</p>
 <p><strong>The child's prose.</strong> Progress is a status line, not a second transcript.</p>
 <div class="admonition note">
-<p class="admonition-title">Why the steps stay on <code>CUSTOM</code></p>
+<p class="admonition-title">Why the steps ride two carriers</p>
 <p><code>@ag-ui/client</code> materialises an <code>ACTIVITY_SNAPSHOT</code> into a
 <code>role: "activity"</code> message, the message list is persisted wholesale, and the
 client replays it on every thread restore. That is right for a
 <a href="../charts/">chart</a>, which is content. Replayed <em>progress</em> is a lie: a run
 that finished last week would redraw "calling search_docs" on every reload.
-Shared state is out for a third reason — it round-trips into the next
+Shared state is out for a third reason: it round-trips into the next
 <code>RunAgentInput</code>, so progress placed there would be echoed back to the model.</p>
-<p>The protocol <em>does</em> have a way to say "the child called a tool": an ordinary
-<code>TOOL_CALL_START</code> tagged with <code>subagentRunId</code>. It is not used here, and this
-is the same objection — the client materialises those into <code>agent.messages</code>
-exactly as it does the parent's own, so they would be persisted and
-replayed. The three lifecycle events have no such problem, which is why they
-were adoptable and these are not.</p>
+<p>The tagged <code>TOOL_CALL_*</code> events are materialised into <code>agent.messages</code> too,
+with their <code>subagentRunId</code>, which is why the <code>CUSTOM</code> steps stay: they are
+the carrier a client can draw as a live status line without it coming back
+on reload. The server leaves tagged tool rounds out of the conversation it
+stores and drops posted messages carrying <code>subagentRunId</code> before the run
+loads them, so the child's calls never read as calls the parent made.</p>
 </div>
+<h2 id="task-control">Task control<a class="headerlink" href="#task-control" title="Permanent link">&para;</a></h2>
+<p>With <code>SubAgents(task_control=TaskControl())</code>, a delegation becomes a task the
+parent's model manages: it can run in the background, ask the parent a question,
+be steered, be cancelled, and be resumed. The observer follows the task rather
+than the <code>delegate_task</code> call, so the same wrapping covers it:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.sub_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubAgent</span><span class="p">,</span> <span class="n">SubAgents</span><span class="p">,</span> <span class="n">TaskControl</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">SubAgentObserver</span><span class="p">(</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">SubAgents</span><span class="p">(</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>        <span class="n">agents</span><span class="o">=</span><span class="p">[</span><span class="n">SubAgent</span><span class="p">(</span><span class="n">researcher</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">"Gathers facts on a topic."</span><span class="p">)],</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>        <span class="n">agent_folders</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>        <span class="n">task_control</span><span class="o">=</span><span class="n">TaskControl</span><span class="p">(),</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    <span class="p">)</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="p">)</span>
+</span></code></pre></div>
+<ul>
+<li><strong>The delegation opens when the task's run starts and closes when it settles</strong>:
+  <code>SUBAGENT_FINISHED</code> for a completed task, <code>SUBAGENT_ERROR</code> for a failed one, and
+  <code>SUBAGENT_ERROR</code> with <code>code: "cancelled"</code> for a cancelled one. A background
+  task's <code>delegate_task</code> returns a receipt at once; its delegation stays open until
+  the task's report arrives, so the child's steps land inside it.</li>
+<li><strong>A resumed task opens a new delegation</strong> on the <code>delegate_task</code> call that
+  resumed it, with a fresh <code>subagentRunId</code>, because the client refuses a reused one.</li>
+<li><strong>Nothing stays open past the run.</strong> A delegation still open when the run
+  finishes or fails is closed first with a <code>SUBAGENT_ERROR</code> carrying
+  <code>code: "unfinished"</code>, because <code>@ag-ui/client</code> refuses <code>RUN_FINISHED</code> while one is
+  open and a delegation panel would otherwise never settle after <code>RUN_ERROR</code>.
+  Anything announced after either is dropped.</li>
+</ul>
+<p>Task-control moments are <code>CUSTOM</code> steps with <code>tool: null</code> and a <code>task</code> key naming
+the task:</p>
+<table>
+<thead>
+<tr>
+<th><code>phase</code></th>
+<th>When</th>
+<th><code>task</code> carries</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>backgrounded</code></td>
+<td>the task moved to the background</td>
+<td><code>taskId</code>, <code>reason</code> (<code>requested</code>, <code>auto</code>, <code>question</code>)</td>
+</tr>
+<tr>
+<td><code>steered</code></td>
+<td>the parent sent the running task a message</td>
+<td><code>taskId</code></td>
+</tr>
+<tr>
+<td><code>question</code></td>
+<td>the task asked the parent a question</td>
+<td><code>taskId</code>, <code>questionId</code></td>
+</tr>
+<tr>
+<td><code>answered</code></td>
+<td>the parent answered it</td>
+<td><code>taskId</code>, <code>questionId</code></td>
+</tr>
+<tr>
+<td><code>cancel_requested</code></td>
+<td>the parent asked the task to stop</td>
+<td><code>taskId</code>, <code>forced</code></td>
+</tr>
+<tr>
+<td><code>retried</code></td>
+<td>a remote task's worker is running it again</td>
+<td><code>taskId</code>, <code>attempt</code></td>
+</tr>
+</tbody>
+</table>
+<p>Like the tool steps they carry a <code>status</code> line and no text: neither the steering
+message, the question nor the answer is sent, only that it happened. A steer, an
+answer or a cancellation a listener vetoed before the observer saw it is not
+reported.</p>
+<p>These follow the harness's task events under their current names
+(<code>TaskStartedEvent</code>, <code>TaskBackgroundedEvent</code>, <code>TaskSteeredEvent</code>,
+<code>TaskQuestionAskedEvent</code>, <code>TaskAnsweredEvent</code>, <code>TaskCancelRequestedEvent</code>,
+<code>TaskRetriedEvent</code>, <code>TaskCompletedEvent</code>, <code>TaskFailedEvent</code>, <code>TaskCancelledEvent</code>).
+Without <code>task_control</code> nothing here changes: the delegation opens and closes on the
+<code>delegate_task</code> call, as above.</p>
 
 
 
