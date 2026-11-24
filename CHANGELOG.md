@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   log and the list changes on events no run log records.
 - **Tool-call argument deltas and reasoning deltas are merged in the run log**, as text
   deltas already were: consecutive deltas of one tool call (by `toolCallId`) or one
-  reasoning message become one entry, cut at least every half second while deltas keep
+  reasoning message become one entry, cut about every half second while deltas keep
   arriving; the last one is written with the next event. A long tool call writes a few log
   entries instead of one per token. Text and reasoning deltas sharing a
   `messageId` stay apart.
