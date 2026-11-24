@@ -222,3 +222,10 @@ def test_a2ui_is_off_unless_the_settings_dict_enables_it(
 def test_an_explicit_a2ui_switch_wins() -> None:
     with override_settings(DJANGO_AG_UI={"A2UI": {"ENABLED": True}}):
         assert build_ag_ui_config(a2ui_enabled=False).a2ui_enabled is False
+
+
+def test_live_reattach_is_on_unless_a_setting_or_an_override_turns_it_off() -> None:
+    assert build_ag_ui_config().live_reattach is True
+    with override_settings(DJANGO_AG_UI={"LIVE_REATTACH": False}):
+        assert build_ag_ui_config().live_reattach is False
+        assert build_ag_ui_config(live_reattach=True).live_reattach is True

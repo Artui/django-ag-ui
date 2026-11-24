@@ -39,6 +39,7 @@ def build_ag_ui_config(
     tool_failure: ToolFailureConfig | None = None,
     run_context: RunContextConfig | None = None,
     a2ui_enabled: bool | None = None,
+    live_reattach: bool | None = None,
 ) -> AGUIConfig:
     """Resolve an [`AGUIConfig`][django_ag_ui.AGUIConfig] from ``DJANGO_AG_UI``,
     applying overrides.
@@ -106,6 +107,7 @@ def build_ag_ui_config(
         a2ui_enabled=a2ui_enabled
         if a2ui_enabled is not None
         else bool((get_setting("A2UI") or {}).get("ENABLED", False)),
+        live_reattach=bool(pick(live_reattach, "LIVE_REATTACH", True)),
     )
 
 

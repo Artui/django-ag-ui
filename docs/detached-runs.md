@@ -41,14 +41,31 @@ When an authenticated user starts a run, three things happen:
   `{"error": "the thread has a run in progress", "thread_id": ..., "run_id": ...}`.
   A run id that was used before gets a `409` of its own.
 - **The run is logged.** An owner task, separate from the response, writes each AG-UI
-  event to the run's log as it happens. Consecutive text deltas of one message are
-  merged into a single entry. The transcript, partial output included, stays in the
-  conversation store.
+  event to the run's log as it happens. Consecutive deltas are merged into one entry
+  when they belong to the same text message, the same reasoning message, or the same
+  tool call's arguments. While deltas keep arriving the merged entry is cut about every
+  half second, and the last one is written with the next event, so a long tool call
+  writes a few entries rather than one per token. The
+  transcript, partial output included, stays in the conversation store.
 - **The run keeps a lease.** It renews the lease while it runs. If a cancel has been
   recorded for the thread, the run ends as a cancel.
 
 An anonymous run is never claimed, logged or detached. Its owner scope needs a browser
 session.
+
+### Why the log write is awaited
+
+The owner waits for each log write before it takes the next event, so a slow database
+slows the run's live stream. Handing the writes to a background writer would take that
+cost off the stream, and was considered and rejected for two reasons:
+
+- **A crash loses the unwritten tail.** The run reads as interrupted either way, but a
+  reattach would show less of it than the client saw live.
+- **A lost claim is seen late.** The store answers a write for a run that no longer holds
+  its thread by refusing it, and that refusal is what cancels the run. With writes in the
+  background, a run that lost its thread would keep streaming until the next flush.
+
+Merging deltas is what keeps the number of writes down instead.
 
 ## Detach a run
 
@@ -90,7 +107,8 @@ that is not theirs.
 
 `GET <mount>threads/<id>/events/?after=<seq>` reads the log of the thread's current run,
 or its last one once it has ended. `after` is a sequence number within that run, `0` to
-read from the start. Any process can answer, since it reads only the run store.
+read from the start. Any process can answer, since everything it needs is in the run
+store. How it follows a live run is in [How a reader follows a run](#how-a-reader-follows-a-run).
 
 With `Accept: text/event-stream` the answer is an AG-UI stream that replays the run and
 then follows it to its end:
@@ -120,6 +138,30 @@ run's first event. If a run ends with no `RUN_FINISHED` or `RUN_ERROR` in its lo
 stream closes on a `RUN_ERROR` with the message `the run ended without finishing` and a
 `code` that is the thread's end reason, or its status. A lapsed lease, for example,
 gives `interrupted`.
+
+### How a reader follows a run
+
+The stream follows a run that is still going in one of two ways:
+
+- **From memory, in the process that owns the run.** Each server keeps the runs it owns,
+  keyed by owner, thread and run id. A reattach that this process owns subscribes to the
+  run's feed first, then reads the log once for the replay. After that it takes each new
+  entry from the feed as the owner writes it, and skips any it already replayed. It reads
+  the log no further. The feed carries the logged entries, merged deltas included, so
+  they have the same sequence numbers as the log. Each event arrives once, across the
+  seam from replay to live.
+- **From the store, anywhere else.** A reattach served by another worker or process reads
+  the log after its cursor. When nothing is new and the run is still live, it waits on the
+  run store's `wait`, if the store is a
+  [`WatchableRunStore`](https://artui.github.io/django-spec-agents/storage/) such as
+  `DefaultRunStore`, for up to ten seconds, and reads again. A store without `wait` is
+  read again every half second, as before. A run whose owner died without finishing
+  shows as failed once its lease lapses. The reader sees that when its wait times out.
+
+An anonymous request has no owner to key on, so it always reads the store. Turn the
+in-memory path off with [`LIVE_REATTACH`](configuration.md#live_reattach), for a
+deployment where a reattach never lands in the process that owns the run. A miss reads
+the store in either case.
 
 Without that `Accept` header the answer is one JSON page of raw entries:
 
@@ -273,7 +315,9 @@ Both transports carry the same body, so a client keeps one parser:
   on its own with `Last-Event-ID`, and the reconnect checks the caller's authentication
   again, so a signed-out session is refused at most five minutes late. The stream needs
   ASGI: under WSGI the same request is answered as a poll, with the JSON body and the
-  `ETag`. A browser `EventSource` treats that JSON answer as a fatal error and does not
+  `ETag`. The list does not wait on the run store's `wait`, which watches one run's log.
+  The list changes on events a run log does not record, such as a new thread or a
+  rename, and every streamed token would wake it. A browser `EventSource` treats that JSON answer as a fatal error and does not
   reconnect, so a client that may meet a WSGI deployment falls back to polling on the
   stream's `error`. Both answers carry `Vary: Accept`, since one URL serves either by that
   header.

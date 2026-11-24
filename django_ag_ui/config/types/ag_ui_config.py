@@ -204,5 +204,11 @@ class AGUIConfig:
     ``[a2ui]`` extra. Defaulted, like ``RunContextConfig.delivery``, so an existing
     direct construction of this record still builds."""
 
+    live_reattach: bool = True
+    """Whether a reattach (``threads/<id>/events/``) served by the process that owns
+    the run follows it from memory after the replay, rather than reading the run
+    store. On by default; a miss, such as another worker's run, reads the store
+    either way, so turn it off only where it never hits (``LIVE_REATTACH``)."""
+
 
 __all__ = ["AGUIConfig"]

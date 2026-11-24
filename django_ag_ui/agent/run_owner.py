@@ -8,20 +8,26 @@ from typing import Any
 
 from ag_ui.core import (
     BaseEvent,
+    ReasoningMessageContentEvent,
     RunAgentInput,
     RunErrorEvent,
     RunFinishedEvent,
     RunStartedEvent,
     TextMessageContentEvent,
+    ToolCallArgsEvent,
 )
 from django.http import HttpRequest
+from django.utils import timezone
 from django_spec_agents.persistence.types.run_claim import RunClaim
+from django_spec_agents.persistence.types.run_log_entry import RunLogEntry
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from pydantic_ai import CancellationToken
 
 from django_ag_ui.agent.continued_history import continued_history
+from django_ag_ui.agent.live_feed import LiveFeed
+from django_ag_ui.agent.live_runs import LiveRuns
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
 from django_ag_ui.agent.utils import STREAM_END, claim_thread, discard_tasks
 from django_ag_ui.constants import RUN_LEASE
@@ -31,6 +37,9 @@ _logger = logging.getLogger("django_ag_ui.agent")
 # A lease is renewed three times over, so one slow write never lapses it.
 _WATCH_SECONDS = RUN_LEASE.total_seconds() / 3
 _DELTA_FLUSH_SECONDS = 0.5
+
+_Delta = TextMessageContentEvent | ToolCallArgsEvent | ReasoningMessageContentEvent
+_DELTAS = (TextMessageContentEvent, ToolCallArgsEvent, ReasoningMessageContentEvent)
 
 
 class RunOwner:
@@ -51,6 +60,7 @@ class RunOwner:
         thread_id: str = "",
         run_id: str = "",
         run_input: RunAgentInput | None = None,
+        live_runs: LiveRuns | None = None,
     ) -> None:
         self._events = events
         self._native = native_events
@@ -67,7 +77,9 @@ class RunOwner:
         self._echo = None if run_input is None else _echo(run_input)
         self._live: asyncio.Queue[Any] | None = asyncio.Queue()
         self._task: asyncio.Task[RunOutcome] | None = None
-        self._pending: TextMessageContentEvent | None = None
+        self._live_runs = live_runs
+        self._feed: LiveFeed | None = None
+        self._pending: _Delta | None = None
         self._pending_since = 0.0
         self._running = False
         self._after_finish: Callable[[RunOutcome], Awaitable[None]] | None = None
@@ -134,6 +146,9 @@ class RunOwner:
         outcome = RunOutcome.COMPLETED
         ended, end = False, STREAM_END
         watcher = None if self._store is None else asyncio.ensure_future(self._watch())
+        if self._store is not None and self._live_runs is not None:
+            assert self._request is not None
+            self._feed = self._live_runs.open(self._request, self._thread_id, self._run_id)
         try:
             async for event in self._events:
                 if isinstance(event, RunErrorEvent):
@@ -155,6 +170,8 @@ class RunOwner:
             await self._wind_down(ended)
             await discard_tasks(watcher)
             await self._finish(outcome)
+            if self._feed is not None:
+                self._feed.close()
             # Last, so a subscriber's loop ending (as under WSGI) never cuts the bookkeeping.
             self._deliver(end)
             if self._after_finish is not None:
@@ -176,12 +193,12 @@ class RunOwner:
             self._live.put_nowait(item)
 
     async def _log(self, event: BaseEvent | None) -> None:
-        """Append ``event``, holding a text delta back to merge with the next of its message."""
+        """Append ``event``, holding a delta back to merge with the next of its message or call."""
         if self._store is None:
             return
         held = self._pending
-        if isinstance(event, TextMessageContentEvent):
-            if held is not None and held.message_id == event.message_id:
+        if isinstance(event, _DELTAS):
+            if held is not None and _merges(held, event):
                 merged = held.model_copy(update={"delta": held.delta + event.delta})
                 self._pending = merged
                 if time.monotonic() - self._pending_since >= _DELTA_FLUSH_SECONDS:
@@ -205,6 +222,10 @@ class RunOwner:
         if appended is None:
             _logger.warning("django-ag-ui: run %s lost its thread; cancelling it", self._run_id)
             self._token.cancel()
+        elif self._feed is not None:
+            first, now = appended - len(dumped) + 1, timezone.now()
+            entries = [RunLogEntry(first + i, e, now) for i, e in enumerate(dumped)]
+            self._feed.publish(entries)
 
     def _echoing(self, event: BaseEvent) -> BaseEvent:
         """The logged copy of a run start carries the new turn, so a replay can show it."""
@@ -234,6 +255,15 @@ class RunOwner:
             self._thread_id, self._run_id, outcome, request=self._request, waiting=waiting
         )
         await _quietly(finish, "recording how a run ended")
+
+
+def _merges(held: _Delta, event: _Delta) -> bool:
+    """Whether ``event`` continues ``held``: the same kind of delta, of the same message or call."""
+    if type(held) is not type(event):
+        return False
+    if isinstance(held, ToolCallArgsEvent):
+        return held.tool_call_id == getattr(event, "tool_call_id", None)
+    return held.message_id == getattr(event, "message_id", None)
 
 
 def _echo(run_input: RunAgentInput) -> RunAgentInput:

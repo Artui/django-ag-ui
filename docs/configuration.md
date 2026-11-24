@@ -60,6 +60,7 @@ AGUIServer(registry, config=build_ag_ui_config(retries=5))
 | `ALLOW_UPLOADED_FILES` | `bool` | `False` | Honour `UploadedFile` refs in client messages. |
 | `FORWARD_REASONING` | `bool` | `True` | Forward a reasoning model's thoughts to the client (`False` strips them). |
 | `INCLUDE_USAGE` | `bool` | `False` | Put the run's token usage on `RUN_FINISHED`. See [`INCLUDE_USAGE`](#include_usage). |
+| `LIVE_REATTACH` | `bool` | `True` | A reattach served by the process that owns the run follows it from memory. See [`LIVE_REATTACH`](#live_reattach). |
 | `TRANSCRIPTION_MAX_BYTES` | `int` | `26214400` | Max accepted audio-clip size in bytes (`0` disables the cap). |
 | `TRANSCRIPTION_ALLOWED_TYPES` | `tuple[str, ...]` | `()` | Allowed audio content types (empty = any). |
 | `TOOL_GUARD` | `dict` | `{}` | Server-side destructive-tool approval gate (off by default). See [`TOOL_GUARD`](#tool_guard). |
@@ -765,6 +766,24 @@ A run that made no model call has no usage, and the field is left off. A run
 that ends in `RUN_ERROR` carries none either: AG-UI's `RUN_ERROR` has no usage
 field, so a failed run's cost is the audit record's to keep. Usage covers this
 run only, not the conversation before it.
+
+## `LIVE_REATTACH`
+
+Whether a reattach to a detached run (`threads/<id>/events/`) follows the run from memory
+when this process owns it. It is on by default. A reattach in the owning process reads the
+log once, for its replay, and then takes the run's new entries from the owner as they are
+written. Any other reattach reads the run store, waiting on its `wait` when it has one. See
+[How a reader follows a run](detached-runs.md#how-a-reader-follows-a-run).
+
+```python title="settings.py"
+DJANGO_AG_UI = {
+    "LIVE_REATTACH": False,  # every reattach reads the run store
+}
+```
+
+A miss always falls back to the store, so leaving it on costs nothing where it never hits.
+Turn it off when a reattach never reaches the process that owns the run, for example
+behind a load balancer that spreads requests over many workers.
 
 ## `HEARTBEAT_SECONDS`
 

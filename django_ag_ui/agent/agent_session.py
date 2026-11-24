@@ -36,6 +36,7 @@ from django_ag_ui.agent.inject_invalidation_events import inject_invalidation_ev
 from django_ag_ui.agent.inject_subagent_events import inject_subagent_events
 from django_ag_ui.agent.lend_answered_by import lend_answered_by
 from django_ag_ui.agent.lend_stored_ids import lend_stored_ids
+from django_ag_ui.agent.live_runs import LiveRuns
 from django_ag_ui.agent.outcome_agui_adapter import OutcomeAGUIAdapter
 from django_ag_ui.agent.park_run import ParkRun
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
@@ -144,7 +145,9 @@ class AgentSession:
             encoded = heartbeat_stream(encoded, interval=self._config.heartbeat_seconds)
         return guarded_stream(encoded, on_cancel=owner.detach if detached else owner.cancel)
 
-    def own(self, run_store: RunStore | None = None) -> RunOwner:
+    def own(
+        self, run_store: RunStore | None = None, *, live_runs: LiveRuns | None = None
+    ) -> RunOwner:
         """The run's owner: the pipeline from the provider's stream to persist-on-error.
 
         Composed by hand (rather than ``adapter.run_stream``) so the owner keeps a
@@ -195,6 +198,7 @@ class AgentSession:
             thread_id=self._run_input.thread_id,
             run_id=self._run_input.run_id,
             run_input=self._run_input,
+            live_runs=live_runs,
         )
 
     def _refused_owner(self, transcript: RunTranscript, run_store: RunStore | None) -> RunOwner:

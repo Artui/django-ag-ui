@@ -7,7 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.89.0] — 2026-11-24
+
+### Added
+
+- **A reattach in the process that owns a detached run follows it from memory.** Each
+  server now keeps the runs it owns, keyed by owner, thread and run id. A
+  `threads/<id>/events/` stream that lands in the owning process subscribes to the run,
+  reads the log once for its replay, then takes each newly logged entry from the owner, with
+  no further log reads. Until now every viewer read the run's state and log twice a second,
+  even in the process that owned the run. Each event arrives once across the seam from replay
+  to live. The replay passes `@ag-ui/client`'s `verifyEvents` from any `after`, on this path
+  and on the store path. A reattach elsewhere, or by an anonymous request, reads the store
+  as before. See
+  [How a reader follows a run](https://artui.github.io/django-ag-ui/detached-runs/#how-a-reader-follows-a-run).
+- **`LIVE_REATTACH` turns the in-memory path off** (`build_ag_ui_config(live_reattach=False)`).
+  It is on by default, and a miss reads the store either way. Turn it off for a deployment
+  where a reattach never reaches the owning process. See
+  [`LIVE_REATTACH`](https://artui.github.io/django-ag-ui/configuration/#live_reattach).
+
+### Changed
+
+- **A reattach in another process waits on the run store instead of sleeping.** Where the
+  run store is a django-spec-agents `WatchableRunStore` (`DefaultRunStore` is one), a stream
+  with nothing new waits on its `wait` for up to ten seconds, then reads again. A store
+  without `wait` is read every half second, as before. A run whose owner died is still seen
+  as failed once its lease lapses, at the wait's timeout rather than the next half-second
+  poll. The thread list stream keeps its two-second poll, because `wait` watches one run's
+  log and the list changes on events no run log records.
+- **Tool-call argument deltas and reasoning deltas are merged in the run log**, as text
+  deltas already were: consecutive deltas of one tool call (by `toolCallId`) or one
+  reasoning message become one entry, cut about every half second while deltas keep
+  arriving; the last one is written with the next event. A long tool call writes a few log
+  entries instead of one per token. Text and reasoning deltas sharing a
+  `messageId` stay apart.
+- **Requires django-spec-agents 0.26.0** (base, `[mcp]` and `[specs]`), for
+  `WatchableRunStore`. Its own floors (`pydantic-ai-slim>=2.69`, `django-spec-mcp>=0.14.0`)
+  are unchanged; `[specs]` now brings django-service-specs 0.35.0 or later.
+
 ### Documentation
+
+- **Log writes stay awaited; a background writer was considered and rejected.** It would
+  take a slow database off the live stream, but a crash would lose the unwritten tail. A
+  lost claim, which the store reports by refusing a write and which is what cancels the run,
+  would also surface a flush late. See
+  [Why the log write is awaited](https://artui.github.io/django-ag-ui/detached-runs/#why-the-log-write-is-awaited).
 
 - **The sub-agents page imports `pydantic_ai_harness.sub_agents`.** pydantic-ai-harness renamed
   the module from `subagents`, and the old path now warns on import. The new path exists at the
@@ -4936,7 +4980,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.88.1...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.89.0...HEAD
+[0.89.0]: https://github.com/Artui/django-ag-ui/compare/v0.88.1...v0.89.0
 [0.88.1]: https://github.com/Artui/django-ag-ui/compare/v0.88.0...v0.88.1
 [0.88.0]: https://github.com/Artui/django-ag-ui/compare/v0.87.0...v0.88.0
 [0.87.0]: https://github.com/Artui/django-ag-ui/compare/v0.86.0...v0.87.0

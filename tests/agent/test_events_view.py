@@ -404,6 +404,7 @@ async def test_a_replay_whose_thread_state_vanishes_closes_on_a_run_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(events_view_module, "_POLL_SECONDS", 0.01)
+    monkeypatch.setattr(events_view_module, "_WAIT", timedelta(seconds=0.01))
     run_store = DefaultRunStore()
     server = _server(TestModel(), run_store)
     await _claimed(run_store)

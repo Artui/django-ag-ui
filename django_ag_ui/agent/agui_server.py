@@ -1013,7 +1013,11 @@ class AGUIServer:
                 )
         if self._run_store is not None:
             events_view = EventsView(
-                self._run_store, self._conversation_store, config=self._config, **self._policy
+                self._run_store,
+                self._conversation_store,
+                config=self._config,
+                live_runs=self._view.live_runs,
+                **self._policy,
             )
             cancel_view = CancelView(self.request_cancel, **self._policy)
             patterns.append(
