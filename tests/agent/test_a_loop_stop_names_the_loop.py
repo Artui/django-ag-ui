@@ -66,3 +66,31 @@ def test_without_the_harness_the_message_is_left_as_it_is(
 
 def test_another_error_keeps_its_message() -> None:
     assert run_error_message(RuntimeError("kaboom"), "kaboom") == "kaboom"
+
+
+def _loop_error() -> Exception:
+    from pydantic_ai_harness.detect_loops import DetectedLoop, LoopDetectedError
+
+    loop = DetectedLoop(
+        pattern="repeated_call",
+        tool_names=("t",),
+        count=3,
+        window=3,
+        fingerprints=(),
+        message="again",
+    )
+    return LoopDetectedError(loop)
+
+
+def test_a_loop_error_inside_a_task_group_still_names_the_loop() -> None:
+    error = ExceptionGroup("tg", [ExceptionGroup("inner", [_loop_error()])])
+
+    assert run_error_message(error, "unhandled errors in a TaskGroup").startswith(
+        "The run was stopped in a loop (repeated_call): "
+    )
+
+
+def test_a_task_group_without_a_loop_error_keeps_its_message() -> None:
+    error = ExceptionGroup("tg", [RuntimeError("kaboom")])
+
+    assert run_error_message(error, "tg") == "tg"

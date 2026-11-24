@@ -63,14 +63,17 @@ def run_error_code(error: Exception) -> str:
 
 
 def run_error_message(error: Exception, message: str) -> str:
-    """``message``, opened with the loop it names when a ``DetectLoops`` stop raised ``error``."""
+    """``message``, or the loop a ``DetectLoops`` stop names when ``error`` is or groups one."""
     try:
         from pydantic_ai_harness.detect_loops import LoopDetectedError
     except ImportError:
         return message
-    if not isinstance(error, LoopDetectedError):
+    found = error.subgroup(LoopDetectedError) if isinstance(error, BaseExceptionGroup) else error
+    while isinstance(found, BaseExceptionGroup):
+        found = found.exceptions[0]
+    if not isinstance(found, LoopDetectedError):
         return message
-    return f"The run was stopped in a loop ({error.loop.pattern}): {error}"
+    return f"The run was stopped in a loop ({found.loop.pattern}): {found}"
 
 
 async def discard_tasks(*tasks: asyncio.Future[Any] | None) -> None:
