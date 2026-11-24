@@ -18,7 +18,7 @@ from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.replay_head import replay_head
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.agent.test_events_view import _body, _drain, _factory, _Gate, _route, _settled, _started
-from tests.agent.test_live_runs import _logged, _start, _Steps
+from tests.agent.test_reattach import _logged, _start, _Steps
 from tests.agent.test_replay_head import SUBAGENT_RUN, log_of
 
 _HARNESS = Path(__file__).parent.parent / "fixtures" / "replay_verify"
