@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.89.0] — 2026-11-24
+
 ### Added
 
 - **A reattach in the process that owns a detached run follows it from memory.** Each
@@ -4978,7 +4980,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.88.1...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.89.0...HEAD
+[0.89.0]: https://github.com/Artui/django-ag-ui/compare/v0.88.1...v0.89.0
 [0.88.1]: https://github.com/Artui/django-ag-ui/compare/v0.88.0...v0.88.1
 [0.88.0]: https://github.com/Artui/django-ag-ui/compare/v0.87.0...v0.88.0
 [0.87.0]: https://github.com/Artui/django-ag-ui/compare/v0.86.0...v0.87.0
