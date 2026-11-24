@@ -634,6 +634,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Configure a run store">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-the-log-write-is-awaited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the log write is awaited
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -664,6 +681,17 @@
     <span class="md-ellipsis">
       
         Read a run's events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-a-reader-follows-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a reader follows a run
       
     </span>
   </a>
@@ -1088,6 +1116,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Configure a run store">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-the-log-write-is-awaited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the log write is awaited
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1118,6 +1163,17 @@
     <span class="md-ellipsis">
       
         Read a run's events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-a-reader-follows-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a reader follows a run
       
     </span>
   </a>
@@ -1291,14 +1347,29 @@ two more things become possible:</p>
   <code>{"error": "the thread has a run in progress", "thread_id": ..., "run_id": ...}</code>.
   A run id that was used before gets a <code>409</code> of its own.</li>
 <li><strong>The run is logged.</strong> An owner task, separate from the response, writes each AG-UI
-  event to the run's log as it happens. Consecutive text deltas of one message are
-  merged into a single entry. The transcript, partial output included, stays in the
-  conversation store.</li>
+  event to the run's log as it happens. Consecutive deltas are merged into one entry
+  when they belong to the same text message, the same reasoning message, or the same
+  tool call's arguments. While deltas keep arriving the merged entry is cut about every
+  half second, and the last one is written with the next event, so a long tool call
+  writes a few entries rather than one per token. The
+  transcript, partial output included, stays in the conversation store.</li>
 <li><strong>The run keeps a lease.</strong> It renews the lease while it runs. If a cancel has been
   recorded for the thread, the run ends as a cancel.</li>
 </ul>
 <p>An anonymous run is never claimed, logged or detached. Its owner scope needs a browser
 session.</p>
+<h3 id="why-the-log-write-is-awaited">Why the log write is awaited<a class="headerlink" href="#why-the-log-write-is-awaited" title="Permanent link">&para;</a></h3>
+<p>The owner waits for each log write before it takes the next event, so a slow database
+slows the run's live stream. Handing the writes to a background writer would take that
+cost off the stream, and was considered and rejected for two reasons:</p>
+<ul>
+<li><strong>A crash loses the unwritten tail.</strong> The run reads as interrupted either way, but a
+  reattach would show less of it than the client saw live.</li>
+<li><strong>A lost claim is seen late.</strong> The store answers a write for a run that no longer holds
+  its thread by refusing it, and that refusal is what cancels the run. With writes in the
+  background, a run that lost its thread would keep streaming until the next flush.</li>
+</ul>
+<p>Merging deltas is what keeps the number of writes down instead.</p>
 <h2 id="detach-a-run">Detach a run<a class="headerlink" href="#detach-a-run" title="Permanent link">&para;</a></h2>
 <p>The client opts in for each run, through <code>RunAgentInput.forwardedProps</code>:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span><span class="nt">"forwardedProps"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"detach"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">}}</span>
@@ -1328,7 +1399,8 @@ that is not theirs.</p>
 <h3 id="read-a-runs-events">Read a run's events<a class="headerlink" href="#read-a-runs-events" title="Permanent link">&para;</a></h3>
 <p><code>GET &lt;mount&gt;threads/&lt;id&gt;/events/?after=&lt;seq&gt;</code> reads the log of the thread's current run,
 or its last one once it has ended. <code>after</code> is a sequence number within that run, <code>0</code> to
-read from the start. Any process can answer, since it reads only the run store.</p>
+read from the start. Any process can answer, since everything it needs is in the run
+store. How it follows a live run is in <a href="#how-a-reader-follows-a-run">How a reader follows a run</a>.</p>
 <p>With <code>Accept: text/event-stream</code> the answer is an AG-UI stream that replays the run and
 then follows it to its end:</p>
 <ol>
@@ -1356,6 +1428,28 @@ run's first event. If a run ends with no <code>RUN_FINISHED</code> or <code>RUN_
 stream closes on a <code>RUN_ERROR</code> with the message <code>the run ended without finishing</code> and a
 <code>code</code> that is the thread's end reason, or its status. A lapsed lease, for example,
 gives <code>interrupted</code>.</p>
+<h3 id="how-a-reader-follows-a-run">How a reader follows a run<a class="headerlink" href="#how-a-reader-follows-a-run" title="Permanent link">&para;</a></h3>
+<p>The stream follows a run that is still going in one of two ways:</p>
+<ul>
+<li><strong>From memory, in the process that owns the run.</strong> Each server keeps the runs it owns,
+  keyed by owner, thread and run id. A reattach that this process owns subscribes to the
+  run's feed first, then reads the log once for the replay. After that it takes each new
+  entry from the feed as the owner writes it, and skips any it already replayed. It reads
+  the log no further. The feed carries the logged entries, merged deltas included, so
+  they have the same sequence numbers as the log. Each event arrives once, across the
+  seam from replay to live.</li>
+<li><strong>From the store, anywhere else.</strong> A reattach served by another worker or process reads
+  the log after its cursor. When nothing is new and the run is still live, it waits on the
+  run store's <code>wait</code>, if the store is a
+  <a href="https://artui.github.io/django-spec-agents/storage/"><code>WatchableRunStore</code></a> such as
+  <code>DefaultRunStore</code>, for up to ten seconds, and reads again. A store without <code>wait</code> is
+  read again every half second, as before. A run whose owner died without finishing
+  shows as failed once its lease lapses. The reader sees that when its wait times out.</li>
+</ul>
+<p>An anonymous request has no owner to key on, so it always reads the store. Turn the
+in-memory path off with <a href="../configuration/#live_reattach"><code>LIVE_REATTACH</code></a>, for a
+deployment where a reattach never lands in the process that owns the run. A miss reads
+the store in either case.</p>
 <p>Without that <code>Accept</code> header the answer is one JSON page of raw entries:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"thread_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"t1"</span><span class="p">,</span>
@@ -1529,7 +1623,9 @@ list body carries <code>"agent": {"id", "name", "description"}</code> beside <co
   on its own with <code>Last-Event-ID</code>, and the reconnect checks the caller's authentication
   again, so a signed-out session is refused at most five minutes late. The stream needs
   ASGI: under WSGI the same request is answered as a poll, with the JSON body and the
-  <code>ETag</code>. A browser <code>EventSource</code> treats that JSON answer as a fatal error and does not
+  <code>ETag</code>. The list does not wait on the run store's <code>wait</code>, which watches one run's log.
+  The list changes on events a run log does not record, such as a new thread or a
+  rename, and every streamed token would wake it. A browser <code>EventSource</code> treats that JSON answer as a fatal error and does not
   reconnect, so a client that may meet a WSGI deployment falls back to polling on the
   stream's <code>error</code>. Both answers carry <code>Vary: Accept</code>, since one URL serves either by that
   header.</li>

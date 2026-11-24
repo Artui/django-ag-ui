@@ -1663,6 +1663,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.DjangoAGUIView.live_runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        live_runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.DjangoAGUIView.start_queued" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2379,6 +2390,17 @@
     <span class="md-ellipsis">
       
         a2ui_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIConfig.live_reattach" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        live_reattach
       
     </span>
   </a>
@@ -4494,6 +4516,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#django_ag_ui.DjangoAGUIView.live_runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        live_runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_ag_ui.DjangoAGUIView.start_queued" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5210,6 +5243,17 @@
     <span class="md-ellipsis">
       
         a2ui_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_ag_ui.AGUIConfig.live_reattach" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        live_reattach
       
     </span>
   </a>
@@ -8905,6 +8949,30 @@ silences it.</p>
 
 
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.DjangoAGUIView.live_runs" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">live_runs</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#django_ag_ui.DjangoAGUIView.live_runs" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">live_runs</span><span class="p">:</span> <span class="n">LiveRuns</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The runs this view owns, for a reattach to follow; <code>None</code> with live reattach off.</p>
+
+    </div>
+
+</div>
+
 
 
 
@@ -9090,7 +9158,9 @@ is cancelled, which closes the provider's stream and persists the partial.</p>
 
 
 <a href="#django_ag_ui.AgentSession.own" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">own</span><span class="p">(</span><span class="n">run_store</span><span class="p">:</span> <span class="n">RunStore</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunOwner</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">own</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">run_store</span><span class="p">:</span> <span class="n">RunStore</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">live_runs</span><span class="p">:</span> <span class="n">LiveRuns</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunOwner</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -10915,6 +10985,34 @@ direct construction of this record still builds.</p>
 
 </div>
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_ag_ui.AGUIConfig.live_reattach" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">live_reattach</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_ag_ui.AGUIConfig.live_reattach" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">live_reattach</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Whether a reattach (<code>threads/&lt;id&gt;/events/</code>) served by the process that owns
+the run follows it from memory after the replay, rather than reading the run
+store. On by default; a miss, such as another worker's run, reads the store
+either way, so turn it off only where it never hits (<code>LIVE_REATTACH</code>).</p>
+
+    </div>
+
+</div>
+
 
 
 
@@ -11195,7 +11293,8 @@ matters more than the authority boundary.</p>
 </span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    <span class="n">tool_failure</span><span class="p">:</span> <span class="n">ToolFailureConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>    <span class="n">run_context</span><span class="p">:</span> <span class="n">RunContextConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>    <span class="n">a2ui_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AGUIConfig</span>
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>    <span class="n">live_reattach</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AGUIConfig</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -13249,7 +13348,8 @@ returning a durable <a class="autorefs autorefs-internal" title="AttachmentRef
       dataclass
   " href="#django_ag_ui.AttachmentRef"><code>AttachmentRef</code></a>.
 <code>open</code> returns <code>None</code> for a missing <em>or cross-owner</em> id rather than
-raising, so a caller maps both to a 404 and the two stay indistinguishable.</p>
+raising, so a caller maps both to a 404 and the two stay indistinguishable. <code>open</code>
+must not block the event loop; <code>read_attachment</code> reads the handle in a thread.</p>
 <p>Attachments need no scoped wrapper of the kind conversations have: they are
 id-referenced with no enumeration and already owner-scoped, so two endpoints
 sharing a store expose nothing across the user boundary. Thread lists are the
