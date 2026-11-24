@@ -62,6 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `subagentRunId` (which `@ag-ui/client` sends back) is dropped before the run loads it, so it
   never reaches the parent model as its own tool call.
 
+- **A run `DetectLoops` stops names the loop in its error.** A main or headless run that
+  `DetectLoops(action="error")` stops (pydantic-ai-harness's `LoopDetectedError`) records its
+  error as "The run was stopped in a loop (<pattern>): <message>", the text a stopped child
+  session already ends with, where it recorded the bare message. The run still ends as an
+  error with the same code, and the client still sees the withheld message unless
+  `TOOL_FAILURE.INCLUDE_DETAIL` is on.
+
 - **Checked on pydantic-ai 2.70 and recorded here.** An assistant message split at reasoning or
   at compaction is stored under each piece's streamed id.
 

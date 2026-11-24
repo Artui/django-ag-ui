@@ -36,7 +36,7 @@ from django_ag_ui.agent.message_citations import (
 )
 from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD, stamp_answered_by
 from django_ag_ui.agent.stamp_outcome import stamp_outcome
-from django_ag_ui.agent.utils import run_error_code
+from django_ag_ui.agent.utils import run_error_code, run_error_message
 
 # The run input carries these; passing them beside it makes upstream warn.
 _RUN_IDENTITY = frozenset({"thread_id", "run_id"})
@@ -117,7 +117,9 @@ class _OutcomeEventStream(AGUIEventStream[Any, Any]):
         code = run_error_code(error)
         async for event in super().on_error(error):
             yield (
-                event.model_copy(update={"code": code})
+                event.model_copy(
+                    update={"code": code, "message": run_error_message(error, event.message)}
+                )
                 if isinstance(event, RunErrorEvent)
                 else event
             )
