@@ -17,17 +17,29 @@ from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     ModelResponse,
-    RetryPromptPart,
+    PartStartEvent,
     TextPart,
     TextPartDelta,
     ToolCallPart,
     ToolReturnPart,
 )
 from pydantic_ai.models.function import FunctionModel
-from pydantic_ai_harness.sub_agents import SubAgent, SubAgents
+from pydantic_ai_harness.sub_agents import (
+    DelegationStartedEvent,
+    SubAgent,
+    SubAgents,
+    TaskAssignedEvent,
+    TaskControl,
+    TaskFailedEvent,
+    TaskProgressEvent,
+    TaskResumedEvent,
+    TaskRetriedEvent,
+    TaskStartedEvent,
+    TaskSteeredEvent,
+)
 
 from django_ag_ui import SubAgentObserver
-from django_ag_ui.agent.subagent_observer import SUBAGENT_SINK
+from django_ag_ui.agent.subagent_observer import SUBAGENT_SINK, SUBAGENT_TASKS
 
 
 def _subagents(**kwargs: Any) -> SubAgents:
@@ -269,18 +281,9 @@ class TestObservingTheChild:
             FunctionToolResultEvent(
                 part=ToolReturnPart(tool_name="search_docs", content="ok", tool_call_id="sub-1")
             ),
-            # A RetryPromptPart is the child's tool asking the child's model to try again.
-            FunctionToolResultEvent(
-                part=RetryPromptPart(
-                    tool_name="search_docs", content="try again", tool_call_id="sub-2"
-                )
-            ),
         )
 
-        assert [(v["tool"]["toolCallId"], v["tool"]["ok"]) for v in announced] == [
-            ("sub-1", True),
-            ("sub-2", False),
-        ]
+        assert [(v["tool"]["toolCallId"], v["tool"]["ok"]) for v in announced] == [("sub-1", True)]
 
     async def test_a_child_tool_call_marked_retried_did_not_land(
         self, sink: asyncio.Queue[BaseEvent]
@@ -333,3 +336,125 @@ class TestObservingTheChild:
         )
 
         assert _drain(sink) == []
+
+
+class TestTaskControl:
+    @pytest.fixture
+    def tasks(self) -> Any:
+        bound: dict[str, Any] = {}
+        token = SUBAGENT_TASKS.set(bound)
+        yield bound
+        SUBAGENT_TASKS.reset(token)
+
+    async def _report(self, *events: Any) -> None:
+        observer = SubAgentObserver(_subagents(task_control=TaskControl()))
+        for event in events:
+            await observer.on_event(None, event=event)
+
+    def _assigned(self) -> TaskAssignedEvent:
+        return TaskAssignedEvent(
+            task_id="t-1", agent_name="researcher", prompt="Find them.", tool_call_id="call-1"
+        )
+
+    async def test_a_task_opens_only_when_it_starts(
+        self, sink: asyncio.Queue[BaseEvent], tasks: dict[str, Any]
+    ) -> None:
+        # The assignment can still be vetoed by a later listener, so it opens nothing.
+        await self._report(self._assigned())
+        assert _drain(sink) == []
+
+        await self._report(TaskStartedEvent(task_id="t-1", agent_name="researcher"))
+        (opened,) = _drain(sink)
+        assert isinstance(opened, SubagentStartedEvent)
+        assert opened.parent_tool_call_id == "call-1"
+
+    async def test_a_failed_task_closes_without_a_code(
+        self, sink: asyncio.Queue[BaseEvent], tasks: dict[str, Any]
+    ) -> None:
+        await self._report(
+            self._assigned(), TaskFailedEvent(task_id="t-1", agent_name="researcher", error="x")
+        )
+        (closed,) = _drain(sink)
+
+        assert isinstance(closed, SubagentErrorEvent)
+        assert (closed.message, closed.code) == ("researcher failed", None)
+        assert tasks == {}
+
+    async def test_a_retry_names_its_attempt(
+        self, sink: asyncio.Queue[BaseEvent], tasks: dict[str, Any]
+    ) -> None:
+        await self._report(
+            self._assigned(),
+            TaskRetriedEvent(task_id="t-1", agent_name="researcher", attempt=2, error="gone"),
+        )
+
+        assert _step_values(sink) == [
+            {
+                "delegationId": "call-1",
+                "agent": "researcher",
+                "phase": "retried",
+                "status": "researcher: retrying, attempt 2",
+                "tool": None,
+                "task": {"taskId": "t-1", "attempt": 2},
+            }
+        ]
+
+    async def test_a_vetoed_steer_is_not_reported(
+        self, sink: asyncio.Queue[BaseEvent], tasks: dict[str, Any]
+    ) -> None:
+        steer = TaskSteeredEvent(task_id="t-1", agent_name="researcher", message="Only 2024.")
+        steer.veto("not now")
+        await self._report(self._assigned(), steer)
+
+        assert _drain(sink) == []
+
+    async def test_an_unknown_task_is_ignored(
+        self, sink: asyncio.Queue[BaseEvent], tasks: dict[str, Any]
+    ) -> None:
+        await self._report(TaskStartedEvent(task_id="t-9", agent_name="researcher"))
+
+        assert _drain(sink) == []
+
+    async def test_events_with_no_step_of_their_own_are_ignored(
+        self, sink: asyncio.Queue[BaseEvent], tasks: dict[str, Any]
+    ) -> None:
+        # The child's forwarded stream reaches the client through the handler, not this.
+        await self._report(
+            self._assigned(),
+            TaskProgressEvent(
+                task_id="t-1",
+                agent_name="researcher",
+                event=FunctionToolCallEvent(part=ToolCallPart(tool_name="x", tool_call_id="s")),
+            ),
+            DelegationStartedEvent(
+                agent_name="researcher",
+                task="Find them.",
+                truncated=False,
+                model=None,
+                inherits_tools=False,
+                task_id="t-1",
+            ),
+            PartStartEvent(index=0, part=TextPart(content="hi")),
+        )
+
+        assert _drain(sink) == []
+
+    async def test_outside_this_transport_nothing_is_recorded(
+        self, sink: asyncio.Queue[BaseEvent]
+    ) -> None:
+        await self._report(self._assigned())
+
+        assert SUBAGENT_TASKS.get() is None
+        assert _drain(sink) == []
+
+    async def test_a_request_with_no_delegate_call_is_keyed_by_its_task(
+        self, sink: asyncio.Queue[BaseEvent], tasks: dict[str, Any]
+    ) -> None:
+        await self._report(
+            TaskResumedEvent(task_id="t-1", agent_name="researcher", prompt="And 2023?"),
+            TaskStartedEvent(task_id="t-1", agent_name="researcher"),
+        )
+        (opened,) = _drain(sink)
+
+        assert isinstance(opened, SubagentStartedEvent)
+        assert (opened.parent_tool_call_id, opened.name) == ("t-1", "researcher")

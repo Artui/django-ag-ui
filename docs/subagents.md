@@ -191,6 +191,24 @@ and closes with exactly one `SUBAGENT_FINISHED` carrying the same
   fixed shape, so a client creates the row on `tool_call` and updates it in
   place on `tool_result`.
 
+#### The same tool calls also ride tagged `TOOL_CALL_*` events
+
+Each child tool call is sent a second time on the protocol's own vocabulary:
+`TOOL_CALL_START`, `TOOL_CALL_ARGS` and `TOOL_CALL_END` as the child calls it, and
+`TOOL_CALL_RESULT` when the result comes back, every one carrying the
+delegation's `subagentRunId`:
+
+```json
+{"type": "TOOL_CALL_START", "subagentRunId": "subagent-call_abc123",
+ "toolCallId": "call_def456", "toolCallName": "search_docs"}
+```
+
+They sit strictly between the delegation's `SUBAGENT_STARTED` and its close, carry
+no `parentMessageId` (the child's messages are never announced), and the result's
+`content` is the tool's return as the child's model read it. A client that renders
+sub-agent tool calls natively reads these; one that draws a status row reads the
+`CUSTOM` steps. Both describe the same calls, keyed by the same `toolCallId`.
+
 A client that does not know the `CUSTOM` name ignores those events and the run
 streams exactly as it did before: `name` is an open string the protocol leaves
 to conventions like this one. A client that speaks AG-UI at all understands the
@@ -209,8 +227,9 @@ interleaving of the two carriers is the part neither contract states on its own.
 ### What it deliberately does not carry
 
 **The child's failure text.** A `SUBAGENT_ERROR` names the sub-agent and stops:
-its required `message` says only which one failed, and the optional `code` is
-left unset. An exception's own words are written for an operator, which is the
+its required `message` says only which one failed, and for a failure the optional
+`code` is left unset (a cancelled task carries `cancelled`, and a delegation still
+open when the run finishes `unfinished`, below). An exception's own words are written for an operator, which is the
 same reasoning `TOOL_FAILURE["INCLUDE_DETAIL"]` applies to `RUN_ERROR` — and
 nothing is lost, because whatever the delegation returns to the parent model
 travels the ordinary `TOOL_CALL_RESULT` and is rendered on the card this
@@ -218,18 +237,73 @@ progress belongs to.
 
 **The child's prose.** Progress is a status line, not a second transcript.
 
-!!! note "Why the steps stay on `CUSTOM`"
+!!! note "Why the steps ride two carriers"
     `@ag-ui/client` materialises an `ACTIVITY_SNAPSHOT` into a
     `role: "activity"` message, the message list is persisted wholesale, and the
     client replays it on every thread restore. That is right for a
     [chart](charts.md), which is content. Replayed *progress* is a lie: a run
     that finished last week would redraw "calling search_docs" on every reload.
-    Shared state is out for a third reason — it round-trips into the next
+    Shared state is out for a third reason: it round-trips into the next
     `RunAgentInput`, so progress placed there would be echoed back to the model.
 
-    The protocol *does* have a way to say "the child called a tool": an ordinary
-    `TOOL_CALL_START` tagged with `subagentRunId`. It is not used here, and this
-    is the same objection — the client materialises those into `agent.messages`
-    exactly as it does the parent's own, so they would be persisted and
-    replayed. The three lifecycle events have no such problem, which is why they
-    were adoptable and these are not.
+    The tagged `TOOL_CALL_*` events are materialised into `agent.messages` too,
+    with their `subagentRunId`, which is why the `CUSTOM` steps stay: they are
+    the carrier a client can draw as a live status line without it coming back
+    on reload. The server keeps tagged messages out of the history it stores and
+    out of the history it hands the parent's model, so the child's calls never
+    read as calls the parent made.
+
+## Task control
+
+With `SubAgents(task_control=TaskControl())`, a delegation becomes a task the
+parent's model manages: it can run in the background, ask the parent a question,
+be steered, be cancelled, and be resumed. The observer follows the task rather
+than the `delegate_task` call, so the same wrapping covers it:
+
+```python
+from pydantic_ai_harness.sub_agents import SubAgent, SubAgents, TaskControl
+
+SubAgentObserver(
+    SubAgents(
+        agents=[SubAgent(researcher, description="Gathers facts on a topic.")],
+        agent_folders=None,
+        task_control=TaskControl(),
+    )
+)
+```
+
+- **The delegation opens when the task's run starts and closes when it settles**:
+  `SUBAGENT_FINISHED` for a completed task, `SUBAGENT_ERROR` for a failed one, and
+  `SUBAGENT_ERROR` with `code: "cancelled"` for a cancelled one. A background
+  task's `delegate_task` returns a receipt at once; its delegation stays open until
+  the task's report arrives, so the child's steps land inside it.
+- **A resumed task opens a new delegation** on the `delegate_task` call that
+  resumed it, with a fresh `subagentRunId`, because the client refuses a reused one.
+- **Nothing stays open past the run.** A delegation still open when the run
+  finishes is closed first with a `SUBAGENT_ERROR` carrying `code: "unfinished"`,
+  because `@ag-ui/client` refuses `RUN_FINISHED` while one is open, and anything
+  announced after `RUN_FINISHED` is dropped.
+
+Task-control moments are `CUSTOM` steps with `tool: null` and a `task` key naming
+the task:
+
+| `phase` | When | `task` carries |
+| --- | --- | --- |
+| `backgrounded` | the task moved to the background | `taskId`, `reason` (`requested`, `auto`, `question`) |
+| `steered` | the parent sent the running task a message | `taskId` |
+| `question` | the task asked the parent a question | `taskId`, `questionId` |
+| `answered` | the parent answered it | `taskId`, `questionId` |
+| `cancel_requested` | the parent asked the task to stop | `taskId`, `forced` |
+| `retried` | a remote task's worker is running it again | `taskId`, `attempt` |
+
+Like the tool steps they carry a `status` line and no text: neither the steering
+message, the question nor the answer is sent, only that it happened. A steer, an
+answer or a cancellation a listener vetoed before the observer saw it is not
+reported.
+
+These follow the harness's task events under their current names
+(`TaskStartedEvent`, `TaskBackgroundedEvent`, `TaskSteeredEvent`,
+`TaskQuestionAskedEvent`, `TaskAnsweredEvent`, `TaskCancelRequestedEvent`,
+`TaskRetriedEvent`, `TaskCompletedEvent`, `TaskFailedEvent`, `TaskCancelledEvent`).
+Without `task_control` nothing here changes: the delegation opens and closes on the
+`delegate_task` call, as above.

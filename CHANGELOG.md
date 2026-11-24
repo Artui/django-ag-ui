@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`SubAgentObserver` follows `SubAgents(task_control=...)` tasks.** With task control a
+  delegation opens when the task's run starts (`TaskStartedEvent`) and closes when it
+  settles: `SUBAGENT_FINISHED` for a completed task, `SUBAGENT_ERROR` for a failed one,
+  and `SUBAGENT_ERROR` with `code: "cancelled"` for a cancelled one. Backgrounding,
+  steering, a question, its answer, a cancellation request and a remote retry are new
+  `ag_ui.subagent` steps (`backgrounded`, `steered`, `question`, `answered`,
+  `cancel_requested`, `retried`) with `tool: null` and a `task` key naming the task. The
+  steering message, the question and the answer are not sent. A resumed task opens a new
+  delegation with a fresh `subagentRunId`. Built on the harness's current event names
+  (`TaskSteeredEvent`, `TaskQuestionAskedEvent`, `TaskCancelRequestedEvent` and the rest).
+  See [Task control](https://artui.github.io/django-ag-ui/subagents/#task-control).
+- **A child's tool calls also ride the protocol's `TOOL_CALL_*` events**, tagged with the
+  delegation's `subagentRunId`, between its `SUBAGENT_STARTED` and its close. The
+  `ag_ui.subagent` `CUSTOM` steps stay beside them as the carrier for a live status line.
+  See [The same tool calls also ride tagged `TOOL_CALL_*` events](https://artui.github.io/django-ag-ui/subagents/#the-same-tool-calls-also-ride-tagged-tool_call_-events).
+
+### Fixed
+
+- **A background delegation no longer closes at its receipt.** Under task control,
+  `delegate_task(background=True)` returns while the child keeps running; the observer
+  closed the delegation on that return, so the child's steps arrived after its
+  `SUBAGENT_FINISHED`. It now closes when the task settles.
+- **No delegation is left open at `RUN_FINISHED`.** One still open when the run finishes
+  is closed first with `SUBAGENT_ERROR` carrying `code: "unfinished"`, since
+  `@ag-ui/client` refuses `RUN_FINISHED` while one is open, and anything announced after
+  `RUN_FINISHED` is dropped.
+
 ## [0.89.0] — 2026-11-24
 
 ### Added

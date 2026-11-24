@@ -25,7 +25,7 @@ between: one event per tool call it makes and one per result it gets back.
 
 ## The value
 
-Every event carries the same five keys::
+A tool step carries the same five keys::
 
     {
       "delegationId": "call_abc123",
@@ -69,20 +69,27 @@ Every event carries the same five keys::
 **The child's text output is deliberately absent.** Progress is a status line,
 not a second transcript.
 
-## Why ``CUSTOM``, still, for these two
+## Task-control steps
 
-The lifecycle moved to the protocol's own events and these did not, and the
-reason is the one that chose ``CUSTOM`` in the first place: **lifetime**.
+Under ``SubAgents(task_control=...)`` a task's own moments are steps too:
+``phase`` is ``backgrounded``, ``steered``, ``question``, ``answered``,
+``cancel_requested`` or ``retried``, ``tool`` is ``null``, and a sixth key,
+``task``, names the task (``taskId``) plus what that moment adds -- ``reason``,
+``questionId``, ``forced`` or ``attempt``. The steering message, the question and
+the answer are not sent: the step says that it happened, not what was said.
 
-The protocol *does* have a way to say "the child called a tool" -- an ordinary
-``TOOL_CALL_START`` tagged with ``subagentRunId``. But ``@ag-ui/client``
-materialises those into ``agent.messages`` exactly as it does the parent's own,
-the transport persists the message list wholesale, and the replay path re-fires
-it on every thread restore. **Replayed progress is a lie**: a run that finished
-last week would redraw "working, step 4 of 8" on every reload of the thread.
-The three lifecycle events have no such problem -- the client dispatches them to
-callbacks and never pushes them into ``messages`` -- which is precisely why they
-were adoptable and these are not.
+## Why ``CUSTOM`` beside the tagged tool calls
+
+The child's tool calls also go out on the protocol's own vocabulary, ordinary
+``TOOL_CALL_*`` events tagged with ``subagentRunId`` (``subagent_tool_calls``),
+so a client that renders sub-agent tool calls natively has them. They do not
+replace these steps, and the reason is **lifetime**: ``@ag-ui/client``
+materialises tagged tool calls into ``agent.messages`` as it does the parent's
+own, and the replay path re-fires the message list on every thread restore.
+**Replayed progress is a lie**: a run that finished last week would redraw
+"working, step 4 of 8" on every reload. A ``CUSTOM`` step is dispatched to
+callbacks and never pushed into ``messages``, so it is the carrier for a live
+status line.
 
 **``ACTIVITY_SNAPSHOT`` is for content; ``CUSTOM`` is for an imperative.**
 Progress is the second -- it has no meaning once acted on. That is also the
@@ -95,15 +102,29 @@ echoed back to the model as though it were something the model had said.
 """
 
 
+_StepPhase = Literal[
+    "tool_call",
+    "tool_result",
+    "backgrounded",
+    "steered",
+    "question",
+    "answered",
+    "cancel_requested",
+    "retried",
+]
+"""The ``phase`` values a step event carries: two tool phases, then the task-control ones."""
+
+
 def subagent_progress(
     *,
     delegation_id: str,
     agent: str,
-    phase: Literal["tool_call", "tool_result"],
+    phase: _StepPhase,
     status: str,
-    tool_call_id: str,
-    tool_name: str,
+    tool_call_id: str | None = None,
+    tool_name: str | None = None,
     ok: bool | None = None,
+    task: dict[str, Any] | None = None,
 ) -> CustomEvent:
     """One step event for the delegation ``delegation_id``."""
     value: dict[str, Any] = {
@@ -111,8 +132,12 @@ def subagent_progress(
         "agent": agent,
         "phase": phase,
         "status": status,
-        "tool": {"toolCallId": tool_call_id, "name": tool_name, "ok": ok},
+        "tool": None
+        if tool_call_id is None
+        else {"toolCallId": tool_call_id, "name": tool_name, "ok": ok},
     }
+    if task is not None:
+        value["task"] = task
     return CustomEvent(name=SUBAGENT_EVENT_NAME, value=value, timestamp=event_timestamp())
 
 
