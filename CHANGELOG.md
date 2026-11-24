@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   **What changes for the model.** `@ag-ui/client` leaves activities out of the messages it
   posts, so after a reload a client no longer sends the delivery back, just as a live client
-  never did. The stored thread keeps it (see Fixed). A client that does post the activity has it loaded once as the delivered messages.
+  never did. The stored thread still keeps it. A client that does post the activity has it loaded once as the delivered messages.
   `ENQUEUED_MESSAGES_ACTIVITY_TYPE` in `django_ag_ui.constants` names the type.
 
 - **A sub-agent's tagged messages are never the parent's history.** A tool round tagged with
@@ -67,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A run `DetectLoops` stops names the loop in its error.** A main or headless run that
   `DetectLoops(action="error")` stops (pydantic-ai-harness's `LoopDetectedError`) records its
-  error as "The run was stopped in a loop (<pattern>): <message>", the text a stopped child
+  error as `The run was stopped in a loop (<pattern>): <message>`, the text a stopped child
   session already ends with, where it recorded the bare message. The run still ends as an
   error with the same code, and the client still sees the withheld message unless
   `TOOL_FAILURE.INCLUDE_DETAIL` is on.

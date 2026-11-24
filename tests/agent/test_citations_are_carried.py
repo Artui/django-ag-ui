@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from ag_ui.core import AssistantMessage, ToolMessage
+from ag_ui.core import AssistantMessage, FunctionCall, ReasoningMessage, ToolCall, ToolMessage
 from pydantic_ai import Agent, BinaryContent
 from pydantic_ai.messages import (
     Citation,
@@ -18,7 +18,11 @@ from pydantic_ai.messages import (
 from pydantic_ai.models import function as function_module
 from pydantic_ai.models.function import DeltaToolCall, FunctionModel
 
-from django_ag_ui.agent.message_citations import CITATIONS_FIELD, with_dumped_citations
+from django_ag_ui.agent.message_citations import (
+    CITATIONS_FIELD,
+    stamp_citations,
+    with_dumped_citations,
+)
 from tests.agent.test_stored_ids_match_the_stream import (
     USER_TURN,
     _after_a_tool_return,
@@ -114,6 +118,15 @@ async def test_adjacent_parts_cite_into_the_one_message_they_stream_and_store() 
             {"kind": "web", "url": "https://example.com/sky", "title": "Sky", "excerpts": []}
         ]
         assert citation["anchor"]["kind"] == "content"
+
+
+async def test_two_cited_adjacent_parts_keep_both_citations() -> None:
+    store = _Store()
+
+    frames = await _run(_session(_agent(_cited("A is", "is"), _cited(" B too", "too")), store))
+
+    for content, cited in [*_streamed(frames), *_stored(store.saved[0])]:
+        assert (content, [_slice(content, c) for c in cited]) == ("A is B too", ["is", "too"])
 
 
 async def test_text_either_side_of_a_file_cites_into_the_text_each_copy_holds() -> None:
@@ -220,3 +233,24 @@ def test_parts_the_dump_never_reached_leave_it_unstamped() -> None:
     dumped = [AssistantMessage(id="a", role="assistant", content="one")]
 
     assert with_dumped_citations(response, dumped) == dumped
+
+
+def test_reasoning_and_a_tool_call_before_the_text_are_passed_over() -> None:
+    response = ModelResponse(parts=[_cited("it is blue", "blue")])
+    call = ToolCall(id="c", type="function", function=FunctionCall(name="lookup", arguments="{}"))
+    thought = ReasoningMessage(id="r", role="reasoning", content="thinking")
+    calling = AssistantMessage(id="t", role="assistant", tool_calls=[call])
+    said = AssistantMessage(id="a", role="assistant", content="it is blue")
+
+    *passed, stamped = with_dumped_citations(response, [thought, calling, said])
+
+    assert passed == [thought, calling]
+    assert [_slice("it is blue", c) for c in stamped.metadata[CITATIONS_FIELD]] == ["blue"]
+
+
+def test_stamping_keeps_the_metadata_a_message_already_has() -> None:
+    message = AssistantMessage(id="a", role="assistant", content="x", metadata={"k": 1})
+
+    stamped = stamp_citations(message, [{"sources": []}])
+
+    assert stamped.metadata == {"k": 1, CITATIONS_FIELD: [{"sources": []}]}

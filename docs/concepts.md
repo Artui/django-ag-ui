@@ -231,7 +231,10 @@ no outcome on its tool messages, and is not rewritten.
 
 Only a **server-side** tool has an outcome here: a frontend tool executes in the
 browser and its result comes back in the next request, so the browser already
-knows how it went.
+knows how it went. The view marks itself as a
+coroutine function so Django awaits it under ASGI; served over WSGI it emits a
+one-time `RuntimeWarning` (SSE streaming needs ASGI). Frontend-declared tools in
+the request are merged into the catalog by the adapter automatically.
 
 ### An assistant message carries its citations
 
@@ -266,10 +269,7 @@ stored assistant message, indexing the stored `content`. The two copies can
 split differently: text on both sides of a file part streams as two messages
 and is stored as one, joined by a newline, and each copy's offsets index its
 own text. A posted-back message keeps its citations in the next save. Loading
-history does not restore them, so the model never sees them. The view marks itself as a
-coroutine function so Django awaits it under ASGI; served over WSGI it emits a
-one-time `RuntimeWarning` (SSE streaming needs ASGI). Frontend-declared tools in
-the request are merged into the catalog by the adapter automatically.
+history does not restore them, so the model never sees them.
 
 [`AGUIServer`][django_ag_ui.AGUIServer] builds this view (plus its sub-views)
 from the registry and exposes a namespaced [`.urls`][django_ag_ui.AGUIServer.urls]
