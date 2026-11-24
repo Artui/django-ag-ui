@@ -24,6 +24,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   delegation's `subagentRunId`, between its `SUBAGENT_STARTED` and its close. The
   `ag_ui.subagent` `CUSTOM` steps stay beside them as the carrier for a live status line.
   See [The same tool calls also ride tagged `TOOL_CALL_*` events](https://artui.github.io/django-ag-ui/subagents/#the-same-tool-calls-also-ride-tagged-tool_call_-events).
+- **An assistant message carries its citations.** pydantic-ai's `TextPart.citations` reached
+  neither the stream nor the stored conversation. `TEXT_MESSAGE_END` now carries them at
+  `metadata.citations`, which `@ag-ui/client` 1.0 folds onto the assistant message, and the
+  stored assistant message carries the same key. The value is a list of pydantic-ai's
+  `Citation` in its JSON form: `sources` (`{kind: "web", url, title, excerpts}` or
+  `{kind: "document", document_id, title, excerpts}`) and `anchor`
+  (`{kind: "content" | "marker", start, end}`, or `null` when the provider gave no position).
+  `start` and `end` count UTF-16 code units into the message's whole `content`, so
+  `content.slice(start, end)` is the range in JavaScript. A message with no citations has no
+  such key. The stored copy indexes the stored text, which joins a file part's two sides with a
+  newline where the stream sends two messages. The model never sees citations from history.
+  The web component does not draw them yet. See
+  [An assistant message carries its citations](https://artui.github.io/django-ag-ui/concepts/#an-assistant-message-carries-its-citations).
 
 ### Changed
 
@@ -50,9 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   never reaches the parent model as its own tool call.
 
 - **Checked on pydantic-ai 2.70 and recorded here.** An assistant message split at reasoning or
-  at compaction is stored under each piece's streamed id. Citations on a `TextPart` reach neither
-  the AG-UI stream nor the stored conversation: the adapter streams only the text, and its dump
-  drops `TextPart.citations`.
+  at compaction is stored under each piece's streamed id.
 
 ### Fixed
 

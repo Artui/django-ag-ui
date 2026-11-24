@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Mapping, Sequence
-from dataclasses import fields
+from dataclasses import dataclass, field, fields
 from typing import Any
 
 from ag_ui.core import (
@@ -9,12 +9,14 @@ from ag_ui.core import (
     Message,
     RunAgentInput,
     RunErrorEvent,
+    TextMessageEndEvent,
     ToolCallResultEvent,
     ToolMessage,
 )
 from pydantic_ai.messages import (
     FunctionToolResultEvent,
     ModelMessage,
+    ModelResponse,
     NativeToolReturnPart,
     OutputToolResultEvent,
     # Deprecated from pydantic-ai 2.60, where a retry became the call's own
@@ -22,11 +24,17 @@ from pydantic_ai.messages import (
     # the declared floor among them. Named until the floor passes 2.60, so
     # every use carries the same suppression.
     RetryPromptPart,  # ty: ignore[deprecated]
+    TextPart,
     ToolReturnPart,
 )
 from pydantic_ai.ui import UIEventStream
 from pydantic_ai.ui.ag_ui import AGUIAdapter, AGUIEventStream
 
+from django_ag_ui.agent.message_citations import (
+    message_citations,
+    stamp_citations,
+    with_dumped_citations,
+)
 from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD, stamp_answered_by
 from django_ag_ui.agent.stamp_outcome import stamp_outcome
 from django_ag_ui.agent.utils import run_error_code
@@ -57,9 +65,35 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
         dumped = super().dump_messages(messages, **kwargs)
         return [_with_stored_marks(message, outcomes, marks) for message in dumped]
 
+    @staticmethod
+    def _dump_response_parts(msg: ModelResponse, **kwargs: Any) -> list[Message]:
+        """Upstream's dump of one response, each assistant message stamped with its citations."""
+        return with_dumped_citations(msg, AGUIAdapter._dump_response_parts(msg, **kwargs))
 
+
+@dataclass
 class _OutcomeEventStream(AGUIEventStream[Any, Any]):
-    """``AGUIEventStream`` that stamps each tool result with its part's outcome."""
+    """``AGUIEventStream`` stamping tool results with outcomes, text ends with citations."""
+
+    _text: str = field(default="", init=False)
+    _citations: list[dict[str, Any]] = field(default_factory=list, init=False)
+
+    def handle_text_start(
+        self, part: TextPart, follows_text: bool = False
+    ) -> AsyncIterator[BaseEvent]:
+        if not follows_text:
+            self._text, self._citations = "", []
+        return super().handle_text_start(part, follows_text)
+
+    async def handle_text_end(
+        self, part: TextPart, followed_by_text: bool = False
+    ) -> AsyncIterator[BaseEvent]:
+        at, self._text = len(self._text), self._text + part.content
+        self._citations += message_citations(self._text, at, part.citations or [])
+        async for event in super().handle_text_end(part, followed_by_text):
+            if isinstance(event, TextMessageEndEvent):
+                event = stamp_citations(event, self._citations)
+            yield event
 
     def handle_function_tool_result(
         self, event: FunctionToolResultEvent

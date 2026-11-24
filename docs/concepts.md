@@ -231,7 +231,42 @@ no outcome on its tool messages, and is not rewritten.
 
 Only a **server-side** tool has an outcome here: a frontend tool executes in the
 browser and its result comes back in the next request, so the browser already
-knows how it went. The view marks itself as a
+knows how it went.
+
+### An assistant message carries its citations
+
+A model that searches or reads documents can say which sources back which part
+of its answer (pydantic-ai's `TextPart.citations`). AG-UI has no field for
+them, so this package puts them on `TEXT_MESSAGE_END`, in `metadata`, which
+`@ag-ui/client` 1.0 folds onto the assistant message it closes:
+
+```json
+{"type": "TEXT_MESSAGE_END", "messageId": "…",
+ "metadata": {"citations": [
+   {"sources": [{"kind": "web", "url": "https://example.com/sky", "title": "Sky",
+                 "excerpts": []}],
+    "anchor": {"kind": "content", "start": 7, "end": 11}}]}}
+```
+
+Each entry is pydantic-ai's `Citation` in its JSON form:
+
+| Key | What it holds |
+| --- | --- |
+| `sources` | One or more of `{"kind": "web", "url", "title", "excerpts"}` and `{"kind": "document", "document_id", "title", "excerpts"}`. `excerpts` is a list of passages from the source, possibly empty. It can hold text from your own documents. |
+| `anchor` | `{"kind": "content", "start", "end"}` for the text the sources support, `{"kind": "marker", "start", "end"}` for a marker the model wrote such as `[1]`, or `null` when the provider gave no position. |
+
+`start` and `end` count **UTF-16 code units** into the message's whole
+`content`, as JavaScript strings do, so `content.slice(start, end)` is the
+range. pydantic-ai counts within one text part: parts that stream as one
+message are offset by the text before them. A message with no citations has no
+`citations` key.
+
+**The stored thread carries them the same way**, at `metadata.citations` on the
+stored assistant message, indexing the stored `content`. The two copies can
+split differently: text on both sides of a file part streams as two messages
+and is stored as one, joined by a newline, and each copy's offsets index its
+own text. A posted-back message keeps its citations in the next save. Loading
+history does not restore them, so the model never sees them. The view marks itself as a
 coroutine function so Django awaits it under ASGI; served over WSGI it emits a
 one-time `RuntimeWarning` (SSE streaming needs ASGI). Frontend-declared tools in
 the request are merged into the catalog by the adapter automatically.
