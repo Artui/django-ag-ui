@@ -129,6 +129,32 @@ async def test_a_delivery_posted_back_reaches_the_model_once_and_is_stored_once(
     assert USER_TURN in second
 
 
+async def test_a_delivery_survives_the_next_turn_a_client_posts_without_it() -> None:
+    def nudge(ctx: RunContext[Any]) -> str:
+        ctx.enqueue("a note from the tool")
+        return "ok"
+
+    store = _Store()
+    await _run(_session(_nudging_agent(nudge), store))
+    first = store.saved[0].messages
+    posted = [m for m in first if m["role"] != "activity"]
+
+    await _run(
+        _session(
+            _nudging_agent(nudge),
+            store,
+            messages=[*posted, {"id": "u2", "role": "user", "content": "and now?"}],
+            stored=first,
+        )
+    )
+
+    (delivery,) = [m for m in first if m["role"] == "activity"]
+    second = store.saved[1].messages
+    assert second[: len(first)] == first
+    assert delivery in second
+    _assert_unique(store.saved[1])
+
+
 def _delivered(transcript: RunTranscript, message_id: str, *texts: str) -> None:
     transcript.add(
         ActivitySnapshotEvent(
@@ -168,6 +194,16 @@ def test_deliveries_are_matched_in_stream_order_past_one_another() -> None:
     restamped = transcript.with_streamed_ids([_user("d1", "same"), _user("d2", "same")])
 
     assert [message.id for message in restamped] == ["e1", "e2"]
+
+
+def test_an_activity_of_another_type_does_not_stop_a_delivery_being_matched() -> None:
+    transcript = RunTranscript()
+    transcript.add(ActivitySnapshotEvent(message_id="s1", activity_type="a2ui-surface", content={}))
+    _delivered(transcript, "e1", "note")
+
+    restamped = transcript.with_streamed_ids([_user("d1", "note")])
+
+    assert [message.id for message in restamped] == ["e1"]
 
 
 def test_one_unmatched_delivery_leaves_every_delivery_as_dumped() -> None:

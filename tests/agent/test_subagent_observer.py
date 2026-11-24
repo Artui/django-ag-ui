@@ -25,6 +25,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai_harness.sub_agents import (
+    AgentCreatedEvent,
     DelegationStartedEvent,
     SubAgent,
     SubAgents,
@@ -438,6 +439,18 @@ class TestTaskControl:
         )
 
         assert _drain(sink) == []
+
+    async def test_a_sub_agents_event_that_names_no_task_is_ignored(
+        self, sink: asyncio.Queue[BaseEvent], tasks: dict[str, Any]
+    ) -> None:
+        created = AgentCreatedEvent(
+            agent_name="helper", description="d", instructions="i", model=None
+        )
+
+        await self._report(self._assigned(), created)
+
+        assert _drain(sink) == []
+        assert list(tasks) == ["t-1"]
 
     async def test_outside_this_transport_nothing_is_recorded(
         self, sink: asyncio.Queue[BaseEvent]

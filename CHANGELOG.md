@@ -86,10 +86,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `delegate_task(background=True)` returns while the child keeps running; the observer
   closed the delegation on that return, so the child's steps arrived after its
   `SUBAGENT_FINISHED`. It now closes when the task settles.
-- **No delegation is left open at `RUN_FINISHED`.** One still open when the run finishes
-  is closed first with `SUBAGENT_ERROR` carrying `code: "unfinished"`, since
-  `@ag-ui/client` refuses `RUN_FINISHED` while one is open, and anything announced after
-  `RUN_FINISHED` is dropped.
+- **No delegation is left open at the run's end.** One still open at `RUN_FINISHED` or
+  `RUN_ERROR` is closed first with `SUBAGENT_ERROR` carrying `code: "unfinished"`, since
+  `@ag-ui/client` refuses `RUN_FINISHED` while one is open and a delegation panel would
+  never settle after `RUN_ERROR`. Anything announced after either is dropped.
 
 ## [0.89.0] — 2026-11-24
 

@@ -282,9 +282,10 @@ SubAgentObserver(
 - **A resumed task opens a new delegation** on the `delegate_task` call that
   resumed it, with a fresh `subagentRunId`, because the client refuses a reused one.
 - **Nothing stays open past the run.** A delegation still open when the run
-  finishes is closed first with a `SUBAGENT_ERROR` carrying `code: "unfinished"`,
-  because `@ag-ui/client` refuses `RUN_FINISHED` while one is open, and anything
-  announced after `RUN_FINISHED` is dropped.
+  finishes or fails is closed first with a `SUBAGENT_ERROR` carrying
+  `code: "unfinished"`, because `@ag-ui/client` refuses `RUN_FINISHED` while one is
+  open and a delegation panel would otherwise never settle after `RUN_ERROR`.
+  Anything announced after either is dropped.
 
 Task-control moments are `CUSTOM` steps with `tool: null` and a `task` key naming
 the task:

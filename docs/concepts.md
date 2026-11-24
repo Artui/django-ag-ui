@@ -554,6 +554,20 @@ deleted, overwritten, or describes a different conversation -- is stored under
 a fresh id. Without a conversation store there is no row to read and nothing is
 saved, so there are no stored ids to keep.
 
+**A message a tool enqueued is stored as the activity it streamed as.** A tool
+that calls `RunContext.enqueue` hands the model a message mid-run, and
+pydantic-ai streams each delivery as an `ACTIVITY_SNAPSHOT` of type
+[`ENQUEUED_MESSAGES_ACTIVITY_TYPE`][django_ag_ui.constants.ENQUEUED_MESSAGES_ACTIVITY_TYPE]
+(`pydantic_ai_enqueued_messages`), under the id `enqueue` returned and with the
+delivered messages as its `content`. A completed run stores it as that activity,
+under that id, not as a user message, so a reloaded thread shows it as it was
+shown live and never posts the tool's words back as the user's. A delivery the
+dump does not hold whole, in stream order, leaves every delivery of the run as
+dumped, and a message removed with `dequeue` never streams and is never stored.
+`@ag-ui/client` leaves activities out of what it posts, so the model sees a
+delivery in the run it arrived in, and a client that does post one has it
+loaded once as the delivered messages.
+
 **A stored activity survives the next turn.** `@ag-ui/client` leaves every
 activity out of the messages it posts, so a client that managed its own history
 posted the next turn without the thread's compactions, charts, A2UI surfaces,

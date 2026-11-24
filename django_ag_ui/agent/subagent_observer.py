@@ -263,10 +263,8 @@ def _report_task(event: CapabilityEvent) -> None:
     if tasks is None:
         return
     if isinstance(event, TaskRequestEvent):
-        current = _DELEGATION.get()
-        delegation_id = current.delegation_id if current else event.tool_call_id or event.task_id
+        delegation_id = event.tool_call_id or event.task_id
         tasks[event.task_id] = _Delegation(delegation_id=delegation_id, agent=event.agent_name)
-        _DELEGATION.set(tasks[event.task_id])
         return
     task_id: str = cast("Any", event).task_id
     delegation = tasks.get(task_id)

@@ -7,6 +7,7 @@ from typing import Any
 
 from ag_ui.core import (
     BaseEvent,
+    RunErrorEvent,
     RunFinishedEvent,
     SubagentErrorEvent,
     SubagentFinishedEvent,
@@ -23,7 +24,7 @@ async def inject_subagent_events(stream: AsyncIterator[BaseEvent]) -> AsyncItera
     tracker = _OpenDelegations()
     async with contextlib.aclosing(_interleave(stream)) as interleaved:
         async for event in interleaved:
-            if isinstance(event, RunFinishedEvent):
+            if isinstance(event, RunFinishedEvent | RunErrorEvent):
                 for close in tracker.close():
                     yield close
                 yield event
@@ -83,7 +84,7 @@ class _OpenDelegations:
         self.finished = False
 
     def see(self, event: BaseEvent) -> bool:
-        """Record ``event``; false when it arrives after the run finished."""
+        """Record ``event``; false when it arrives after the run ended."""
         if self.finished:
             return False
         if isinstance(event, SubagentStartedEvent):
@@ -93,12 +94,12 @@ class _OpenDelegations:
         return True
 
     def close(self) -> Iterator[BaseEvent]:
-        """An error for each delegation still open, as the run finishes."""
+        """An error for each delegation still open, as the run finishes or fails."""
         self.finished = True
         for run_id in self._open:
             yield SubagentErrorEvent(
                 subagent_run_id=run_id,
-                message="the sub-agent was still running when the run finished",
+                message="the sub-agent was still running when the run ended",
                 code="unfinished",
                 timestamp=event_timestamp(),
             )

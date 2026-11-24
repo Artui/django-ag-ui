@@ -197,6 +197,17 @@ async def test_a_cancelled_task_closes_as_an_error_with_a_code() -> None:
     ]
 
 
+async def test_a_plain_cancellation_request_is_reported_unforced() -> None:
+    events = await _stream(
+        _reads_then_answers(0.3),
+        _delegate(background=True),
+        lambda m: _call("cancel_task", {"task_id": _task_id(m)}, "c-2"),
+        lambda m: "Stopped.",
+    )
+
+    assert _phase(events, "cancel_requested")["task"]["forced"] is False
+
+
 async def test_a_question_and_its_answer_are_reported() -> None:
     child = _researcher(
         lambda m: _call("ask_parent", {"question": "Which year?"}, "sub-q"),

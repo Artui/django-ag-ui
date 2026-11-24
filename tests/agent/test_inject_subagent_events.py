@@ -10,6 +10,7 @@ from ag_ui.core import (
     BaseEvent,
     CustomEvent,
     EventType,
+    RunErrorEvent,
     RunFinishedEvent,
     SubagentErrorEvent,
     TextMessageStartEvent,
@@ -252,6 +253,25 @@ async def test_a_delegation_still_open_at_run_finished_is_closed_first() -> None
         EventType.TEXT_MESSAGE_START,
         EventType.SUBAGENT_ERROR,
         EventType.RUN_FINISHED,
+    ]
+    assert isinstance(out[2], SubagentErrorEvent)
+    assert (out[2].subagent_run_id, out[2].code) == ("subagent-call-1", "unfinished")
+
+
+async def test_a_delegation_still_open_at_run_error_is_closed_first() -> None:
+    async def upstream() -> AsyncIterator[BaseEvent]:
+        _open()
+        yield _text("a")
+        yield RunErrorEvent(message="the model failed")
+        _close()
+
+    out = await _collect(inject_subagent_events(upstream()))
+
+    assert [event.type for event in out] == [
+        EventType.SUBAGENT_STARTED,
+        EventType.TEXT_MESSAGE_START,
+        EventType.SUBAGENT_ERROR,
+        EventType.RUN_ERROR,
     ]
     assert isinstance(out[2], SubagentErrorEvent)
     assert (out[2].subagent_run_id, out[2].code) == ("subagent-call-1", "unfinished")
