@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A child's tool calls also ride the protocol's `TOOL_CALL_*` events**, tagged with the
   delegation's `subagentRunId`, between its `SUBAGENT_STARTED` and its close. The
   `ag_ui.subagent` `CUSTOM` steps stay beside them as the carrier for a live status line.
+  **A host on the web component takes 0.15.0 or newer before adopting this release:** older
+  releases draw each tagged child call as the parent's own tool card and dispatch it after the
+  run, so a child tool named like a frontend tool would run in the browser.
   See [The same tool calls also ride tagged `TOOL_CALL_*` events](https://artui.github.io/django-ag-ui/subagents/#the-same-tool-calls-also-ride-tagged-tool_call_-events).
 - **An assistant message carries its citations.** pydantic-ai's `TextPart.citations` reached
   neither the stream nor the stored conversation. `TEXT_MESSAGE_END` now carries them at
