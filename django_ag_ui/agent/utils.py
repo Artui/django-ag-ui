@@ -62,6 +62,20 @@ def run_error_code(error: Exception) -> str:
     return ERROR_CODE
 
 
+def run_error_message(error: Exception, message: str) -> str:
+    """``message``, or the loop a ``DetectLoops`` stop names when ``error`` is or groups one."""
+    try:
+        from pydantic_ai_harness.detect_loops import LoopDetectedError
+    except ImportError:
+        return message
+    found = error.subgroup(LoopDetectedError) if isinstance(error, BaseExceptionGroup) else error
+    while isinstance(found, BaseExceptionGroup):
+        found = found.exceptions[0]
+    if not isinstance(found, LoopDetectedError):
+        return message
+    return f"The run was stopped in a loop ({found.loop.pattern}): {found}"
+
+
 async def discard_tasks(*tasks: asyncio.Future[Any] | None) -> None:
     """Cancel whichever of ``tasks`` are still live, and wait for them to settle."""
     live = [task for task in tasks if task is not None]
@@ -217,6 +231,7 @@ __all__ = [
     "IDENTIFIER_TOO_LONG_CODE",
     "INTERRUPTED_CODE",
     "RUN_ERROR_CODES",
+    "run_error_message",
     "STREAM_END",
     "TIMED_OUT_CODE",
     "a2ui_validator",

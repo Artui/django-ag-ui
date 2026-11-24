@@ -20,15 +20,14 @@ delegation a first-class lifecycle, so opening and closing one is no longer a
 thing this transport has to invent a ``name`` for; a client that speaks AG-UI
 already knows what these mean without knowing anything about us.
 
-**The split is deliberate, and it is drawn where the protocol draws it.** These
-three events open and close a delegation. What the child does *in between* --
-its individual tool calls -- has no ephemeral carrier upstream: the protocol
-would have those be ordinary ``TOOL_CALL_*`` events tagged with
-``subagentRunId``, and ``@ag-ui/client`` materialises those into the message
-list, which the transport persists and replays. Progress that replays is a lie
-about a run that is over, which is the property the ``CUSTOM`` carrier was
-chosen for in the first place. So the steps stay on ``CUSTOM`` and only the
-lifecycle moves. See ``subagent_progress`` for the other half.
+**What the child does in between rides two carriers.** Its tool calls go out as
+the protocol's ``TOOL_CALL_*`` events tagged with ``subagentRunId`` and, beside
+them, as ``CUSTOM`` steps: ``@ag-ui/client`` materialises the tagged events into
+the message list, which the transport replays on a thread restore, and progress
+that replays is a lie about a run that is over. See ``subagent_progress``.
+
+A delegation closes with ``SUBAGENT_ERROR`` both when it fails and when it is
+cancelled; a cancelled task's close carries ``code="cancelled"``.
 
 The three lifecycle events do **not** have that problem, and that is what makes
 them adoptable: ``@ag-ui/client`` dispatches them to subscriber callbacks and
@@ -46,7 +45,7 @@ def subagent_lifecycle(
     *,
     delegation_id: str,
     agent: str,
-    phase: Literal["started", "finished", "failed"],
+    phase: Literal["started", "finished", "failed", "cancelled"],
 ) -> SubAgentLifecycleEvent:
     """The event opening or closing the delegation made by ``delegation_id``."""
     run_id = subagent_run_id(delegation_id)
@@ -60,6 +59,13 @@ def subagent_lifecycle(
         )
     if phase == "finished":
         return SubagentFinishedEvent(subagent_run_id=run_id, timestamp=timestamp)
+    if phase == "cancelled":
+        return SubagentErrorEvent(
+            subagent_run_id=run_id,
+            message=f"{agent} was cancelled",
+            code="cancelled",
+            timestamp=timestamp,
+        )
     return SubagentErrorEvent(
         subagent_run_id=run_id,
         message=f"{agent} failed",

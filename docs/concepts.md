@@ -236,6 +236,41 @@ coroutine function so Django awaits it under ASGI; served over WSGI it emits a
 one-time `RuntimeWarning` (SSE streaming needs ASGI). Frontend-declared tools in
 the request are merged into the catalog by the adapter automatically.
 
+### An assistant message carries its citations
+
+A model that searches or reads documents can say which sources back which part
+of its answer (pydantic-ai's `TextPart.citations`). AG-UI has no field for
+them, so this package puts them on `TEXT_MESSAGE_END`, in `metadata`, which
+`@ag-ui/client` 1.0 folds onto the assistant message it closes:
+
+```json
+{"type": "TEXT_MESSAGE_END", "messageId": "…",
+ "metadata": {"citations": [
+   {"sources": [{"kind": "web", "url": "https://example.com/sky", "title": "Sky",
+                 "excerpts": []}],
+    "anchor": {"kind": "content", "start": 7, "end": 11}}]}}
+```
+
+Each entry is pydantic-ai's `Citation` in its JSON form:
+
+| Key | What it holds |
+| --- | --- |
+| `sources` | One or more of `{"kind": "web", "url", "title", "excerpts"}` and `{"kind": "document", "document_id", "title", "excerpts"}`. `excerpts` is a list of passages from the source, possibly empty. It can hold text from your own documents. |
+| `anchor` | `{"kind": "content", "start", "end"}` for the text the sources support, `{"kind": "marker", "start", "end"}` for a marker the model wrote such as `[1]`, or `null` when the provider gave no position. |
+
+`start` and `end` count **UTF-16 code units** into the message's whole
+`content`, as JavaScript strings do, so `content.slice(start, end)` is the
+range. pydantic-ai counts within one text part: parts that stream as one
+message are offset by the text before them. A message with no citations has no
+`citations` key.
+
+**The stored thread carries them the same way**, at `metadata.citations` on the
+stored assistant message, indexing the stored `content`. The two copies can
+split differently: text on both sides of a file part streams as two messages
+and is stored as one, joined by a newline, and each copy's offsets index its
+own text. A posted-back message keeps its citations in the next save. Loading
+history does not restore them, so the model never sees them.
+
 [`AGUIServer`][django_ag_ui.AGUIServer] builds this view (plus its sub-views)
 from the registry and exposes a namespaced [`.urls`][django_ag_ui.AGUIServer.urls]
 tuple you mount at any prefix — see [Mounting](#mounting) below.
@@ -518,6 +553,33 @@ The same never-lend rule holds: a message the row does not hold -- the row was
 deleted, overwritten, or describes a different conversation -- is stored under
 a fresh id. Without a conversation store there is no row to read and nothing is
 saved, so there are no stored ids to keep.
+
+**A message a tool enqueued is stored as the activity it streamed as.** A tool
+that calls `RunContext.enqueue` hands the model a message mid-run, and
+pydantic-ai streams each delivery as an `ACTIVITY_SNAPSHOT` of type
+[`ENQUEUED_MESSAGES_ACTIVITY_TYPE`][django_ag_ui.constants.ENQUEUED_MESSAGES_ACTIVITY_TYPE]
+(`pydantic_ai_enqueued_messages`), under the id `enqueue` returned and with the
+delivered messages as its `content`. A completed run stores it as that activity,
+under that id, not as a user message, so a reloaded thread shows it as it was
+shown live and never posts the tool's words back as the user's. A delivery the
+dump does not hold whole, in stream order, leaves every delivery of the run as
+dumped, and a message removed with `dequeue` never streams and is never stored.
+`@ag-ui/client` leaves activities out of what it posts, so the model sees a
+delivery in the run it arrived in, and a client that does post one has it
+loaded once as the delivered messages.
+
+**A stored activity survives the next turn.** `@ag-ui/client` leaves every
+activity out of the messages it posts, so a client that managed its own history
+posted the next turn without the thread's compactions, charts, A2UI surfaces,
+suggestions and enqueued deliveries, and the save that followed dropped them.
+The run now reads the thread's stored conversation and keeps each of its
+activities in place, as far as the posted turns agree with the stored ones by
+id. An activity belongs to the run of the prompt before it: it is kept when the
+message after it is kept, or is the next prompt, or when nothing follows it.
+So an edited prompt keeps the activities of the turns before it, and a
+resubmitted prompt drops those of the run it replaces. A client that posts
+activities itself keeps exactly what it posted. This changes only what is
+stored: the model sees the history the client posted.
 
 **A fork keeps the source's ids.** A run forked into a new thread stores the
 earlier messages under the ids the source thread holds for them, so one id can

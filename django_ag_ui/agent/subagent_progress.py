@@ -25,7 +25,7 @@ between: one event per tool call it makes and one per result it gets back.
 
 ## The value
 
-Every event carries the same five keys::
+A tool step carries the same five keys::
 
     {
       "delegationId": "call_abc123",
@@ -43,7 +43,8 @@ Every event carries the same five keys::
   something the client has never heard of. It is also the value the lifecycle
   events carry as ``parentToolCallId``, which is what joins the two carriers.
 - ``agent`` is the sub-agent's name, as the parent model asked for it.
-- ``phase`` is ``tool_call`` or ``tool_result``. Any number of the pair sit
+- ``phase`` is ``tool_call`` or ``tool_result`` on a tool step (the task phases
+  are below). Any number of the pair sit
   between the ``SUBAGENT_STARTED`` that opens the delegation and the
   ``SUBAGENT_FINISHED`` / ``SUBAGENT_ERROR`` that closes it.
 - ``status`` is a rendered one-line summary. **A client that never expands a row
@@ -51,15 +52,14 @@ Every event carries the same five keys::
   costs no client-side assembly and no phase-to-wording table. A client that
   wants its own wording (a localised UI) builds it from the structured keys and
   ignores this one.
-- ``tool`` always has all three keys. ``ok`` is ``null`` on ``tool_call`` (the
-  call has not returned yet), ``true`` on a result the child accepted, and
-  ``false`` on one it did not -- which pydantic-ai surfaces to the child as a
-  retry, and which the ``status`` line calls *failed*, because that is what a
-  reader watching the row sees happen. A client rendering its own wording should
-  follow ``status``; ``ok`` is the machine-readable half of the same fact.
-  Sending the key as ``null`` rather than omitting it keeps the shape fixed, so
-  a client can create the row on ``tool_call`` and update it in place on
-  ``tool_result``.
+- ``tool`` has all three keys on a tool step and is ``null`` on a task step. ``ok`` is
+  ``null`` on ``tool_call`` (the call has not returned yet), ``true`` on a result the
+  child accepted, and ``false`` on one it did not -- which pydantic-ai surfaces to the
+  child as a retry, and which the ``status`` line calls *failed*, because that is what a
+  reader watching the row sees happen. A client rendering its own wording should follow
+  ``status``; ``ok`` is the machine-readable half of the same fact. Sending the key as
+  ``null`` rather than omitting it keeps the shape fixed, so a client can create the row
+  on ``tool_call`` and update it in place on ``tool_result``.
 
   Note that the ``null`` survives on the wire, and it is worth knowing why it
   is safe to rely on. From 0.1.21 the protocol omits an unset optional field
@@ -69,20 +69,27 @@ Every event carries the same five keys::
 **The child's text output is deliberately absent.** Progress is a status line,
 not a second transcript.
 
-## Why ``CUSTOM``, still, for these two
+## Task-control steps
 
-The lifecycle moved to the protocol's own events and these did not, and the
-reason is the one that chose ``CUSTOM`` in the first place: **lifetime**.
+Under ``SubAgents(task_control=...)`` a task's own moments are steps too:
+``phase`` is ``backgrounded``, ``steered``, ``question``, ``answered``,
+``cancel_requested`` or ``retried``, ``tool`` is ``null``, and a sixth key,
+``task``, names the task (``taskId``) plus what that moment adds -- ``reason``,
+``questionId``, ``forced`` or ``attempt``. The steering message, the question and
+the answer are not sent: the step says that it happened, not what was said.
 
-The protocol *does* have a way to say "the child called a tool" -- an ordinary
-``TOOL_CALL_START`` tagged with ``subagentRunId``. But ``@ag-ui/client``
-materialises those into ``agent.messages`` exactly as it does the parent's own,
-the transport persists the message list wholesale, and the replay path re-fires
-it on every thread restore. **Replayed progress is a lie**: a run that finished
-last week would redraw "working, step 4 of 8" on every reload of the thread.
-The three lifecycle events have no such problem -- the client dispatches them to
-callbacks and never pushes them into ``messages`` -- which is precisely why they
-were adoptable and these are not.
+## Why ``CUSTOM`` beside the tagged tool calls
+
+The child's tool calls also go out on the protocol's own vocabulary, ordinary
+``TOOL_CALL_*`` events tagged with ``subagentRunId`` (``subagent_tool_calls``),
+so a client that renders sub-agent tool calls natively has them. They do not
+replace these steps, and the reason is **lifetime**: ``@ag-ui/client``
+materialises tagged tool calls into ``agent.messages`` as it does the parent's
+own, and the replay path re-fires the message list on every thread restore.
+**Replayed progress is a lie**: a run that finished last week would redraw
+"working, step 4 of 8" on every reload. A ``CUSTOM`` step is dispatched to
+callbacks and never pushed into ``messages``, so it is the carrier for a live
+status line.
 
 **``ACTIVITY_SNAPSHOT`` is for content; ``CUSTOM`` is for an imperative.**
 Progress is the second -- it has no meaning once acted on. That is also the
@@ -95,15 +102,29 @@ echoed back to the model as though it were something the model had said.
 """
 
 
+_StepPhase = Literal[
+    "tool_call",
+    "tool_result",
+    "backgrounded",
+    "steered",
+    "question",
+    "answered",
+    "cancel_requested",
+    "retried",
+]
+"""The ``phase`` values a step event carries: two tool phases, then the task-control ones."""
+
+
 def subagent_progress(
     *,
     delegation_id: str,
     agent: str,
-    phase: Literal["tool_call", "tool_result"],
+    phase: _StepPhase,
     status: str,
-    tool_call_id: str,
-    tool_name: str,
+    tool_call_id: str | None = None,
+    tool_name: str | None = None,
     ok: bool | None = None,
+    task: dict[str, Any] | None = None,
 ) -> CustomEvent:
     """One step event for the delegation ``delegation_id``."""
     value: dict[str, Any] = {
@@ -111,8 +132,12 @@ def subagent_progress(
         "agent": agent,
         "phase": phase,
         "status": status,
-        "tool": {"toolCallId": tool_call_id, "name": tool_name, "ok": ok},
+        "tool": None
+        if tool_call_id is None
+        else {"toolCallId": tool_call_id, "name": tool_name, "ok": ok},
     }
+    if task is not None:
+        value["task"] = task
     return CustomEvent(name=SUBAGENT_EVENT_NAME, value=value, timestamp=event_timestamp())
 
 

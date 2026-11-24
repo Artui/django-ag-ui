@@ -7,6 +7,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.90.0] — 2026-11-24
+
+### Added
+
+- **`SubAgentObserver` follows `SubAgents(task_control=...)` tasks.** With task control a
+  delegation opens when the task's run starts (`TaskStartedEvent`) and closes when it
+  settles: `SUBAGENT_FINISHED` for a completed task, `SUBAGENT_ERROR` for a failed one,
+  and `SUBAGENT_ERROR` with `code: "cancelled"` for a cancelled one. Backgrounding,
+  steering, a question, its answer, a cancellation request and a remote retry are new
+  `ag_ui.subagent` steps (`backgrounded`, `steered`, `question`, `answered`,
+  `cancel_requested`, `retried`) with `tool: null` and a `task` key naming the task. The
+  steering message, the question and the answer are not sent. A resumed task opens a new
+  delegation with a fresh `subagentRunId`. Built on the harness's current event names
+  (`TaskSteeredEvent`, `TaskQuestionAskedEvent`, `TaskCancelRequestedEvent` and the rest).
+  See [Task control](https://artui.github.io/django-ag-ui/subagents/#task-control).
+- **A child's tool calls also ride the protocol's `TOOL_CALL_*` events**, tagged with the
+  delegation's `subagentRunId`, between its `SUBAGENT_STARTED` and its close. The
+  `ag_ui.subagent` `CUSTOM` steps stay beside them as the carrier for a live status line.
+  **A host on the web component takes 0.15.0 or newer before adopting this release:** older
+  releases draw each tagged child call as the parent's own tool card and dispatch it after the
+  run, so a child tool named like a frontend tool would run in the browser.
+  See [The same tool calls also ride tagged `TOOL_CALL_*` events](https://artui.github.io/django-ag-ui/subagents/#the-same-tool-calls-also-ride-tagged-tool_call_-events).
+- **An assistant message carries its citations.** pydantic-ai's `TextPart.citations` reached
+  neither the stream nor the stored conversation. `TEXT_MESSAGE_END` now carries them at
+  `metadata.citations`, which `@ag-ui/client` 1.0 folds onto the assistant message, and the
+  stored assistant message carries the same key. The value is a list of pydantic-ai's
+  `Citation` in its JSON form: `sources` (`{kind: "web", url, title, excerpts}` or
+  `{kind: "document", document_id, title, excerpts}`) and `anchor`
+  (`{kind: "content" | "marker", start, end}`, or `null` when the provider gave no position).
+  `start` and `end` count UTF-16 code units into the message's whole `content`, so
+  `content.slice(start, end)` is the range in JavaScript. A message with no citations has no
+  such key. The stored copy indexes the stored text, which joins a file part's two sides with a
+  newline where the stream sends two messages. The model never sees citations from history.
+  The web component does not draw them yet. See
+  [An assistant message carries its citations](https://artui.github.io/django-ag-ui/concepts/#an-assistant-message-carries-its-citations).
+
+### Changed
+
+- **A message a run took in through `RunContext.enqueue` is stored as the activity it
+  streamed as.** pydantic-ai streams each delivery as an `ACTIVITY_SNAPSHOT` of type
+  `pydantic_ai_enqueued_messages`, under the id `enqueue` returned. The web component draws
+  it as user bubbles captioned "Added during the run". The stored conversation held it as a
+  plain `role: user` message under a fresh id instead. So a reload showed a tool's words as the
+  user's own, uncaptioned, and a reloaded client posted them back as the user's prompt. A
+  completed run now stores each delivery the stream showed as that activity, under that id
+  with that content. This covers both a delivery beside a tool's result and one in a request
+  of its own, including after `set_enqueue_priority`. A delivery the dump does not hold whole,
+  in stream order, leaves every delivery of the run as dumped. A message removed with
+  `dequeue` never streams and is never stored.
+
+  **What changes for the model.** `@ag-ui/client` leaves activities out of the messages it
+  posts, so after a reload a client no longer sends the delivery back, just as a live client
+  never did. The stored thread still keeps it. A client that does post the activity has it loaded once as the delivered messages.
+  `ENQUEUED_MESSAGES_ACTIVITY_TYPE` in `django_ag_ui.constants` names the type.
+
+- **A sub-agent's tagged messages are never the parent's history.** A tool round tagged with
+  `subagentRunId` is left out of the run's stored conversation. A posted message carrying
+  `subagentRunId` (which `@ag-ui/client` sends back) is dropped before the run loads it, so it
+  never reaches the parent model as its own tool call.
+
+- **A run `DetectLoops` stops names the loop in its error.** A main or headless run that
+  `DetectLoops(action="error")` stops (pydantic-ai-harness's `LoopDetectedError`) records its
+  error as `The run was stopped in a loop (<pattern>): <message>`, the text a stopped child
+  session already ends with, where it recorded the bare message. The run still ends as an
+  error with the same code, and the client still sees the withheld message unless
+  `TOOL_FAILURE.INCLUDE_DETAIL` is on.
+
+- **Requires django-spec-agents 0.27.0** (base, `[mcp]` and `[specs]`), whose
+  `AgentConfig.loop_detection` is the `DetectLoops` a run's loop error comes from. It brings
+  django-service-specs 0.37.0 or newer.
+
+- **Checked on pydantic-ai 2.70 and recorded here.** An assistant message split at reasoning or
+  at compaction is stored under each piece's streamed id.
+
+### Fixed
+
+- **A stored activity survives the next turn's save.** `@ag-ui/client` leaves activities out
+  of the messages it posts, and the save after a client-managed turn stored what was posted.
+  So every compaction, chart, A2UI surface, suggestion and enqueued delivery a thread held was
+  dropped on the next turn. The run now keeps each stored activity in place, as far as the posted
+  turns agree with the stored ones by id. An edited prompt keeps the activities of the turns
+  before it. A resubmitted prompt drops those of the run it replaces. A client that posts
+  activities keeps its own list. Only the stored thread changes, not what the model sees. See
+  [A stored activity survives the next turn](https://artui.github.io/django-ag-ui/concepts/#a-stored-activity-survives-the-next-turn).
+- **A background delegation no longer closes at its receipt.** Under task control,
+  `delegate_task(background=True)` returns while the child keeps running; the observer
+  closed the delegation on that return, so the child's steps arrived after its
+  `SUBAGENT_FINISHED`. It now closes when the task settles.
+- **No delegation is left open at the run's end.** One still open at `RUN_FINISHED` or
+  `RUN_ERROR` is closed first with `SUBAGENT_ERROR` carrying `code: "unfinished"`, since
+  `@ag-ui/client` refuses `RUN_FINISHED` while one is open and a delegation panel would
+  never settle after `RUN_ERROR`. Anything announced after either is dropped.
+
 ## [0.89.0] — 2026-11-24
 
 ### Added
@@ -4980,7 +5073,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.89.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.90.0...HEAD
+[0.90.0]: https://github.com/Artui/django-ag-ui/compare/v0.89.0...v0.90.0
 [0.89.0]: https://github.com/Artui/django-ag-ui/compare/v0.88.1...v0.89.0
 [0.88.1]: https://github.com/Artui/django-ag-ui/compare/v0.88.0...v0.88.1
 [0.88.0]: https://github.com/Artui/django-ag-ui/compare/v0.87.0...v0.88.0

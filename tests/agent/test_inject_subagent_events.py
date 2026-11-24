@@ -6,11 +6,19 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
-from ag_ui.core import BaseEvent, CustomEvent, EventType, TextMessageStartEvent
+from ag_ui.core import (
+    BaseEvent,
+    CustomEvent,
+    EventType,
+    RunErrorEvent,
+    RunFinishedEvent,
+    SubagentErrorEvent,
+    TextMessageStartEvent,
+)
 
 from django_ag_ui.agent.inject_subagent_events import inject_subagent_events
 from django_ag_ui.agent.subagent_lifecycle import subagent_lifecycle
-from django_ag_ui.agent.subagent_observer import SUBAGENT_SINK
+from django_ag_ui.agent.subagent_observer import SUBAGENT_SINK, SUBAGENT_TASKS
 from django_ag_ui.agent.subagent_progress import subagent_progress
 
 _TIMEOUT = 5.0
@@ -222,3 +230,92 @@ async def test_concurrent_runs_do_not_share_a_channel() -> None:
 
     assert first == ["from-a"]
     assert second == ["from-b"]
+
+
+def _open() -> None:
+    """Queue the delegation's opening event, the way the observer does."""
+    sink = SUBAGENT_SINK.get()
+    assert sink is not None
+    sink.put_nowait(subagent_lifecycle(delegation_id="call-1", agent="researcher", phase="started"))
+
+
+async def test_a_delegation_still_open_at_run_finished_is_closed_first() -> None:
+    # @ag-ui/client refuses RUN_FINISHED while a subagentRunId is open.
+    async def upstream() -> AsyncIterator[BaseEvent]:
+        _open()
+        yield _text("a")
+        yield RunFinishedEvent(thread_id="t1", run_id="r1")
+
+    out = await _collect(inject_subagent_events(upstream()))
+
+    assert [event.type for event in out] == [
+        EventType.SUBAGENT_STARTED,
+        EventType.TEXT_MESSAGE_START,
+        EventType.SUBAGENT_ERROR,
+        EventType.RUN_FINISHED,
+    ]
+    assert isinstance(out[2], SubagentErrorEvent)
+    assert (out[2].subagent_run_id, out[2].code) == ("subagent-call-1", "unfinished")
+
+
+async def test_a_delegation_still_open_at_run_error_is_closed_first() -> None:
+    async def upstream() -> AsyncIterator[BaseEvent]:
+        _open()
+        yield _text("a")
+        yield RunErrorEvent(message="the model failed")
+        _close()
+
+    out = await _collect(inject_subagent_events(upstream()))
+
+    assert [event.type for event in out] == [
+        EventType.SUBAGENT_STARTED,
+        EventType.TEXT_MESSAGE_START,
+        EventType.SUBAGENT_ERROR,
+        EventType.RUN_ERROR,
+    ]
+    assert isinstance(out[2], SubagentErrorEvent)
+    assert (out[2].subagent_run_id, out[2].code) == ("subagent-call-1", "unfinished")
+
+
+async def test_a_closed_delegation_is_not_closed_again() -> None:
+    async def upstream() -> AsyncIterator[BaseEvent]:
+        _open()
+        yield _text("a")
+        _close()
+        yield _text("b")
+        yield RunFinishedEvent(thread_id="t1", run_id="r1")
+
+    out = await _collect(inject_subagent_events(upstream()))
+
+    assert [event.type for event in out].count(EventType.SUBAGENT_FINISHED) == 1
+    assert EventType.SUBAGENT_ERROR not in [event.type for event in out]
+
+
+async def test_nothing_announced_after_run_finished_reaches_the_wire() -> None:
+    # The client refuses any event after RUN_FINISHED, so a late close is dropped, not sent.
+    async def upstream() -> AsyncIterator[BaseEvent]:
+        _open()
+        yield RunFinishedEvent(thread_id="t1", run_id="r1")
+        _step("too late")
+        _close()
+
+    out = await _collect(inject_subagent_events(upstream()))
+
+    assert [event.type for event in out] == [
+        EventType.SUBAGENT_STARTED,
+        EventType.SUBAGENT_ERROR,
+        EventType.RUN_FINISHED,
+    ]
+
+
+async def test_the_task_map_is_bound_for_the_stream_and_reset_after() -> None:
+    seen: list[object] = []
+
+    async def upstream() -> AsyncIterator[BaseEvent]:
+        seen.append(SUBAGENT_TASKS.get())
+        yield _text("a")
+
+    await _collect(inject_subagent_events(upstream()))
+
+    assert seen == [{}]
+    assert SUBAGENT_TASKS.get() is None

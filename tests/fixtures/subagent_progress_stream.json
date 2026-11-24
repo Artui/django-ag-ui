@@ -68,6 +68,26 @@
       }
     },
     {
+      "type": "TOOL_CALL_START",
+      "timestamp": 1735689600000,
+      "subagentRunId": "subagent-call-1",
+      "toolCallId": "sub-1",
+      "toolCallName": "lookup_docs"
+    },
+    {
+      "type": "TOOL_CALL_ARGS",
+      "timestamp": 1735689600000,
+      "subagentRunId": "subagent-call-1",
+      "toolCallId": "sub-1",
+      "delta": "{\"query\": \"settlement\"}"
+    },
+    {
+      "type": "TOOL_CALL_END",
+      "timestamp": 1735689600000,
+      "subagentRunId": "subagent-call-1",
+      "toolCallId": "sub-1"
+    },
+    {
       "type": "CUSTOM",
       "timestamp": 1735689600000,
       "name": "ag_ui.subagent",
@@ -82,6 +102,15 @@
           "ok": true
         }
       }
+    },
+    {
+      "type": "TOOL_CALL_RESULT",
+      "timestamp": 1735689600000,
+      "subagentRunId": "subagent-call-1",
+      "messageId": "message-2",
+      "toolCallId": "sub-1",
+      "content": "Three passages mention settlement.",
+      "role": "tool"
     },
     {
       "type": "CUSTOM",
@@ -100,6 +129,26 @@
       }
     },
     {
+      "type": "TOOL_CALL_START",
+      "timestamp": 1735689600000,
+      "subagentRunId": "subagent-call-1",
+      "toolCallId": "sub-2",
+      "toolCallName": "lookup_docs"
+    },
+    {
+      "type": "TOOL_CALL_ARGS",
+      "timestamp": 1735689600000,
+      "subagentRunId": "subagent-call-1",
+      "toolCallId": "sub-2",
+      "delta": "{\"query\": \"\"}"
+    },
+    {
+      "type": "TOOL_CALL_END",
+      "timestamp": 1735689600000,
+      "subagentRunId": "subagent-call-1",
+      "toolCallId": "sub-2"
+    },
+    {
       "type": "CUSTOM",
       "timestamp": 1735689600000,
       "name": "ag_ui.subagent",
@@ -116,6 +165,15 @@
       }
     },
     {
+      "type": "TOOL_CALL_RESULT",
+      "timestamp": 1735689600000,
+      "subagentRunId": "subagent-call-1",
+      "messageId": "message-3",
+      "toolCallId": "sub-2",
+      "content": "{\"error\":\"Pass the phrase to look up.\"}",
+      "role": "tool"
+    },
+    {
       "type": "SUBAGENT_FINISHED",
       "timestamp": 1735689600000,
       "subagentRunId": "subagent-call-1"
@@ -123,7 +181,7 @@
     {
       "type": "TOOL_CALL_RESULT",
       "timestamp": 1735689600000,
-      "messageId": "message-2",
+      "messageId": "message-4",
       "toolCallId": "call-1",
       "content": "Three passages mention settlement.",
       "role": "tool"
@@ -131,20 +189,20 @@
     {
       "type": "TEXT_MESSAGE_START",
       "timestamp": 1735689600000,
-      "messageId": "message-3",
+      "messageId": "message-5",
       "role": "assistant"
     },
     {
       "type": "TEXT_MESSAGE_END",
       "timestamp": 1735689600000,
-      "messageId": "message-3"
+      "messageId": "message-5"
     },
     {
       "type": "TOOL_CALL_START",
       "timestamp": 1735689600000,
       "toolCallId": "call-2",
       "toolCallName": "delegate_task",
-      "parentMessageId": "message-3"
+      "parentMessageId": "message-5"
     },
     {
       "type": "TOOL_CALL_ARGS",
@@ -173,7 +231,7 @@
     {
       "type": "TOOL_CALL_RESULT",
       "timestamp": 1735689600000,
-      "messageId": "message-4",
+      "messageId": "message-6",
       "toolCallId": "call-2",
       "content": "Sub-agent 'auditor' failed: the auditor model went away",
       "role": "tool"
@@ -182,25 +240,25 @@
       "type": "REASONING_ENCRYPTED_VALUE",
       "timestamp": 1735689600000,
       "subtype": "message",
-      "entityId": "message-4",
+      "entityId": "message-6",
       "encryptedValue": "{\"pydantic_ai\": {\"outcome\": \"retried\", \"retry\": {\"cause\": \"model_retry\", \"attempt\": 1, \"max_retries\": 2}}}"
     },
     {
       "type": "TEXT_MESSAGE_START",
       "timestamp": 1735689600000,
-      "messageId": "message-5",
+      "messageId": "message-7",
       "role": "assistant"
     },
     {
       "type": "TEXT_MESSAGE_CONTENT",
       "timestamp": 1735689600000,
-      "messageId": "message-5",
+      "messageId": "message-7",
       "delta": "The handbook mentions settlement three times; the ledger check did not run."
     },
     {
       "type": "TEXT_MESSAGE_END",
       "timestamp": 1735689600000,
-      "messageId": "message-5"
+      "messageId": "message-7"
     },
     {
       "type": "RUN_FINISHED",

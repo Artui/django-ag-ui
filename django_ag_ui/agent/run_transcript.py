@@ -27,6 +27,9 @@ from ag_ui.core import (
 )
 
 from django_ag_ui.agent.stamp_outcome import OUTCOME_FIELD, stamp_outcome
+from django_ag_ui.constants import ENQUEUED_MESSAGES_ACTIVITY_TYPE
+
+_TOOL_EVENTS = (ToolCallStartEvent, ToolCallArgsEvent, ToolCallEndEvent, ToolCallResultEvent)
 
 _T = TypeVar("_T")
 _S = TypeVar("_S")
@@ -78,7 +81,9 @@ class RunTranscript:
             yield event
 
     def add(self, event: BaseEvent) -> None:
-        """Record one AG-UI event; events that carry no message content are ignored."""
+        """Record one AG-UI event; content-free and sub-agent-tagged tool events are ignored."""
+        if isinstance(event, _TOOL_EVENTS) and event.subagent_run_id is not None:
+            return
         if isinstance(event, TextMessageStartEvent):
             self._draft_for(event.message_id)
         elif isinstance(event, TextMessageContentEvent):
@@ -120,6 +125,7 @@ class RunTranscript:
 
     def with_streamed_ids(self, messages: Sequence[Message]) -> list[Message]:
         """``messages``, each under the id the stream announced for it."""
+        messages = self._as_delivered(messages)
         results: dict[str, deque[str]] = {}
         for item in self._items:
             if isinstance(item, ToolMessage):
@@ -217,6 +223,29 @@ class RunTranscript:
         elif event.replace is not False:
             known.content = event.content
 
+    def _as_delivered(self, messages: Sequence[Message]) -> list[Message]:
+        """``messages`` with each enqueued delivery the stream showed back in its activity."""
+        out = list(messages)
+        start = 0
+        for message_id, activity in self._activities.items():
+            if activity.activity_type != ENQUEUED_MESSAGES_ACTIVITY_TYPE:
+                continue
+            content = activity.content or {}
+            wanted = [_without_id(message) for message in content.get("messages") or []]
+            at = _run_at(out, wanted, start)
+            if at is None:
+                return list(messages)
+            out[at : at + len(wanted)] = [
+                ActivityMessage(
+                    id=message_id,
+                    role="activity",
+                    activity_type=ENQUEUED_MESSAGES_ACTIVITY_TYPE,
+                    content=content,
+                )
+            ]
+            start = at + 1
+        return out
+
     def _activities_by_type(self, messages: Sequence[Message]) -> dict[str, Iterator[str]]:
         """The streamed activity ids to lend, per type ``messages`` dumps an activity of."""
         dumped: dict[str, list[dict[str, Any]]] = {}
@@ -297,6 +326,24 @@ def _by_position(
     if not all(same(text, content) for (_, text), content in zip(streamed, dumped, strict=False)):
         return iter(())
     return iter([message_id for message_id, _ in streamed])
+
+
+def _without_id(message: Any) -> Any:
+    """A dumped message as JSON without its id, which each dump mints afresh."""
+    if isinstance(message, dict):
+        return {key: value for key, value in message.items() if key != "id"}
+    return message.model_dump(mode="json", by_alias=True, exclude_none=True, exclude={"id"})
+
+
+def _run_at(messages: Sequence[Message], wanted: list[Any], start: int) -> int | None:
+    """Where ``wanted`` sits whole in ``messages`` at or past ``start``, or ``None``."""
+    if not wanted:
+        return None
+    for at in range(start, len(messages) - len(wanted) + 1):
+        window = messages[at : at + len(wanted)]
+        if [_without_id(message) for message in window] == wanted:
+            return at
+    return None
 
 
 def _same_text(streamed: str, dumped: str | None) -> bool:

@@ -160,10 +160,34 @@ async def test_the_childs_tool_call_is_named_with_its_outcome() -> None:
 
 async def test_the_progress_arrives_around_the_delegate_tool_call() -> None:
     # Ordering on the wire: the delegation opens after its tool call and closes before its result.
-    types = [event["type"] for event in await _stream()]
+    types = [
+        event["type"]
+        for event in await _stream()
+        if "subagentRunId" not in event or _is_lifecycle(event)
+    ]
 
     assert types.index("TOOL_CALL_END") < types.index("SUBAGENT_STARTED")
     assert types.index("SUBAGENT_FINISHED") < types.index("TOOL_CALL_RESULT")
+
+
+async def test_the_childs_tool_call_also_rides_tagged_tool_call_events() -> None:
+    # The protocol's own carrier for a child's step, inside the delegation it belongs to.
+    events = await _stream()
+    run_id = next(e["subagentRunId"] for e in events if e["type"] == "SUBAGENT_STARTED")
+    inside = [e for e in events if e.get("subagentRunId") == run_id]
+
+    assert [(e["type"], e.get("toolCallId")) for e in inside] == [
+        ("SUBAGENT_STARTED", None),
+        ("TOOL_CALL_START", "sub-1"),
+        ("TOOL_CALL_ARGS", "sub-1"),
+        ("TOOL_CALL_END", "sub-1"),
+        ("TOOL_CALL_RESULT", "sub-1"),
+        ("SUBAGENT_FINISHED", None),
+    ]
+    assert inside[1]["toolCallName"] == "read_handbook"
+    assert json.loads(inside[2]["delta"]) == {"phrase": "settlement"}
+    assert inside[4]["content"] == "Three passages mention settlement."
+    assert "parentMessageId" not in inside[1]
 
 
 async def test_two_delegations_at_once_do_not_cross_talk() -> None:

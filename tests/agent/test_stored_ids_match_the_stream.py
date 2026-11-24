@@ -23,6 +23,7 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from django_ag_ui.agent.agent_session import AgentSession
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
+from django_ag_ui.persistence.utils import messages_from_jsonable
 from tests.agent.test_agent_session import _approval_agent, _approval_run_input
 
 
@@ -55,6 +56,7 @@ def _session(
     *,
     messages: list[dict[str, Any]] | None = None,
     message_history: list[Any] | None = None,
+    stored: list[dict[str, Any]] | None = None,
 ) -> AgentSession:
     payload = {
         "threadId": "t1",
@@ -74,6 +76,7 @@ def _session(
         config=build_ag_ui_config(),
         conversation_store=store,
         message_history=message_history,
+        stored_messages=None if stored is None else messages_from_jsonable(stored),
     )
 
 

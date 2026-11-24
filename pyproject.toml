@@ -122,7 +122,7 @@ dependencies = [
     # ``tests/routines/test_thread_routine.py``.
     # 0.26.0's ``WatchableRunStore.wait`` lets a reader in another process wait on the
     # run log instead of polling it. Held by ``tests/agent/test_reattach.py``.
-    "django-spec-agents>=0.26.0",
+    "django-spec-agents>=0.27.0",
     # Slim core + the AG-UI adapter only — avoids the full meta-package's
     # logfire / fastmcp / temporalio / otel stack. Pick a provider via the
     # extras below (or install the provider lib yourself).
@@ -208,11 +208,11 @@ google = ["pydantic-ai-slim[google]>=2,<3"]
 # Pydantic-AI toolset (``mcp_server=``). Floored with the core dependency
 # above, at 0.26.0, for the reasons given there; its own ``[mcp]`` extra floors
 # django-spec-mcp.
-mcp = ["django-spec-agents[mcp]>=0.26.0"]
+mcp = ["django-spec-agents[mcp]>=0.27.0"]
 # Expose django-service-specs specs directly as agent tools via django-spec-agents'
 # ``spec_tools.SpecCapability`` -- no MCP server in the path (service_specs=).
 # Floored with the core dependency above, at 0.26.0, for the reasons given there.
-specs = ["django-spec-agents[specs]>=0.26.0"]
+specs = ["django-spec-agents[specs]>=0.27.0"]
 # pydantic-ai-harness capabilities (lazy-imported; core stays slim): step
 # persistence, compaction, subagents, and the rest of the graduated set. Attach
 # via capabilities=. Floored at 0.69: ``RelevanceCompaction`` first ships in
@@ -255,7 +255,7 @@ dev = [
     "django-stubs>=5.0",
     # The [specs] and [mcp] extras' backing package, so the spec capability, the
     # spec-mcp bridge and their tests run in dev.
-    "django-spec-agents[specs,mcp]>=0.26.0",
+    "django-spec-agents[specs,mcp]>=0.27.0",
     # The [harness] extra's backing package, so the CodeMode recipe test runs in dev.
     "pydantic-ai-harness[code-mode]>=0.69",
     # The [a2ui] extra's backing package, so the render tool's validation runs in dev.
@@ -351,7 +351,7 @@ root = ["./django_ag_ui"]
 # django_ag_ui/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.89.0"
+current_version = "0.90.0"
 allow_dirty = false
 commit = false
 tag = false

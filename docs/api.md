@@ -67,6 +67,8 @@ is importable directly, e.g. `from django_ag_ui import ToolRegistry`.
 
 ::: django_ag_ui.constants.RUN_HEADLESS_SPEC
 
+::: django_ag_ui.constants.ENQUEUED_MESSAGES_ACTIVITY_TYPE
+
 ::: django_ag_ui.ToolsView
 
 ::: django_ag_ui.build_agent
