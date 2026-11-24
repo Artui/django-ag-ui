@@ -251,7 +251,9 @@ progress belongs to.
     The tagged `TOOL_CALL_*` events are materialised into `agent.messages` too,
     with their `subagentRunId`, which is why the `CUSTOM` steps stay: they are
     the carrier a client can draw as a live status line without it coming back
-    on reload.
+    on reload. The server leaves tagged tool rounds out of the conversation it
+    stores and drops posted messages carrying `subagentRunId` before the run
+    loads them, so the child's calls never read as calls the parent made.
 
 ## Task control
 

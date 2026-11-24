@@ -8,6 +8,9 @@ A2UI_ACTIVITY_TYPE = "a2ui-surface"
 A client that renders A2UI matches on it; one that does not ignores the event.
 """
 
+ENQUEUED_MESSAGES_ACTIVITY_TYPE = "pydantic_ai_enqueued_messages"
+"""``activity_type`` pydantic-ai streams a ``RunContext.enqueue`` delivery under."""
+
 A2UI_RENDER_TOOL_NAME = "render_a2ui"
 """The name the server's A2UI tool is offered under, the middleware's own."""
 

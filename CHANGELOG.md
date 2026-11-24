@@ -25,6 +25,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ag_ui.subagent` `CUSTOM` steps stay beside them as the carrier for a live status line.
   See [The same tool calls also ride tagged `TOOL_CALL_*` events](https://artui.github.io/django-ag-ui/subagents/#the-same-tool-calls-also-ride-tagged-tool_call_-events).
 
+### Changed
+
+- **A message a run took in through `RunContext.enqueue` is stored as the activity it
+  streamed as.** pydantic-ai streams each delivery as an `ACTIVITY_SNAPSHOT` of type
+  `pydantic_ai_enqueued_messages`, under the id `enqueue` returned. The web component draws
+  it as user bubbles captioned "Added during the run". The stored conversation held it as a
+  plain `role: user` message under a fresh id instead. So a reload showed a tool's words as the
+  user's own, uncaptioned, and a reloaded client posted them back as the user's prompt. A
+  completed run now stores each delivery the stream showed as that activity, under that id
+  with that content. This covers both a delivery beside a tool's result and one in a request
+  of its own, including after `set_enqueue_priority`. A delivery the dump does not hold whole,
+  in stream order, leaves every delivery of the run as dumped. A message removed with
+  `dequeue` never streams and is never stored.
+
+  **What changes for the model.** `@ag-ui/client` leaves activities out of the messages it
+  posts, so after a reload a client no longer sends the delivery back, just as a live client
+  never did. A client that does post the activity has it loaded once as the delivered messages.
+  `ENQUEUED_MESSAGES_ACTIVITY_TYPE` in `django_ag_ui.constants` names the type.
+
+- **A sub-agent's tagged messages are never the parent's history.** A tool round tagged with
+  `subagentRunId` is left out of the run's stored conversation. A posted message carrying
+  `subagentRunId` (which `@ag-ui/client` sends back) is dropped before the run loads it, so it
+  never reaches the parent model as its own tool call.
+
+- **Checked on pydantic-ai 2.70 and recorded here.** An assistant message split at reasoning or
+  at compaction is stored under each piece's streamed id. Citations on a `TextPart` reach neither
+  the AG-UI stream nor the stored conversation: the adapter streams only the text, and its dump
+  drops `TextPart.citations`.
+
 ### Fixed
 
 - **A background delegation no longer closes at its receipt.** Under task control,
