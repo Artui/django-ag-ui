@@ -72,6 +72,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   error with the same code, and the client still sees the withheld message unless
   `TOOL_FAILURE.INCLUDE_DETAIL` is on.
 
+- **Requires django-spec-agents 0.27.0** (base, `[mcp]` and `[specs]`), whose
+  `AgentConfig.loop_detection` is the `DetectLoops` a run's loop error comes from. It brings
+  django-service-specs 0.37.0 or newer.
+
 - **Checked on pydantic-ai 2.70 and recorded here.** An assistant message split at reasoning or
   at compaction is stored under each piece's streamed id.
 
