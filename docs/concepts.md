@@ -554,6 +554,19 @@ deleted, overwritten, or describes a different conversation -- is stored under
 a fresh id. Without a conversation store there is no row to read and nothing is
 saved, so there are no stored ids to keep.
 
+**A stored activity survives the next turn.** `@ag-ui/client` leaves every
+activity out of the messages it posts, so a client that managed its own history
+posted the next turn without the thread's compactions, charts, A2UI surfaces,
+suggestions and enqueued deliveries, and the save that followed dropped them.
+The run now reads the thread's stored conversation and keeps each of its
+activities in place, as far as the posted turns agree with the stored ones by
+id. An activity belongs to the run of the prompt before it: it is kept when the
+message after it is kept, or is the next prompt, or when nothing follows it.
+So an edited prompt keeps the activities of the turns before it, and a
+resubmitted prompt drops those of the run it replaces. A client that posts
+activities itself keeps exactly what it posted. This changes only what is
+stored: the model sees the history the client posted.
+
 **A fork keeps the source's ids.** A run forked into a new thread stores the
 earlier messages under the ids the source thread holds for them, so one id can
 name a message in two threads. Key anything you attach to a message, such as a

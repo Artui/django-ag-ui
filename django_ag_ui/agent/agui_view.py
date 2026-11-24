@@ -314,13 +314,16 @@ class DjangoAGUIView:
         message_history, source_messages = prepared
         stored = await self._stored_conversation(request, run_input.thread_id)
         lineage = self.child_capabilities(stored, user_joined=True)
+        stored_messages = None
         if message_history is None:
             run_input = _marked_by_server(run_input, stored)
+            stored_messages = None if stored is None else messages_from_jsonable(stored.messages)
         options = {
             "resume_from": resume_from,
             "a2ui": a2ui,
             "message_history": message_history,
             "source_messages": source_messages,
+            "stored_messages": stored_messages,
             "capabilities": lineage,
         }
         return _Ready(run_input, options)
@@ -406,6 +409,7 @@ class DjangoAGUIView:
         a2ui: Sequence[Any] = (),
         message_history: list[Any] | None = None,
         source_messages: list[Message] | None = None,
+        stored_messages: list[Message] | None = None,
         timeout: float | None = None,
         capabilities: Sequence[Any] = (),
         deferred_tool_results: DeferredToolResults | None = None,
@@ -429,6 +433,7 @@ class DjangoAGUIView:
             conversation_store=self._conversation_store,
             message_history=message_history,
             source_messages=source_messages,
+            stored_messages=stored_messages,
             timeout=timeout,
             deferred_tool_results=deferred_tool_results,
             park=self._park_run(run_input, detached),

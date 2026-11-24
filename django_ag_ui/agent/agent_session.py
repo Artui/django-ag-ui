@@ -46,6 +46,7 @@ from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
 from django_ag_ui.agent.stamp_parent_run_id import stamp_parent_run_id
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
 from django_ag_ui.agent.utils import ERROR_CODE, IDENTIFIER_TOO_LONG_CODE, without_answered_by
+from django_ag_ui.agent.with_stored_activities import with_stored_activities
 from django_ag_ui.agent.without_subagent_messages import without_subagent_messages
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.utils import messages_to_jsonable
@@ -74,6 +75,10 @@ class AgentSession:
     the source thread's stored conversation, if there is one, and the snapshot's
     messages are stored under the ids it holds for them rather than fresh ones.
 
+    Outside a resume, ``stored_messages`` is the thread's stored conversation: the
+    save keeps each activity in it that the client left out of the messages it
+    posted, as far as the posted turns agree with the stored ones.
+
     With ``park``, a run that ends on deferred calls it names finishes ``WAITING``.
     """
 
@@ -89,6 +94,7 @@ class AgentSession:
         conversation_store: ConversationStore,
         message_history: list[ModelMessage] | None = None,
         source_messages: list[Message] | None = None,
+        stored_messages: list[Message] | None = None,
         model: Any = None,
         instructions: str | None = None,
         toolsets: list[Any] | None = None,
@@ -116,6 +122,7 @@ class AgentSession:
         self._conversation_store = conversation_store
         self._message_history = message_history
         self._source_messages = source_messages
+        self._stored_messages = stored_messages or []
         self._deferred_tool_results = deferred_tool_results
         self._prior: list[Message] | None = None
         self._refusal = compacted_away_turn(message_history, source_messages, run_input.messages)
@@ -273,7 +280,9 @@ class AgentSession:
         """Everything before this run's own output, in the client's own shape."""
         if self._prior is None:
             if self._message_history is None:
-                self._prior = list(self._run_input.messages)
+                self._prior = with_stored_activities(
+                    self._run_input.messages, self._stored_messages
+                )
             else:
                 history, new_turn = continued_history(
                     self._message_history, self._run_input.messages

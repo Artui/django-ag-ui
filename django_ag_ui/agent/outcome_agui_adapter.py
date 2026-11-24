@@ -9,7 +9,6 @@ from ag_ui.core import (
     Message,
     RunAgentInput,
     RunErrorEvent,
-    TextMessageEndEvent,
     ToolCallResultEvent,
     ToolMessage,
 )
@@ -91,9 +90,7 @@ class _OutcomeEventStream(AGUIEventStream[Any, Any]):
         at, self._text = len(self._text), self._text + part.content
         self._citations += message_citations(self._text, at, part.citations or [])
         async for event in super().handle_text_end(part, followed_by_text):
-            if isinstance(event, TextMessageEndEvent):
-                event = stamp_citations(event, self._citations)
-            yield event
+            yield stamp_citations(event, self._citations)
 
     def handle_function_tool_result(
         self, event: FunctionToolResultEvent

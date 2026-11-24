@@ -54,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   **What changes for the model.** `@ag-ui/client` leaves activities out of the messages it
   posts, so after a reload a client no longer sends the delivery back, just as a live client
-  never did. A client that does post the activity has it loaded once as the delivered messages.
+  never did. The stored thread keeps it (see Fixed). A client that does post the activity has it loaded once as the delivered messages.
   `ENQUEUED_MESSAGES_ACTIVITY_TYPE` in `django_ag_ui.constants` names the type.
 
 - **A sub-agent's tagged messages are never the parent's history.** A tool round tagged with
@@ -67,6 +67,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A stored activity survives the next turn's save.** `@ag-ui/client` leaves activities out
+  of the messages it posts, and the save after a client-managed turn stored what was posted.
+  So every compaction, chart, A2UI surface, suggestion and enqueued delivery a thread held was
+  dropped on the next turn. The run now keeps each stored activity in place, as far as the posted
+  turns agree with the stored ones by id. An edited prompt keeps the activities of the turns
+  before it. A resubmitted prompt drops those of the run it replaces. A client that posts
+  activities keeps its own list. Only the stored thread changes, not what the model sees. See
+  [A stored activity survives the next turn](https://artui.github.io/django-ag-ui/concepts/#a-stored-activity-survives-the-next-turn).
 - **A background delegation no longer closes at its receipt.** Under task control,
   `delegate_task(background=True)` returns while the child keeps running; the observer
   closed the delegation on that return, so the child's steps arrived after its
