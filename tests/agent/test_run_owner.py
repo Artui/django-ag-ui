@@ -10,11 +10,13 @@ import pytest
 from ag_ui.core import (
     AssistantMessage,
     BaseEvent,
+    ReasoningMessageContentEvent,
     RunAgentInput,
     RunErrorEvent,
     RunFinishedEvent,
     RunStartedEvent,
     TextMessageContentEvent,
+    ToolCallArgsEvent,
     UserMessage,
 )
 from django_spec_agents.persistence.types.run_claim import RunClaim
@@ -175,6 +177,35 @@ async def test_consecutive_deltas_of_one_message_log_as_one() -> None:
         ("RUN_FINISHED", None),
     ]
     assert store.finished == [RunOutcome.COMPLETED]
+
+
+async def test_a_long_tool_calls_argument_deltas_log_merged() -> None:
+    store = _Store()
+    pieces = ['{"city":', ' "Os', 'lo"', ', "days":', " 3}"]
+    args = [ToolCallArgsEvent(tool_call_id="c1", delta=piece) for piece in pieces]
+    other = ToolCallArgsEvent(tool_call_id="c2", delta="{}")
+    owner = _owner(_events(RunStartedEvent(thread_id="t1", run_id="r1"), *args, other), store=store)
+
+    assert await owner.wait() is RunOutcome.COMPLETED
+
+    assert [(e["type"], e.get("toolCallId"), e.get("delta")) for e in store.logged] == [
+        ("RUN_STARTED", None, None),
+        ("TOOL_CALL_ARGS", "c1", "".join(pieces)),
+        ("TOOL_CALL_ARGS", "c2", "{}"),
+    ]
+
+
+async def test_reasoning_deltas_log_merged_and_apart_from_text_of_the_same_id() -> None:
+    store = _Store()
+    thinking = [ReasoningMessageContentEvent(message_id="m1", delta=d) for d in ("a", "b", "c")]
+    owner = _owner(_events(*thinking, _text("x"), _text("y")), store=store)
+
+    assert await owner.wait() is RunOutcome.COMPLETED
+
+    assert [(e["type"], e["delta"]) for e in store.logged] == [
+        ("REASONING_MESSAGE_CONTENT", "abc"),
+        ("TEXT_MESSAGE_CONTENT", "xy"),
+    ]
 
 
 async def test_an_owner_given_no_run_input_logs_a_run_started_as_it_came() -> None:

@@ -42,6 +42,7 @@ _KNOWN_SETTINGS: frozenset[str] = frozenset(
         "FORWARD_REASONING",
         "HEARTBEAT_SECONDS",
         "INCLUDE_USAGE",
+        "LIVE_REATTACH",
         "MANAGE_SYSTEM_PROMPT",
         "MODEL",
         "MODEL_SETTINGS",

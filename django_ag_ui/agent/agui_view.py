@@ -58,6 +58,7 @@ from django_ag_ui.agent.build_a2ui_toolset import build_a2ui_toolset
 from django_ag_ui.agent.build_mcp_bridge import build_mcp_bridge
 from django_ag_ui.agent.compacted_away_turn import compacted_away_turn
 from django_ag_ui.agent.lend_answered_by import lend_answered_by
+from django_ag_ui.agent.live_runs import LiveRuns
 from django_ag_ui.agent.park_run import ParkRun
 from django_ag_ui.agent.queued_browser_start import QueuedBrowserStart
 from django_ag_ui.agent.run_owner import RunOwner
@@ -195,6 +196,7 @@ class DjangoAGUIView:
         reject_async_throttle(throttle, allows="run")
         self._throttle = throttle
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
+        self._live_runs = LiveRuns() if self._config.live_reattach else None
         self._require_authenticated = require_authenticated
         self._get_user = get_user
         self._authorize_predicate = authorize
@@ -243,7 +245,9 @@ class DjangoAGUIView:
             stored = StoredBrowserInput(body=body, resume_from=resume_from, resume_parked=parked)
             return await self._enqueue(request, run_input, stored)
         session = self._session(request, ready.run_input, detached=detached, **ready.options)
-        owner = session.own(None if refuses else self._owning_store(request))
+        owner = session.own(
+            None if refuses else self._owning_store(request), live_runs=self._live_runs
+        )
         if not refuses:
             refused = await self._claim(owner, request, run_input, resume_from if parked else None)
             if refused is not None:
@@ -278,7 +282,7 @@ class DjangoAGUIView:
                 request, ready.run_input, timeout=timeout, detached=True, **ready.options
             )
             refuses = ready.refusal is not None
-            owner = session.own(None if refuses else store)
+            owner = session.own(None if refuses else store, live_runs=self._live_runs)
             if refuses:
                 await give_back(store, run_input.thread_id, run_input.run_id, request=request)
             if after_finish is not None:
@@ -380,7 +384,7 @@ class DjangoAGUIView:
                 deferred_tool_results=deferred,
                 parent_run_id=parent_run_id,
             )
-            owner = session.own(store)
+            owner = session.own(store, live_runs=self._live_runs)
             if after_finish is not None:
                 owner.after_finish(after_finish)
             await owner.detach()
@@ -468,6 +472,11 @@ class DjangoAGUIView:
             return await self._conversation_store.load(thread_id, request=request)
         except AnonymousOperationError:
             return None
+
+    @property
+    def live_runs(self) -> LiveRuns | None:
+        """The runs this view owns, for a reattach to follow; ``None`` with live reattach off."""
+        return self._live_runs
 
     def _owning_store(self, request: HttpRequest) -> RunStore | None:
         """The run store this request's run is owned through; none for an anonymous run."""

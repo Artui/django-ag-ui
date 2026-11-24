@@ -18,6 +18,7 @@ from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.agent.replay_head import replay_head
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.agent.test_events_view import _body, _drain, _factory, _Gate, _route, _settled, _started
+from tests.agent.test_live_runs import _logged, _start, _Steps
 from tests.agent.test_replay_head import SUBAGENT_RUN, log_of
 
 _HARNESS = Path(__file__).parent.parent / "fixtures" / "replay_verify"
@@ -161,3 +162,41 @@ def test_a_subagents_replay_from_every_seq_passes_the_real_client(tmp_path: Path
     assert {name: r.get("error") for name, r in results.items() if not r["ok"]} == {}
     for name, result in results.items():
         assert result["messages"] == results["live"]["messages"], name
+
+
+@pytest.mark.parametrize("live_reattach", [True, False])
+@pytest.mark.django_db(transaction=True)
+async def test_a_reattach_mid_run_from_every_seq_passes_the_real_client(
+    tmp_path: Path, live_reattach: bool
+) -> None:
+    steps, run_store = _Steps(), DefaultRunStore()
+    config = build_ag_ui_config(
+        heartbeat_seconds=0, run_timeout_seconds=300, live_reattach=live_reattach
+    )
+    server = AGUIServer(
+        ToolRegistry(),
+        model=steps.model(),
+        csrf_exempt=True,
+        conversation_store=DefaultConversationStore(),
+        run_store=run_store,
+        config=config,
+    )
+    request, stream = await _start(server)
+    replays: list[asyncio.Future[str]] = []
+    for gate in steps.gates[0]:
+        logged = await _logged(run_store, request, 2)
+        replays += [asyncio.ensure_future(_replay(server, a)) for a in range(logged + 2)]
+        await asyncio.sleep(0.05)
+        gate.set()
+        await asyncio.sleep(0.05)
+    async for _chunk in stream:
+        pass
+    cases = {"after": {"streams": [await _replay(server, 0)], "messages": []}}
+    cases |= {f"midrun-{i}": {"streams": [await r], "messages": []} for i, r in enumerate(replays)}
+
+    results = _verify(cases, tmp_path)["results"]
+
+    assert {name: r.get("error") for name, r in results.items() if not r["ok"]} == {}
+    for name, result in results.items():
+        assert result["messages"] == results["after"]["messages"], name
+    assert [m["role"] for m in results["after"]["messages"]] == ["user", "reasoning", "assistant"]

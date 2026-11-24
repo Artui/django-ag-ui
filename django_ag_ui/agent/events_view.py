@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from datetime import timedelta
 from typing import Any, cast
 
 from asgiref.sync import markcoroutinefunction
@@ -19,9 +20,12 @@ from django_spec_agents.persistence.types.conversation_store import Conversation
 from django_spec_agents.persistence.types.run_log_entry import RunLogEntry
 from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.types.thread_run_state import ThreadRunState
+from django_spec_agents.persistence.types.watchable_run_store import WatchableRunStore
 from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize, auth_error_response
 
 from django_ag_ui.agent.heartbeat_stream import heartbeat_stream
+from django_ag_ui.agent.live_feed import LiveBatch, LiveFeed
+from django_ag_ui.agent.live_runs import LiveRuns
 from django_ag_ui.agent.replay_head import replay_head
 from django_ag_ui.agent.utils import is_queued_input
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
@@ -32,13 +36,14 @@ _TERMINAL = frozenset({"RUN_FINISHED", "RUN_ERROR"})
 _PAGE_LIMIT = 100
 _MAX_PAGE_LIMIT = 500
 _POLL_SECONDS = 0.5
+_WAIT = timedelta(seconds=10)
 _UNFINISHED = "the run ended without finishing"
 
 
 class EventsView:
     """``threads/<id>/events/``: a run's log replayed then tailed as SSE, or paged as JSON.
 
-    It reads only the run store, so any process can serve it."""
+    Any process can serve it from the run store; the owning one follows its live feed."""
 
     def __init__(
         self,
@@ -50,8 +55,11 @@ class EventsView:
         authorize: AuthorizePredicate | None = None,
         csrf_exempt: bool | None = None,
         config: AGUIConfig | None = None,
+        live_runs: LiveRuns | None = None,
     ) -> None:
         self._runs = run_store
+        self._watch = run_store if isinstance(run_store, WatchableRunStore) else None
+        self._live = live_runs
         self._conversations = conversation_store
         self._config: AGUIConfig = config if config is not None else build_ag_ui_config()
         self._require_authenticated = require_authenticated
@@ -121,9 +129,13 @@ class EventsView:
     ) -> HttpResponseBase:
         # The transcript first: a run that ends between the reads is then still in its log.
         stored = await self._conversations.load(thread_id, request=request)
-        log = _kept(await self._runs.read(run_id, request=request))
         messages = [] if stored is None else stored.messages
-        frames = self._frames(request, thread_id, run_id, log, messages, after)
+        feed = None if self._live is None else self._live.find(request, thread_id, run_id)
+        if feed is not None:
+            frames = self._followed(request, thread_id, run_id, messages, after, feed)
+        else:
+            log = _kept(await self._runs.read(run_id, request=request))
+            frames = self._frames(request, thread_id, run_id, log, messages, after)
         encoded: AsyncIterator[str] = frames
         if self._config.heartbeat_seconds > 0:
             encoded = heartbeat_stream(frames, interval=self._config.heartbeat_seconds)
@@ -141,23 +153,69 @@ class EventsView:
         stored: list[dict[str, Any]],
         after: int,
     ) -> AsyncIterator[str]:
+        woken = False
         while not log:
             state = await self._runs.get(thread_id, request=request)
-            log = _kept(await self._runs.read(run_id, request=request))
+            read = await self._runs.read(run_id, request=request)
+            log = _kept(read)
             if not log and not _live(state, run_id):
                 yield _frame(_run_error(state))
                 return
             if not log:
-                await asyncio.sleep(_POLL_SECONDS)
+                woken = await self._idle(request, run_id, read[-1].seq if read else 0, woken)
         head, cursor = replay_head(log, stored, after=after)
         for event in head:
             yield _frame(event)
         async for entry in self._tail(request, thread_id, run_id, cursor):
             yield entry
 
+    async def _followed(
+        self,
+        request: HttpRequest,
+        thread_id: str,
+        run_id: str,
+        stored: list[dict[str, Any]],
+        after: int,
+        feed: LiveFeed,
+    ) -> AsyncIterator[str]:
+        """Subscribed, the log replayed, then the live feed past it, with no further log read."""
+        queue = feed.subscribe()
+        log = _kept(await self._runs.read(run_id, request=request))
+        if queue is None:
+            async for frame in self._frames(request, thread_id, run_id, log, stored, after):
+                yield frame
+            return
+        try:
+            while not log:
+                first = await queue.get()
+                if first is None:
+                    log = _kept(await self._runs.read(run_id, request=request))
+                    async for frame in self._frames(request, thread_id, run_id, log, stored, after):
+                        yield frame
+                    return
+                log = _kept(first)
+            head, cursor = replay_head(log, stored, after=after)
+            for event in head:
+                yield _frame(event)
+            batch: LiveBatch = log
+            while batch is not None:
+                for entry in _kept(batch):
+                    if entry.seq <= cursor:
+                        continue
+                    yield _frame(entry.event, seq=entry.seq)
+                    cursor = entry.seq
+                    if entry.event.get("type") in _TERMINAL:
+                        return
+                batch = await queue.get()
+            async for frame in self._tail(request, thread_id, run_id, cursor):
+                yield frame
+        finally:
+            feed.unsubscribe(queue)
+
     async def _tail(
         self, request: HttpRequest, thread_id: str, run_id: str, cursor: int
     ) -> AsyncIterator[str]:
+        woken = False
         while True:
             # The state before the read: a run seen ended has every entry in that read.
             state = await self._runs.get(thread_id, request=request)
@@ -171,7 +229,16 @@ class EventsView:
                 yield _frame(_run_error(state))
                 return
             if not entries:
-                await asyncio.sleep(_POLL_SECONDS)
+                woken = await self._idle(request, run_id, cursor, woken)
+            else:
+                woken = False
+
+    async def _idle(self, request: HttpRequest, run_id: str, after: int, woken: bool) -> bool:
+        """Until the log may have moved: the store's wait, or a pause once a wake brought none."""
+        if self._watch is None or woken:
+            await asyncio.sleep(_POLL_SECONDS)
+            return False
+        return await self._watch.wait(run_id, after=after, timeout=_WAIT, request=request)
 
 
 def _kept(entries: list[RunLogEntry]) -> list[RunLogEntry]:
