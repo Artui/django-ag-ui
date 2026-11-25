@@ -258,6 +258,7 @@ def test_every_view_requires_authentication_by_default() -> None:
 @pytest.mark.parametrize("stated", [True, False], ids=["exempt", "enforced"])
 def test_csrf_reaches_every_view_in_the_mount(stated: bool) -> None:
     """One CSRF answer covers the whole mount, not the run endpoint alone."""
+    from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
     from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 
     server = _server(
@@ -267,9 +268,10 @@ def test_csrf_reaches_every_view_in_the_mount(stated: bool) -> None:
         conversation_store=_DummyStore(),
         attachment_store=_DummyAttachmentStore(),
         transcription_backend=_DummyTranscriptionBackend(),
+        run_store=DefaultRunStore(),
     )
     patterns, _, _ = server.urls
-    assert patterns
+    assert {"thread_cancel", "thread_tasks", "thread_task_steer"} <= {p.name for p in patterns}
     for pattern in patterns:
         assert pattern.callback.csrf_exempt is stated, pattern.name
 

@@ -140,6 +140,7 @@ async def test_a_queued_start_holds_its_thread_before_it_returns() -> None:
         "inbox_mark": 0,
         "parent_run_id": "r-parent",
         "routine_id": "7",
+        "prompt_metadata": None,
     }
     assert started == HeadlessStart(thread_id="t1", run_id=started.run_id)
 

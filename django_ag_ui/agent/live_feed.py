@@ -5,6 +5,8 @@ from collections.abc import Callable
 
 from django_spec_agents.persistence.types.run_log_entry import RunLogEntry
 
+from django_ag_ui.agent.live_tasks import LiveTasks
+
 
 class LiveFeed:
     """One live run's logged entries, handed to every reader following it in this process.
@@ -13,6 +15,7 @@ class LiveFeed:
 
     def __init__(self, loop: asyncio.AbstractEventLoop, *, on_close: Callable[[], object]) -> None:
         self.loop = loop
+        self.tasks = LiveTasks(loop)
         self._readers: set[asyncio.Queue[list[RunLogEntry] | None]] = set()
         self._on_close = on_close
         self._closed = False

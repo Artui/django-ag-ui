@@ -258,6 +258,9 @@
     {
       "type": "TEXT_MESSAGE_END",
       "timestamp": 1735689600000,
+      "metadata": {
+        "model_id": "function:function::stream"
+      },
       "messageId": "message-7"
     },
     {

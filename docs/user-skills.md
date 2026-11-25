@@ -140,6 +140,22 @@ A write sends `name`, `description` and `body`, with `userInvocable` and
 `modelInvocable` optional (both default to `true`). `id` is the row's primary key as a
 string.
 
+An entry can also say whose skill it is. Give the policy a `scope` method and every
+entry the editor answers with carries `"scope"`, either `"personal"` or `"shared"`:
+
+```python
+class SkillPolicy:
+    def scope(self, request, skill):
+        return "shared" if skill.owner_id is None else "personal"
+
+    ...
+```
+
+The method is optional, and is the one django-spec-agents' `SkillScoping` protocol
+declares (0.28.0); `SkillPolicy` itself does not require it. A policy without it, or one
+whose method returns `None`, leaves the key out. `scope` describes a skill and grants nothing (`can_write` still decides who
+may save it), a write does not send it, and the `skills/` catalog does not carry it.
+
 Every write goes through the runtime's `create_skill`, `update_skill`, `disable_skill`
 and `enable_skill`, so the rules are the authoring tools' own:
 

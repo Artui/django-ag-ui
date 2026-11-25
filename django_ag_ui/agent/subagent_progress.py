@@ -75,8 +75,11 @@ Under ``SubAgents(task_control=...)`` a task's own moments are steps too:
 ``phase`` is ``backgrounded``, ``steered``, ``question``, ``answered``,
 ``cancel_requested`` or ``retried``, ``tool`` is ``null``, and a sixth key,
 ``task``, names the task (``taskId``) plus what that moment adds -- ``reason``,
-``questionId``, ``forced`` or ``attempt``. The steering message, the question and
-the answer are not sent: the step says that it happened, not what was said.
+``questionId``, ``forced`` or ``attempt``, and what was said: ``message`` on
+``steered``, ``question`` on ``question``, ``answer`` on ``answered``, each cut to
+``TASK_TEXT_LIMIT`` with ``truncated`` beside it when cut. ``source`` on ``steered``,
+``answered`` and ``cancel_requested`` is ``"user"`` for a task route, else ``"model"``
+(the parent model's tool, or a listener that answered).
 
 ## Why ``CUSTOM`` beside the tagged tool calls
 
@@ -115,6 +118,16 @@ _StepPhase = Literal[
 """The ``phase`` values a step event carries: two tool phases, then the task-control ones."""
 
 
+TASK_TEXT_LIMIT = 8000
+
+
+def task_text(key: str, text: str) -> dict[str, Any]:
+    """``{key: text}`` for a task step, cut to ``TASK_TEXT_LIMIT`` with ``truncated`` if it was."""
+    if len(text) <= TASK_TEXT_LIMIT:
+        return {key: text}
+    return {key: text[:TASK_TEXT_LIMIT], "truncated": True}
+
+
 def subagent_progress(
     *,
     delegation_id: str,
@@ -141,4 +154,4 @@ def subagent_progress(
     return CustomEvent(name=SUBAGENT_EVENT_NAME, value=value, timestamp=event_timestamp())
 
 
-__all__ = ["SUBAGENT_EVENT_NAME", "subagent_progress"]
+__all__ = ["SUBAGENT_EVENT_NAME", "TASK_TEXT_LIMIT", "subagent_progress", "task_text"]

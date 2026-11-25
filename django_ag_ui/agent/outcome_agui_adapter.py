@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass, field, fields
-from typing import Any
+from typing import Any, cast
 
 from ag_ui.core import (
+    ActivitySnapshotEvent,
     BaseEvent,
     Message,
     RunAgentInput,
@@ -13,6 +14,7 @@ from ag_ui.core import (
     ToolMessage,
 )
 from pydantic_ai.messages import (
+    EnqueuedMessagesEvent,
     FunctionToolResultEvent,
     ModelMessage,
     ModelResponse,
@@ -34,6 +36,9 @@ from django_ag_ui.agent.message_citations import (
     stamp_citations,
     with_dumped_citations,
 )
+from django_ag_ui.agent.message_model_id import stamp_model_id, with_dumped_model_id
+from django_ag_ui.agent.prompt_metadata import stamp_enqueued_content, with_prompt_metadata
+from django_ag_ui.agent.serving_model_id import ServingModelId
 from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD, stamp_answered_by
 from django_ag_ui.agent.stamp_outcome import stamp_outcome
 from django_ag_ui.agent.utils import run_error_code, run_error_message
@@ -42,8 +47,11 @@ from django_ag_ui.agent.utils import run_error_code, run_error_message
 _RUN_IDENTITY = frozenset({"thread_id", "run_id"})
 
 
+@dataclass
 class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
     """An ``AGUIAdapter`` whose ``TOOL_CALL_RESULT`` events say how the call went."""
+
+    serving_model: ServingModelId = field(default_factory=ServingModelId)
 
     def build_event_stream(self) -> UIEventStream[RunAgentInput, BaseEvent, Any, Any]:
         """Build the outcome-forwarding event stream."""
@@ -53,7 +61,8 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
                 field.name: getattr(upstream, field.name)
                 for field in fields(upstream)
                 if field.init and field.name not in _RUN_IDENTITY
-            }
+            },
+            serving_model=self.serving_model,
         )
 
     @classmethod
@@ -61,19 +70,21 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
         """``AGUIAdapter.dump_messages``, each tool result stamped as the stream stamps it."""
         outcomes = _outcomes_by_call(messages)
         marks = _answered_by_call(messages)
-        dumped = super().dump_messages(messages, **kwargs)
+        dumped = with_prompt_metadata(messages, super().dump_messages(messages, **kwargs))
         return [_with_stored_marks(message, outcomes, marks) for message in dumped]
 
     @staticmethod
     def _dump_response_parts(msg: ModelResponse, **kwargs: Any) -> list[Message]:
-        """Upstream's dump of one response, each assistant message stamped with its citations."""
-        return with_dumped_citations(msg, AGUIAdapter._dump_response_parts(msg, **kwargs))
+        """Upstream's dump of one response, assistant messages stamped with citations and model."""
+        dumped = with_dumped_citations(msg, AGUIAdapter._dump_response_parts(msg, **kwargs))
+        return with_dumped_model_id(msg, dumped)
 
 
 @dataclass
 class _OutcomeEventStream(AGUIEventStream[Any, Any]):
-    """``AGUIEventStream`` stamping tool results with outcomes, text ends with citations."""
+    """``AGUIEventStream`` stamping tool results with outcomes, text ends with citations, model."""
 
+    serving_model: ServingModelId = field(default_factory=ServingModelId)
     _text: str = field(default="", init=False)
     _citations: list[dict[str, Any]] = field(default_factory=list, init=False)
 
@@ -89,8 +100,18 @@ class _OutcomeEventStream(AGUIEventStream[Any, Any]):
     ) -> AsyncIterator[BaseEvent]:
         at, self._text = len(self._text), self._text + part.content
         self._citations += message_citations(self._text, at, part.citations or [])
+        serving = self.serving_model
         async for event in super().handle_text_end(part, followed_by_text):
-            yield stamp_citations(event, self._citations)
+            cited = stamp_citations(event, self._citations)
+            yield stamp_model_id(cited, serving.model_id, fallback=serving.fallback)
+
+    async def handle_enqueued_messages(
+        self, event: EnqueuedMessagesEvent
+    ) -> AsyncIterator[BaseEvent]:
+        async for streamed in super().handle_enqueued_messages(event):
+            activity = cast("ActivitySnapshotEvent", streamed)
+            content = stamp_enqueued_content(event.messages, activity.content)
+            yield activity.model_copy(update={"content": content})
 
     def handle_function_tool_result(
         self, event: FunctionToolResultEvent

@@ -52,6 +52,8 @@ class AGUIHeadlessRunner:
     found in the mount whose id is its scope, or, in an unscoped store, its parent's mount.
     """
 
+    accepts_prompt_metadata = True
+
     def __init__(
         self,
         *servers: AGUIServer,
@@ -97,6 +99,7 @@ class AGUIHeadlessRunner:
         answers: Mapping[str, str] | None = None,
         parent_run_id: str | None = None,
         routine_id: str | None = None,
+        prompt_metadata: Mapping[str, str] | None = None,
     ) -> HeadlessStart:
         """Start the run and return once it has claimed its thread; it goes on elsewhere."""
         if self._queue is not None:
@@ -113,9 +116,10 @@ class AGUIHeadlessRunner:
                 answers,
                 parent_run_id,
                 routine_id,
+                prompt_metadata,
             )
         server, request, run_input = self._prepare(
-            agent_id, prompt, principal, timeout, thread_id, answers=answers
+            agent_id, prompt, principal, timeout, thread_id, answers=answers, mark=prompt_metadata
         )
         await server.start_headless(
             request,
@@ -146,10 +150,18 @@ class AGUIHeadlessRunner:
         answers: Mapping[str, str] | None = None,
         parent_run_id: str | None = None,
         routine_id: str | None = None,
+        prompt_metadata: Mapping[str, str] | None = None,
     ) -> RunStop:
         """Run until it ends; a ``run_id`` takes up the claim a queued ``start`` made."""
         server, request, run_input = self._prepare(
-            agent_id, prompt, principal, timeout, thread_id, run_id, answers=answers
+            agent_id,
+            prompt,
+            principal,
+            timeout,
+            thread_id,
+            run_id,
+            answers=answers,
+            mark=prompt_metadata,
         )
         thread, run = run_input.thread_id, run_input.run_id
         if run_id is not None and not await server.take_up_queued(request, thread, run):
@@ -267,6 +279,7 @@ class AGUIHeadlessRunner:
         answers: Mapping[str, str] | None,
         parent_run_id: str | None,
         routine_id: str | None,
+        prompt_metadata: Mapping[str, str] | None,
     ) -> HeadlessStart:
         if capabilities:
             raise ValueError(
@@ -298,6 +311,7 @@ class AGUIHeadlessRunner:
             mark,
             parent_run_id,
             routine_id,
+            None if prompt_metadata is None else dict(prompt_metadata),
         )
         params = dataclasses.asdict(firing)
         try:
@@ -319,6 +333,7 @@ class AGUIHeadlessRunner:
         run_id: str | None = None,
         *,
         answers: Mapping[str, str] | None = None,
+        mark: Mapping[str, str] | None = None,
     ) -> tuple[AGUIServer, Any, RunAgentInput]:
         if not timeout > 0:
             raise ValueError(f"a headless run needs a positive timeout=, not {timeout!r}")
@@ -328,7 +343,7 @@ class AGUIHeadlessRunner:
             thread_id=thread_id or uuid.uuid4().hex,
             run_id=run_id or uuid.uuid4().hex,
             state=None,
-            messages=[] if answers else [UserMessage(id=uuid.uuid4().hex, content=prompt)],
+            messages=[] if answers else [_prompt(prompt, mark)],
             tools=[],
             context=[],
             forwarded_props=None,
@@ -367,6 +382,8 @@ class AGUIHeadlessRunner:
 class _RunsToFirstStop:
     """Wakes by running to the first stop, for a run whose loop may end once it returns."""
 
+    accepts_prompt_metadata = True
+
     def __init__(self, runner: AGUIHeadlessRunner) -> None:
         self._runner = runner
 
@@ -375,6 +392,12 @@ class _RunsToFirstStop:
     ) -> HeadlessStart:
         stop = await self._runner.run_to_first_stop(agent_id, prompt, principal, **options)
         return HeadlessStart(thread_id=stop.thread_id, run_id=stop.run_id)
+
+
+def _prompt(prompt: str, mark: Mapping[str, str] | None) -> UserMessage:
+    """The run's new user message, carrying ``mark`` as metadata the model never sees."""
+    metadata = None if mark is None else dict(mark)
+    return UserMessage(id=uuid.uuid4().hex, content=prompt, metadata=metadata)
 
 
 __all__ = ["AGUIHeadlessRunner"]

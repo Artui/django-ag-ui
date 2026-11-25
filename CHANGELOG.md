@@ -7,6 +7,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.91.0] — 2026-11-25
+
+### Added
+
+- **An assistant message names the model that answered it, under the `metadata` key
+  `model_id`**, both on its `TEXT_MESSAGE_END` and on the stored assistant message, beside
+  `citations`. The value is pydantic-ai's `ModelResponse.model_id` (the configured id, such
+  as `"openai:gpt-5"`), so a run that `ModelFallback` (or django-spec-agents'
+  `build_model_fallback`) moved to another model names the fallback model, and each response
+  names its own. The key is left out when pydantic-ai reports no id and on an assistant
+  message holding only tool calls. **`model_fallback: true` rides beside it when a model
+  other than the request's first one answered** (the step's first attempt, normally the
+  agent's own model), and is absent otherwise, so a client can show the model only for a
+  fallback answer. A turn split into several messages carries both keys on every piece. The
+  mark is also kept on the response's own `ModelResponse.metadata` under the same key, so a
+  stored copy and a replay of server-held history keep it. See
+  [An assistant message names the model that gave it](https://artui.github.io/django-ag-ui/concepts/#an-assistant-message-names-the-model-that-gave-it).
+- **A message no user wrote says where it came from, under the `metadata` keys `origin`
+  and `task`.** `AGUIHeadlessRunner.start` and `run_to_first_stop` take
+  `prompt_metadata=` and declare it with `accepts_prompt_metadata = True`, so
+  django-spec-agents' `wake_thread` passes `{"origin": "wake"}`, and store it as the
+  `metadata` of the run's user message, through a queued firing too.
+  Each user entry of an enqueued-messages activity carries the metadata its part's
+  `TextContent` was built with, which pydantic-ai drops: a child's report carries
+  `origin: "task_output"` and a question `origin: "task_question"`, with `task` naming the
+  task and holding the plain `body`, while `content` stays the framed text the model saw.
+  The stored activity and a replay of server-held history keep both. Needs
+  django-spec-agents 0.28.0. See
+  [A message no user wrote says where it came from](https://artui.github.io/django-ag-ui/detached-runs/#a-message-no-user-wrote-says-where-it-came-from).
+- **A skill editor entry says whose skill it is.** A skill policy may define an optional
+  `scope(request, skill)` method, the one method of django-spec-agents' `SkillScoping`
+  protocol (0.28.0). Each entry the `skills/editor/` endpoint answers with
+  then carries the key `scope`, whose value is `"personal"` or `"shared"`. A policy
+  without the method serves entries without the key, and so does a method that returns
+  `None`. The `skills/` catalog is unchanged. See
+  [User skills](https://artui.github.io/django-ag-ui/user-skills/#the-editor).
+- **A user can steer, answer and cancel a live run's sub-agent tasks.** With a `run_store`,
+  the mount serves four routes beside `threads/<id>/cancel/`, under the mount's own auth,
+  CSRF and owner scope:
+  `threads/<id>/tasks/` (`GET`, name `thread_tasks`),
+  `threads/<id>/tasks/<task_id>/steer/` (`POST`, `thread_task_steer`),
+  `threads/<id>/tasks/<task_id>/answer/` (`POST`, `thread_task_answer`) and
+  `threads/<id>/tasks/<task_id>/cancel/` (`POST`, `thread_task_cancel`). `<task_id>` is the
+  `taskId` the `ag_ui.subagent` steps carry.
+  - **Request bodies, snake_case:** `steer/` takes `{"message": str}`; `answer/` takes
+    `{"question_id": str, "answer": str}`, where `question_id` is the step's `questionId`;
+    `cancel/` takes `{"force": bool}`, default `false`. `force: false` stops the task before
+    its next model request, and `force: true` stops it at once. Text over 8000 characters is
+    refused.
+  - **Answers:** a `POST` answers `202` with an acknowledgement only, and the state arrives
+    on the stream:
+    - `{"thread_id", "task_id", "steered": true}`;
+    - `{"thread_id", "task_id", "answered": true}`;
+    - `{"thread_id", "task_id", "cancel_requested": true, "forced": bool}`.
+
+    `GET` answers `200` with `{"thread_id", "run_id", "tasks": [...]}`. It lists each
+    running top-level task this process can control (a remote task is not listed) as
+    `{"task_id", "delegation_id", "agent", "status", "background", "question"}`. `question` is `null`, or `{"question_id", "question"}` with `truncated`
+    when the question was cut.
+  - **Refusals:** each is `{"error", "reason", "thread_id"}`, plus `"task_id"` on the
+    per-task routes, where `error` is a sentence and `reason` is a code a client can word:
+    - `400` `invalid`: the body is not a JSON object, or a field is the wrong type, blank
+      or too long;
+    - `404` `no_run`: the thread has no run in progress;
+    - `404` `not_live_here`: the run is not live in this process;
+    - `404` `no_task`: the run has no top-level task by that id that it delegated;
+    - `409` `not_running`: the task has finished;
+    - `409` `not_waiting`: the task is not waiting on that `question_id`;
+    - `409` `remote`: the task runs on a remote worker.
+
+    An anonymous caller gets `401` (`403` on a mount with `require_authenticated=False`,
+    which has no owner to scope the run to), and the wrong method gets `405`.
+  - **Where it reaches:** a live run and a detached run, both in the process serving the
+    request, from any event loop. A run in another process, such as a queued-run worker or
+    another web worker, answers `404` `not_live_here`; `threads/<id>/cancel/` still stops
+    the whole run from anywhere.
+  - **Bypassed checks:** a user's control does not pass through the harness listeners that
+    may veto the model's own `message_task`, `answer_task` and `cancel_task`.
+  - **What is not on offer:** a finished task is not resumed, and a nested task is not
+    reachable.
+
+  See [Task controls](https://artui.github.io/django-ag-ui/subagents/#task-controls).
+
+### Changed
+
+- **The `ag_ui.subagent` task steps carry the text, and say who acted.** This reverses
+  0.90.0's "only that it happened". New keys inside `task`:
+  - `steered` gains `message`, the steering text;
+  - `question` gains `question`, the child's question;
+  - `answered` gains `answer`;
+  - `steered`, `answered` and `cancel_requested` gain `source`: `"model"` when the run itself
+    acted (the parent model's tool, or a harness listener that answered a question),
+    `"user"` when a task route did.
+
+  Each text is cut to 8000 characters, with `truncated: true` beside it when cut. The
+  `status` line of a user's act reads `<agent>: steered by you`, `<agent>: answered by you`
+  or `<agent>: cancellation requested by you`. The steps are logged like every event, so
+  the text persists in the run log and replays through `threads/<id>/events/`. It is still
+  never materialised into messages.
+
+- **Requires django-spec-agents 0.28.0** (base, `[mcp]` and `[specs]`), whose
+  `HeadlessFiring.prompt_metadata` carries the wake line's mark across a queue, whose
+  `wake_thread` passes it to a runner that declares `PromptMetadataRunner`, and whose
+  `report_frame` builds the marked report parts.
+
 ## [0.90.0] — 2026-11-24
 
 ### Added
@@ -5073,7 +5178,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.90.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.91.0...HEAD
+[0.91.0]: https://github.com/Artui/django-ag-ui/compare/v0.90.0...v0.91.0
 [0.90.0]: https://github.com/Artui/django-ag-ui/compare/v0.89.0...v0.90.0
 [0.89.0]: https://github.com/Artui/django-ag-ui/compare/v0.88.1...v0.89.0
 [0.88.1]: https://github.com/Artui/django-ag-ui/compare/v0.88.0...v0.88.1
