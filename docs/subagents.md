@@ -346,8 +346,8 @@ What each route does:
   `force: true` stops it at once. The task settles as a `SUBAGENT_ERROR` with
   `code: "cancelled"`.
 - **`GET`** lists each running top-level task this process can control (a remote task is
-  not listed) as `{"task_id", "delegation_id", "agent",
-  "status", "background", "question"}`. `question` is `null`, or
+  not listed) as
+  `{"task_id", "delegation_id", "agent", "status", "background", "question"}`. `question` is `null`, or
   `{"question_id", "question"}` with `truncated` when it was cut. It is for a page that
   has no log to replay. A page that reattaches through `events/` already has the steps.
 

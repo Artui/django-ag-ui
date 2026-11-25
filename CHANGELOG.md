@@ -61,8 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `{"thread_id", "task_id", "cancel_requested": true, "forced": bool}`.
 
     `GET` answers `200` with `{"thread_id", "run_id", "tasks": [...]}`. It lists each
-    running top-level task this process can control (a remote task is not listed) as `{"task_id", "delegation_id", "agent", "status", "background",
-    "question"}`. `question` is `null`, or `{"question_id", "question"}` with `truncated`
+    running top-level task this process can control (a remote task is not listed) as
+    `{"task_id", "delegation_id", "agent", "status", "background", "question"}`. `question` is `null`, or `{"question_id", "question"}` with `truncated`
     when the question was cut.
   - **Refusals:** each is `{"error", "reason", "thread_id"}`, plus `"task_id"` on the
     per-task routes, where `error` is a sentence and `reason` is a code a client can word:

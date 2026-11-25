@@ -123,7 +123,7 @@ dependencies = [
     # 0.26.0's ``WatchableRunStore.wait`` lets a reader in another process wait on the
     # run log instead of polling it. Held by ``tests/agent/test_reattach.py``.
     # 0.27.0's ``AgentConfig.loop_detection`` is the ``DetectLoops`` a run's loop error
-    # names. Held by ``tests/agent/test_a_loop_stop_names_the_loop.py``.
+    # names. Held by ``tests/agent/test_loop_detection_config_names_the_loop.py``.
     # 0.28.0's ``HeadlessFiring.prompt_metadata`` and ``PromptMetadataRunner`` carry the
     # wake line's mark, and its ``report_frame`` marks a report. Held by
     # ``tests/agent/test_report_marks_are_kept.py`` and ``tests/agent/test_queued_start.py``.
