@@ -322,3 +322,58 @@ def test_a_flagged_update_is_a_400_and_leaves_the_skill_as_it_was() -> None:
 def test_an_unflagged_write_through_a_scanning_policy_is_created() -> None:
     ann = member("ann", Tenant.objects.create(name="acme"))
     assert _mounted_editor()(request_as(ann, "post", _DRAFT)).status_code == 201
+
+
+class ScopingPolicy(TenantSkillPolicy):
+    def scope(self, request: Any, skill: TenantSkill) -> str:
+        return "shared" if skill.owner_id is None else "personal"
+
+
+@pytest.mark.parametrize("mounted", [False, True])
+def test_the_entry_carries_the_policy_scope(mounted: bool) -> None:
+    acme = Tenant.objects.create(name="acme")
+    boss = member("boss", acme, admin=True)
+    skill(acme, "house-style")
+    skill(acme, "mine", boss)
+    policy: Any = ScopingPolicy()
+    if mounted:
+        policy = ReservingPolicy(policy, ())
+    response = SkillEditorView(policy)(request_as(boss))
+    entries = json.loads(response.content)["skills"]
+    assert {e["name"]: e["scope"] for e in entries} == {"house-style": "shared", "mine": "personal"}
+
+
+def test_every_write_answers_with_the_scope() -> None:
+    ann = member("ann", Tenant.objects.create(name="acme"))
+    view = SkillEditorView(ScopingPolicy())
+    created = json.loads(view(request_as(ann, "post", _DRAFT)).content)
+    replaced = json.loads(view(request_as(ann, "put", _DRAFT), created["id"]).content)
+    off = json.loads(view(request_as(ann, "patch", {"enabled": False}), created["id"]).content)
+    on = json.loads(view(request_as(ann, "patch", {"enabled": True}), created["id"]).content)
+    assert [e.get("scope") for e in (created, replaced, off, on)] == ["personal"] * 4
+
+
+@pytest.mark.parametrize("mounted", [False, True])
+def test_a_policy_without_scope_serves_entries_without_the_key(mounted: bool) -> None:
+    acme = Tenant.objects.create(name="acme")
+    ann = member("ann", acme)
+    skill(acme, "mine", ann)
+    policy: Any = TenantSkillPolicy()
+    if mounted:
+        policy = ReservingPolicy(policy, ())
+    response = SkillEditorView(policy)(request_as(ann))
+    assert response.status_code == 200
+    [entry] = json.loads(response.content)["skills"]
+    assert "scope" not in entry
+
+
+def test_a_scope_of_none_leaves_the_key_out() -> None:
+    class Unsaid(TenantSkillPolicy):
+        def scope(self, request: Any, skill: TenantSkill) -> None:
+            return None
+
+    acme = Tenant.objects.create(name="acme")
+    ann = member("ann", acme)
+    skill(acme, "mine", ann)
+    [entry] = json.loads(SkillEditorView(Unsaid())(request_as(ann)).content)["skills"]
+    assert "scope" not in entry

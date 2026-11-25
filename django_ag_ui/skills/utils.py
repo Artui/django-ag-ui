@@ -36,6 +36,10 @@ class ReservingPolicy:
     def scanner(self) -> Any:
         return getattr(self.policy, "scanner", None)
 
+    @property
+    def scope(self) -> Any:
+        return getattr(self.policy, "scope", None)
+
     def visible(self, request: HttpRequest) -> Iterable[Any]:
         return self.policy.visible(request)
 
