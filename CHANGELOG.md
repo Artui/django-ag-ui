@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now carries the id, citations and `model_id` its `TEXT_MESSAGE_END` carried; a tool call
   after the file part rides on the second piece, as it streamed. Server-held history dumps the
   same two pieces, so a resumed run keeps the stored ids.
+- **A thread whose stored history holds an empty user message can be continued.** A stored
+  user prompt whose content is an empty list, or holds only a `CachePoint`, raised
+  `IndexError` while the history was rebuilt for the next run, so the run failed. Such a
+  message now stays in the history as stored and is never taken for the turn the client
+  resubmitted.
 
 ## [0.91.0] — 2026-11-25
 
