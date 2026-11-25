@@ -80,3 +80,11 @@ def test_only_a_stored_answer_is_taken_for_the_pieces() -> None:
     dumped: list[Any] = [_text("p1", "B"), _text("p2", "C")]
 
     assert with_stored_joins(dumped, [_user("X", "B\nC")]) == dumped
+
+
+def test_a_calls_row_is_never_taken_for_text_pieces() -> None:
+    call = ToolCall(id="c1", type="function", function=FunctionCall(name="t", arguments="{}"))
+    calls = AssistantMessage(id="X", role="assistant", content="B\nC", tool_calls=[call])
+    dumped: list[Any] = [_text("p1", "B"), _text("p2", "C")]
+
+    assert with_stored_joins(dumped, [calls]) == dumped

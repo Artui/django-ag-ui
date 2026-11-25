@@ -13,19 +13,19 @@ def with_stored_joins(messages: Sequence[Message], stored: Sequence[Message]) ->
     out: list[Message] = []
     at = 0
     while at < len(messages):
-        key, end = _row_at(messages, at, joined, texts)
-        if key is None:
+        found = _row_at(messages, at, joined, texts)
+        if found is None:
             out.append(messages[at])
             at += 1
             continue
-        out.append(joined.pop(key))
-        at = end
+        out.append(joined.pop(found[0]))
+        at = found[1]
     return out
 
 
 def _row_at(
     messages: Sequence[Message], at: int, joined: Container[Any], texts: Container[Any]
-) -> tuple[str | None, int]:
+) -> tuple[str, int] | None:
     """The joined text the pieces from ``at`` spell, and where they end; pieces stored alone win."""
     pieces: list[str] = []
     for end in range(at, len(messages)):
@@ -35,7 +35,7 @@ def _row_at(
         pieces.append(message.content or "")
         if (key := "\n".join(pieces)) in joined:
             return key, end + 1
-    return None, at
+    return None
 
 
 def _is_text(message: Message) -> TypeGuard[AssistantMessage]:
