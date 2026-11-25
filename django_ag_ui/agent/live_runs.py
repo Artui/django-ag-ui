@@ -6,6 +6,7 @@ from django.http import HttpRequest
 from django_spec_agents.persistence.utils import owner_id_for
 
 from django_ag_ui.agent.live_feed import LiveFeed
+from django_ag_ui.agent.live_tasks import LiveTasks
 
 _Key = tuple[str, str, str]
 
@@ -35,6 +36,12 @@ class LiveRuns:
         if feed is None or feed.loop is not asyncio.get_running_loop():
             return None
         return feed
+
+    def find_tasks(self, request: HttpRequest, thread_id: str, run_id: str) -> LiveTasks | None:
+        """The run's task control if it is live here, on any loop: the control hops to its own."""
+        key = _key(request, thread_id, run_id)
+        feed = None if key is None else self._feeds.get(key)
+        return None if feed is None else feed.tasks
 
 
 def _key(request: HttpRequest, thread_id: str, run_id: str) -> _Key | None:

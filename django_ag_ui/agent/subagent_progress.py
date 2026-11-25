@@ -75,8 +75,10 @@ Under ``SubAgents(task_control=...)`` a task's own moments are steps too:
 ``phase`` is ``backgrounded``, ``steered``, ``question``, ``answered``,
 ``cancel_requested`` or ``retried``, ``tool`` is ``null``, and a sixth key,
 ``task``, names the task (``taskId``) plus what that moment adds -- ``reason``,
-``questionId``, ``forced`` or ``attempt``. The steering message, the question and
-the answer are not sent: the step says that it happened, not what was said.
+``questionId``, ``forced`` or ``attempt``, and what was said: ``message`` on
+``steered``, ``question`` on ``question``, ``answer`` on ``answered``, each cut to
+``TASK_TEXT_LIMIT`` with ``truncated`` beside it when cut. ``source`` on ``steered``,
+``answered`` and ``cancel_requested`` is ``"model"`` or ``"user"``: who acted.
 
 ## Why ``CUSTOM`` beside the tagged tool calls
 

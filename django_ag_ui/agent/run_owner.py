@@ -28,6 +28,7 @@ from pydantic_ai import CancellationToken
 from django_ag_ui.agent.continued_history import continued_history
 from django_ag_ui.agent.live_feed import LiveFeed
 from django_ag_ui.agent.live_runs import LiveRuns
+from django_ag_ui.agent.live_tasks import RUN_TASKS
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
 from django_ag_ui.agent.utils import STREAM_END, claim_thread, discard_tasks
 from django_ag_ui.constants import RUN_LEASE
@@ -149,6 +150,7 @@ class RunOwner:
         if self._store is not None and self._live_runs is not None:
             assert self._request is not None
             self._feed = self._live_runs.open(self._request, self._thread_id, self._run_id)
+            RUN_TASKS.set(None if self._feed is None else self._feed.tasks)
         try:
             async for event in self._events:
                 if isinstance(event, RunErrorEvent):

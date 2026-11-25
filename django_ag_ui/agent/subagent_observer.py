@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterable
 from contextvars import ContextVar
-from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from ag_ui.core import BaseEvent
@@ -12,9 +11,12 @@ from pydantic_ai import CapabilityEvent
 from pydantic_ai.capabilities import WrapperCapability
 from pydantic_ai.messages import FunctionToolCallEvent, FunctionToolResultEvent
 
+from django_ag_ui.agent.live_tasks import RUN_TASKS
 from django_ag_ui.agent.subagent_lifecycle import subagent_lifecycle
 from django_ag_ui.agent.subagent_progress import subagent_progress
 from django_ag_ui.agent.subagent_tool_calls import subagent_tool_calls
+from django_ag_ui.agent.types.subagent_delegation import SubAgentDelegation
+from django_ag_ui.agent.utils import task_text
 
 # The per-run channel the observer announces onto, drained by
 # ``inject_subagent_events`` while it forwards the AG-UI stream.
@@ -38,14 +40,6 @@ SUBAGENT_SINK: ContextVar[asyncio.Queue[BaseEvent] | None] = ContextVar(
 )
 
 
-@dataclass(frozen=True)
-class _Delegation:
-    """The delegation a child run belongs to, as the client will key it."""
-
-    delegation_id: str
-    agent: str
-
-
 # The delegation currently executing on this task. Set by ``wrap_tool_execute``
 # before the child run starts and read by the event-stream handler once it does.
 #
@@ -56,7 +50,7 @@ class _Delegation:
 # and because pydantic-ai runs concurrent tool calls in their own tasks, each
 # of two parallel delegations writes into its own copy of the context rather
 # than over the other's.
-_DELEGATION: ContextVar[_Delegation | None] = ContextVar(
+_DELEGATION: ContextVar[SubAgentDelegation | None] = ContextVar(
     "django_ag_ui_subagent_delegation", default=None
 )
 
@@ -66,7 +60,7 @@ _TASK_KINDS = ("sub_agents.task_",)
 # Only ``TaskAssignedEvent`` / ``TaskResumedEvent`` carry the delegate call; the task's later
 # events carry its task id alone, so this is how they find the card they belong to. A dict
 # shared by reference, so a steer from another tool call's task sees the same entries.
-SUBAGENT_TASKS: ContextVar[dict[str, _Delegation] | None] = ContextVar(
+SUBAGENT_TASKS: ContextVar[dict[str, SubAgentDelegation] | None] = ContextVar(
     "django_ag_ui_subagent_tasks", default=None
 )
 
@@ -173,12 +167,13 @@ class SubAgentObserver(WrapperCapability[Any]):
             return await super().wrap_tool_execute(
                 ctx, call=call, tool_def=tool_def, args=args, handler=handler
             )
-        delegation = _Delegation(
+        delegation = SubAgentDelegation(
             delegation_id=call.tool_call_id,
             agent=str(args.get("agent_name", "")),
         )
         token = _DELEGATION.set(delegation)
         if self._task_controlled:
+            self._hand_over()
             try:
                 return await super().wrap_tool_execute(
                     ctx, call=call, tool_def=tool_def, args=args, handler=handler
@@ -198,6 +193,17 @@ class SubAgentObserver(WrapperCapability[Any]):
             return result
         finally:
             _DELEGATION.reset(token)
+
+    def _hand_over(self) -> None:
+        """Give the run's live task handle its task owner, sink and cards, for the routes."""
+        live, sink, tasks = RUN_TASKS.get(), SUBAGENT_SINK.get(), SUBAGENT_TASKS.get()
+        if live is None or sink is None or tasks is None:
+            return
+        from pydantic_ai_harness.sub_agents import DelegationTasks
+
+        control = cast("Any", self.wrapped).task_control
+        remote = [agent.name for agent in control.remote_agents]
+        live.attach(DelegationTasks.current(), sink=sink, cards=tasks, remote=remote)
 
     async def on_event(self, ctx: Any, *, event: Any) -> None:
         """Report a task-control event, then hand it on to the wrapped capability."""
@@ -264,7 +270,9 @@ def _report_task(event: CapabilityEvent) -> None:
         return
     if isinstance(event, TaskRequestEvent):
         delegation_id = event.tool_call_id or event.task_id
-        tasks[event.task_id] = _Delegation(delegation_id=delegation_id, agent=event.agent_name)
+        tasks[event.task_id] = SubAgentDelegation(
+            delegation_id=delegation_id, agent=event.agent_name
+        )
         return
     task_id: str = cast("Any", event).task_id
     delegation = tasks.get(task_id)
@@ -292,7 +300,14 @@ def _report_task(event: CapabilityEvent) -> None:
             reason=event.reason,
         )
     elif isinstance(event, TaskSteeredEvent):
-        _step(delegation, task_id, "steered", f"{agent}: steered")
+        _step(
+            delegation,
+            task_id,
+            "steered",
+            f"{agent}: steered",
+            **task_text("message", event.message),
+            source="model",
+        )
     elif isinstance(event, TaskQuestionAskedEvent):
         _step(
             delegation,
@@ -300,6 +315,7 @@ def _report_task(event: CapabilityEvent) -> None:
             "question",
             f"{agent}: asked a question",
             questionId=event.question_id,
+            **task_text("question", event.question),
         )
     elif isinstance(event, TaskAnsweredEvent):
         _step(
@@ -308,6 +324,8 @@ def _report_task(event: CapabilityEvent) -> None:
             "answered",
             f"{agent}: question answered",
             questionId=event.question_id,
+            **task_text("answer", event.answer),
+            source="model",
         )
     elif isinstance(event, TaskCancelRequestedEvent | TaskForceCancelRequestedEvent):
         forced = isinstance(event, TaskForceCancelRequestedEvent)
@@ -317,6 +335,7 @@ def _report_task(event: CapabilityEvent) -> None:
             "cancel_requested",
             f"{agent}: cancellation requested",
             forced=forced,
+            source="model",
         )
     elif isinstance(event, TaskRetriedEvent):
         _step(
@@ -328,7 +347,9 @@ def _report_task(event: CapabilityEvent) -> None:
         )
 
 
-def _step(delegation: _Delegation, task_id: str, phase: Any, status: str, **task: Any) -> None:
+def _step(
+    delegation: SubAgentDelegation, task_id: str, phase: Any, status: str, **task: Any
+) -> None:
     """Queue a task-control step for ``delegation``, naming its task."""
     _emit(
         subagent_progress(
@@ -342,7 +363,7 @@ def _step(delegation: _Delegation, task_id: str, phase: Any, status: str, **task
 
 
 def _lifecycle(
-    delegation: _Delegation, *, phase: Literal["started", "finished", "failed", "cancelled"]
+    delegation: SubAgentDelegation, *, phase: Literal["started", "finished", "failed", "cancelled"]
 ) -> BaseEvent:
     """The protocol event opening or closing ``delegation``."""
     return subagent_lifecycle(
