@@ -9,9 +9,9 @@ import pytest
 from ag_ui.core import BaseEvent
 
 from django_ag_ui.agent.live_tasks import LiveTasks
+from django_ag_ui.agent.subagent_progress import TASK_TEXT_LIMIT, task_text
 from django_ag_ui.agent.task_control_refused import TaskControlRefused
 from django_ag_ui.agent.types.subagent_delegation import SubAgentDelegation
-from django_ag_ui.agent.utils import TASK_TEXT_LIMIT, task_text
 
 
 class _Owner:
@@ -168,12 +168,12 @@ async def test_a_task_that_cannot_be_controlled_is_refused_with_its_reason() -> 
     assert owner.calls == []
 
 
-async def test_a_settled_tasks_card_is_gone_and_it_reads_as_not_running() -> None:
+async def test_a_running_task_with_no_card_is_not_one_this_run_can_reach() -> None:
     owner = _Owner(t1=_record())
     live, _ = _live(owner)
     owner.records["t9"] = _record()
 
-    assert await _refusal(live.steer("t9", "x")) == (409, "not_running")
+    assert await _refusal(live.steer("t9", "x")) == (404, "no_task")
 
 
 async def test_a_handle_nobody_attached_has_no_tasks() -> None:

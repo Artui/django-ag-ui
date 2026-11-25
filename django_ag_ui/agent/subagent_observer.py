@@ -13,10 +13,9 @@ from pydantic_ai.messages import FunctionToolCallEvent, FunctionToolResultEvent
 
 from django_ag_ui.agent.live_tasks import RUN_TASKS
 from django_ag_ui.agent.subagent_lifecycle import subagent_lifecycle
-from django_ag_ui.agent.subagent_progress import subagent_progress
+from django_ag_ui.agent.subagent_progress import subagent_progress, task_text
 from django_ag_ui.agent.subagent_tool_calls import subagent_tool_calls
 from django_ag_ui.agent.types.subagent_delegation import SubAgentDelegation
-from django_ag_ui.agent.utils import task_text
 
 # The per-run channel the observer announces onto, drained by
 # ``inject_subagent_events`` while it forwards the AG-UI stream.

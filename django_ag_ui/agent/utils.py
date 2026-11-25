@@ -216,16 +216,6 @@ async def give_back(store: RunStore, thread_id: str, run_id: str, *, request: Ht
     await store.finish(thread_id, run_id, RunOutcome.ERROR, request=request)
 
 
-TASK_TEXT_LIMIT = 8000
-
-
-def task_text(key: str, text: str) -> dict[str, Any]:
-    """``{key: text}`` for a task step, cut to ``TASK_TEXT_LIMIT`` with ``truncated`` if it was."""
-    if len(text) <= TASK_TEXT_LIMIT:
-        return {key: text}
-    return {key: text[:TASK_TEXT_LIMIT], "truncated": True}
-
-
 __all__ = [
     "answered_calls",
     "claim_headless",
@@ -243,12 +233,10 @@ __all__ = [
     "RUN_ERROR_CODES",
     "run_error_message",
     "STREAM_END",
-    "TASK_TEXT_LIMIT",
     "TIMED_OUT_CODE",
     "a2ui_validator",
     "discard_tasks",
     "pump_in_lockstep",
     "run_error_code",
-    "task_text",
     "without_answered_by",
 ]

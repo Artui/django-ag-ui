@@ -64,18 +64,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     running top-level task as `{"task_id", "delegation_id", "agent", "status", "background",
     "question"}`. `question` is `null`, or `{"question_id", "question"}` with `truncated`
     when the question was cut.
-  - **Refusals:** each is `{"error", "reason", "thread_id", "task_id"}`, where `error` is a
-    sentence and `reason` is a code a client can word:
+  - **Refusals:** each is `{"error", "reason", "thread_id"}`, plus `"task_id"` on the
+    per-task routes, where `error` is a sentence and `reason` is a code a client can word:
     - `400` `invalid`: the body is not a JSON object, or a field is the wrong type, blank
       or too long;
     - `404` `no_run`: the thread has no run in progress;
     - `404` `not_live_here`: the run is not live in this process;
-    - `404` `no_task`: the run has no top-level task by that id;
+    - `404` `no_task`: the run has no top-level task by that id that it delegated;
     - `409` `not_running`: the task has finished;
     - `409` `not_waiting`: the task is not waiting on that `question_id`;
     - `409` `remote`: the task runs on a remote worker.
 
-    `403` is an anonymous caller, and `405` the wrong method.
+    An anonymous caller gets `401` (`403` on a mount with `require_authenticated=False`,
+    which has no owner to scope the run to), and the wrong method gets `405`.
   - **Where it reaches:** a live run and a detached run, both in the process serving the
     request, from any event loop. A run in another process, such as a queued-run worker or
     another web worker, answers `404` `not_live_here`; `threads/<id>/cancel/` still stops

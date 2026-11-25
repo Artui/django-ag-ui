@@ -150,7 +150,7 @@ class RunOwner:
         if self._store is not None and self._live_runs is not None:
             assert self._request is not None
             self._feed = self._live_runs.open(self._request, self._thread_id, self._run_id)
-            RUN_TASKS.set(None if self._feed is None else self._feed.tasks)
+        RUN_TASKS.set(None if self._feed is None else self._feed.tasks)
         try:
             async for event in self._events:
                 if isinstance(event, RunErrorEvent):

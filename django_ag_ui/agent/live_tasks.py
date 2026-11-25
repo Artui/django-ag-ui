@@ -7,10 +7,9 @@ from typing import Any, TypeVar
 
 from ag_ui.core import BaseEvent
 
-from django_ag_ui.agent.subagent_progress import subagent_progress
+from django_ag_ui.agent.subagent_progress import subagent_progress, task_text
 from django_ag_ui.agent.task_control_refused import TaskControlRefused
 from django_ag_ui.agent.types.subagent_delegation import SubAgentDelegation
-from django_ag_ui.agent.utils import task_text
 
 _T = TypeVar("_T")
 
@@ -117,8 +116,10 @@ class LiveTasks:
         delegation = self._cards.get(task_id)
         if record is None or record.parent_id is not None:
             raise TaskControlRefused(404, "no_task", "the run has no task by that id")
-        if record.status != "running" or delegation is None:
+        if record.status != "running":
             raise TaskControlRefused(409, "not_running", "the task is not running")
+        if delegation is None:
+            raise TaskControlRefused(404, "no_task", "the run has no task by that id")
         if record.agent_name in self._remote:
             raise TaskControlRefused(409, "remote", "the task runs on a remote worker")
         return record, delegation

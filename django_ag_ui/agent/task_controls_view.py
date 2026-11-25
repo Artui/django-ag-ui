@@ -12,8 +12,8 @@ from django_spec_agents.utils import AuthorizePredicate, GetUser, aauthorize, au
 
 from django_ag_ui.agent.live_runs import LiveRuns
 from django_ag_ui.agent.live_tasks import LiveTasks
+from django_ag_ui.agent.subagent_progress import TASK_TEXT_LIMIT
 from django_ag_ui.agent.task_control_refused import TaskControlRefused
-from django_ag_ui.agent.utils import TASK_TEXT_LIMIT
 from django_ag_ui.resolve_csrf_exempt import resolve_csrf_exempt
 from django_ag_ui.warn_if_csrf_unstated import warn_if_csrf_unstated
 

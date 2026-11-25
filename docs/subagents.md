@@ -352,8 +352,8 @@ What each route does:
 **A `POST` acknowledges and nothing more.** What it did arrives on the run's stream as the
 step above, with `source: "user"`, so a live chat and a reattached one draw the same thing.
 
-A refusal is `{"error", "reason", "thread_id", "task_id"}`. `error` is a sentence for an
-operator; `reason` is a code a client can word.
+A refusal is `{"error", "reason", "thread_id"}`, with `"task_id"` on the per-task routes.
+`error` is a sentence for an operator; `reason` is a code a client can word.
 
 | Status | `reason` | When |
 | --- | --- | --- |
@@ -365,7 +365,8 @@ operator; `reason` is a code a client can word.
 | `409` | `not_waiting` | the task is not waiting on that `question_id` |
 | `409` | `remote` | the task runs on a remote worker (`TaskControl.remote_agents`), which these routes do not reach |
 
-An anonymous caller gets `403`, and the wrong method gets `405`.
+An anonymous caller gets `401`; on a mount built with `require_authenticated=False` it gets
+`403`, since the run has no owner to scope it to. The wrong method gets `405`.
 
 **Only a run live in this process is reached.** The harness keeps task control in memory,
 on the run's own `DelegationTasks`, so the routes reach a run that the process serving the

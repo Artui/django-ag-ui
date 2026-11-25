@@ -24,6 +24,7 @@ from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from pydantic_ai import CancellationToken
 
 import django_ag_ui.agent.run_owner as run_owner_module
+from django_ag_ui.agent.live_tasks import RUN_TASKS, LiveTasks
 from django_ag_ui.agent.run_owner import RunOwner
 
 
@@ -485,3 +486,19 @@ async def test_an_append_that_raises_after_the_end_does_not_finalize_again(
         assert await owner.wait() is RunOutcome.ERROR
 
     assert closed == ["provider stream"]
+
+
+async def test_a_run_with_no_live_feed_never_inherits_its_starters_task_handle() -> None:
+    seen: list[Any] = []
+
+    async def events() -> AsyncIterator[Any]:
+        seen.append(RUN_TASKS.get())
+        yield RunFinishedEvent(thread_id="t1", run_id="r1")
+
+    token = RUN_TASKS.set(LiveTasks(asyncio.get_running_loop()))
+    try:
+        await _owner(events(), store=None).start()
+    finally:
+        RUN_TASKS.reset(token)
+
+    assert seen == [None]

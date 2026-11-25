@@ -275,7 +275,7 @@ async def test_the_wrong_method_and_a_denied_caller_are_refused() -> None:
 
     assert (listed.status_code, listed["Allow"]) == (405, "GET")
     assert (steer.status_code, steer["Allow"]) == (405, "POST")
-    assert denied.status_code in (401, 403)
+    assert denied.status_code == 401
 
 
 @pytest.mark.django_db(transaction=True)
