@@ -60,8 +60,6 @@ def with_dumped_citations(response: ModelResponse, dumped: list[Message]) -> lis
                 start = 0
             elif at is not None and content.startswith(text, at):
                 start = at
-            elif at is not None and content.startswith("\n" + text, at):
-                start = at + 1
             else:
                 break
             cited += message_citations(content, start, texts[taken].citations or [])

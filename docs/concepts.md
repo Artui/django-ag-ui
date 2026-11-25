@@ -265,11 +265,11 @@ message are offset by the text before them. A message with no citations has no
 `citations` key.
 
 **The stored thread carries them the same way**, at `metadata.citations` on the
-stored assistant message, indexing the stored `content`. The two copies can
-split differently: text on both sides of a file part streams as two messages
-and is stored as one, joined by a newline, and each copy's offsets index its
-own text. A posted-back message keeps its citations in the next save. Loading
-history does not restore them, so the model never sees them.
+stored assistant message, indexing the stored `content`. The two copies split
+alike: text on both sides of a file part streams as two messages and is stored
+as the same two, so each stored copy's offsets index the text it streamed. A
+posted-back message keeps its citations in the next save. Loading history does
+not restore them, so the model never sees them.
 
 ### An assistant message names the model that gave it
 
@@ -544,8 +544,8 @@ tell for certain which streamed message a stored one is, it gives the stored one
 a fresh id instead: reasoning withheld by `FORWARD_REASONING`, which was never
 announced, and the rare run whose stored copy splits or joins messages
 differently from the stream -- text, thinking and then tool calls in one
-response, a file part between two texts, or a tool that streams a text message
-of its own. An id the client keys something by is then lost for that message
+response, or a tool that streams a text message of its own. Text on both sides
+of a file part is stored as the two messages it streamed as, under their ids. An id the client keys something by is then lost for that message
 rather than lent to its neighbour, so a rating never lands on the wrong answer.
 The check covers the run as a whole, since the stream marks no boundary between
 one model response and the next: when it fails for one answer, every text-only

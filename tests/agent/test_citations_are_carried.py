@@ -139,8 +139,12 @@ async def test_text_either_side_of_a_file_cites_into_the_text_each_copy_holds() 
         ("B is", ["is"]),
         ("C too", ["too"]),
     ]
-    ((content, cited),) = _stored(store.saved[0])
-    assert (content, [_slice(content, c) for c in cited]) == ("B is\nC too", ["is", "too"])
+    assert [
+        (text, [_slice(text, c) for c in cited]) for text, cited in _stored(store.saved[0])
+    ] == [
+        ("B is", ["is"]),
+        ("C too", ["too"]),
+    ]
 
 
 async def test_text_after_a_tool_call_cites_from_the_start_of_its_own_message() -> None:

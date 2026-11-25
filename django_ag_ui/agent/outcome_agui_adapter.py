@@ -39,6 +39,7 @@ from django_ag_ui.agent.message_citations import (
 from django_ag_ui.agent.message_model_id import stamp_model_id, with_dumped_model_id
 from django_ag_ui.agent.prompt_metadata import stamp_enqueued_content, with_prompt_metadata
 from django_ag_ui.agent.serving_model_id import ServingModelId
+from django_ag_ui.agent.split_joined_texts import split_joined_texts
 from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD, stamp_answered_by
 from django_ag_ui.agent.stamp_outcome import stamp_outcome
 from django_ag_ui.agent.utils import run_error_code, run_error_message
@@ -75,8 +76,9 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
 
     @staticmethod
     def _dump_response_parts(msg: ModelResponse, **kwargs: Any) -> list[Message]:
-        """Upstream's dump of one response, assistant messages stamped with citations and model."""
-        dumped = with_dumped_citations(msg, AGUIAdapter._dump_response_parts(msg, **kwargs))
+        """Upstream's dump of one response, split as streamed, stamped with citations and model."""
+        dumped = split_joined_texts(msg, AGUIAdapter._dump_response_parts(msg, **kwargs))
+        dumped = with_dumped_citations(msg, dumped)
         return with_dumped_model_id(msg, dumped)
 
 

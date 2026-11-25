@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Text on both sides of a file part is stored as the two messages it streamed as, under
+  their streamed ids.** The stored copy joined the two texts with a newline into one message
+  under a fresh id, so a rating sent live on either piece named an id the thread never held,
+  and the stored message's citation offsets counted into the joined text. Each stored piece
+  now carries the id, citations and `model_id` its `TEXT_MESSAGE_END` carried; a tool call
+  after the file part rides on the second piece, as it streamed. Server-held history dumps the
+  same two pieces, so a resumed run keeps the stored ids.
+
 ## [0.91.0] — 2026-11-25
 
 ### Added
