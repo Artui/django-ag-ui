@@ -293,16 +293,26 @@ the task:
 | `phase` | When | `task` carries |
 | --- | --- | --- |
 | `backgrounded` | the task moved to the background | `taskId`, `reason` (`requested`, `auto`, `question`) |
-| `steered` | the parent sent the running task a message | `taskId` |
-| `question` | the task asked the parent a question | `taskId`, `questionId` |
-| `answered` | the parent answered it | `taskId`, `questionId` |
-| `cancel_requested` | the parent asked the task to stop | `taskId`, `forced` |
+| `steered` | the parent or the user sent the running task a message | `taskId`, `message`, `source` |
+| `question` | the task asked the parent a question | `taskId`, `questionId`, `question` |
+| `answered` | the parent or the user answered it | `taskId`, `questionId`, `answer`, `source` |
+| `cancel_requested` | the parent or the user asked the task to stop | `taskId`, `forced`, `source` |
 | `retried` | a remote task's worker is running it again | `taskId`, `attempt` |
 
-Like the tool steps they carry a `status` line and no text: neither the steering
-message, the question nor the answer is sent, only that it happened. A steer, an
-answer or a cancellation a listener vetoed before the observer saw it is not
-reported.
+Like the tool steps they carry a `status` line. They also carry what was said:
+
+- `message` is the steering text, `question` is the child's question, and `answer` is the
+  answer. Each is cut to 8000 characters, with `truncated: true` beside it when it was cut.
+  The question is the child model's own words: render it as untrusted text.
+- `source` is `"model"` when the parent model's tool acted, and `"user"` when one of the
+  [task controls](#task-controls) did. A user's act reads `<agent>: steered by you`,
+  `<agent>: answered by you` or `<agent>: cancellation requested by you`.
+- A steer, an answer or a cancellation that a listener vetoed before the observer saw it
+  is not reported.
+
+The steps are `CUSTOM` events, so they are never materialised into messages and never
+come back on a thread restore. The run log keeps every event, though, so with a run store
+the text is stored there and replays through `threads/<id>/events/`.
 
 These follow the harness's task events under their current names
 (`TaskStartedEvent`, `TaskBackgroundedEvent`, `TaskSteeredEvent`,
@@ -310,3 +320,71 @@ These follow the harness's task events under their current names
 `TaskRetriedEvent`, `TaskCompletedEvent`, `TaskFailedEvent`, `TaskCancelledEvent`).
 Without `task_control` nothing here changes: the delegation opens and closes on the
 `delegate_task` call, as above.
+
+## Task controls
+
+With a [run store](detached-runs.md), a user can act on the tasks of a run in progress.
+The mount serves four routes under the same auth, CSRF and owner scope as
+`threads/<id>/cancel/`. `<task_id>` is the `taskId` the steps carry.
+
+| Route | Name | Method | Body | Answer |
+| --- | --- | --- | --- | --- |
+| `threads/<id>/tasks/` | `thread_tasks` | `GET` | none | `200` `{"thread_id", "run_id", "tasks": [...]}` |
+| `threads/<id>/tasks/<task_id>/steer/` | `thread_task_steer` | `POST` | `{"message": str}` | `202` `{"thread_id", "task_id", "steered": true}` |
+| `threads/<id>/tasks/<task_id>/answer/` | `thread_task_answer` | `POST` | `{"question_id": str, "answer": str}` | `202` `{"thread_id", "task_id", "answered": true}` |
+| `threads/<id>/tasks/<task_id>/cancel/` | `thread_task_cancel` | `POST` | `{"force": bool}` (default `false`) | `202` `{"thread_id", "task_id", "cancel_requested": true, "forced": bool}` |
+
+What each route does:
+
+- **`steer/`** sends the running task a message, which it reads at its next model
+  request.
+- **`answer/`** answers the question named by `question_id`, the step's `questionId`. An
+  answer to a question the task no longer waits on is refused, so a stale page cannot
+  answer a newer question.
+- **`cancel/`** stops the task. `force: false` stops it before its next model request, and
+  `force: true` stops it at once. The task settles as a `SUBAGENT_ERROR` with
+  `code: "cancelled"`.
+- **`GET`** lists each running top-level task as `{"task_id", "delegation_id", "agent",
+  "status", "background", "question"}`. `question` is `null`, or
+  `{"question_id", "question"}` with `truncated` when it was cut. It is for a page that
+  has no log to replay. A page that reattaches through `events/` already has the steps.
+
+**A `POST` acknowledges and nothing more.** What it did arrives on the run's stream as the
+step above, with `source: "user"`, so a live chat and a reattached one draw the same thing.
+
+A refusal is `{"error", "reason", "thread_id"}`, with `"task_id"` on the per-task routes.
+`error` is a sentence for an operator; `reason` is a code a client can word.
+
+| Status | `reason` | When |
+| --- | --- | --- |
+| `400` | `invalid` | the body is not a JSON object; a field is the wrong type, blank, or over 8000 characters |
+| `404` | `no_run` | the thread has no run in progress |
+| `404` | `not_live_here` | the run is not live in this process |
+| `404` | `no_task` | the run has no top-level task by that id |
+| `409` | `not_running` | the task has finished; a finished task is not resumed from here, so send a user turn instead |
+| `409` | `not_waiting` | the task is not waiting on that `question_id` |
+| `409` | `remote` | the task runs on a remote worker (`TaskControl.remote_agents`), which these routes do not reach |
+
+An anonymous caller gets `401`; on a mount built with `require_authenticated=False` it gets
+`403`, since the run has no owner to scope it to. The wrong method gets `405`.
+
+**Only a run live in this process is reached.** The harness keeps task control in memory,
+on the run's own `DelegationTasks`, so the routes reach a run that the process serving the
+request is running:
+
+- a live run, or a detached one that carries on after its browser left;
+- from any event loop, because the control hops onto the run's own loop.
+
+A run in another process, such as a [queued run's](queued-runs.md) worker or another web
+worker, answers `404` `not_live_here`. `threads/<id>/cancel/` still stops the whole run
+from anywhere. The routes also need [`LIVE_REATTACH`](configuration.md#live_reattach) on,
+which is the default.
+
+**A user's control bypasses the harness's listeners.** Those listeners may veto the
+parent model's `message_task`, `answer_task` and `cancel_task`. A user's control is the
+user's own act under the mount's policy, so no listener sees it.
+
+**What stays with the model:** the tools themselves. The routes and the model reach the
+same task, so the first act wins, and a second answer to one question is refused on
+either side. Only top-level tasks, the ones with a card, are reachable; a nested task is
+steered by the task that started it.

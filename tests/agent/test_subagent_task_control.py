@@ -179,7 +179,9 @@ async def test_steering_a_running_task_is_reported() -> None:
 
     assert value["delegationId"] == "call-1"
     assert value["status"] == "researcher: steered"
-    assert "Only 2024." not in json.dumps(value)
+    assert value["task"]["message"] == "Only 2024."
+    assert value["task"]["source"] == "model"
+    assert "truncated" not in value["task"]
 
 
 async def test_a_cancelled_task_closes_as_an_error_with_a_code() -> None:
@@ -192,6 +194,7 @@ async def test_a_cancelled_task_closes_as_an_error_with_a_code() -> None:
     closed = [event for event in events if event["type"] == "SUBAGENT_ERROR"]
 
     assert _phase(events, "cancel_requested")["task"]["forced"] is True
+    assert _phase(events, "cancel_requested")["task"]["source"] == "model"
     assert [(event["code"], event["message"]) for event in closed] == [
         ("cancelled", "researcher was cancelled")
     ]
@@ -223,8 +226,10 @@ async def test_a_question_and_its_answer_are_reported() -> None:
     assert narration.index("question") < narration.index("answered")
     assert _phase(events, "question")["status"] == "researcher: asked a question"
     assert _phase(events, "backgrounded")["task"]["reason"] == "question"
-    assert "Which year?" not in json.dumps(_phase(events, "question"))
-    assert "2024" not in json.dumps(_phase(events, "answered"))
+    assert _phase(events, "question")["task"]["question"] == "Which year?"
+    answered = _phase(events, "answered")["task"]
+    assert (answered["answer"], answered["source"]) == ("2024", "model")
+    assert answered["questionId"] == _phase(events, "question")["task"]["questionId"]
     assert narration[-1] == "SUBAGENT_FINISHED"
 
 

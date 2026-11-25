@@ -189,6 +189,9 @@ next time it renews its lease, about every ten seconds. A thread
 with no run in progress gets a `404`. The route is checked by CSRF unless the mount
 says otherwise.
 
+A single sub-agent task of the run, rather than the whole run, is steered, answered or
+cancelled through `threads/<id>/tasks/`: see [Task controls](subagents.md#task-controls).
+
 ## Start a headless run
 
 [`AGUIHeadlessRunner`][django_ag_ui.agent.headless_runner.AGUIHeadlessRunner]

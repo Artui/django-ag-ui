@@ -63,6 +63,7 @@ from django_ag_ui.agent.mcp_apps_view import MCPAppsView
 from django_ag_ui.agent.queued_browser_start import QueuedBrowserStart
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.runs_view import RunsView
+from django_ag_ui.agent.task_controls_view import TaskControlsView
 from django_ag_ui.agent.tools_view import ToolsView
 from django_ag_ui.agent.types.spec_capability_source import SpecCapabilitySource
 from django_ag_ui.agent.types.spec_toolset_source import SpecToolsetSource
@@ -142,6 +143,10 @@ class AGUIServer:
     - ``thread_events`` / ``thread_cancel`` — a ``run_store`` is configured
       (``threads/<id>/events/``, a run's log replayed and tailed, and
       ``threads/<id>/cancel/``; see [Detached runs](detached-runs.md)).
+    - ``thread_tasks`` / ``thread_task_steer`` / ``thread_task_answer`` /
+      ``thread_task_cancel`` — a ``run_store`` is configured (``threads/<id>/tasks/``
+      and ``threads/<id>/tasks/<task_id>/steer|answer|cancel/``, a live run's sub-agent
+      tasks; see [Task controls](subagents.md#task-controls)).
     - ``thread_read`` — a ``run_store`` and a live conversation store
       (``threads/<id>/read/``, ``POST`` marks the thread read); with a run
       store the ``threads/`` rows also carry each thread's run status, see
@@ -1026,6 +1031,24 @@ class AGUIServer:
             patterns.append(
                 path("threads/<str:thread_id>/cancel/", cancel_view, name="thread_cancel")
             )
+            task_controls = TaskControlsView(self._run_store, self._view.live_runs, **self._policy)
+            patterns.append(
+                path(
+                    "threads/<str:thread_id>/tasks/",
+                    task_controls,
+                    {"action": "list"},
+                    name="thread_tasks",
+                )
+            )
+            for action in ("steer", "answer", "cancel"):
+                patterns.append(
+                    path(
+                        f"threads/<str:thread_id>/tasks/<str:task_id>/{action}/",
+                        task_controls,
+                        {"action": action},
+                        name=f"thread_task_{action}",
+                    )
+                )
             if not isinstance(self._conversation_store, NullConversationStore):
                 read_view = ThreadReadView(
                     self._run_store, self._conversation_store, **self._policy
