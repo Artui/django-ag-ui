@@ -104,6 +104,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the text persists in the run log and replays through `threads/<id>/events/`. It is still
   never materialised into messages.
 
+### Changed
+
+- **Requires django-spec-agents 0.28.0** (base, `[mcp]` and `[specs]`), whose
+  `HeadlessFiring.prompt_metadata` carries the wake line's mark across a queue, whose
+  `wake_thread` passes it to a runner that declares `PromptMetadataRunner`, and whose
+  `report_frame` builds the marked report parts.
+
 ## [0.90.0] — 2026-11-24
 
 ### Added
