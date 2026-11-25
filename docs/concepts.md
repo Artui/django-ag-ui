@@ -281,11 +281,17 @@ a request to another model, the answer names the fallback model, and each
 response of a run names its own:
 
 ```json
-{"type": "TEXT_MESSAGE_END", "messageId": "…", "metadata": {"model_id": "openai:gpt-5"}}
+{"type": "TEXT_MESSAGE_END", "messageId": "…",
+ "metadata": {"model_id": "anthropic:claude-sonnet-4-5", "model_fallback": true}}
 ```
 
-The stored assistant message carries the same value at `metadata.model_id`, and
-a posted-back message keeps it in the next save. The key is absent when
+`model_fallback: true` is there only when a model other than the request's first
+one answered, which is normally the agent's own model; a normal answer carries
+`model_id` alone. Every message a split turn streams carries both keys.
+
+The stored assistant message carries the same keys in its `metadata`, and a
+posted-back message keeps them in the next save. The fallback mark is also kept
+on pydantic-ai's `ModelResponse.metadata`, so replayed server-held history keeps it. The key is absent when
 pydantic-ai reports no id (history stored before it recorded one) and on an
 assistant message that holds only tool calls, which streams no text end.
 

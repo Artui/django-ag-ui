@@ -48,7 +48,7 @@ _RUN_IDENTITY = frozenset({"thread_id", "run_id"})
 class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
     """An ``AGUIAdapter`` whose ``TOOL_CALL_RESULT`` events say how the call went."""
 
-    serving_model: ServingModelId | None = None
+    serving_model: ServingModelId = field(default_factory=ServingModelId)
 
     def build_event_stream(self) -> UIEventStream[RunAgentInput, BaseEvent, Any, Any]:
         """Build the outcome-forwarding event stream."""
@@ -74,14 +74,14 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
     def _dump_response_parts(msg: ModelResponse, **kwargs: Any) -> list[Message]:
         """Upstream's dump of one response, assistant messages stamped with citations and model."""
         dumped = with_dumped_citations(msg, AGUIAdapter._dump_response_parts(msg, **kwargs))
-        return with_dumped_model_id(msg.model_id, dumped)
+        return with_dumped_model_id(msg, dumped)
 
 
 @dataclass
 class _OutcomeEventStream(AGUIEventStream[Any, Any]):
     """``AGUIEventStream`` stamping tool results with outcomes, text ends with citations, model."""
 
-    serving_model: ServingModelId | None = None
+    serving_model: ServingModelId = field(default_factory=ServingModelId)
     _text: str = field(default="", init=False)
     _citations: list[dict[str, Any]] = field(default_factory=list, init=False)
 
@@ -97,9 +97,10 @@ class _OutcomeEventStream(AGUIEventStream[Any, Any]):
     ) -> AsyncIterator[BaseEvent]:
         at, self._text = len(self._text), self._text + part.content
         self._citations += message_citations(self._text, at, part.citations or [])
-        model_id = self.serving_model.model_id if self.serving_model is not None else None
+        serving = self.serving_model
         async for event in super().handle_text_end(part, followed_by_text):
-            yield stamp_model_id(stamp_citations(event, self._citations), model_id)
+            cited = stamp_citations(event, self._citations)
+            yield stamp_model_id(cited, serving.model_id, fallback=serving.fallback)
 
     def handle_function_tool_result(
         self, event: FunctionToolResultEvent

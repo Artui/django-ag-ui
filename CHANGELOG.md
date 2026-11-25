@@ -15,7 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as `"openai:gpt-5"`), so a run that `ModelFallback` (or django-spec-agents'
   `build_model_fallback`) moved to another model names the fallback model, and each response
   names its own. The key is left out when pydantic-ai reports no id and on an assistant
-  message holding only tool calls. See
+  message holding only tool calls. **`model_fallback: true` rides beside it when a model
+  other than the request's first one answered** (the step's first attempt, normally the
+  agent's own model), and is absent otherwise, so a client can show the model only for a
+  fallback answer. A turn split into several messages carries both keys on every piece. The
+  mark is also kept on the response's own `ModelResponse.metadata` under the same key, so a
+  stored copy and a replay of server-held history keep it. See
   [An assistant message names the model that gave it](https://artui.github.io/django-ag-ui/concepts/#an-assistant-message-names-the-model-that-gave-it).
 
 ## [0.90.0] — 2026-11-24
