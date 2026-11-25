@@ -304,7 +304,8 @@ Like the tool steps they carry a `status` line. They also carry what was said:
 - `message` is the steering text, `question` is the child's question, and `answer` is the
   answer. Each is cut to 8000 characters, with `truncated: true` beside it when it was cut.
   The question is the child model's own words: render it as untrusted text.
-- `source` is `"model"` when the parent model's tool acted, and `"user"` when one of the
+- `source` is `"model"` when the run itself acted (the parent model's tool, or a harness
+  listener that answered a question), and `"user"` when one of the
   [task controls](#task-controls) did. A user's act reads `<agent>: steered by you`,
   `<agent>: answered by you` or `<agent>: cancellation requested by you`.
 - A steer, an answer or a cancellation that a listener vetoed before the observer saw it
@@ -344,7 +345,8 @@ What each route does:
 - **`cancel/`** stops the task. `force: false` stops it before its next model request, and
   `force: true` stops it at once. The task settles as a `SUBAGENT_ERROR` with
   `code: "cancelled"`.
-- **`GET`** lists each running top-level task as `{"task_id", "delegation_id", "agent",
+- **`GET`** lists each running top-level task this process can control (a remote task is
+  not listed) as `{"task_id", "delegation_id", "agent",
   "status", "background", "question"}`. `question` is `null`, or
   `{"question_id", "question"}` with `truncated` when it was cut. It is for a page that
   has no log to replay. A page that reattaches through `events/` already has the steps.

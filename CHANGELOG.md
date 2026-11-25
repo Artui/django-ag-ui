@@ -61,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `{"thread_id", "task_id", "cancel_requested": true, "forced": bool}`.
 
     `GET` answers `200` with `{"thread_id", "run_id", "tasks": [...]}`. It lists each
-    running top-level task as `{"task_id", "delegation_id", "agent", "status", "background",
+    running top-level task this process can control (a remote task is not listed) as `{"task_id", "delegation_id", "agent", "status", "background",
     "question"}`. `question` is `null`, or `{"question_id", "question"}` with `truncated`
     when the question was cut.
   - **Refusals:** each is `{"error", "reason", "thread_id"}`, plus `"task_id"` on the
@@ -95,16 +95,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `steered` gains `message`, the steering text;
   - `question` gains `question`, the child's question;
   - `answered` gains `answer`;
-  - `steered`, `answered` and `cancel_requested` gain `source`: `"model"` when the parent
-    model's tool acted, `"user"` when a task route did.
+  - `steered`, `answered` and `cancel_requested` gain `source`: `"model"` when the run itself
+    acted (the parent model's tool, or a harness listener that answered a question),
+    `"user"` when a task route did.
 
   Each text is cut to 8000 characters, with `truncated: true` beside it when cut. The
   `status` line of a user's act reads `<agent>: steered by you`, `<agent>: answered by you`
   or `<agent>: cancellation requested by you`. The steps are logged like every event, so
   the text persists in the run log and replays through `threads/<id>/events/`. It is still
   never materialised into messages.
-
-### Changed
 
 - **Requires django-spec-agents 0.28.0** (base, `[mcp]` and `[specs]`), whose
   `HeadlessFiring.prompt_metadata` carries the wake line's mark across a queue, whose

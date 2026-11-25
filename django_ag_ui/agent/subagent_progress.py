@@ -78,7 +78,8 @@ Under ``SubAgents(task_control=...)`` a task's own moments are steps too:
 ``questionId``, ``forced`` or ``attempt``, and what was said: ``message`` on
 ``steered``, ``question`` on ``question``, ``answer`` on ``answered``, each cut to
 ``TASK_TEXT_LIMIT`` with ``truncated`` beside it when cut. ``source`` on ``steered``,
-``answered`` and ``cancel_requested`` is ``"model"`` or ``"user"``: who acted.
+``answered`` and ``cancel_requested`` is ``"user"`` for a task route, else ``"model"``
+(the parent model's tool, or a listener that answered).
 
 ## Why ``CUSTOM`` beside the tagged tool calls
 

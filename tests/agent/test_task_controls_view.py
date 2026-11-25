@@ -23,6 +23,7 @@ from django_ag_ui.agent.agui_server import AGUIServer
 from django_ag_ui.config.build_ag_ui_config import build_ag_ui_config
 from tests.agent.test_events_view import _body, _drain, _events, _factory, _route, _server
 from tests.agent.test_subagent_task_control import _call
+from tests.authed_request_factory import authenticated_user
 
 Step = Callable[[list[ModelMessage]], Awaitable[Any]]
 
@@ -206,6 +207,8 @@ async def test_a_forced_cancel_closes_the_task_as_cancelled() -> None:
         (b"not json", "the body is not JSON"),
         ([], "the body is not a JSON object"),
         ({"message": "  "}, "message must be a non-blank string"),
+        ({"message": 7}, "message must be a non-blank string"),
+        ({}, "message must be a non-blank string"),
         ({"message": "x" * 8001}, "message is longer than 8000 characters"),
         ({"force": "yes"}, "force must be a boolean"),
     ],
@@ -227,6 +230,29 @@ async def test_a_malformed_body_is_refused_before_the_task_is_touched(
         400,
         {"error": error, "reason": "invalid", "thread_id": "t1", "task_id": task["task_id"]},
     )
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_another_user_reaches_neither_the_list_nor_a_task() -> None:
+    gate = asyncio.Event()
+    run = _Run(_gated_child(gate, []), _said("Done."))
+    await run.start()
+    task = await run.task()
+    other = authenticated_user(pk=2, username="other")
+
+    listing = _factory().get("/agent/threads/t1/tasks/")
+    listing.user = other
+    listed = await _route(run.server, "thread_tasks")(listing, thread_id="t1", action="list")
+    steer = _factory().post("/", data=json.dumps({"message": "x"}), content_type="application/json")
+    steer.user = other
+    steered = await _route(run.server, "thread_task_steer")(
+        steer, thread_id="t1", task_id=task["task_id"], action="steer"
+    )
+    gate.set()
+    await run.steps()
+
+    assert (listed.status_code, json.loads(listed.content)["reason"]) == (404, "no_run")
+    assert (steered.status_code, json.loads(steered.content)["reason"]) == (404, "no_run")
 
 
 @pytest.mark.django_db(transaction=True)
