@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.91.1] — 2026-11-25
+
 ### Fixed
 
 - **Text on both sides of a file part is stored as the two messages it streamed as, under
@@ -5194,7 +5196,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.91.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.91.1...HEAD
+[0.91.1]: https://github.com/Artui/django-ag-ui/compare/v0.91.0...v0.91.1
 [0.91.0]: https://github.com/Artui/django-ag-ui/compare/v0.90.0...v0.91.0
 [0.90.0]: https://github.com/Artui/django-ag-ui/compare/v0.89.0...v0.90.0
 [0.89.0]: https://github.com/Artui/django-ag-ui/compare/v0.88.1...v0.89.0
