@@ -3595,7 +3595,7 @@
   <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--why-custom-beside-the-tagged-tool-calls" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why QUEUED_RUN_LEASE module-attribute &para; QUEUED_RUN_LEASE = timedelta(minutes=10) How long a queued run's claim waits for a worker to take it up, unless the runner says. beside the tagged tool calls
+        Why AuditEvent dataclass &para; A single tool invocation as seen by the audit logger. Arguments are stored as a string, typically JSON, to keep records cheap to serialize and to discourage retaining sensitive raw values. One run-level record rides this shape: a client disconnecting mid-run is recorded as tool_name="agent.run", success=False and an error starting "cancelled:", so a sink can tell cancelled runs apart without widening the AuditLogger protocol. organization_id class-attribute instance-attribute &para; organization_id: str | None = None Multi-tenant scope of the acting user. None at this layer; a custom AuditLogger fills it from its own tenancy model. target_type class-attribute instance-attribute &para; target_type: str | None = None Kind of domain object the call acted on. None at this layer, where tool arguments are domain-opaque; a sink that knows its tools can classify them. target_id class-attribute instance-attribute &para; target_id: str | None = None Identifier of the acted-on object, paired with target_type. ip_address class-attribute instance-attribute &para; ip_address: str | None = None Client IP of the request that drove the run, when the view knows it. answered_by class-attribute instance-attribute &para; answered_by: str | None = None Who approved a gated call in the person's place, such as routine:&lt;id&gt; or reviewer:&lt;model&gt;, read from the call's answered_by metadata. None for a call that needed no approval or that a person approved. beside the tagged tool calls
       
     </span>
   </a>
@@ -6503,7 +6503,7 @@
   <a href="#django_ag_ui.SUBAGENT_EVENT_NAME--why-custom-beside-the-tagged-tool-calls" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why QUEUED_RUN_LEASE module-attribute &para; QUEUED_RUN_LEASE = timedelta(minutes=10) How long a queued run's claim waits for a worker to take it up, unless the runner says. beside the tagged tool calls
+        Why AuditEvent dataclass &para; A single tool invocation as seen by the audit logger. Arguments are stored as a string, typically JSON, to keep records cheap to serialize and to discourage retaining sensitive raw values. One run-level record rides this shape: a client disconnecting mid-run is recorded as tool_name="agent.run", success=False and an error starting "cancelled:", so a sink can tell cancelled runs apart without widening the AuditLogger protocol. organization_id class-attribute instance-attribute &para; organization_id: str | None = None Multi-tenant scope of the acting user. None at this layer; a custom AuditLogger fills it from its own tenancy model. target_type class-attribute instance-attribute &para; target_type: str | None = None Kind of domain object the call acted on. None at this layer, where tool arguments are domain-opaque; a sink that knows its tools can classify them. target_id class-attribute instance-attribute &para; target_id: str | None = None Identifier of the acted-on object, paired with target_type. ip_address class-attribute instance-attribute &para; ip_address: str | None = None Client IP of the request that drove the run, when the view knows it. answered_by class-attribute instance-attribute &para; answered_by: str | None = None Who approved a gated call in the person's place, such as routine:&lt;id&gt; or reviewer:&lt;model&gt;, read from the call's answered_by metadata. None for a call that needed no approval or that a person approved. beside the tagged tool calls
       
     </span>
   </a>
@@ -7916,12 +7916,13 @@ authoring tools apply:</p>
   <code>{"enabled": true}</code> back on.</li>
 </ul>
 <p>A skill is <code>{"id", "name", "description", "body", "userInvocable",
-"modelInvocable", "enabled"}</code>. A write takes the same keys less <code>id</code> and
-<code>enabled</code>; the two flags default to <code>true</code>. An <code>&lt;id&gt;</code> the caller cannot
-see or write is a <code>404</code>, whichever it is. A broken rule is a <code>400</code>, the
-skill cap a <code>409</code> and a refused write a <code>403</code>, each <code>{"error": "..."}</code>
-with no body in it. A <code>400</code> adds <code>"field"</code>, the write's key that broke the
-rule, when one did.</p>
+"modelInvocable", "enabled"}</code>, plus <code>scope</code> (<code>"personal"</code> or <code>"shared"</code>)
+when the policy has a <code>scope(request, skill)</code> method that returns one. A write
+takes the same keys less <code>id</code>, <code>enabled</code> and <code>scope</code>; the two flags default
+to <code>true</code>. An <code>&lt;id&gt;</code> the caller cannot see or write is a <code>404</code>, whichever it
+is. A broken rule is a <code>400</code>, the skill cap a <code>409</code> and a refused write a
+<code>403</code>, each <code>{"error": "..."}</code> with no body in it. A <code>400</code> adds <code>"field"</code>,
+the write's key that broke the rule, when one did.</p>
 <p>The authentication seam and closed default are
 <a class="autorefs autorefs-internal" title="ThreadsView" href="#django_ag_ui.ThreadsView"><code>ThreadsView</code></a>'s. Like the threads endpoints it is
 CSRF-checked by default, unlike the threads endpoints: an unstated <code>csrf_exempt</code>
@@ -8124,6 +8125,10 @@ The rest mount only when their backend is <em>active</em>:</p>
 <li><code>thread_events</code> / <code>thread_cancel</code> — a <code>run_store</code> is configured
   (<code>threads/&lt;id&gt;/events/</code>, a run's log replayed and tailed, and
   <code>threads/&lt;id&gt;/cancel/</code>; see <a href="../detached-runs/">Detached runs</a>).</li>
+<li><code>thread_tasks</code> / <code>thread_task_steer</code> / <code>thread_task_answer</code> /
+  <code>thread_task_cancel</code> — a <code>run_store</code> is configured (<code>threads/&lt;id&gt;/tasks/</code>
+  and <code>threads/&lt;id&gt;/tasks/&lt;task_id&gt;/steer|answer|cancel/</code>, a live run's sub-agent
+  tasks; see <a href="../subagents/#task-controls">Task controls</a>).</li>
 <li><code>thread_read</code> — a <code>run_store</code> and a live conversation store
   (<code>threads/&lt;id&gt;/read/</code>, <code>POST</code> marks the thread read); with a run
   store the <code>threads/</code> rows also carry each thread's run status, see
@@ -9471,7 +9476,8 @@ found in the mount whose id is its scope, or, in an unscoped store, its parent's
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">parent_run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">routine_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">prompt_metadata</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -9509,7 +9515,8 @@ found in the mount whose id is its scope, or, in an unscoped store, its parent's
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">parent_run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">routine_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">prompt_metadata</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -15247,8 +15254,11 @@ not a second transcript.</p>
 <code>phase</code> is <code>backgrounded</code>, <code>steered</code>, <code>question</code>, <code>answered</code>,
 <code>cancel_requested</code> or <code>retried</code>, <code>tool</code> is <code>null</code>, and a sixth key,
 <code>task</code>, names the task (<code>taskId</code>) plus what that moment adds -- <code>reason</code>,
-<code>questionId</code>, <code>forced</code> or <code>attempt</code>. The steering message, the question and
-the answer are not sent: the step says that it happened, not what was said.</p>
+<code>questionId</code>, <code>forced</code> or <code>attempt</code>, and what was said: <code>message</code> on
+<code>steered</code>, <code>question</code> on <code>question</code>, <code>answer</code> on <code>answered</code>, each cut to
+<code>TASK_TEXT_LIMIT</code> with <code>truncated</code> beside it when cut. <code>source</code> on <code>steered</code>,
+<code>answered</code> and <code>cancel_requested</code> is <code>"user"</code> for a task route, else <code>"model"</code>
+(the parent model's tool, or a listener that answered).</p>
 <h4 id="django_ag_ui.SUBAGENT_EVENT_NAME--why-custom-beside-the-tagged-tool-calls">Why <code>CUSTOM</code> beside the tagged tool calls<a class="headerlink" href="#django_ag_ui.SUBAGENT_EVENT_NAME--why-custom-beside-the-tagged-tool-calls" title="Permanent link">&para;</a></h4>
 <p>The child's tool calls also go out on the protocol's own vocabulary, ordinary
 <code>TOOL_CALL_*</code> events tagged with <code>subagentRunId</code> (<code>subagent_tool_calls</code>),

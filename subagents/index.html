@@ -612,6 +612,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#task-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task controls
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1173,6 +1184,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#task-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task controls
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1460,23 +1482,23 @@ the task:</p>
 </tr>
 <tr>
 <td><code>steered</code></td>
-<td>the parent sent the running task a message</td>
-<td><code>taskId</code></td>
+<td>the parent or the user sent the running task a message</td>
+<td><code>taskId</code>, <code>message</code>, <code>source</code></td>
 </tr>
 <tr>
 <td><code>question</code></td>
 <td>the task asked the parent a question</td>
-<td><code>taskId</code>, <code>questionId</code></td>
+<td><code>taskId</code>, <code>questionId</code>, <code>question</code></td>
 </tr>
 <tr>
 <td><code>answered</code></td>
-<td>the parent answered it</td>
-<td><code>taskId</code>, <code>questionId</code></td>
+<td>the parent or the user answered it</td>
+<td><code>taskId</code>, <code>questionId</code>, <code>answer</code>, <code>source</code></td>
 </tr>
 <tr>
 <td><code>cancel_requested</code></td>
-<td>the parent asked the task to stop</td>
-<td><code>taskId</code>, <code>forced</code></td>
+<td>the parent or the user asked the task to stop</td>
+<td><code>taskId</code>, <code>forced</code>, <code>source</code></td>
 </tr>
 <tr>
 <td><code>retried</code></td>
@@ -1485,16 +1507,158 @@ the task:</p>
 </tr>
 </tbody>
 </table>
-<p>Like the tool steps they carry a <code>status</code> line and no text: neither the steering
-message, the question nor the answer is sent, only that it happened. A steer, an
-answer or a cancellation a listener vetoed before the observer saw it is not
-reported.</p>
+<p>Like the tool steps they carry a <code>status</code> line. They also carry what was said:</p>
+<ul>
+<li><code>message</code> is the steering text, <code>question</code> is the child's question, and <code>answer</code> is the
+  answer. Each is cut to 8000 characters, with <code>truncated: true</code> beside it when it was cut.
+  The question is the child model's own words: render it as untrusted text.</li>
+<li><code>source</code> is <code>"model"</code> when the run itself acted (the parent model's tool, or a harness
+  listener that answered a question), and <code>"user"</code> when one of the
+  <a href="#task-controls">task controls</a> did. A user's act reads <code>&lt;agent&gt;: steered by you</code>,
+  <code>&lt;agent&gt;: answered by you</code> or <code>&lt;agent&gt;: cancellation requested by you</code>.</li>
+<li>A steer, an answer or a cancellation that a listener vetoed before the observer saw it
+  is not reported.</li>
+</ul>
+<p>The steps are <code>CUSTOM</code> events, so they are never materialised into messages and never
+come back on a thread restore. The run log keeps every event, though, so with a run store
+the text is stored there and replays through <code>threads/&lt;id&gt;/events/</code>.</p>
 <p>These follow the harness's task events under their current names
 (<code>TaskStartedEvent</code>, <code>TaskBackgroundedEvent</code>, <code>TaskSteeredEvent</code>,
 <code>TaskQuestionAskedEvent</code>, <code>TaskAnsweredEvent</code>, <code>TaskCancelRequestedEvent</code>,
 <code>TaskRetriedEvent</code>, <code>TaskCompletedEvent</code>, <code>TaskFailedEvent</code>, <code>TaskCancelledEvent</code>).
 Without <code>task_control</code> nothing here changes: the delegation opens and closes on the
 <code>delegate_task</code> call, as above.</p>
+<h2 id="task-controls">Task controls<a class="headerlink" href="#task-controls" title="Permanent link">&para;</a></h2>
+<p>With a <a href="../detached-runs/">run store</a>, a user can act on the tasks of a run in progress.
+The mount serves four routes under the same auth, CSRF and owner scope as
+<code>threads/&lt;id&gt;/cancel/</code>. <code>&lt;task_id&gt;</code> is the <code>taskId</code> the steps carry.</p>
+<table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Name</th>
+<th>Method</th>
+<th>Body</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>threads/&lt;id&gt;/tasks/</code></td>
+<td><code>thread_tasks</code></td>
+<td><code>GET</code></td>
+<td>none</td>
+<td><code>200</code> <code>{"thread_id", "run_id", "tasks": [...]}</code></td>
+</tr>
+<tr>
+<td><code>threads/&lt;id&gt;/tasks/&lt;task_id&gt;/steer/</code></td>
+<td><code>thread_task_steer</code></td>
+<td><code>POST</code></td>
+<td><code>{"message": str}</code></td>
+<td><code>202</code> <code>{"thread_id", "task_id", "steered": true}</code></td>
+</tr>
+<tr>
+<td><code>threads/&lt;id&gt;/tasks/&lt;task_id&gt;/answer/</code></td>
+<td><code>thread_task_answer</code></td>
+<td><code>POST</code></td>
+<td><code>{"question_id": str, "answer": str}</code></td>
+<td><code>202</code> <code>{"thread_id", "task_id", "answered": true}</code></td>
+</tr>
+<tr>
+<td><code>threads/&lt;id&gt;/tasks/&lt;task_id&gt;/cancel/</code></td>
+<td><code>thread_task_cancel</code></td>
+<td><code>POST</code></td>
+<td><code>{"force": bool}</code> (default <code>false</code>)</td>
+<td><code>202</code> <code>{"thread_id", "task_id", "cancel_requested": true, "forced": bool}</code></td>
+</tr>
+</tbody>
+</table>
+<p>What each route does:</p>
+<ul>
+<li><strong><code>steer/</code></strong> sends the running task a message, which it reads at its next model
+  request.</li>
+<li><strong><code>answer/</code></strong> answers the question named by <code>question_id</code>, the step's <code>questionId</code>. An
+  answer to a question the task no longer waits on is refused, so a stale page cannot
+  answer a newer question.</li>
+<li><strong><code>cancel/</code></strong> stops the task. <code>force: false</code> stops it before its next model request, and
+  <code>force: true</code> stops it at once. The task settles as a <code>SUBAGENT_ERROR</code> with
+  <code>code: "cancelled"</code>.</li>
+<li><strong><code>GET</code></strong> lists each running top-level task this process can control (a remote task is
+  not listed) as
+  <code>{"task_id", "delegation_id", "agent", "status", "background", "question"}</code>. <code>question</code> is <code>null</code>, or
+  <code>{"question_id", "question"}</code> with <code>truncated</code> when it was cut. It is for a page that
+  has no log to replay. A page that reattaches through <code>events/</code> already has the steps.</li>
+</ul>
+<p><strong>A <code>POST</code> acknowledges and nothing more.</strong> What it did arrives on the run's stream as the
+step above, with <code>source: "user"</code>, so a live chat and a reattached one draw the same thing.</p>
+<p>A refusal is <code>{"error", "reason", "thread_id"}</code>, with <code>"task_id"</code> on the per-task routes.
+<code>error</code> is a sentence for an operator; <code>reason</code> is a code a client can word.</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th><code>reason</code></th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>400</code></td>
+<td><code>invalid</code></td>
+<td>the body is not a JSON object; a field is the wrong type, blank, or over 8000 characters</td>
+</tr>
+<tr>
+<td><code>404</code></td>
+<td><code>no_run</code></td>
+<td>the thread has no run in progress</td>
+</tr>
+<tr>
+<td><code>404</code></td>
+<td><code>not_live_here</code></td>
+<td>the run is not live in this process</td>
+</tr>
+<tr>
+<td><code>404</code></td>
+<td><code>no_task</code></td>
+<td>the run has no top-level task by that id</td>
+</tr>
+<tr>
+<td><code>409</code></td>
+<td><code>not_running</code></td>
+<td>the task has finished; a finished task is not resumed from here, so send a user turn instead</td>
+</tr>
+<tr>
+<td><code>409</code></td>
+<td><code>not_waiting</code></td>
+<td>the task is not waiting on that <code>question_id</code></td>
+</tr>
+<tr>
+<td><code>409</code></td>
+<td><code>remote</code></td>
+<td>the task runs on a remote worker (<code>TaskControl.remote_agents</code>), which these routes do not reach</td>
+</tr>
+</tbody>
+</table>
+<p>An anonymous caller gets <code>401</code>; on a mount built with <code>require_authenticated=False</code> it gets
+<code>403</code>, since the run has no owner to scope it to. The wrong method gets <code>405</code>.</p>
+<p><strong>Only a run live in this process is reached.</strong> The harness keeps task control in memory,
+on the run's own <code>DelegationTasks</code>, so the routes reach a run that the process serving the
+request is running:</p>
+<ul>
+<li>a live run, or a detached one that carries on after its browser left;</li>
+<li>from any event loop, because the control hops onto the run's own loop.</li>
+</ul>
+<p>A run in another process, such as a <a href="../queued-runs/">queued run's</a> worker or another web
+worker, answers <code>404</code> <code>not_live_here</code>. <code>threads/&lt;id&gt;/cancel/</code> still stops the whole run
+from anywhere. The routes also need <a href="../configuration/#live_reattach"><code>LIVE_REATTACH</code></a> on,
+which is the default.</p>
+<p><strong>A user's control bypasses the harness's listeners.</strong> Those listeners may veto the
+parent model's <code>message_task</code>, <code>answer_task</code> and <code>cancel_task</code>. A user's control is the
+user's own act under the mount's policy, so no listener sees it.</p>
+<p><strong>What stays with the model:</strong> the tools themselves. The routes and the model reach the
+same task, so the first act wins, and a second answer to one question is refused on
+either side. Only top-level tasks, the ones with a card, are reachable; a nested task is
+steered by the task that started it.</p>
 
 
 

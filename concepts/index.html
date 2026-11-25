@@ -952,6 +952,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#an-assistant-message-names-the-model-that-gave-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An assistant message names the model that gave it
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1279,6 +1290,17 @@
     <span class="md-ellipsis">
       
         An assistant message carries its citations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-assistant-message-names-the-model-that-gave-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An assistant message names the model that gave it
       
     </span>
   </a>
@@ -1808,6 +1830,24 @@ split differently: text on both sides of a file part streams as two messages
 and is stored as one, joined by a newline, and each copy's offsets index its
 own text. A posted-back message keeps its citations in the next save. Loading
 history does not restore them, so the model never sees them.</p>
+<h3 id="an-assistant-message-names-the-model-that-gave-it">An assistant message names the model that gave it<a class="headerlink" href="#an-assistant-message-names-the-model-that-gave-it" title="Permanent link">&para;</a></h3>
+<p><code>TEXT_MESSAGE_END</code> also carries <code>metadata.model_id</code>: pydantic-ai's
+<code>ModelResponse.model_id</code>, the id the model was configured by, such as
+<code>"openai:gpt-5"</code>, not the dated name the provider reports. When a
+<code>ModelFallback</code> capability (or django-spec-agents' <code>build_model_fallback</code>) moves
+a request to another model, the answer names the fallback model, and each
+response of a run names its own:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TEXT_MESSAGE_END"</span><span class="p">,</span><span class="w"> </span><span class="nt">"messageId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"…"</span><span class="p">,</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w"> </span><span class="nt">"metadata"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"model_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"anthropic:claude-sonnet-4-5"</span><span class="p">,</span><span class="w"> </span><span class="nt">"model_fallback"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">}}</span>
+</span></code></pre></div>
+<p><code>model_fallback: true</code> is there only when a model other than the request's first
+one answered, which is normally the agent's own model; a normal answer carries
+<code>model_id</code> alone. Every message a split turn streams carries both keys.</p>
+<p>The stored assistant message carries the same keys in its <code>metadata</code>, and a
+posted-back message keeps them in the next save. The fallback mark is also kept
+on pydantic-ai's <code>ModelResponse.metadata</code>, so replayed server-held history keeps it. The key is absent when
+pydantic-ai reports no id (history stored before it recorded one) and on an
+assistant message that holds only tool calls, which streams no text end.</p>
 <p><a class="autorefs autorefs-internal" title="AGUIServer" href="../api/#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> builds this view (plus its sub-views)
 from the registry and exposes a namespaced <a class="autorefs autorefs-internal" title="urls
 
@@ -1862,11 +1902,11 @@ provable rather than merely plausible. Two endpoints are two <code>AGUIServer</c
 views and two agents — the agent is instance state, never module state.</p>
 <h3 id="varying-the-agent-per-request">Varying the agent per request<a class="headerlink" href="#varying-the-agent-per-request" title="Permanent link">&para;</a></h3>
 <p>Two narrow hooks, each <code>(request) -&gt; value</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">AGUIServer</span><span class="p">(</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">registry</span><span class="p">,</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">model_for_request</span><span class="o">=</span><span class="k">lambda</span> <span class="n">request</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">tenant</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">instructions_for_request</span><span class="o">=</span><span class="k">lambda</span> <span class="n">request</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">tenant</span><span class="o">.</span><span class="n">system_prompt</span><span class="p">,</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">AGUIServer</span><span class="p">(</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">model_for_request</span><span class="o">=</span><span class="k">lambda</span> <span class="n">request</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">tenant</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">instructions_for_request</span><span class="o">=</span><span class="k">lambda</span> <span class="n">request</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">tenant</span><span class="o">.</span><span class="n">system_prompt</span><span class="p">,</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="p">)</span>
 </span></code></pre></div>
 <p><code>model_for_request</code> replaces this run's model — a string goes through the same
 <a href="../configuration/#api_key"><code>API_KEY</code></a> / <a href="../configuration/#provider"><code>provider=</code></a>
@@ -1902,15 +1942,15 @@ its <a class="autorefs autorefs-internal" title="urls
   
       property
   " href="../api/#django_ag_ui.AGUIServer.urls"><code>.urls</code></a>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.urls</span><span class="w"> </span><span class="kn">import</span> <span class="n">path</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGUIServer</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">csrf_exempt</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"agent/"</span><span class="p">,</span> <span class="n">agent</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.urls</span><span class="w"> </span><span class="kn">import</span> <span class="n">path</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGUIServer</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">csrf_exempt</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"agent/"</span><span class="p">,</span> <span class="n">agent</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="p">]</span>
 </span></code></pre></div>
 <ul>
 <li><strong>The registry is passed once.</strong> The object builds the agent view <em>and</em> the
@@ -1940,16 +1980,16 @@ independent registries — one per surface — each namespaced separately.</p>
 registry) holding a catalog of <strong>skills</strong>: pre-defined prompts the client
 surfaces as chips and/or a <code>/</code>-command palette. Skills are <strong>data, not
 callables</strong> — there is no <code>@skill</code> decorator; you register them imperatively:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillRegistry</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">skills</span> <span class="o">=</span> <span class="n">SkillRegistry</span><span class="p">()</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">skills</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="s2">"summarise"</span><span class="p">,</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="n">title</span><span class="o">=</span><span class="s2">"Summarise"</span><span class="p">,</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">"Summarise the </span><span class="si">{selection}</span><span class="s2"> for me."</span><span class="p">,</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">description</span><span class="o">=</span><span class="s2">"Condense the current selection."</span><span class="p">,</span>
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">chip</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_ag_ui</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillRegistry</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">skills</span> <span class="o">=</span> <span class="n">SkillRegistry</span><span class="p">()</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">skills</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="s2">"summarise"</span><span class="p">,</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">title</span><span class="o">=</span><span class="s2">"Summarise"</span><span class="p">,</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="n">prompt</span><span class="o">=</span><span class="s2">"Summarise the </span><span class="si">{selection}</span><span class="s2"> for me."</span><span class="p">,</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="n">description</span><span class="o">=</span><span class="s2">"Condense the current selection."</span><span class="p">,</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    <span class="n">chip</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Each entry is a frozen <a class="autorefs autorefs-internal" title="SkillSpec
 
@@ -1971,9 +2011,9 @@ default). It is served by <code>SkillsView</code>
 (<code>django_ag_ui.skills.skills_view.SkillsView</code>) — a GET-only callable view — which
 <a class="autorefs autorefs-internal" title="AGUIServer" href="../api/#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> mounts at <code>&lt;prefix&gt;skills/</code> (named
 <code>skills</code>) when you pass <code>skills=</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"agent/"</span><span class="p">,</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">skills</span><span class="o">=</span><span class="n">skills</span><span class="p">)</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"agent/"</span><span class="p">,</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">skills</span><span class="o">=</span><span class="n">skills</span><span class="p">)</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="p">]</span>
 </span></code></pre></div>
 <p>The web component fetches this endpoint via its <code>data-skills-url</code> attribute.</p>
 <h2 id="tool-metadata-catalog">Tool metadata catalog<a class="headerlink" href="#tool-metadata-catalog" title="Permanent link">&para;</a></h2>
@@ -2010,9 +2050,9 @@ same <a class="autorefs autorefs-internal" title="ToolRegistry" href="../api/#dj
 catalog. <a class="autorefs autorefs-internal" title="AGUIServer" href="../api/#django_ag_ui.AGUIServer"><code>AGUIServer</code></a> builds it from the registry you
 pass and mounts it at <code>&lt;prefix&gt;tools/</code> (named <code>tools</code>) automatically — no extra
 argument:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"agent/"</span><span class="p">,</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">)</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"agent/"</span><span class="p">,</span> <span class="n">AGUIServer</span><span class="p">(</span><span class="n">registry</span><span class="p">)</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="p">]</span>
 </span></code></pre></div>
 <h2 id="conversation-persistence">Conversation persistence<a class="headerlink" href="#conversation-persistence" title="Permanent link">&para;</a></h2>
 <p>By default the server is <strong>stateless</strong>: the conversation lives in the message

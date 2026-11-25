@@ -1200,6 +1200,18 @@ place a skill's body reaches the browser, and only for a skill the caller may wr
 <p>A write sends <code>name</code>, <code>description</code> and <code>body</code>, with <code>userInvocable</code> and
 <code>modelInvocable</code> optional (both default to <code>true</code>). <code>id</code> is the row's primary key as a
 string.</p>
+<p>An entry can also say whose skill it is. Give the policy a <code>scope</code> method and every
+entry the editor answers with carries <code>"scope"</code>, either <code>"personal"</code> or <code>"shared"</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">SkillPolicy</span><span class="p">:</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">scope</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">skill</span><span class="p">):</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>        <span class="k">return</span> <span class="s2">"shared"</span> <span class="k">if</span> <span class="n">skill</span><span class="o">.</span><span class="n">owner_id</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="s2">"personal"</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="o">...</span>
+</span></code></pre></div>
+<p>The method is optional, and is the one django-spec-agents' <code>SkillScoping</code> protocol
+declares (0.28.0); <code>SkillPolicy</code> itself does not require it. A policy without it, or one
+whose method returns <code>None</code>, leaves the key out. <code>scope</code> describes a skill and grants nothing (<code>can_write</code> still decides who
+may save it), a write does not send it, and the <code>skills/</code> catalog does not carry it.</p>
 <p>Every write goes through the runtime's <code>create_skill</code>, <code>update_skill</code>, <code>disable_skill</code>
 and <code>enable_skill</code>, so the rules are the authoring tools' own:</p>
 <table>
@@ -1258,7 +1270,7 @@ without it fails rather than quietly running without the caller's skills. An
 <h2 id="telling-the-page">Telling the page<a class="headerlink" href="#telling-the-page" title="Permanent link">&para;</a></h2>
 <p>When a run saves a stored skill, the stream carries a <code>CUSTOM</code> event once the save
 commits:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"CUSTOM"</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ag_ui.skills_changed"</span><span class="p">,</span><span class="w"> </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"triage"</span><span class="p">}}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"CUSTOM"</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ag_ui.skills_changed"</span><span class="p">,</span><span class="w"> </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"triage"</span><span class="p">}}</span>
 </span></code></pre></div>
 <p>The name is <code>SKILLS_CHANGED_EVENT_NAME</code>. The page refetches its catalog on it. The
 event names the skill and never carries its body. A save the policy refuses sends
