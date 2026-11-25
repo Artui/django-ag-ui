@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the stored message's citation offsets counted into the joined text. Each stored piece
   now carries the id, citations and `model_id` its `TEXT_MESSAGE_END` carried; a tool call
   after the file part rides on the second piece, as it streamed. Server-held history dumps the
-  same two pieces, so a resumed run keeps the stored ids.
+  same two pieces, so a resumed run keeps the stored ids; an answer a thread stored joined,
+  before this release, is kept as that one stored message under its id.
 - **A thread whose stored history holds an empty user message can be continued.** A stored
   user prompt whose content is an empty list, or holds only a `CachePoint`, raised
   `IndexError` while the history was rebuilt for the next run, so the run failed. Such a

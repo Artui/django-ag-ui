@@ -4,7 +4,14 @@ from typing import Any
 
 from ag_ui.core import AssistantMessage, UserMessage
 from pydantic_ai import Agent, BinaryContent
-from pydantic_ai.messages import FilePart, ModelRequest, ModelResponse, TextPart, ThinkingPart
+from pydantic_ai.messages import (
+    FilePart,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ThinkingPart,
+    ToolCallPart,
+)
 from pydantic_ai.models.function import DeltaToolCall, FunctionModel
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
@@ -138,7 +145,7 @@ def test_three_pieces_split_where_each_streamed() -> None:
     assert len({m.id for m in split}) == 3
 
 
-def test_reasoning_between_the_texts_is_passed_over() -> None:
+def test_reasoning_before_the_texts_is_passed_over() -> None:
     parts = [ThinkingPart(content="hm"), TextPart(content="B"), FILE, TextPart(content="C")]
     response = ModelResponse(parts=parts)
 
@@ -156,3 +163,24 @@ def test_a_dump_the_parts_do_not_spell_is_left_whole() -> None:
     dumped: list[Any] = [_assistant("m", "B\nC and more")]
 
     assert split_joined_texts(response, dumped) == dumped
+
+
+def _split(*parts: Any) -> list[str | None]:
+    response = ModelResponse(parts=list(parts))
+    split = split_joined_texts(response, AGUIAdapter._dump_response_parts(response))
+    return [getattr(message, "content", None) for message in split]
+
+
+def test_the_same_text_on_both_sides_of_a_file_splits() -> None:
+    assert _split(TextPart(content="A"), FILE, TextPart(content="A")) == ["A", "A"]
+
+
+def test_an_empty_text_after_a_file_splits_off_empty() -> None:
+    assert _split(TextPart(content="A"), FILE, TextPart(content="")) == ["A", ""]
+
+
+def test_text_after_a_call_starts_its_own_message_and_splits_no_further() -> None:
+    call = ToolCallPart(tool_name="lookup", args={}, tool_call_id="c1")
+    parts = (TextPart(content="A"), FILE, TextPart(content="B"), call, TextPart(content="C"))
+
+    assert _split(*parts) == ["A", "B", "C"]

@@ -48,6 +48,7 @@ from django_ag_ui.agent.stamp_parent_run_id import stamp_parent_run_id
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
 from django_ag_ui.agent.utils import ERROR_CODE, IDENTIFIER_TOO_LONG_CODE, without_answered_by
 from django_ag_ui.agent.with_stored_activities import with_stored_activities
+from django_ag_ui.agent.with_stored_joins import with_stored_joins
 from django_ag_ui.agent.without_subagent_messages import without_subagent_messages
 from django_ag_ui.config.types.ag_ui_config import AGUIConfig
 from django_ag_ui.persistence.utils import messages_to_jsonable
@@ -294,6 +295,7 @@ class AgentSession:
                 kept = strip_binary_content(OutcomeAGUIAdapter.dump_messages(history))
                 if self._source_messages:
                     kept = lend_answered_by(kept, self._source_messages)
+                    kept = with_stored_joins(kept, self._source_messages)
                     kept = lend_stored_ids(
                         kept,
                         self._source_messages,
