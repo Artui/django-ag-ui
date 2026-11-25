@@ -151,8 +151,9 @@ class SkillPolicy:
     ...
 ```
 
-The method is optional. A policy without it, or one whose method returns `None`, leaves
-the key out. `scope` describes a skill and grants nothing (`can_write` still decides who
+The method is optional, and is the one django-spec-agents' `SkillScoping` protocol
+declares (0.28.0); `SkillPolicy` itself does not require it. A policy without it, or one
+whose method returns `None`, leaves the key out. `scope` describes a skill and grants nothing (`can_write` still decides who
 may save it), a write does not send it, and the `skills/` catalog does not carry it.
 
 Every write goes through the runtime's `create_skill`, `update_skill`, `disable_skill`

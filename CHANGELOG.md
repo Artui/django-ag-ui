@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **A skill editor entry says whose skill it is.** A skill policy may define an optional
-  `scope(request, skill)` method. Each entry the `skills/editor/` endpoint answers with
+  `scope(request, skill)` method, the one method of django-spec-agents' `SkillScoping`
+  protocol (0.28.0). Each entry the `skills/editor/` endpoint answers with
   then carries the key `scope`, whose value is `"personal"` or `"shared"`. A policy
   without the method serves entries without the key, and so does a method that returns
   `None`. The `skills/` catalog is unchanged. See
