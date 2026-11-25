@@ -52,6 +52,8 @@ class AGUIHeadlessRunner:
     found in the mount whose id is its scope, or, in an unscoped store, its parent's mount.
     """
 
+    accepts_prompt_metadata = True
+
     def __init__(
         self,
         *servers: AGUIServer,
@@ -379,6 +381,8 @@ class AGUIHeadlessRunner:
 
 class _RunsToFirstStop:
     """Wakes by running to the first stop, for a run whose loop may end once it returns."""
+
+    accepts_prompt_metadata = True
 
     def __init__(self, runner: AGUIHeadlessRunner) -> None:
         self._runner = runner

@@ -401,7 +401,8 @@ run's end wakes nothing.
 ### A message no user wrote says where it came from
 
 The wake's own line is no user's words, so `wake_thread` passes
-`prompt_metadata={"origin": "wake"}` and the runner stores it as the `metadata` of that
+`prompt_metadata={"origin": "wake"}` to a runner that declares
+`accepts_prompt_metadata = True`, as this package's does, and the runner stores it as the `metadata` of that
 user message, queued or not; the model sees only the text. The reports and questions the
 wake then hands the model ride the run's enqueued-messages activity, and each of its user
 entries carries the `metadata` its part was built with: `origin` is `"task_output"` for a

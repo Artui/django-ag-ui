@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
 from django_spec_agents.child_sessions.report_frame import report_frame
+from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.child_sessions.types.message_origin import MessageOrigin
 from django_spec_agents.child_sessions.types.message_origin_key import MESSAGE_ORIGIN_KEY
 from django_spec_agents.child_sessions.types.message_task_key import MESSAGE_TASK_KEY
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
+from django_spec_agents.contrib.store.default_inbound_queue import DefaultInboundQueue
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ModelRequest, TextContent, UserPromptPart
@@ -15,6 +18,7 @@ from pydantic_ai.messages import ModelRequest, TextContent, UserPromptPart
 from django_ag_ui.agent.headless_runner import AGUIHeadlessRunner
 from django_ag_ui.agent.outcome_agui_adapter import OutcomeAGUIAdapter
 from django_ag_ui.agent.prompt_metadata import with_prompt_metadata
+from tests.agent import test_child_first_run as child
 from tests.agent.test_enqueued_deliveries_are_stored_as_streamed import (
     _deliveries,
     _nudging_agent,
@@ -133,3 +137,60 @@ def test_a_dump_whose_user_messages_do_not_line_up_is_left_unmarked() -> None:
     extra = [*dumped, *dumped]
 
     assert with_prompt_metadata(history, extra) == extra
+
+
+def _woken(stored: list[dict[str, Any]]) -> list[Any]:
+    return [_marks([m])[0] for m in stored if "arrived while it was idle" in str(m["content"])]
+
+
+async def _mail(server: Any, user: Any, queue: DefaultInboundQueue, thread_id: str) -> None:
+    request = server.headless_request(user)
+    await queue.enqueue(
+        ThreadRef(thread_id, "helper"), InboundKind.STEER, {"text": "hi"}, request=request
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_wake_after_a_run_to_first_stop_stores_its_line_marked() -> None:
+    queue, user, holder = DefaultInboundQueue(), authenticated_user(), {}
+    model = child._Model(lambda: _mail(holder["server"], user, queue, "t-w"))
+    server = holder["server"] = child._server(model, queue)
+
+    await AGUIHeadlessRunner(server).run_to_first_stop(
+        "helper", "go", user, timeout=5, thread_id="t-w"
+    )
+    for _ in range(300):
+        if len(model.sent) == 2:
+            break
+        await asyncio.sleep(0.01)
+    await child._settled(server, "t-w")
+
+    assert _woken(await _stored(server, "t-w", user)) == ["wake"]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_wake_through_an_in_process_start_stores_its_line_marked() -> None:
+    queue, user = DefaultInboundQueue(), authenticated_user()
+    server = child._server(child._Model(), queue)
+    await _mail(server, user, queue, "t-i")
+
+    runner = AGUIHeadlessRunner(server)
+    await server.wake(server.headless_request(user), "t-i", after=0, runner=runner, timeout=5)
+    await child._settled(server, "t-i")
+
+    assert _woken(await _stored(server, "t-i", user)) == ["wake"]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_wake_through_a_queued_start_stores_its_line_marked() -> None:
+    queue, user = DefaultInboundQueue(), authenticated_user()
+    server = child._server(child._Model(), queue)
+    worker = WorkerQueue(AGUIHeadlessRunner(server))
+    await _mail(server, user, queue, "t-q")
+
+    runner = AGUIHeadlessRunner(server, queue=worker)
+    await server.wake(server.headless_request(user), "t-q", after=0, runner=runner, timeout=5)
+    await worker.work()
+
+    assert worker.enqueued[0][1]["prompt_metadata"] == WAKE
+    assert _woken(await _stored(server, "t-q", user)) == ["wake"]
