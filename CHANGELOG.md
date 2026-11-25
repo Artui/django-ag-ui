@@ -34,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The stored activity and a replay of server-held history keep both. Needs
   django-spec-agents 0.28.0. See
   [A message no user wrote says where it came from](https://artui.github.io/django-ag-ui/detached-runs/#a-message-no-user-wrote-says-where-it-came-from).
+- **A skill editor entry says whose skill it is.** A skill policy may define an optional
+  `scope(request, skill)` method, the one method of django-spec-agents' `SkillScoping`
+  protocol (0.28.0). Each entry the `skills/editor/` endpoint answers with
+  then carries the key `scope`, whose value is `"personal"` or `"shared"`. A policy
+  without the method serves entries without the key, and so does a method that returns
+  `None`. The `skills/` catalog is unchanged. See
+  [User skills](https://artui.github.io/django-ag-ui/user-skills/#the-editor).
 
 ## [0.90.0] — 2026-11-24
 

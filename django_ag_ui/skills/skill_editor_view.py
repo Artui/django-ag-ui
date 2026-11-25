@@ -40,12 +40,13 @@ class SkillEditorView:
       ``{"enabled": true}`` back on.
 
     A skill is ``{"id", "name", "description", "body", "userInvocable",
-    "modelInvocable", "enabled"}``. A write takes the same keys less ``id`` and
-    ``enabled``; the two flags default to ``true``. An ``<id>`` the caller cannot
-    see or write is a ``404``, whichever it is. A broken rule is a ``400``, the
-    skill cap a ``409`` and a refused write a ``403``, each ``{"error": "..."}``
-    with no body in it. A ``400`` adds ``"field"``, the write's key that broke the
-    rule, when one did.
+    "modelInvocable", "enabled"}``, plus ``scope`` (``"personal"`` or ``"shared"``)
+    when the policy has a ``scope(request, skill)`` method that returns one. A write
+    takes the same keys less ``id``, ``enabled`` and ``scope``; the two flags default
+    to ``true``. An ``<id>`` the caller cannot see or write is a ``404``, whichever it
+    is. A broken rule is a ``400``, the skill cap a ``409`` and a refused write a
+    ``403``, each ``{"error": "..."}`` with no body in it. A ``400`` adds ``"field"``,
+    the write's key that broke the rule, when one did.
 
     The authentication seam and closed default are
     [`ThreadsView`][django_ag_ui.ThreadsView]'s. Like the threads endpoints it is
@@ -93,11 +94,11 @@ class SkillEditorView:
 
     def _collection(self, request: HttpRequest) -> HttpResponseBase:
         if request.method == "GET":
-            skills = [_editor_entry(skill) for skill in self._writable(request)]
+            skills = [self._entry(request, skill) for skill in self._writable(request)]
             return JsonResponse({"skills": skills})
         if request.method == "POST":
             skill = create_skill(self._policy, request, _draft(request))
-            return JsonResponse(_editor_entry(skill), status=201)
+            return JsonResponse(self._entry(request, skill), status=201)
         return HttpResponseNotAllowed(["GET", "POST"])
 
     def _item(self, request: HttpRequest, skill_id: str) -> HttpResponseBase:
@@ -112,12 +113,19 @@ class SkillEditorView:
             skill = enable_skill(self._policy, request, skill)
         else:
             skill = disable_skill(self._policy, request, skill)
-        return JsonResponse(_editor_entry(skill))
+        return JsonResponse(self._entry(request, skill))
 
     def _writable(self, request: HttpRequest) -> list[Any]:
         """Every skill the caller sees that ``can_write`` admits: the only ones it may touch."""
         visible = self._policy.visible(request)
         return [skill for skill in visible if self._policy.can_write(request, skill)]
+
+    def _entry(self, request: HttpRequest, skill: Any) -> dict[str, Any]:
+        """The wire entry, with ``scope`` only when the policy's optional method names one."""
+        scope_of = getattr(self._policy, "scope", None)
+        scope = None if scope_of is None else scope_of(request, skill)
+        entry = _editor_entry(skill)
+        return entry if scope is None else {**entry, "scope": scope}
 
 
 def _editor_entry(skill: Any) -> dict[str, Any]:
