@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.91.1] — 2026-11-25
+
+### Fixed
+
+- **Text on both sides of a file part is stored as the two messages it streamed as, under
+  their streamed ids.** The stored copy joined the two texts with a newline into one message
+  under a fresh id, so a rating sent live on either piece named an id the thread never held,
+  and the stored message's citation offsets counted into the joined text. Each stored piece
+  now carries the id, citations and `model_id` its `TEXT_MESSAGE_END` carried; a tool call
+  after the file part rides on the second piece, as it streamed. Server-held history dumps the
+  same two pieces, so a resumed run keeps the stored ids; an answer a thread stored joined,
+  before this release, is kept as that one stored message under its id.
+- **A thread whose stored history holds an empty user message can be continued.** A stored
+  user prompt whose content is an empty list, or holds only a `CachePoint`, raised
+  `IndexError` while the history was rebuilt for the next run, so the run failed. Such a
+  message now stays in the history as stored and is never taken for the turn the client
+  resubmitted.
+
 ## [0.91.0] — 2026-11-25
 
 ### Added
@@ -5178,7 +5196,8 @@ changes for projects that install `pydantic-ai-slim>=2`:
   and the abstract `ModelConversationStore` base.
 - In-process `drf-mcp` toolset bridge behind the `[drf-mcp]` extra.
 
-[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.91.0...HEAD
+[Unreleased]: https://github.com/Artui/django-ag-ui/compare/v0.91.1...HEAD
+[0.91.1]: https://github.com/Artui/django-ag-ui/compare/v0.91.0...v0.91.1
 [0.91.0]: https://github.com/Artui/django-ag-ui/compare/v0.90.0...v0.91.0
 [0.90.0]: https://github.com/Artui/django-ag-ui/compare/v0.89.0...v0.90.0
 [0.89.0]: https://github.com/Artui/django-ag-ui/compare/v0.88.1...v0.89.0

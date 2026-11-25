@@ -412,10 +412,10 @@ async def test_a_split_answer_and_a_tool_spoken_text_borrow_no_id() -> None:
     _assert_unique(conversation)
 
 
-async def test_a_split_answer_and_a_joined_answer_borrow_no_id(
+async def test_text_either_side_of_a_file_is_stored_under_the_ids_it_streamed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The same split, joined by a cancel: the dump drops the file part and holds one merged text.
+    # The dump drops the file part; each text beside it is stored as the message it streamed as.
     original = function_module.FunctionStreamedResponse._get_event_iterator
 
     async def _one(item: Any) -> Any:
@@ -454,7 +454,9 @@ async def test_a_split_answer_and_a_joined_answer_borrow_no_id(
 
     (conversation,) = store.saved
     stored = _new(conversation, after=1)
-    assert [m.get("content") for m in stored if m["role"] == "assistant"] == ["A", None, "B\nC"]
+    assistant = [m for m in stored if m["role"] == "assistant"]
+    assert [m.get("content") for m in assistant] == ["A", None, "B", "C"]
+    assert [m["id"] for m in assistant[2:]] == _ids(frames, "TEXT_MESSAGE_START")[-2:]
     assert _borrowed(frames, stored) == []
     _assert_unique(conversation)
 

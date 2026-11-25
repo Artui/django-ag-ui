@@ -88,7 +88,8 @@ def _names(message: ModelMessage, turn_id: str) -> bool:
         return False
     if not any(isinstance(part, UserPromptPart) for part in message.parts):
         return False
-    return AGUIAdapter.dump_messages([message])[-1].id == turn_id
+    dumped = AGUIAdapter.dump_messages([message])
+    return bool(dumped) and dumped[-1].id == turn_id
 
 
 def _is_tool_result(part: object) -> TypeGuard[ToolReturnPart | RetryPromptPart]:  # ty: ignore[deprecated]

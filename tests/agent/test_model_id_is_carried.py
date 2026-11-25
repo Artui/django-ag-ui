@@ -5,7 +5,14 @@ from typing import Any
 from pydantic_ai import Agent, BinaryContent
 from pydantic_ai.capabilities import ModelFallback
 from pydantic_ai.exceptions import ModelAPIError
-from pydantic_ai.messages import FilePart, ModelRequest, ModelResponse, TextPart, ToolCallPart
+from pydantic_ai.messages import (
+    FilePart,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ThinkingPart,
+    ToolCallPart,
+)
 from pydantic_ai.models.function import DeltaToolCall, FunctionModel
 
 from django_ag_ui.agent.message_model_id import MODEL_FALLBACK_FIELD, MODEL_ID_FIELD
@@ -175,3 +182,15 @@ async def test_a_posted_back_fallback_answer_keeps_its_mark_in_the_next_save() -
 
     kept = [m for m in store.saved[1].messages if m.get("content") == "from the spare"]
     assert [_marks(m["metadata"]) for m in kept] == [(up.model_id, True)]
+
+
+def test_reasoning_in_an_answering_response_carries_no_model_id() -> None:
+    response = ModelResponse(
+        parts=[ThinkingPart(content="hm"), TextPart(content="ok")], model_id="openai:gpt-5"
+    )
+
+    reasoning, answer = OutcomeAGUIAdapter.dump_messages([response])
+
+    assert (reasoning.role, reasoning.content) == ("reasoning", "hm")
+    assert MODEL_ID_FIELD not in (reasoning.metadata or {})
+    assert answer.metadata[MODEL_ID_FIELD] == "openai:gpt-5"
