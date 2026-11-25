@@ -42,6 +42,7 @@ from django_ag_ui.agent.park_run import ParkRun
 from django_ag_ui.agent.reasoning_filter import drop_reasoning_events
 from django_ag_ui.agent.run_owner import RunOwner
 from django_ag_ui.agent.run_transcript import RunTranscript
+from django_ag_ui.agent.serving_model_id import ServingModelId
 from django_ag_ui.agent.stamp_approval_prompts import stamp_approval_prompts
 from django_ag_ui.agent.stamp_parent_run_id import stamp_parent_run_id
 from django_ag_ui.agent.strip_binary_content import strip_binary_content
@@ -113,7 +114,9 @@ class AgentSession:
         self._model = model
         self._instructions = instructions
         self._toolsets = toolsets
-        self._capabilities = capabilities if park is None else [*(capabilities or []), park]
+        self._serving_model = ServingModelId()
+        self._capabilities = [*(capabilities or []), *([] if park is None else [park])]
+        self._capabilities.append(self._serving_model)
         self._park = park
         self._waiting: tuple[RunWaiting, ...] = ()
         self._deps = deps
@@ -137,6 +140,7 @@ class AgentSession:
             manage_message_history="client" if message_history is None else "server",
             allow_uploaded_files=config.allow_uploaded_files,
             include_usage=config.include_usage,
+            serving_model=self._serving_model,
         )
 
     def stream(

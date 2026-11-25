@@ -271,6 +271,24 @@ and is stored as one, joined by a newline, and each copy's offsets index its
 own text. A posted-back message keeps its citations in the next save. Loading
 history does not restore them, so the model never sees them.
 
+### An assistant message names the model that gave it
+
+`TEXT_MESSAGE_END` also carries `metadata.model_id`: pydantic-ai's
+`ModelResponse.model_id`, the id the model was configured by, such as
+`"openai:gpt-5"`, not the dated name the provider reports. When a
+`ModelFallback` capability (or django-spec-agents' `build_model_fallback`) moves
+a request to another model, the answer names the fallback model, and each
+response of a run names its own:
+
+```json
+{"type": "TEXT_MESSAGE_END", "messageId": "…", "metadata": {"model_id": "openai:gpt-5"}}
+```
+
+The stored assistant message carries the same value at `metadata.model_id`, and
+a posted-back message keeps it in the next save. The key is absent when
+pydantic-ai reports no id (history stored before it recorded one) and on an
+assistant message that holds only tool calls, which streams no text end.
+
 [`AGUIServer`][django_ag_ui.AGUIServer] builds this view (plus its sub-views)
 from the registry and exposes a namespaced [`.urls`][django_ag_ui.AGUIServer.urls]
 tuple you mount at any prefix — see [Mounting](#mounting) below.

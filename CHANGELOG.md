@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **An assistant message names the model that answered it, under the `metadata` key
+  `model_id`**, both on its `TEXT_MESSAGE_END` and on the stored assistant message, beside
+  `citations`. The value is pydantic-ai's `ModelResponse.model_id` (the configured id, such
+  as `"openai:gpt-5"`), so a run that `ModelFallback` (or django-spec-agents'
+  `build_model_fallback`) moved to another model names the fallback model, and each response
+  names its own. The key is left out when pydantic-ai reports no id and on an assistant
+  message holding only tool calls. See
+  [An assistant message names the model that gave it](https://artui.github.io/django-ag-ui/concepts/#an-assistant-message-names-the-model-that-gave-it).
+
 ## [0.90.0] — 2026-11-24
 
 ### Added

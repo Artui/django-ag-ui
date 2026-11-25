@@ -34,6 +34,8 @@ from django_ag_ui.agent.message_citations import (
     stamp_citations,
     with_dumped_citations,
 )
+from django_ag_ui.agent.message_model_id import stamp_model_id, with_dumped_model_id
+from django_ag_ui.agent.serving_model_id import ServingModelId
 from django_ag_ui.agent.stamp_answered_by import ANSWERED_BY_FIELD, stamp_answered_by
 from django_ag_ui.agent.stamp_outcome import stamp_outcome
 from django_ag_ui.agent.utils import run_error_code, run_error_message
@@ -42,8 +44,11 @@ from django_ag_ui.agent.utils import run_error_code, run_error_message
 _RUN_IDENTITY = frozenset({"thread_id", "run_id"})
 
 
+@dataclass
 class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
     """An ``AGUIAdapter`` whose ``TOOL_CALL_RESULT`` events say how the call went."""
+
+    serving_model: ServingModelId | None = None
 
     def build_event_stream(self) -> UIEventStream[RunAgentInput, BaseEvent, Any, Any]:
         """Build the outcome-forwarding event stream."""
@@ -53,7 +58,8 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
                 field.name: getattr(upstream, field.name)
                 for field in fields(upstream)
                 if field.init and field.name not in _RUN_IDENTITY
-            }
+            },
+            serving_model=self.serving_model,
         )
 
     @classmethod
@@ -66,14 +72,16 @@ class OutcomeAGUIAdapter(AGUIAdapter[Any, Any]):
 
     @staticmethod
     def _dump_response_parts(msg: ModelResponse, **kwargs: Any) -> list[Message]:
-        """Upstream's dump of one response, each assistant message stamped with its citations."""
-        return with_dumped_citations(msg, AGUIAdapter._dump_response_parts(msg, **kwargs))
+        """Upstream's dump of one response, assistant messages stamped with citations and model."""
+        dumped = with_dumped_citations(msg, AGUIAdapter._dump_response_parts(msg, **kwargs))
+        return with_dumped_model_id(msg.model_id, dumped)
 
 
 @dataclass
 class _OutcomeEventStream(AGUIEventStream[Any, Any]):
-    """``AGUIEventStream`` stamping tool results with outcomes, text ends with citations."""
+    """``AGUIEventStream`` stamping tool results with outcomes, text ends with citations, model."""
 
+    serving_model: ServingModelId | None = None
     _text: str = field(default="", init=False)
     _citations: list[dict[str, Any]] = field(default_factory=list, init=False)
 
@@ -89,8 +97,9 @@ class _OutcomeEventStream(AGUIEventStream[Any, Any]):
     ) -> AsyncIterator[BaseEvent]:
         at, self._text = len(self._text), self._text + part.content
         self._citations += message_citations(self._text, at, part.citations or [])
+        model_id = self.serving_model.model_id if self.serving_model is not None else None
         async for event in super().handle_text_end(part, followed_by_text):
-            yield stamp_citations(event, self._citations)
+            yield stamp_model_id(stamp_citations(event, self._citations), model_id)
 
     def handle_function_tool_result(
         self, event: FunctionToolResultEvent
