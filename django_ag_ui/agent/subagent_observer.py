@@ -196,8 +196,9 @@ class SubAgentObserver(WrapperCapability[Any]):
     def _hand_over(self) -> None:
         """Give the run's live task handle its task owner, sink and cards, for the routes."""
         live, sink, tasks = RUN_TASKS.get(), SUBAGENT_SINK.get(), SUBAGENT_TASKS.get()
-        if live is None or sink is None or tasks is None:
+        if live is None or sink is None:
             return
+        assert tasks is not None
         from pydantic_ai_harness.sub_agents import DelegationTasks
 
         control = cast("Any", self.wrapped).task_control
