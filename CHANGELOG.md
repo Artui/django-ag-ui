@@ -22,6 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mark is also kept on the response's own `ModelResponse.metadata` under the same key, so a
   stored copy and a replay of server-held history keep it. See
   [An assistant message names the model that gave it](https://artui.github.io/django-ag-ui/concepts/#an-assistant-message-names-the-model-that-gave-it).
+- **A message no user wrote says where it came from, under the `metadata` keys `origin`
+  and `task`.** `AGUIHeadlessRunner.start` and `run_to_first_stop` take
+  `prompt_metadata=`, which django-spec-agents' `wake_thread` sets to `{"origin": "wake"}`,
+  and store it as the `metadata` of the run's user message, through a queued firing too.
+  Each user entry of an enqueued-messages activity carries the metadata its part's
+  `TextContent` was built with, which pydantic-ai drops: a child's report carries
+  `origin: "task_output"` and a question `origin: "task_question"`, with `task` naming the
+  task and holding the plain `body`, while `content` stays the framed text the model saw.
+  The stored activity and a replay of server-held history keep both. Needs
+  django-spec-agents 0.28.0. See
+  [A message no user wrote says where it came from](https://artui.github.io/django-ag-ui/detached-runs/#a-message-no-user-wrote-says-where-it-came-from).
 
 ## [0.90.0] — 2026-11-24
 

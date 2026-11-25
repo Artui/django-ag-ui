@@ -398,6 +398,27 @@ pending when the run started does not wake it again, since a mount that does not
 its queue would otherwise wake forever, and a run that failed does not wake. A browser
 run's end wakes nothing.
 
+### A message no user wrote says where it came from
+
+The wake's own line is no user's words, so `wake_thread` passes
+`prompt_metadata={"origin": "wake"}` and the runner stores it as the `metadata` of that
+user message, queued or not; the model sees only the text. The reports and questions the
+wake then hands the model ride the run's enqueued-messages activity, and each of its user
+entries carries the `metadata` its part was built with: `origin` is `"task_output"` for a
+child's report or `"task_question"` for its question, and `task` names it (`taskId`,
+`threadId`, `agentName`, `outcome` on a report, `questionId` on a question, and `body`, the
+plain text). The entry's `content` stays in the framed form the model saw:
+
+```json
+{"role": "user", "content": "<task_output …>all done</task_output>",
+ "metadata": {"origin": "task_output",
+              "task": {"taskId": "c1", "threadId": "c1", "agentName": "helper",
+                       "outcome": "ok", "body": "all done"}}}
+```
+
+The stored activity carries the same, and so does a replay of server-held history. A
+part with no metadata, such as a line the tool enqueued itself, carries none.
+
 `inbound_queue=` without `id=` is refused at startup, and a run of a child thread on a
 mount with no queue raises `ImproperlyConfigured` rather than run unbounded. `child_spend=`
 is optional; given, the run counts against the child-session budgets as well.
